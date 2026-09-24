@@ -4,6 +4,13 @@
 
 ## 2026-09-24
 
+**文档同步（CLAUDE.md · 00 / 02 / 04 / 05 / 06 / 07 / 08 / glossary 头部）**
+- CLAUDE.md（用户要求更新）：更名残留修正（标题衔枝、`pnpm xz`、`xz rebuild-derived`、`xz:attachment/`）；坐标加视觉与拼图；命令加 `dev:verify`、`lint:drift`、验证实例拼图回显、视觉基线重拍、worktree 预览、大包安装；不变量 5 加 primary-text / motion / reduced-transparency，不变量 9 加登录拼图；索引加 ADR-0004 ~ 0006；纪律加「合并用 `--no-ff`」。74 行。
+- 05 §2 注：npmmirror 大 tarball 问题与代理解法；§5 注：拼图 e2e、`localhost:3011` 限制、视觉基线重拍流程、精确匹配选择器、axe 首错即停。
+- 04 §5 注：组件实际位置与新增组件；06 §4 Sidebar 行按改版更新；08 §2.13 注：设置页动效档位。
+- 00 / 02 / 04 / 05 / 06 / 07 / 08 / glossary 刷新「更新」与「最后对照代码」。
+- 记录偏差：`48d2ce6`、`9d46b62` 两次合并用了 `--ff-only`，与 05 §4「`--no-ff`」不符；历史不改写，此后按 `--no-ff`。
+
 **侧栏改版 · 登录拼图滑块（ADR-0006）· 日历 · 未登录主题选择**
 - 新增 ADR-0006（登录拼图滑块，服务端出题、PG 一次性答案、不计入锁定、邀请通行证、production 禁回显）。
 - 00：新增 REQ-AUTH-016、REQ-TASK-024、REQ-UI-031（日历）、REQ-UI-032（侧栏改版）；REQ-UI-020 当前项改为翡翠渐变胶囊（无竖条）；REQ-UI-001 加注未登录页主题选择。

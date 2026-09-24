@@ -1,6 +1,6 @@
 # 02 API 约定
 
-> 状态：已采纳 · 版本：v3 · 更新：2026-09-23 · 最后对照代码：2026-09-24（Phase 1：`check-openapi-drift` 零差异，代码 90 条） · 依据 ADR-0001 §4。Hono 路由、错误、分页、鉴权、实时、文件、MCP 的权威约定。新路由不符合本文即为 bug。§9 路由表是 `scripts/check-openapi-drift.ts` 的机器契约（05 §6）。
+> 状态：已采纳 · 版本：v3 · 更新：2026-09-24 · 最后对照代码：2026-09-24（`/api/captcha`、`/tasks?from&to`；`check-openapi-drift` 零差异） · 依据 ADR-0001 §4。Hono 路由、错误、分页、鉴权、实时、文件、MCP 的权威约定。新路由不符合本文即为 bug。§9 路由表是 `scripts/check-openapi-drift.ts` 的机器契约（05 §6）。
 
 ---
 
