@@ -1,0 +1,485 @@
+/* 全局样式入口：Tailwind v4 + token 映射 + 材质 utility（06 §3.2）。组件不手写 backdrop-filter。 */
+@import "tailwindcss";
+@import "./tokens.css";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme inline {
+  --color-bg: var(--xz-bg);
+  --color-fg: var(--xz-fg);
+  --color-fg-muted: var(--xz-fg-muted);
+  --color-fg-faint: var(--xz-fg-faint);
+  --color-surface: var(--xz-surface-solid);
+  --color-surface-2: var(--xz-surface-solid-2);
+  --color-border: var(--xz-border);
+  --color-divider: var(--xz-divider);
+  --color-primary: var(--xz-primary);
+  --color-primary-fg: var(--xz-primary-fg);
+  --color-primary-soft: var(--xz-primary-soft);
+  --color-accent: var(--xz-accent);
+  --color-accent-soft: var(--xz-accent-soft);
+  --color-success: var(--xz-success);
+  --color-success-soft: var(--xz-success-soft);
+  --color-warning: var(--xz-warning);
+  --color-warning-soft: var(--xz-warning-soft);
+  --color-danger: var(--xz-danger);
+  --color-danger-soft: var(--xz-danger-soft);
+  --color-info: var(--xz-info);
+  --color-info-soft: var(--xz-info-soft);
+  --color-hover: var(--xz-hover-bg);
+  --color-active: var(--xz-active-bg);
+  --color-selected: var(--xz-selected-bg);
+  --color-selected-border: var(--xz-selected-border);
+  --color-scrim: var(--xz-scrim);
+  --color-moss-bg: var(--xz-palette-moss-bg);
+  --color-moss-fg: var(--xz-palette-moss-fg);
+  --color-amber-bg: var(--xz-palette-amber-bg);
+  --color-amber-fg: var(--xz-palette-amber-fg);
+  --color-indigo-bg: var(--xz-palette-indigo-bg);
+  --color-indigo-fg: var(--xz-palette-indigo-fg);
+  --color-ochre-bg: var(--xz-palette-ochre-bg);
+  --color-ochre-fg: var(--xz-palette-ochre-fg);
+  --color-teal-bg: var(--xz-palette-teal-bg);
+  --color-teal-fg: var(--xz-palette-teal-fg);
+  --color-plum-bg: var(--xz-palette-plum-bg);
+  --color-plum-fg: var(--xz-palette-plum-fg);
+  --color-gray-bg: var(--xz-palette-gray-bg);
+  --color-gray-fg: var(--xz-palette-gray-fg);
+  --color-pine-bg: var(--xz-palette-pine-bg);
+  --color-pine-fg: var(--xz-palette-pine-fg);
+  --radius-sm: var(--xz-radius-sm);
+  --radius-md: var(--xz-radius-md);
+  --radius-lg: var(--xz-radius-lg);
+  --radius-xl: var(--xz-radius-xl);
+  --shadow-soft: var(--xz-shadow-soft);
+  --shadow-card: var(--xz-shadow-card);
+  --shadow-float: var(--xz-shadow-float);
+  --font-sans: var(--xz-font-sans);
+  --font-serif: var(--xz-font-serif);
+  --font-mono: var(--xz-font-mono);
+  --ease-out: var(--xz-ease-out);
+  --ease-spring: var(--xz-ease-spring);
+}
+
+/* ---- 材质 utility（06 §3.2；backdrop-filter 带 -webkit- 前缀） ---- */
+@utility glass {
+  background: var(--xz-glass);
+  -webkit-backdrop-filter: blur(var(--xz-blur-regular)) saturate(180%);
+  backdrop-filter: blur(var(--xz-blur-regular)) saturate(180%);
+  border: 1px solid var(--xz-border);
+  box-shadow:
+    inset 0 1px 0 var(--xz-edge),
+    var(--xz-shadow-soft);
+  contain: paint;
+}
+@utility glass-thin {
+  background: var(--xz-glass-thin);
+  -webkit-backdrop-filter: blur(var(--xz-blur-thin)) saturate(160%);
+  backdrop-filter: blur(var(--xz-blur-thin)) saturate(160%);
+  border: 1px solid var(--xz-divider);
+}
+@utility glass-thick {
+  background:
+    radial-gradient(120% 80% at 0% 0%, var(--xz-sheen) 0%, transparent 32%), var(--xz-glass-thick);
+  -webkit-backdrop-filter: blur(var(--xz-blur-thick)) saturate(180%);
+  backdrop-filter: blur(var(--xz-blur-thick)) saturate(180%);
+  border: 1px solid var(--xz-border);
+  box-shadow:
+    inset 0 0 0 1.5px var(--xz-refract),
+    inset 0 1px 0 var(--xz-edge),
+    var(--xz-shadow-float);
+  isolation: isolate;
+}
+/* Toast：在 Topbar L1 玻璃之内，不再 blur（06 §4，玻璃不套玻璃） */
+@utility glass-thick-flat {
+  background:
+    radial-gradient(120% 80% at 0% 0%, var(--xz-sheen) 0%, transparent 32%), var(--xz-glass-thick);
+  border: 1px solid var(--xz-border);
+  box-shadow:
+    inset 0 0 0 1.5px var(--xz-refract),
+    inset 0 1px 0 var(--xz-edge),
+    var(--xz-shadow-float);
+}
+@utility glass-opaque {
+  background: var(--xz-glass-opaque);
+  border: 1px solid var(--xz-border);
+  box-shadow: var(--xz-shadow-soft);
+}
+@utility glass-cursor-sheen {
+  background-image:
+    radial-gradient(
+      240px circle at var(--mx, 50%) var(--my, 0%),
+      color-mix(in srgb, var(--xz-sheen) 60%, transparent) 0%,
+      transparent 70%
+    ),
+    radial-gradient(120% 80% at 0% 0%, var(--xz-sheen) 0%, transparent 32%);
+}
+@utility paper {
+  background: var(--xz-surface-solid);
+  border: 1px solid var(--xz-border);
+  box-shadow: inset 0 1px 0 var(--xz-edge);
+}
+@utility scrim {
+  background: var(--xz-scrim);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+@utility focus-ring {
+  outline: 2px solid var(--xz-focus-color);
+  outline-offset: 2px;
+}
+@utility skeleton-shimmer {
+  background: linear-gradient(90deg, transparent, var(--xz-edge), transparent)
+    var(--xz-surface-solid-2);
+  background-size: 200% 100%;
+  animation: xz-shimmer 1.4s linear infinite;
+}
+
+@media (prefers-reduced-transparency: reduce), print {
+  .glass,
+  .glass-thin,
+  .glass-thick,
+  .scrim {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+:root[data-transparency="reduce"] :is(.glass, .glass-thin, .glass-thick, .scrim) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+@keyframes xz-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ---- 06 §3.1 底板与光晕 ---- */
+html,
+body,
+#root {
+  min-height: 100%;
+}
+body {
+  margin: 0;
+  font-family: var(--xz-font-sans);
+  color: var(--xz-fg);
+  background-color: var(--xz-bg);
+  background-image:
+    radial-gradient(ellipse 70% 50% at 0% 0%, var(--xz-glow-1) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 100% 0%, var(--xz-glow-2) 0%, transparent 60%),
+    radial-gradient(ellipse 80% 60% at 100% 100%, var(--xz-glow-3) 0%, transparent 60%);
+  background-attachment: fixed;
+  transition: background-color var(--xz-dur-base) var(--xz-ease-out);
+  -webkit-font-smoothing: antialiased;
+  text-wrap: pretty;
+}
+body.xz-login {
+  background-image:
+    radial-gradient(ellipse 98% 70% at 0% 0%, var(--xz-glow-1) 0%, transparent 60%),
+    radial-gradient(ellipse 84% 70% at 100% 0%, var(--xz-glow-2) 0%, transparent 60%),
+    radial-gradient(ellipse 112% 84% at 100% 100%, var(--xz-glow-3) 0%, transparent 60%);
+}
+:root.vt-live body {
+  transition: none;
+}
+
+/* ---- 06 §5.4 滚动条与选区；§3.4 焦点环（outline，forced-colors 可见） ---- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--xz-scrollbar) transparent;
+}
+::selection {
+  background: var(--xz-selection);
+}
+:focus-visible {
+  outline: 2px solid var(--xz-focus-color);
+  outline-offset: 2px;
+}
+
+/* ---- 06 §6 主题切换 View Transitions ---- */
+::view-transition {
+  pointer-events: none;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--xz-dur-stage);
+  animation-timing-function: var(--xz-ease-out);
+}
+::view-transition-old(root) {
+  animation-name: xz-vt-dissolve-out;
+}
+::view-transition-new(root) {
+  animation-name: xz-vt-dissolve-in;
+}
+:root.vt-circle::view-transition-old(root) {
+  animation: xz-vt-dim var(--xz-dur-theme) var(--xz-ease-out) both;
+}
+:root.vt-circle::view-transition-new(root) {
+  animation: xz-vt-reveal var(--xz-dur-theme) var(--xz-ease-out) both;
+  -webkit-mask-image: radial-gradient(
+    circle at var(--vt-x) var(--vt-y),
+    black var(--vt-mask, 0px),
+    transparent calc(var(--vt-mask, 0px) + 90px)
+  );
+  mask-image: radial-gradient(
+    circle at var(--vt-x) var(--vt-y),
+    black var(--vt-mask, 0px),
+    transparent calc(var(--vt-mask, 0px) + 90px)
+  );
+}
+@property --vt-mask {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+@keyframes xz-vt-reveal {
+  from {
+    --vt-mask: 0px;
+  }
+  to {
+    --vt-mask: var(--vt-r, 2000px);
+  }
+}
+@keyframes xz-vt-dim {
+  to {
+    filter: brightness(0.9) saturate(0.92);
+  }
+}
+@keyframes xz-vt-dissolve-out {
+  to {
+    opacity: 0;
+    filter: blur(5px);
+  }
+}
+@keyframes xz-vt-dissolve-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none;
+  }
+}
+
+/* ---- 进入动画（进入 ≤ 320ms；reduced-motion 时时长 token 为 0） ---- */
+@keyframes xz-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes xz-pop-in {
+  from {
+    opacity: 0;
+    transform: translate(var(--tw-translate-x, 0), var(--tw-translate-y, 0)) scale(0.97);
+  }
+}
+@keyframes xz-slide-left {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+@keyframes xz-slide-right {
+  from {
+    transform: translateX(-24px);
+    opacity: 0;
+  }
+}
+@keyframes xz-slide-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+@keyframes xz-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ---- 编辑器正文（03；纸面上阅读行高 1.75） ---- */
+.xz-prose {
+  line-height: 1.75;
+  min-height: 12rem;
+}
+.xz-prose > * + * {
+  margin-top: 0.75em;
+}
+.xz-prose h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.25;
+  margin-top: 1.5em;
+}
+.xz-prose h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-top: 1.25em;
+}
+.xz-prose ul {
+  list-style: disc;
+  padding-left: 1.5em;
+}
+.xz-prose ol {
+  list-style: decimal;
+  padding-left: 1.5em;
+}
+.xz-prose ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0.25em;
+}
+.xz-prose ul[data-type="taskList"] li {
+  display: flex;
+  gap: 0.5em;
+}
+.xz-prose code {
+  color: var(--xz-code-inline-fg);
+  background: var(--xz-code-inline-bg);
+  border-radius: var(--xz-radius-sm);
+  padding: 0.1em 0.3em;
+  font-family: var(--xz-font-mono);
+  font-size: 0.9em;
+}
+.xz-prose pre {
+  background: var(--xz-surface-solid-2);
+  border-radius: var(--xz-radius-md);
+  padding: 0.75em 1em;
+  font-family: var(--xz-font-mono);
+  font-size: 0.875rem;
+  overflow-x: auto;
+}
+.xz-prose pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+.xz-prose blockquote {
+  border-left: 3px solid var(--xz-border);
+  padding-left: 1em;
+  color: var(--xz-fg-muted);
+}
+.xz-prose table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.xz-prose th,
+.xz-prose td {
+  border: 1px solid var(--xz-border);
+  padding: 0.4em 0.6em;
+  vertical-align: top;
+}
+.xz-prose th {
+  background: var(--xz-surface-solid-2);
+  font-weight: 600;
+  text-align: left;
+}
+.xz-prose .xz-callout {
+  background: var(--xz-info-soft);
+  border-radius: var(--xz-radius-md);
+  padding: 0.75em 1em;
+}
+.xz-prose .xz-mention,
+.xz-prose .xz-entry-link {
+  color: var(--xz-primary);
+  background: var(--xz-selected-bg);
+  border-radius: var(--xz-radius-sm);
+  padding: 0 0.2em;
+  text-decoration: none;
+}
+.xz-prose .xz-atom {
+  color: var(--xz-fg-muted);
+}
+.xz-prose img {
+  max-width: 100%;
+  border-radius: var(--xz-radius-md);
+}
+.xz-prose p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--xz-fg-faint);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+/* 远端光标（CollaborationCaret；颜色为 8 色板 token） */
+.collaboration-carets__caret {
+  position: relative;
+  margin-left: -1px;
+  margin-right: -1px;
+  border-left: 1px solid;
+  border-right: 1px solid;
+  word-break: normal;
+  pointer-events: none;
+}
+.collaboration-carets__label {
+  position: absolute;
+  top: -1.4em;
+  left: -1px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: normal;
+  white-space: nowrap;
+  color: var(--xz-surface-solid);
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px 3px 3px 0;
+  user-select: none;
+}
+
+/* 拖拽放不下：弹回并晃动（06 §4、REQ-UI-019）；reduced-motion 下时长 token 为 0 即不晃 */
+@keyframes xz-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(6px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(4px);
+  }
+}
+
+/*
+ * 06 §7、REQ-MOBILE-007：窄屏触控目标 ≥ 40×40。小控件保持视觉尺寸，用 ::after 向四周扩出点击区；
+ * 放在 base 层：工具类（absolute / fixed / after:*）优先，不改变已有定位与伪元素用法。
+ * 正文里的行内链接豁免（WCAG 2.5.8 inline 例外）。
+ */
+@layer base {
+  @media (width < 64rem) {
+    :where(button, [role="button"], [role="checkbox"], [role="tab"], [role="switch"], a[href]):not(
+        .xz-prose a
+      ) {
+      position: relative;
+    }
+    :where(button, [role="button"], [role="checkbox"], [role="tab"], [role="switch"], a[href]):not(
+        .xz-prose a
+      )::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: max(100%, 40px);
+      height: max(100%, 40px);
+      transform: translate(-50%, -50%);
+    }
+    :where(select, input:not([type="checkbox"], [type="radio"], [type="hidden"])) {
+      min-height: 40px;
+    }
+  }
+}

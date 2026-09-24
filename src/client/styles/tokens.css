@@ -1,0 +1,279 @@
+/*
+ * 设计 token 唯一来源（CLAUDE.md 不变量 5；04 §2、06 §3）。颜色只在 :root（日场）与 [data-theme='dark']（夜场）两处定义。
+ * scripts/check-contrast.ts 解析本文件跑对比度矩阵；scripts/check-css.ts 允许本文件出现色值。
+ */
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* ---- 06 §3.1 底板与光晕 ---- */
+  --xz-bg: #f4f4f1;
+  --xz-glow-1: rgba(63, 125, 90, 0.16);
+  --xz-glow-2: rgba(201, 138, 46, 0.12);
+  --xz-glow-3: rgba(99, 102, 241, 0.1);
+
+  /* ---- 06 §3.2 玻璃与纸面 ---- */
+  --xz-glass-thin: rgba(255, 255, 255, 0.45);
+  --xz-glass: rgba(255, 255, 255, 0.62);
+  --xz-glass-thick: rgba(255, 255, 255, 0.82);
+  --xz-glass-opaque: rgba(255, 255, 255, 0.98);
+  --xz-surface-solid: #fbfbfa;
+  --xz-surface-solid-2: #f2f2ef;
+  --xz-surface: var(--xz-surface-solid);
+  --xz-surface-2: var(--xz-surface-solid-2);
+  --xz-blur-thin: 12px;
+  --xz-blur-regular: 20px;
+  --xz-blur-thick: 24px;
+  --xz-blur-cmdk: 28px;
+  --xz-border: rgba(60, 60, 67, 0.13);
+  --xz-divider: rgba(60, 60, 67, 0.07);
+  --xz-edge: rgba(255, 255, 255, 0.65);
+  --xz-edge-login: rgba(255, 255, 255, 0.9);
+  --xz-refract: color-mix(in srgb, #fff 40%, var(--xz-glow-1));
+  --xz-sheen: rgba(255, 255, 255, 0.55);
+  --xz-scrim: rgba(0, 0, 0, 0.28);
+  --xz-fg: #1d211c;
+  --xz-fg-muted: #5e655a;
+  --xz-fg-faint: #888e84; /* 06 §3.2 原 #8A9086，最坏底 2.93 < 3，按 check-contrast 最小修正 */
+
+  /* ---- 04 §2.1 语义色 ---- */
+  --xz-primary: #3f7d5a;
+  --xz-primary-fg: #ffffff;
+  --xz-primary-soft: #e4f0e8;
+  --xz-accent: #c2852c; /* 04 §2.1 原 #C98A2E，作图标 2.83 < 3 */
+  --xz-accent-soft: #f7ecd9;
+  --xz-success: #2f8f5b;
+  --xz-success-soft: #e3f2ea;
+  --xz-warning: #c9822e;
+  --xz-warning-soft: #f8ebda;
+  --xz-danger: #c0483f;
+  --xz-danger-soft: #fcf2f1; /* 原 #F8E4E2，danger 字 4.05 < 4.5 */
+  --xz-info: #3b6fb6;
+  --xz-info-soft: #e3ecf8;
+
+  /* ---- 04 §2.1 空间 / 标签 8 色板（-bg / -fg ≥ AA）---- */
+  --xz-palette-moss-bg: #e4f0e8;
+  --xz-palette-moss-fg: #2f5e43;
+  --xz-palette-amber-bg: #f7ecd9;
+  --xz-palette-amber-fg: #7a5114;
+  --xz-palette-indigo-bg: #e6e7fb;
+  --xz-palette-indigo-fg: #3a3fa8;
+  --xz-palette-ochre-bg: #f5e6da;
+  --xz-palette-ochre-fg: #8a4a1f;
+  --xz-palette-teal-bg: #ddf1ef;
+  --xz-palette-teal-fg: #1f6660;
+  --xz-palette-plum-bg: #f2e4ef;
+  --xz-palette-plum-fg: #7a3569;
+  --xz-palette-gray-bg: #ecece8;
+  --xz-palette-gray-fg: #4f554b;
+  --xz-palette-pine-bg: #ddebe3;
+  --xz-palette-pine-fg: #24513b;
+
+  /* ---- 06 §3.3 深度 ---- */
+  --xz-shadow-soft: 0 2px 10px rgba(0, 0, 0, 0.05);
+  --xz-shadow-card: 0 8px 24px rgba(0, 0, 0, 0.06), 0 2px 6px rgba(0, 0, 0, 0.04);
+  --xz-shadow-float: 0 14px 40px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.06);
+
+  /* ---- 04 §2.2 字体 ---- */
+  --xz-font-sans: "MiSans", "Inter", system-ui, "PingFang SC", "Noto Sans SC", sans-serif;
+  --xz-font-serif: "LXGW WenKai Screen", "Noto Serif SC", serif;
+  --xz-font-mono: "JetBrains Mono", "MiSans", ui-monospace, monospace;
+
+  /* ---- 04 §2.3 间距 / 圆角 / 层级 ---- */
+  --xz-radius-sm: 4px;
+  --xz-radius-md: 8px;
+  --xz-radius-lg: 12px;
+  --xz-radius-xl: 16px;
+  --xz-z-sticky: 10;
+  --xz-z-dropdown: 20;
+  --xz-z-peek: 25;
+  --xz-z-overlay: 30;
+  --xz-z-scrim: 39;
+  --xz-z-modal: 40;
+  --xz-z-toast: 50;
+  --xz-z-cmdk: 60;
+  --xz-topbar-h: 56px;
+  --xz-sidebar-w: 240px;
+  --xz-aside-w: 320px;
+  --xz-bottomnav-h: 60px;
+  /* 列表行高（04 §4 密度，REQ-UI-011）：comfortable 40 / compact −20% = 32 */
+  --xz-row-h: 40px;
+
+  /* ---- 04 §2.4 动效（标准档） ---- */
+  --xz-dur-fast: 120ms;
+  --xz-dur-base: 200ms;
+  --xz-dur-slow: 320ms;
+  --xz-dur-stage: 480ms;
+  --xz-dur-theme: 650ms;
+  --xz-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --xz-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --xz-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --xz-bg: #0a0c0b;
+  --xz-glow-1: rgba(111, 181, 140, 0.2);
+  --xz-glow-2: rgba(226, 169, 79, 0.14);
+  --xz-glow-3: rgba(129, 140, 248, 0.16);
+  --xz-glass-thin: rgba(255, 255, 255, 0.035);
+  --xz-glass: rgba(255, 255, 255, 0.055);
+  --xz-glass-thick: rgba(255, 255, 255, 0.085);
+  --xz-glass-opaque: #161917;
+  --xz-surface-solid: #131513;
+  --xz-surface-solid-2: #191c19;
+  --xz-border: rgba(255, 255, 255, 0.08);
+  --xz-divider: rgba(255, 255, 255, 0.045);
+  --xz-edge: rgba(255, 255, 255, 0.09);
+  --xz-edge-login: rgba(255, 255, 255, 0.16);
+  --xz-refract: color-mix(in srgb, #fff 14%, var(--xz-glow-1));
+  --xz-sheen: rgba(255, 255, 255, 0.1);
+  --xz-scrim: rgba(0, 0, 0, 0.55);
+  --xz-fg: #eceae3;
+  --xz-fg-muted: #9aa094;
+  --xz-fg-faint: #787f75; /* 06 §3.2 原 #6F766B，2.66 < 3 */
+
+  --xz-primary: #6fb58c;
+  --xz-primary-fg: #0f1a13;
+  --xz-primary-soft: #1f3428;
+  --xz-accent: #e2a94f;
+  --xz-accent-soft: #3a2d17;
+  --xz-success: #4db07a;
+  --xz-success-soft: #17301f;
+  --xz-warning: #e2a04f;
+  --xz-warning-soft: #3a2a15;
+  --xz-danger: #e0685e;
+  --xz-danger-soft: #3a1c1a;
+  --xz-info: #6a98da;
+  --xz-info-soft: #1b2a40;
+
+  --xz-palette-moss-bg: #1f3428;
+  --xz-palette-moss-fg: #a6d9b9;
+  --xz-palette-amber-bg: #3a2d17;
+  --xz-palette-amber-fg: #f0c98a;
+  --xz-palette-indigo-bg: #25274a;
+  --xz-palette-indigo-fg: #b9bcf7;
+  --xz-palette-ochre-bg: #3a2619;
+  --xz-palette-ochre-fg: #ebb48e;
+  --xz-palette-teal-bg: #173331;
+  --xz-palette-teal-fg: #93d8d0;
+  --xz-palette-plum-bg: #36212f;
+  --xz-palette-plum-fg: #e5acd6;
+  --xz-palette-gray-bg: #262926;
+  --xz-palette-gray-fg: #c7cbc2;
+  --xz-palette-pine-bg: #1a2e24;
+  --xz-palette-pine-fg: #9ccfb2;
+
+  --xz-shadow-soft: 0 4px 14px rgba(0, 0, 0, 0.35);
+  --xz-shadow-card:
+    0 8px 28px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  --xz-shadow-float: 0 20px 60px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+/* ---- 两主题共用的派生 token（06 §3.4，color-mix 不新增手调色）；在每个主题容器上重算，嵌套 [data-theme] 才能取到本主题值 ---- */
+:root,
+[data-theme] {
+  --xz-primary-gradient: linear-gradient(
+    135deg,
+    var(--xz-primary) 0%,
+    color-mix(in srgb, var(--xz-primary) 70%, var(--xz-accent)) 100%
+  );
+  --xz-glow-primary: 0 0 0 4px color-mix(in srgb, var(--xz-primary) 22%, transparent);
+  --xz-hover-bg: color-mix(in srgb, var(--xz-fg) 6%, transparent);
+  --xz-active-bg: color-mix(in srgb, var(--xz-fg) 11%, transparent);
+  --xz-selected-bg: color-mix(in srgb, var(--xz-primary) 12%, transparent);
+  --xz-selected-border: color-mix(in srgb, var(--xz-primary) 40%, var(--xz-border));
+  --xz-focus-color: color-mix(in srgb, var(--xz-primary) 70%, transparent);
+  --xz-code-inline-fg: color-mix(in srgb, var(--xz-primary) 54%, var(--xz-fg));
+  --xz-code-inline-bg: color-mix(in srgb, var(--xz-primary) 8%, transparent);
+  --xz-selection: color-mix(in srgb, var(--xz-primary) 28%, transparent);
+  --xz-scrollbar: color-mix(in srgb, var(--xz-fg) 22%, transparent);
+}
+
+/* 06 §8：窄屏降 blur */
+@media (width < 64rem) {
+  :root {
+    --xz-blur-thin: 8px;
+    --xz-blur-regular: 12px;
+    --xz-blur-thick: 12px;
+    --xz-blur-cmdk: 12px;
+  }
+}
+
+/* 06 §3.2 / §7：玻璃不可用时的替身 */
+@media (prefers-reduced-transparency: reduce), print {
+  :root {
+    --xz-glass-thin: var(--xz-glass-opaque);
+    --xz-glass: var(--xz-glass-opaque);
+    --xz-glass-thick: var(--xz-glass-opaque);
+  }
+}
+:root[data-transparency="reduce"] {
+  --xz-glass-thin: var(--xz-glass-opaque);
+  --xz-glass: var(--xz-glass-opaque);
+  --xz-glass-thick: var(--xz-glass-opaque);
+}
+@supports not (backdrop-filter: blur(1px)) {
+  :root {
+    --xz-glass-thin: var(--xz-glass-opaque);
+    --xz-glass: var(--xz-glass-opaque);
+    --xz-glass-thick: var(--xz-glass-opaque);
+  }
+}
+
+/* 04 §2.4：减弱档（系统 reduced-motion 或用户设置） */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --xz-dur-fast: 0ms;
+    --xz-dur-base: 0ms;
+    --xz-dur-slow: 0ms;
+    --xz-dur-stage: 0ms;
+    --xz-dur-theme: 0ms;
+  }
+}
+:root[data-motion="reduce"] {
+  --xz-dur-fast: 0ms;
+  --xz-dur-base: 0ms;
+  --xz-dur-slow: 0ms;
+  --xz-dur-stage: 0ms;
+  --xz-dur-theme: 0ms;
+}
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --xz-ease-spring: linear(
+      0,
+      0.009,
+      0.035 2.1%,
+      0.141,
+      0.281 6.7%,
+      0.723 12.9%,
+      0.938 16.7%,
+      1.017,
+      1.077,
+      1.121,
+      1.149 24.3%,
+      1.159,
+      1.163,
+      1.161,
+      1.154 29.9%,
+      1.129 32.8%,
+      1.051 39.6%,
+      1.017 43.1%,
+      0.991,
+      0.977 51%,
+      0.974 53.8%,
+      0.975 57.1%,
+      0.997 69.8%,
+      1.003 76.9%,
+      1.004 83.8%,
+      1
+    );
+  }
+}
+
+/* 密度（04 §4、REQ-UI-011）：html[data-density='compact'] 行高 −20% */
+:root[data-density="compact"] {
+  --xz-row-h: 32px;
+}

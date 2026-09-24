@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true,
+    "types": ["node"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"]
+  },
+  "include": [
+    "scripts",
+    "drizzle.config.ts",
+    "vitest.config.ts",
+    "src/server",
+    "src/collab",
+    "src/shared",
+    "e2e",
+    "playwright.config.ts"
+  ]
+}

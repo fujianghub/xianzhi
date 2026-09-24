@@ -1,0 +1,21 @@
+# 追加到简斋的 Caddyfile（05 §7）。<domain> 替换为实际域名；xz-app / xz-collab 端口见 docker-compose.prod.yml。
+xz.<domain> {
+	encode zstd gzip
+
+	# 协同 WebSocket 直通（Hocuspocus）。前端连的是 /collab 本身：只写 /collab/* 不匹配它，会落到 xz-app 404
+	# （debug/2026-09-24-caddy-collab-matcher）。票据接口在 /api/v1/collab/token，不受影响
+	@collab path /collab /collab/*
+	handle @collab {
+		reverse_proxy 127.0.0.1:18011
+	}
+
+	# 构建产物长缓存（文件名带 hash）
+	@assets path /assets/*
+	# xz-app 已对 /assets/* 设同值；? 表示仅在上游未设时补上，避免重复头
+	header @assets ?Cache-Control "public, max-age=31536000, immutable"
+
+	# 其余（API、SPA、附件）全部走 xz-app；附件经 /api/v1/attachments 鉴权流式输出，不暴露 data/ 目录
+	handle {
+		reverse_proxy 127.0.0.1:18010
+	}
+}

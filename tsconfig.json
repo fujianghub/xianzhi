@@ -1,0 +1,4 @@
+{
+  "//": "tsx 运行时与编辑器默认读取此文件（jsx: react-jsx 等）；类型检查以 pnpm typecheck 的三个项目配置为准",
+  "extends": "./tsconfig.server.json"
+}

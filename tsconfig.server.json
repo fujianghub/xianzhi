@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "types": ["node"]
+  },
+  "include": ["src/server", "src/collab", "src/shared"],
+  "exclude": ["**/__tests__/**", "**/*.test.ts"]
+}

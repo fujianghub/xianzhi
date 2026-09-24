@@ -1,0 +1,145 @@
+# CI 草稿（05 §6、T0-029）——按全局红线规则，改 CI 配置需用户确认；确认后移动到 .github/workflows/ci.yml。
+# 阶段顺序：lint → typecheck → drift → test → build → audit → e2e（每阶段 needs 前一阶段，任一失败即阻断，REQ-OPS-006）。
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24'
+  PNPM_VERSION: '11.1.2'
+  GI_SKIP_DOTENV: '1'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: pnpm }
+      # CI 在境外，直连 npmjs；.npmrc 的 npmmirror 只用于国内开发机
+      - run: pnpm install --frozen-lockfile --registry=https://registry.npmjs.org
+      - run: pnpm lint
+
+  typecheck:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: pnpm }
+      - run: pnpm install --frozen-lockfile --registry=https://registry.npmjs.org
+      - run: pnpm exec vite build --mode development   # 生成 routeTree.gen.ts 供客户端类型检查
+      - run: pnpm typecheck
+
+  drift:
+    needs: typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: pnpm }
+      - run: pnpm install --frozen-lockfile --registry=https://registry.npmjs.org
+      - run: pnpm lint:drift
+
+  test:
+    needs: drift
+    runs-on: ubuntu-latest
+    services:
+      pg:
+        image: pgvector/pgvector:pg16
+        env: { POSTGRES_USER: gi, POSTGRES_PASSWORD: gi, POSTGRES_DB: gi }
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U gi -d gi" --health-interval 5s --health-timeout 3s --health-retries 20
+      mailpit:
+        image: axllent/mailpit:latest
+        env: { MP_SMTP_DISABLE_RDNS: '1' }
+        ports: ['1025:1025', '8025:8025']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: pnpm }
+      - run: pnpm install --frozen-lockfile --registry=https://registry.npmjs.org
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client-16 || sudo apt-get install -y postgresql-client
+      # 本期 test 层只校验 unit / api / collab 的 P0（05 §5）；vitest 的 globalSetup 自动建 gi_test 并迁移
+      - run: pnpm test
+        env: { PG_DOCKER_CONTAINER: '' }
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: req-coverage-test, path: debug/perf/req-coverage.*.json }
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: pnpm }
+      - run: pnpm install --frozen-lockfile --registry=https://registry.npmjs.org
+      - run: pnpm build   # 含 check-budget（首屏 ≤ 250 KB、编辑器 ≤ 400 KB gzip）
+      - uses: actions/upload-artifact@v4
+        with: { name: dist, path: dist/ }
+
+  audit:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}' }
+      # npmmirror 没有 audit 接口，必须指向 npmjs
+      - run: pnpm audit --audit-level high --registry=https://registry.npmjs.org
+
+  e2e:
+    needs: audit
+    if: github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'e2e')
+    runs-on: ubuntu-latest
+    services:
+      pg:
+        image: pgvector/pgvector:pg16
+        env: { POSTGRES_USER: gi, POSTGRES_PASSWORD: gi, POSTGRES_DB: gi }
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U gi -d gi" --health-interval 5s --health-timeout 3s --health-retries 20
+      mailpit:
+        image: axllent/mailpit:latest
+        env: { MP_SMTP_DISABLE_RDNS: '1' }
+        ports: ['1025:1025', '8025:8025']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: pnpm }
+      - run: pnpm install --frozen-lockfile --registry=https://registry.npmjs.org
+      # ubuntu runner 自带 google-chrome，playwright.config 用 channel: chrome
+      - run: pnpm e2e
+        env: { CI: '1' }
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            playwright-report/
+            test-results/
+            debug/perf/req-coverage.e2e.json
