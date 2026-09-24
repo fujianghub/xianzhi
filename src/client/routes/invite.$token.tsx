@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ThemeMenu } from '../components/layout/ThemeMenu.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { Input } from '../components/ui/input.tsx'
 import { FieldError, Label } from '../components/ui/label.tsx'
@@ -33,10 +34,14 @@ function Invite() {
   const [form, setForm] = useState({ email: '', name: '', password: '' })
   const accept = useMutation({
     mutationFn: async () => {
-      await unwrap(
+      const accepted = await unwrap<{ captchaPass: string }>(
         api.workspace.invitations[':id'].accept.$post({ param: { id: token }, json: form }),
       )
-      const r = await authClient.signIn.email({ email: form.email, password: form.password })
+      // 接受邀请即完成身份确认：用一次性通行证免拼图自动登录（ADR-0006）
+      const r = await authClient.signIn.email(
+        { email: form.email, password: form.password },
+        { headers: { 'x-captcha': accepted.captchaPass } },
+      )
       if (r.error) throw new ApiError({ status: r.error.status ?? 401, code: 'UNAUTHENTICATED' })
     },
     onSuccess: () => window.location.assign('/today'),
@@ -47,6 +52,7 @@ function Invite() {
   const gone = loadErr?.status === 410 || acceptErr?.status === 410
   return (
     <main className="flex min-h-dvh items-center justify-center p-4">
+      <ThemeMenu className="fixed top-4 right-4 z-(--xz-z-sticky)" />
       <div
         className="glass-thick w-full max-w-sm rounded-xl p-8 [--xz-edge:var(--xz-edge-login)]"
         data-testid="invite"

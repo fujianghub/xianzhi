@@ -10,4 +10,6 @@ export BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-e2e-only-secret-not-for-producti
 export COLLAB_TOKEN_SECRET=${COLLAB_TOKEN_SECRET:-e2e-only-collab-secret-not-for-production-01}
 export SMTP_HOST=${SMTP_HOST:-127.0.0.1} SMTP_PORT=${SMTP_PORT:-1025} MAIL_FROM="Xianzhi <no-reply@xz.local>"
 export DATA_DIR=${DATA_DIR:-./data/e2e} LOG_LEVEL=${LOG_LEVEL:-warn}
+# 拼图答案回显（ADR-0006）：e2e 走真实拖拽流程；production 下服务端强制忽略
+export XZ_CAPTCHA_DEBUG=1
 exec "$@"

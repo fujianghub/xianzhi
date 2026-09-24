@@ -5,10 +5,13 @@ import { BASE, STATE } from './helpers.ts'
 test.describe('已登录', () => {
   test.use({ storageState: STATE.owner })
 
-  test('REQ-UI-024 Sidebar 品牌位为燕印；favicon 为同形燕印', async ({ page, request }) => {
+  test('REQ-UI-024 Sidebar 品牌位为燕印（侧栏改版后 42px）；favicon 为同形燕印', async ({
+    page,
+    request,
+  }) => {
     await page.setViewportSize({ width: 1280, height: 800 })
     await page.goto('/today')
-    await expect(page.getByTestId('sidebar').locator('.xz-seal.xz-seal-sm')).toBeVisible()
+    await expect(page.getByTestId('sidebar').locator('.xz-seal.xz-seal-md')).toBeVisible()
     const svg = await (await request.get(`${BASE}/favicon.svg`)).text()
     expect(svg).toContain('<title>Xianzhi</title>')
     expect(svg).not.toContain('Growing Interlude')

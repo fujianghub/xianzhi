@@ -186,7 +186,7 @@ function TokensPage() {
           ['text-3xl', 'text-2xl', 'text-xl', 'text-lg', 'text-base', 'text-sm', 'text-xs'] as const
         ).map((sz) => (
           <p key={sz} className={cn(sz, 'leading-snug')}>
-            <span className="mr-3 font-mono text-fg-faint text-xs">{sz}</span>
+            <span className="mr-3 font-mono text-fg-muted text-xs">{sz}</span>
             {t('design.sample')}
           </p>
         ))}
@@ -404,7 +404,7 @@ function ComponentsPage() {
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {variants.map((v) => (
             <div key={v} className="flex flex-col items-start gap-2">
-              <span className="font-mono text-fg-faint text-xs">{v}</span>
+              <span className="font-mono text-fg-muted text-xs">{v}</span>
               <Button variant={v} size="sm">
                 {t('design.sample')}
               </Button>

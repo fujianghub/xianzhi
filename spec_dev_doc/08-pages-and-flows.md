@@ -24,7 +24,7 @@
 | `/entries/$entryId/history` | `routes/entries.$entryId.history.tsx` | 可分享短链：重定向到 `/entries/$entryId?aside=history` | `entry.read` | 2 | REQ-COLLAB-008 |
 | `/cycles` | `routes/cycles.index.tsx` | 周期列表（`?kind=&year=`） | member+ | 2 | REQ-CYCLE-001 · 002 |
 | `/cycles/$cycleId` | `routes/cycles.$cycleId.tsx` | 周期详情（目标、任务、复盘） | owner 本人 / admin 读 | 2 | REQ-CYCLE-003 · 006 · 007 |
-| `/calendar` | `routes/calendar.tsx` | 日历（dueAt / scheduledAt） | guest+ | 2 | REQ-TASK-017 |
+| `/calendar` | `routes/_app.calendar.tsx` | 日历（dueAt / scheduledAt；月 / 周视图） | guest+ | 2 | REQ-TASK-017 · 024 · REQ-UI-031 |
 | `/search` | `routes/search.tsx` | 搜索结果页（⌘K 的落地页） | guest+ | 1 | REQ-SEARCH-001 · 004 |
 | `/notifications` | `routes/notifications.tsx` | 通知中心 | guest+ | 1 | REQ-NOTIF-005 |
 | `/settings` | `routes/settings.index.tsx` | 个人资料 | guest+ | 1 | REQ-WS-010 |
@@ -57,11 +57,11 @@
 - `cursor` 永不进 URL。
 
 ### 2.1 登录 `/login`
-- **显示**：`glass-thick` 卡片居中（06 §5.6），邮箱 + 密码，下方 Passkey 与魔法链接入口。数据：`/api/auth/*`。
+- **显示**：`glass-thick` 卡片居中（06 §5.6），邮箱 + 密码，下方 Passkey 与魔法链接入口。数据：`/api/auth/*`。（注 2026-09-24：输入框带前置图标、密码可显隐；其下为拼图滑块 `/api/captcha`，未解开不可提交，任何失败换新题；右上角主题选择；ADR-0006、REQ-AUTH-016。）
 - **search params**：`{ redirect?: string }`（仅允许站内相对路径）。
 - **三态**：无空态；提交中按钮 loading；401 统一「邮箱或密码不正确」，429 显示剩余秒数。
 - **主操作**：Enter 提交。
-- **REQ**：REQ-AUTH-001 · 007 · 008 · 011 · 012。
+- **REQ**：REQ-AUTH-001 · 007 · 008 · 011 · 012 · 016。
 
 ### 2.2 接受邀请 `/invite/$token`
 - **显示**：邀请人、工作区名、角色；设置显示名与密码。
@@ -170,6 +170,14 @@
 ### 2.15 作业 `/jobs/$jobId`
 - **显示**：作业类型、进度条、完成后下载按钮与过期时间、失败原因。数据：`GET /jobs/:id`（轮询 2s，或 SSE `notification`）。
 - **REQ**：REQ-EXPORT-001 · 007。
+
+### 2.17 日历 `/calendar`（2026-09-24 新增）
+- **显示**：Apple 日历风格。页头左侧文楷大号「N月」+ 浅色「YYYY年」；右侧「周 / 月」分段控件与「‹ 今天 ›」按钮组。月视图 6×7（按 `weekStartsOn`），日期号右上、今天翡翠实心圆、每月 1 日显示「M月D日」、非本月格浅底；每格最多 3 条事件，余下「还有 N 项」。周视图：表头「周X + 日期」，全天行，24 小时时间轴（每小时 48px，打开滚到 08:00），时间重叠的事件分栏并排，今天列有当前时间红线。
+- **数据**：`GET /tasks?from&to&sort=dueAt`（REQ-TASK-024），翻页取全；空间色由 `GET /spaces` 映射。事件 = 任务：dueAt 优先、否则 scheduledAt；本地 23:59 / 00:00 视为全天。
+- **search params**：`{ view?: 'month' | 'week', date?: 'YYYY-MM-DD' }`（纯 UI，不发给 API；缺省 = 月视图、今天）。
+- **三态**：无空态（空网格即空）；加载中页头显示「加载中…」。
+- **主操作**：点事件打开 Peek；点日期号切到该周；快捷键 `t` / `←` / `→` / `m` / `w`；⌘K `g c`。
+- **REQ**：REQ-UI-031 · REQ-TASK-024。
 
 ### 2.16 `/design`
 - **显示**：token 页、材质 / 深度 / 切换三页、组件矩阵（04 §8、06 §10）。

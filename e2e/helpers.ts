@@ -8,10 +8,35 @@ export const MEMBER = { email: 'member@demo.local', password: 'demo-member' }
 export const GUEST = { email: 'guest@demo.local', password: 'demo-guest' }
 export const STATE = { owner: 'e2e/.auth/owner.json', member: 'e2e/.auth/member.json' }
 
+/**
+ * 完成登录拼图（REQ-AUTH-016）：验证实例回显答案（data-debug-x，production 不回显），按手柄行程换算后用真实鼠标拖拽。
+ * 先等 700 ms 满足服务端最短解题时间。
+ */
+export async function solveCaptcha(page: Page) {
+  const box = page.getByTestId('captcha')
+  await expect(box).toHaveAttribute('data-debug-x', /^\d+$/)
+  await expect(box).not.toHaveAttribute('data-solved', /.*/)
+  const x = Number(await box.getAttribute('data-debug-x'))
+  const handle = page.getByTestId('captcha-handle')
+  const max = Number(await handle.getAttribute('aria-valuemax'))
+  // 先等：满足服务端最短解题时间，也等换题后手柄的回弹动画结束，再量位置
+  await page.waitForTimeout(700)
+  const hb = await handle.boundingBox()
+  const tb = await handle.locator('..').boundingBox()
+  if (!hb || !tb) throw new Error('captcha handle not visible')
+  const dx = (x / max) * (tb.width - hb.width)
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(hb.x + hb.width / 2 + dx, hb.y + hb.height / 2, { steps: 12 })
+  await page.mouse.up()
+  await expect(box).toHaveAttribute('data-solved', 'true')
+}
+
 export async function login(page: Page, u: { email: string; password: string }) {
   await page.goto('/login')
   await page.getByLabel('邮箱').fill(u.email)
-  await page.getByLabel('密码').fill(u.password)
+  await page.getByLabel('密码', { exact: true }).fill(u.password)
+  await solveCaptcha(page)
   await page.getByTestId('login-submit').click()
 }
 

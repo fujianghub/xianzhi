@@ -32,6 +32,9 @@ export interface TaskListParams {
   due?: 'today' | 'week' | 'overdue'
   dueBefore?: string
   dueAfter?: string
+  /** 日历区间（REQ-TASK-024）：dueAt 或 scheduledAt ∈ [from, to) */
+  from?: string
+  to?: string
   deleted?: '1'
 }
 export interface TaskPage {

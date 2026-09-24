@@ -15,6 +15,7 @@ import type { MailMessage } from '../mail/index.ts'
 import { setMailSender } from '../mail/index.ts'
 import { LoginGuard } from '../middleware/login-guard.ts'
 import { FixedWindowLimiter } from '../middleware/rate-limit.ts'
+import type { CaptchaOptions } from '../services/captcha.ts'
 import { createOwner } from '../services/workspace.ts'
 
 export const ORIGIN = 'http://localhost:3010'
@@ -53,6 +54,8 @@ export function buildApp(
     bus?: EventBus
     sseHub?: SseHub
     jobQueue?: JobQueue
+    captcha?: CaptchaOptions
+    nodeEnv?: 'test' | 'production'
   } = {},
 ) {
   ipSeq++
@@ -67,9 +70,10 @@ export function buildApp(
     appUrl: env.APP_URL,
     collabSecret: env.COLLAB_TOKEN_SECRET,
     dataDir: env.DATA_DIR,
-    nodeEnv: 'test',
+    nodeEnv: opts.nodeEnv ?? 'test',
     generalLimiter: new FixedWindowLimiter(opts.generalLimit ?? 600, 60_000, opts.now),
     loginGuard: guard,
+    captcha: opts.captcha ?? { debug: true, minSolveMs: 0 },
     bus: opts.bus,
     sseHub: opts.sseHub,
     jobQueue: opts.jobQueue,
@@ -103,9 +107,16 @@ export async function signIn(
   // Better Auth 的按 IP 限流是进程内单例（10/min）：默认每次登录换一个 IP，只在专门测限流的用例里显式传 IP
   ipSeq++
   const perCallIp = `10.${(ipSeq >> 16) & 255}.${(ipSeq >> 8) & 255}.${ipSeq & 255}`
+  // 拼图（REQ-AUTH-016）：取题并用回显答案提交；显式传 x-captcha 的用例（测失败路径）不取题
+  let captcha = headers['x-captcha']
+  if (captcha === undefined) {
+    const q = await app.request('/api/captcha', { headers: { 'x-forwarded-for': perCallIp } })
+    const c = (await q.json()) as { id: string; debugX: number }
+    captcha = `${c.id}:${c.debugX}`
+  }
   const res = await app.request('/api/auth/sign-in/email', {
     method: 'POST',
-    headers: jsonHeaders({ 'x-forwarded-for': perCallIp, ...headers }),
+    headers: jsonHeaders({ 'x-forwarded-for': perCallIp, ...headers, 'x-captcha': captcha }),
     body: JSON.stringify({ email, password }),
   })
   const setCookie = res.headers.get('set-cookie') ?? ''

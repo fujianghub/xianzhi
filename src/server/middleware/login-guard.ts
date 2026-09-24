@@ -3,11 +3,14 @@
  * - 邮箱维度 10/min（IP 维度由 Better Auth rateLimit customRules）
  * - 同账号连续失败 10 次锁定 15 分钟 → 403 ACCOUNT_LOCKED（正确密码也拒绝），写 audit(auth.locked)
  * - 成功 → 清零并写 audit(auth.login)；失败 → audit(auth.login_failed)
+ * - 拼图滑块（ADR-0006、REQ-AUTH-016）：锁定与限流之后、交给 Better Auth 之前校验 `x-captcha`；
+ *   失败 400 CAPTCHA_INVALID，**不计入失败次数**（拿不到滑块就无法把别人的账号刷到锁定）
  */
 import type { MiddlewareHandler } from 'hono'
 import type { Db } from '../db/index.ts'
 import { AppError } from '../lib/errors.ts'
 import { audit } from '../services/audit.ts'
+import { type CaptchaOptions, verifyCaptcha } from '../services/captcha.ts'
 import type { AppEnv } from '../types.ts'
 import { FixedWindowLimiter } from './rate-limit.ts'
 import { clientIp } from './request-context.ts'
@@ -53,7 +56,11 @@ export class LoginGuard {
   }
 }
 
-export function loginGuard(guard: LoginGuard, db: Db): MiddlewareHandler<AppEnv> {
+export function loginGuard(
+  guard: LoginGuard,
+  db: Db,
+  captcha: CaptchaOptions = {},
+): MiddlewareHandler<AppEnv> {
   return async (c, next) => {
     let email = ''
     try {
@@ -73,6 +80,8 @@ export function loginGuard(guard: LoginGuard, db: Db): MiddlewareHandler<AppEnv>
     c.header('RateLimit-Remaining', String(r.remaining))
     c.header('RateLimit-Reset', String(r.resetInSec))
     if (!r.allowed) throw AppError.rateLimited('登录尝试过于频繁')
+    if (!(await verifyCaptcha(db, c.req.header('x-captcha'), captcha)))
+      throw new AppError(400, 'CAPTCHA_INVALID', '滑块验证未通过，请重试')
 
     await next()
 

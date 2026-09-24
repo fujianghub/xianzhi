@@ -16,14 +16,21 @@ describe('gates', () => {
   it('REQ-UI-002 check-css：src/client 无裸色值、!important、嵌套 glass', () => {
     expect(run('check-css.ts')).toContain('零违规')
   })
-  it('REQ-UI-020 主色辉光 glow-primary 引用点 ≤ 6（ADR-0005 §4）；侧栏当前项为 selected 胶囊 + 左侧 3px 主色条', () => {
+  it('REQ-UI-020 主色辉光 glow-primary 引用点 ≤ 6（ADR-0005 §4）；侧栏当前项为翡翠渐变胶囊 + inset 描边（2026-09-24 侧栏改版，无竖条）', () => {
     const out = run('check-css.ts')
     const m = /glow-primary 引用 (\d+) \/ 6/.exec(out)
     expect(m, out).not.toBeNull()
     expect(Number(m?.[1])).toBeLessThanOrEqual(6)
-    const nav = read('src/client/components/domain/SpaceSwitcher.tsx')
-    for (const cls of ['bg-selected', 'rounded-full', 'before:w-[3px]', 'before:bg-primary'])
-      expect(nav, cls).toContain(cls)
+    for (const f of [
+      'src/client/components/domain/SpaceSwitcher.tsx',
+      'src/client/components/layout/AppShell.tsx',
+    ]) {
+      const src = read(f)
+      for (const cls of ['xz-nav-item', 'data-active']) expect(src, `${f} ${cls}`).toContain(cls)
+      expect(src, f).not.toContain('before:w-[3px]')
+    }
+    const css = read('src/client/styles/app.css')
+    expect(css).toMatch(/\.xz-nav-item\[data-active\] \{[^}]*linear-gradient[^}]*inset 0 0 0 1px/s)
   })
   it('REQ-UI-003 check-contrast：两主题最坏合成底对比度矩阵通过', () => {
     expect(run('check-contrast.ts')).toContain('全部达标')

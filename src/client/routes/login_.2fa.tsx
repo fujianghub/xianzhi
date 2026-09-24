@@ -2,6 +2,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ThemeMenu } from '../components/layout/ThemeMenu.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { Input } from '../components/ui/input.tsx'
 import { FieldError, Label } from '../components/ui/label.tsx'
@@ -36,6 +37,7 @@ function TwoFactor() {
   }
   return (
     <main className="flex min-h-dvh items-center justify-center p-4">
+      <ThemeMenu className="fixed top-4 right-4 z-(--xz-z-sticky)" />
       <form
         onSubmit={submit}
         className="glass-thick w-full max-w-sm rounded-xl p-8 [--xz-edge:var(--xz-edge-login)]"

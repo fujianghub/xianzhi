@@ -103,6 +103,8 @@
 | 记录卡片 | entryCard | PM 节点 | 记录卡片 | `editor.slash.card` | 正文里以卡片形式引用另一篇记录 | 03 §3.2 |
 | 未知块 | unknownBlock | PM 节点 | 未识别的内容块 | `editor.unknownBlock` | schema 不认识的节点占位，保留原 JSON | 03 §3.3 |
 | 动效档位 | `MotionLevel`：`reduce / standard / rich` | `html[data-motion]` · `xz:motion` | 动效：减弱 / 标准 / 丰富 | `settings.profile.motionLevel.*` | 本机偏好；系统 reduced-motion 优先 | 04 §2.4 · ADR-0005 |
+| 拼图滑块 | `SliderCaptcha` · `GET /api/captcha` · 头 `x-captcha` | 组件 · 接口 | 拼图滑块 | `auth.captcha.*` | 登录前服务端出题的拖动拼图，一次性、120 s（ADR-0006） | 08 §2.1 · REQ-AUTH-016 |
+| 拼图通行证 | `captchaPass`（`pass:<id>`） | 接口字段 | — | — | 接受邀请后 60 s 一次性免拼图凭据，仅用于紧随其后的自动登录 | ADR-0006 |
 | 展开指示 | `Disclosure` | 组件 | — | — | 可折叠区块标题前的圆角小三角，展开转 90° | 04 §2.4 · REQ-UI-030 |
 
 ---

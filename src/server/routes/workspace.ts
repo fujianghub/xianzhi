@@ -23,6 +23,7 @@ import { idempotency } from '../middleware/idempotency.ts'
 import { clientIp } from '../middleware/request-context.ts'
 import { requireAuth, requireScope } from '../middleware/session.ts'
 import { listAuditLog } from '../services/audit.ts'
+import { issueCaptchaPass } from '../services/captcha.ts'
 import * as inv from '../services/invitations.ts'
 import * as members from '../services/members.ts'
 import { getWorkspace, updateWorkspace } from '../services/workspace.ts'
@@ -75,7 +76,11 @@ export function workspaceRoutes(deps: { db: Db; auth: Auth; appUrl: string }) {
               userAgent: c.req.header('user-agent') ?? null,
             },
           )
-          return c.json({ userId: r.userId, role: r.role }, 201)
+          // 紧随其后的自动登录免一次拼图（ADR-0006）：60 s 一次性通行证
+          return c.json(
+            { userId: r.userId, role: r.role, captchaPass: await issueCaptchaPass(deps.db) },
+            201,
+          )
         },
       )
       // ---- 邀请（admin） ----

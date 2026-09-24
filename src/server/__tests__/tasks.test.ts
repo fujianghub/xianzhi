@@ -270,6 +270,39 @@ describe('T1-003 tasks', () => {
     expect(od.items.every((x) => !['done', 'cancelled'].includes(x.status))).toBe(true)
   })
 
+  it('REQ-TASK-024 日历区间 from/to：截止或计划开始落在区间内都返回、跨空间且只含可见；缺一 / 倒置 / 超 62 天 / 与 view 同用 → 422', async () => {
+    const base = Date.UTC(2031, 0, 5, 4) // 远离「今天」，不与其它用例串味
+    const at = (d: number) => new Date(base + d * 86_400_000).toISOString()
+    const due = await create(u.owner, {
+      title: '日历截止',
+      spaceId: productId,
+      status: 'todo',
+      dueAt: at(1),
+    })
+    const sched = await create(u.owner, {
+      title: '日历开始',
+      spaceId: productId,
+      status: 'todo',
+      scheduledAt: at(2),
+    })
+    const outside = await create(u.owner, { title: '区间外', spaceId: productId, dueAt: at(40) })
+    const hidden = await create(u.owner, { title: '机密日历', spaceId: secretId, dueAt: at(1) })
+    const q = `from=${encodeURIComponent(at(0))}&to=${encodeURIComponent(at(35))}&limit=200`
+    const ids = (await list(u.member, q)).items.map((x) => x.id)
+    expect(ids).toEqual(expect.arrayContaining([due.id, sched.id]))
+    expect(ids).not.toContain(outside.id)
+    expect(ids).not.toContain(hidden.id) // member 看不到 secret 空间
+    expect((await list(u.owner, q)).items.map((x) => x.id)).toContain(hidden.id)
+
+    const bad = [
+      `from=${encodeURIComponent(at(0))}`,
+      `from=${encodeURIComponent(at(3))}&to=${encodeURIComponent(at(1))}`,
+      `from=${encodeURIComponent(at(0))}&to=${encodeURIComponent(at(63))}`,
+      `view=today&from=${encodeURIComponent(at(0))}&to=${encodeURIComponent(at(7))}`,
+    ]
+    for (const b of bad) expect((await req(u.member, 'GET', `/tasks?${b}`)).status, b).toBe(422)
+  })
+
   it('REQ-TASK-006 收件箱：status=inbox 且创建者或指派人为我；view=inbox 与 status 同用 → 422', async () => {
     const mineInbox = await create(u.member2, { title: '我的收件' })
     const assignedToMe = await create(u.member, {

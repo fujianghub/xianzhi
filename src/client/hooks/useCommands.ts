@@ -166,6 +166,13 @@ export function useCommands(): { commands: Cmd[]; target: ReturnType<typeof useT
         run: go('/inbox'),
       },
       {
+        id: 'go.calendar',
+        group: 'navigate',
+        label: t('cmd.go', { page: t('ui.page.calendar') }),
+        hotkey: 'g c',
+        run: go('/calendar'),
+      },
+      {
         id: 'go.search',
         group: 'navigate',
         label: t('cmd.go', { page: t('ui.page.search') }),

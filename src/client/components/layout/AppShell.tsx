@@ -10,15 +10,18 @@ import {
   FileText,
   Inbox,
   LogOut,
+  type LucideIcon,
   Menu,
+  Palette,
   PanelLeft,
   PanelRight,
   Search,
+  Settings,
   Sun,
   Trash2,
   User,
 } from 'lucide-react'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { lazy, Suspense, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { hotkeyParts, useCommands } from '../../hooks/useCommands.ts'
@@ -50,70 +53,101 @@ import { ThemeToggle } from './ThemeToggle.tsx'
 function Brand() {
   const { t } = useTranslation()
   return (
-    <div className="xz-seal-host flex items-center gap-2.5 px-4 py-4">
-      <Seal size="sm" />
+    <Link
+      to="/today"
+      className="xz-brand xz-seal-host flex items-center gap-3 px-5 pt-5 pb-4"
+      data-testid="brand"
+    >
+      <Seal size="md" />
       <div className="leading-tight">
-        <div className="font-display text-[17px] tracking-[.08em]">{t('app.name')}</div>
-        <div className="font-brand-en text-[12px] text-fg-faint italic tracking-[.12em]">
+        <div className="font-display text-[22px] tracking-[.14em]">{t('app.name')}</div>
+        <div className="mt-1 font-brand-en text-[12px] text-fg-muted italic tracking-[.22em]">
           {t('app.subtitle')}
         </div>
       </div>
-    </div>
+    </Link>
+  )
+}
+
+type Hue = 'amber' | 'blue' | 'cyan' | 'violet' | 'rose' | 'emerald' | 'lime' | 'sky'
+/** 导航图标专属色（--xz-icon-*，侧栏改版 REQ-UI-032）；经 CSS 变量 --xz-ico 交给 .xz-nav-icon */
+export const hueStyle = (hue: Hue) => ({ '--xz-ico': `var(--xz-icon-${hue})` }) as CSSProperties
+
+export function NavIcon({ icon: Icon, hue }: { icon: LucideIcon; hue?: Hue }) {
+  return (
+    <span className="xz-nav-icon" style={hue ? hueStyle(hue) : undefined} aria-hidden>
+      <Icon />
+    </span>
   )
 }
 
 function NavList({ me, onNavigate }: { me: Me; onNavigate?: () => void }) {
   const { t } = useTranslation()
   const path = useRouterState({ select: (s) => s.location.pathname })
-  const items = [
-    { to: '/today' as const, key: 'today', label: t('ui.page.today'), icon: Sun, disabled: false },
+  const items: {
+    to: '/today' | '/entries' | '/inbox' | '/calendar' | '/notifications' | '/trash'
+    key: string
+    label: string
+    icon: LucideIcon
+    hue: Hue
+    disabled: boolean
+  }[] = [
     {
-      to: '/entries' as const,
+      to: '/today',
+      key: 'today',
+      label: t('ui.page.today'),
+      icon: Sun,
+      hue: 'amber',
+      disabled: false,
+    },
+    {
+      to: '/entries',
       key: 'entries',
       label: t('ui.page.entries'),
       icon: FileText,
+      hue: 'blue',
       disabled: false,
     },
     {
-      to: '/inbox' as const,
+      to: '/inbox',
       key: 'inbox',
       label: t('ui.page.inbox'),
       icon: Inbox,
+      hue: 'cyan',
       disabled: false,
     },
     {
-      to: '/notifications' as const,
-      key: 'notifications',
-      label: t('ui.page.notifications'),
-      icon: Bell,
-      disabled: false,
-    },
-    {
-      to: '/trash' as const,
-      key: 'trash',
-      label: t('ui.page.trash'),
-      icon: Trash2,
-      disabled: false,
-    },
-    {
-      to: '/today' as const,
+      to: '/calendar',
       key: 'calendar',
       label: t('ui.page.calendar'),
       icon: CalendarDays,
-      disabled: true,
+      hue: 'emerald',
+      disabled: false,
+    },
+    {
+      to: '/notifications',
+      key: 'notifications',
+      label: t('ui.page.notifications'),
+      icon: Bell,
+      hue: 'violet',
+      disabled: false,
+    },
+    {
+      to: '/trash',
+      key: 'trash',
+      label: t('ui.page.trash'),
+      icon: Trash2,
+      hue: 'rose',
+      disabled: false,
     },
   ]
   return (
-    <nav aria-label={t('ui.nav.mainNav')} className="flex flex-col gap-0.5 px-2">
-      <div className="px-3 pt-2 pb-1 text-fg-faint text-xs">{t('ui.nav.views')}</div>
+    <nav aria-label={t('ui.nav.mainNav')} className="flex flex-col gap-1 px-3">
+      <div className="xz-nav-label">{t('ui.nav.views')}</div>
       {items.map((it) =>
         it.disabled ? (
-          <span
-            key={it.key}
-            className="flex h-9 items-center gap-2 rounded-full px-3 text-fg-faint text-sm"
-            aria-disabled="true"
-          >
-            <it.icon className="size-4" strokeWidth={1.75} />
+          <span key={it.key} className="xz-nav-item" aria-disabled="true">
+            <NavIcon icon={it.icon} />
             {it.label}
           </span>
         ) : (
@@ -121,13 +155,11 @@ function NavList({ me, onNavigate }: { me: Me; onNavigate?: () => void }) {
             key={it.key}
             to={it.to}
             onClick={onNavigate}
-            className={cn(
-              'relative flex h-9 items-center gap-2 rounded-full px-3 text-sm hover:bg-hover',
-              path.startsWith(it.to) &&
-                'bg-selected font-medium before:absolute before:top-2 before:bottom-2 before:left-0 before:w-[3px] before:rounded-full before:bg-primary',
-            )}
+            className="xz-nav-item"
+            data-active={path.startsWith(it.to) || undefined}
+            aria-current={path.startsWith(it.to) ? 'page' : undefined}
           >
-            <it.icon className="size-4" strokeWidth={1.75} />
+            <NavIcon icon={it.icon} hue={it.hue} />
             {it.label}
           </Link>
         ),
@@ -136,22 +168,22 @@ function NavList({ me, onNavigate }: { me: Me; onNavigate?: () => void }) {
         <Link
           to="/design"
           onClick={onNavigate}
-          className={cn(
-            'mt-2 flex h-9 items-center gap-2 rounded-full px-3 text-fg-muted text-sm hover:bg-hover',
-            path.startsWith('/design') && 'bg-selected text-fg',
-          )}
+          className="xz-nav-item mt-1"
+          data-active={path.startsWith('/design') || undefined}
+          aria-current={path.startsWith('/design') ? 'page' : undefined}
         >
+          <NavIcon icon={Palette} hue="lime" />
           {t('ui.page.design')}
         </Link>
       ) : null}
       <Link
         to="/settings"
         onClick={onNavigate}
-        className={cn(
-          'flex h-9 items-center gap-2 rounded-full px-3 text-fg-muted text-sm hover:bg-hover',
-          path.startsWith('/settings') && 'bg-selected text-fg',
-        )}
+        className="xz-nav-item"
+        data-active={path.startsWith('/settings') || undefined}
+        aria-current={path.startsWith('/settings') ? 'page' : undefined}
       >
+        <NavIcon icon={Settings} hue="sky" />
         {t('ui.page.settings')}
       </Link>
     </nav>
@@ -204,7 +236,7 @@ export function AppShell({
       <aside
         data-testid="sidebar"
         className={cn(
-          'glass fixed inset-y-0 left-0 z-(--xz-z-sticky) hidden w-(--xz-sidebar-w) flex-col border-y-0 border-l-0 lg:flex',
+          'xz-sidebar fixed inset-y-0 left-0 z-(--xz-z-sticky) hidden w-(--xz-sidebar-w) flex-col lg:flex',
           !sidebarOpen && 'lg:hidden',
         )}
         aria-label={t('ui.nav.spaces')}
@@ -292,7 +324,7 @@ export function AppShell({
         </header>
         <main
           id="main"
-          className="flex-1 px-4 py-6 pb-[calc(var(--xz-bottomnav-h)+env(safe-area-inset-bottom)+1rem)] lg:px-8 lg:pb-8"
+          className="xz-main flex-1 px-4 py-6 pb-[calc(var(--xz-bottomnav-h)+env(safe-area-inset-bottom)+1rem)] lg:px-10 lg:pt-8 lg:pb-10"
         >
           {children}
         </main>

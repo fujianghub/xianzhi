@@ -58,6 +58,8 @@ test.describe('owner', () => {
         '/spaces',
         '/spaces?archived=1',
         '/spaces/product',
+        '/calendar',
+        '/calendar?view=week',
         '/design?page=tokens',
         '/design?page=materials',
         '/design?page=depth',

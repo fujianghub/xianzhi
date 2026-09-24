@@ -43,6 +43,7 @@
 | REQ-AUTH-013 | P0 | 0 | `pnpm xz create-owner` 应创建首个 owner、默认 Workspace 与 owner 的个人空间，且不可重复创建 owner | When 首次运行 Then `user` + `organization` + `member(role=owner)` + `spaces(is_personal)` 各 1 行<br>When 再次运行 Then 退出码非 0，提示已存在 | 05 §3 · 05 §11 · REQ-SPACE-009 | unit |
 | REQ-AUTH-014 | P0 | 0 | 当 API Key 或会话属于已被移除的成员时，所有 `/api/v1/*` 请求应返回 401 | Given 成员被移除 When 用其旧 Key 请求 Then 401 | 01 §5 | api |
 | REQ-AUTH-015 | P0 | 0 | 一期应禁用 Better Auth admin 插件的模拟登录（impersonation） | When `POST /api/auth/admin/impersonate-user` Then 404；代码中该插件配置不含 impersonation 相关选项 | 07 §2.1 · ADR §4.6 | api |
+| REQ-AUTH-016 | P1 | 2 | 邮箱密码登录应先通过服务端拼图滑块：答案只存服务端、一次性、120 s 过期、±6px、≥ 600 ms；失败 400 `CAPTCHA_INVALID` 且不计入账号失败次数；接受邀请后的自动登录用一次性通行证；production 不回显答案；滑块可键盘操作 | When 缺 / 错 / 复用拼图 Then 400；When 12 次错拼图后正确登录 Then 200；When production Then 出题无 `debugX`；When 键盘解开 Then 可登录 | ADR-0006 · 07 §2.1 · 08 §2.1 | api · e2e |
 
 ---
 
@@ -112,6 +113,7 @@
 | REQ-TASK-020 | P1 | 1 | 任务列表与看板应支持键盘：`j/k` 移动、`x` 多选、`e` 编辑、`Space` 勾选完成、`p` Peek、Enter 打开；`c` 只用于全局「新任务」 | When 焦点在列表按 `j` Then 焦点行下移且左侧出现 3px 主色条<br>When 按 `Space` Then 该任务完成（走 REQ-TASK-021 流程）<br>When 按 `c` Then 打开新任务输入而非完成 | 04 §6 · 06 §5.3 | e2e |
 | REQ-TASK-021 | P1 | 1 | 当任务在列表中被完成时，行应先变灰 400ms，随后折叠移出，并提供 8s 行内撤销；撤销回到完成前状态并发 `task.uncompleted`（仅活动流） | When 勾选 Then 400ms 后行高折叠；撤销条可见 8s；点击撤销 Then 发 `POST /tasks/:id/uncomplete`，任务回到 `prevStatus` 且行复原，`events` 有 `task.uncompleted`，watchers 无新通知 | 06 §5.3 · 04 §6 · 01 §4.1 · 02 §9 | e2e · api |
 | REQ-TASK-022 | P2 | 2 | 当 PWA 离线时创建任务，系统应本地排队并在联网后按 `Idempotency-Key` 重放 | Given 离线 When 创建 Then 列表立即显示「待同步」；联网 Then 1 次 POST 成功，无重复 | 02 §5 · 08 §5 | e2e |
+| REQ-TASK-024 | P1 | 2 | `GET /tasks?from&to` 应返回 `dueAt` 或 `scheduledAt` 落在 [from, to) 的任务，跨全部可见空间（`visibleTasksWhere`）；二者须同给、from < to、跨度 ≤ 62 天、不与 `view` / `deleted` 同用，否则 422 | When 区间含截止与计划开始各一 Then 都返回；不可见空间的任务不返回；缺一 / 倒置 / 63 天 / 与 view 同用 Then 422 | 02 §9 · 08 §2.17 | api |
 | REQ-TASK-023 | P0 | 1 | 列表页 API P95 应 ≤ 100ms（1 万任务本机），关键列表接口 SQL 查询数 ≤ 3 | When 集成测试统计查询数 Then ≤ 3；Playwright 采样 P95 ≤ 100ms | ADR §3 · 05 §10 | api · e2e |
 
 ---
@@ -306,7 +308,7 @@
 
 | ID | P | Phase | 需求（EARS） | 验收（GWT） | 依据 | 测试层 |
 |---|---|---|---|---|---|---|
-| REQ-UI-001 | P0 | 0 | 主题应默认跟随系统，手动选择持久化到 `localStorage: xz:theme`；切换用 View Transitions 圆形揭幕（有坐标）或整页溶解；reduced-motion 瞬切 | When 系统 dark Then `data-theme=dark`；选 light 刷新后仍 light<br>When reduced-motion Then 无 `::view-transition` 动画 | 06 §6 · 04 §3 | e2e · visual |
+| REQ-UI-001 | P0 | 0 | 主题应默认跟随系统（注 2026-09-24：登录 / 双因素 / 邀请等未登录页右上角可选「跟随系统 / 日场 / 夜场」），手动选择持久化到 `localStorage: xz:theme`；切换用 View Transitions 圆形揭幕（有坐标）或整页溶解；reduced-motion 瞬切 | When 系统 dark Then `data-theme=dark`；选 light 刷新后仍 light<br>When reduced-motion Then 无 `::view-transition` 动画 | 06 §6 · 04 §3 | e2e · visual |
 | REQ-UI-002 | P0 | 0 | 颜色与动效 token 只在 `tokens.css` 定义；组件文件无裸色值、`!important`、嵌套 `glass*` | When `pnpm lint` Then `check-css` 零违规 | CLAUDE 不变量 5 · 06 §9 | unit |
 | REQ-UI-003 | P0 | 0 | 对比度矩阵应在两主题最坏合成底上通过：正文 ≥ 7:1、次要 ≥ 4.5:1、图标边框 ≥ 3:1 | When `check-contrast` Then 全部通过 | 06 §7 · 04 §2.1 | unit |
 | REQ-UI-004 | P0 | 0 | `/design` 画廊应仅 admin 可见，含 token 页与材质 / 深度 / 切换三页，深浅色并排，截图回归阈值 0.1% | Given member When 访问 Then 404；Given admin Then 四页可见；Playwright 截图与基线差 ≤ 0.1% | 04 §8 · 06 §10 | e2e · visual |
@@ -325,16 +327,18 @@
 | REQ-UI-017 | P1 | 1 | 1 万行任务列表滚动应不掉帧（≥ 50fps） | When Playwright 采 `requestAnimationFrame` 间隔 Then P95 ≤ 20ms | ADR §3 · 04 §5 | e2e |
 | REQ-UI-018 | P1 | 1 | 24h 内显示相对时间，悬停显示绝对时间；日期数字按 locale/timezone | When `updated_at` = 5 分钟前 Then 显示「5 分钟前」，title 为绝对时间 | 04 §7 | unit · e2e |
 | REQ-UI-019 | P1 | 1 | 拖拽应有拾起（倾斜 1.5° 放大）、经过（目标列变亮）、放下（弹簧归位）三态；放不下弹回并晃动 | When 拖到不可放置区域松手 Then 卡片回原位 | 06 §4 · 06 §5 | e2e · visual |
-| REQ-UI-020 | P1 | 1 | 侧栏当前项为主色胶囊 + 左侧 3px 主色条；主色辉光只出现在~~焦点、~~主按钮 hover、燕印、侧栏当前项、登录聚焦、成巢、里程碑（ADR-0005 §4） | When 审计样式 Then `glow-primary` 引用点 ~~≤ 3~~ ≤ 6 处 | 06 §1 · 06 §4 · ADR-0005 | visual · unit |
+| REQ-UI-020 | P1 | 1 | 侧栏当前项为~~主色胶囊 + 左侧 3px 主色条~~翡翠渐变胶囊 + 1px inset 描边 + 柔光（注 2026-09-24 侧栏改版，见 REQ-UI-032）；主色辉光只出现在~~焦点、~~主按钮 hover、燕印、侧栏当前项、登录聚焦、成巢、里程碑（ADR-0005 §4） | When 审计样式 Then `glow-primary` 引用点 ~~≤ 3~~ ≤ 6 处 | 06 §1 · 06 §4 · ADR-0005 | visual · unit |
 | REQ-UI-021 | P1 | 2 | 卡片 → 详情 / Peek 应用共享元素过渡（320ms），只给被点击的一张卡片赋 `view-transition-name`，结束即清（注 2026-09-24：借 REQ-UI-029 路由转场实现，来源 / 目标用 `data-shared-*` 标记、仅 `route` 类型期间赋名；Peek 不经路由，暂未做） | When 点击卡片 Then DOM 中同时带该 name 的元素 ≤ 1，过渡结束后为 0 | 04 §2.4 | e2e |
 | REQ-UI-022 | P1 | 1 | 详情页不设保存按钮；标题 / 日期 / 优先级 / 指派人就地编辑，失焦即保存并显示「已保存 · 刚刚」 | When 改标题失焦 Then 1 次 PATCH，提示出现 | 04 §6 · 04 §5 InlineEdit | e2e |
 | REQ-UI-023 | P0 | 0 | 所有浮层（Popover / Dialog / ⌘K / Toast / Tooltip）应 portal 到 body，不在 `backdrop-filter` 元素内 fixed 定位 | When 在 Sidebar 内打开 Popover Then 其父为 body | 06 §2 · 06 §9 | unit |
-| REQ-UI-024 | P1 | 2 | 品牌标识应为燕印（翡翠渐变方印 + 深墨衔枝燕）：Sidebar 品牌位 28、登录页 56、favicon 同形；宿主 hover 印章轻转，减弱档静止 | When 打开 `/today` Then Sidebar 含 `.xz-seal`；打开 `/login` Then 含 `.xz-seal-lg`；`/favicon.svg` 标题为 `Xianzhi` | ADR-0005 §2 · 04 §9 | e2e |
+| REQ-UI-024 | P1 | 2 | 品牌标识应为燕印（翡翠渐变方印 + 深墨衔枝燕）：Sidebar 品牌位 ~~28~~ 42（注 2026-09-24 侧栏改版）、登录页 56、favicon 同形；宿主 hover 印章轻转，减弱档静止 | When 打开 `/today` Then Sidebar 含 `.xz-seal.xz-seal-md`；打开 `/login` Then 含 `.xz-seal-lg`；`/favicon.svg` 标题为 `Xianzhi` | ADR-0005 §2 · 04 §9 | e2e |
 | REQ-UI-025 | P1 | 2 | UI / 展示 / 代码 / 英文品牌字应自托管（npm 包、`unicode-range` 分片、`font-display: swap`），不请求任何外部字体 CDN | When 加载 `/login` Then `document.fonts` 含 `MiSans` 与 `LXGW WenKai Screen`，且无跨域字体请求 | ADR-0005 §5 · 04 §2.2 | e2e |
 | REQ-UI-026 | P1 | 2 | 编辑器代码块应按 One Dark 变体高亮，两主题同一深底；每个高亮色在代码底上 ≥ 4.5:1 | When 插入 `ts` 代码块 Then 关键字元素颜色 = `--xz-code-keyword`；`check-contrast` 含 `code-*` 项并通过 | ADR-0005 · 06 §4 | e2e · unit |
 | REQ-UI-028 | P1 | 2 | 动效档位 `reduce / standard / rich` 应可在设置页选择，写 `html[data-motion]`（standard 不写）并持久化 `xz:motion`；首帧前生效；系统 reduced-motion 优先；Motion 组件随档位关闭动画 | When 选「减弱」Then `data-motion=reduce`，刷新仍在；选「标准」Then 属性移除、存储清空 | 04 §2.4 · ADR-0005 §3 | e2e |
 | REQ-UI-029 | P1 | 2 | 路径变化的导航应以 View Transition 淡出 / 淡入（旧页 `dur-fast`、新页 `dur-base`），转场带 `route` 类型以区别主题切换；首次加载、仅 search 变化、减弱档不转场；浏览器不支持 view-transition types 时关闭 | When 侧栏点「收件箱」Then 一次 `startViewTransition` 且 types = `['route']`<br>Given 减弱档 Then 无调用 | 04 §2.4 · ADR-0005 §3 | e2e |
 | REQ-UI-030 | P1 | 2 | 展开 / 收起统一用圆角实心三角「展开指示」，展开时弹簧转 90°；纯方向仍用 Chevron | When 点击「今天完成的」Then 指示带 `data-open` 且旋转 90° | 04 §2.4 · 04 §5 | e2e |
+| REQ-UI-031 | P1 | 2 | 日历 `/calendar`（Apple 风格）：月视图 6×7（按 weekStartsOn）与周视图（全天行 + 24 小时时间轴 + 当前时间线）；事件 = 任务（dueAt 优先，本地 23:59 / 00:00 视为全天），色取空间色板，点击打开 Peek；`t` 今天、← / → 翻页、`m` / `w` 切换；侧栏与 ⌘K `g c` 可达 | When 区间内有任务 Then 月视图对应日期出现事件；点击 Then Peek；按 `w` Then 周视图且今天列有当前时间线 | 08 §2.17 · ADR-0005 | unit · e2e |
+| REQ-UI-032 | P1 | 2 | 侧栏（2026-09-24 改版，参照简斋后台）：整高实玻璃板 + 右侧 1px 分隔与柔阴影；品牌区燕印 42 + 文楷；导航项 42px、图标带专属色（`--xz-icon-*` ≥ 3:1）；当前项为翡翠渐变胶囊 + inset 描边，无左侧竖条；导航与空间树共用样式；内容区内衬圆角淡翡翠面板 | When 视口 1280 Then 侧栏高 = 视口、右边框 1px；当前项 `data-active` + `aria-current=page`、背景为渐变、无 `::before` 竖条 | 06 §4 · REQ-UI-020 | e2e · unit |
 | REQ-UI-027 | P1 | 2 | Topbar 滚动 > 8px 后应显示 `shadow-soft` 与翡翠枝线，回到顶部即消失；Dialog 打开时底板光晕下移 4px 并减弱，关闭复原 | When 页面滚动 100px Then topbar 带 `data-scrolled`；When 打开 Dialog Then `html[data-dialog-open]` 且 `body::before` transform 非 none | 06 §4 · ADR-0005 §2 | e2e |
 
 ---

@@ -34,13 +34,6 @@ import { Disclosure } from '../ui/disclosure.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
 import { SpaceIcon } from './SpaceIcon.tsx'
 
-export const navItemClass = (active: boolean) =>
-  cn(
-    'relative flex h-9 min-w-0 items-center gap-2 rounded-full px-3 text-sm hover:bg-hover',
-    active &&
-      'bg-selected font-medium before:absolute before:top-2 before:bottom-2 before:left-0 before:w-[3px] before:rounded-full before:bg-primary',
-  )
-
 function SpaceRow({
   space,
   active,
@@ -74,16 +67,20 @@ function SpaceRow({
         to="/spaces/$spaceSlug"
         params={{ spaceSlug: space.slug }}
         onClick={onNavigate}
-        className={cn(navItemClass(active), sortable && 'pr-8')}
+        // 与主导航同一套样式（app.css .xz-nav-item；当前项 data-active = 翡翠胶囊，REQ-UI-020 · 032）
+        className={cn('xz-nav-item', sortable && 'pr-8')}
+        data-active={active || undefined}
         aria-current={active ? 'page' : undefined}
       >
-        <SpaceIcon
-          icon={space.icon}
-          kind={space.kind}
-          color={space.color}
-          isPersonal={space.isPersonal}
-          className="size-5"
-        />
+        <span className="xz-nav-icon" aria-hidden>
+          <SpaceIcon
+            icon={space.icon}
+            kind={space.kind}
+            color={space.color}
+            isPersonal={space.isPersonal}
+            className="size-5"
+          />
+        </span>
         <span className="truncate">{space.isPersonal ? t('space.personal') : space.name}</span>
       </Link>
       {sortable ? (
@@ -138,17 +135,12 @@ export function SpaceSwitcher({ me, onNavigate }: { me: Me; onNavigate?: () => v
 
   return (
     <section
-      className="mt-3 flex min-h-0 flex-col px-2"
+      className="mt-2 flex min-h-0 flex-col px-3"
       aria-labelledby="xz-spaces-heading"
       data-testid="space-switcher"
     >
-      <div className="flex items-center justify-between py-1 pr-1 pl-3">
-        <Link
-          id="xz-spaces-heading"
-          to="/spaces"
-          onClick={onNavigate}
-          className="text-fg-muted text-xs hover:text-fg"
-        >
+      <div className="xz-nav-label flex items-center justify-between pr-1">
+        <Link id="xz-spaces-heading" to="/spaces" onClick={onNavigate} className="hover:text-fg">
           {t('space.parts')}
         </Link>
         {me.workspaceRole !== 'guest' ? (

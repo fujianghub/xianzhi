@@ -28,6 +28,8 @@ export function startApi() {
         : undefined,
     dataDir: env.DATA_DIR,
     nodeEnv: env.NODE_ENV,
+    // 验证实例 / e2e 回显拼图答案（createApp 在 production 下强制关闭）
+    captcha: { debug: process.env.XZ_CAPTCHA_DEBUG === '1' },
   })
   const server = serve({ fetch: app.fetch, port: env.API_PORT, hostname: '0.0.0.0' }, (info) => {
     logger.info({ port: info.port }, 'api listening')

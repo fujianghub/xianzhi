@@ -8,7 +8,7 @@
 
 | 项 | 约定 |
 |---|---|
-| 前缀 | `/api/v1`；Better Auth 挂 `/api/auth/*`；健康 `/api/health`（无鉴权，只返回 `{ ok: true }`）；详情 `/api/health/details`（admin，见 05 §10） |
+| 前缀 | `/api/v1`；Better Auth 挂 `/api/auth/*`；健康 `/api/health`（无鉴权，只返回 `{ ok: true }`）；详情 `/api/health/details`（admin，见 05 §10）；登录拼图 `GET /api/captcha`（匿名，IP 30/min，`no-store`，ADR-0006） |
 | 风格 | 资源型 REST，JSON；路径复数名词、**扁平**（`/tasks?spaceId=`，不做 `/spaces/:id/tasks`）；动作用子资源（`POST /entries/:id/snapshots`） |
 | 类型直通 | 每个路由文件 `export const tasks = new Hono<Env>().get(...).post(...)`，根 `app.route('/tasks', tasks)`；`export type AppType = typeof app`；前端 `hc<AppType>()`。**禁止**在路由上使用会丢类型的中间写法（先 `const r = new Hono(); r.get(...)` 不链式） |
 | 校验 | `@hono/zod-validator`，schema 一律来自 `src/shared/schemas/*`；`json` / `query` / `param` 三处都校验 |
@@ -27,7 +27,7 @@
 - **授权**：service 内 `assertCan(user, action, resource)`，失败抛 `ForbiddenError` → 403；**列表**用 `visible*Where(user)`（01 §5 不变量 3）。对不可见资源统一返回 404 而非 403（不泄露存在性）；**明确知道存在但无权的动作**（如空间成员修改归档空间）返回 403。
 - **CSRF**：Cookie `SameSite=Lax`；所有非 GET 请求校验 `Origin`/`Sec-Fetch-Site` 为同站，否则 403；API Key 请求豁免。
 - **安全头**：`hono/secure-headers`；CSP：`default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' wss://<APP_HOST>; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'`（Tiptap/KaTeX 需 inline style）。
-- **限流**：内存令牌桶，按 `userId` 或 IP；默认 600/min，上传 30/min，搜索 60/min，API Key 300/min/Key；返回 `RateLimit-Limit/Remaining/Reset`，超限 429 `RATE_LIMITED`。登录按 **IP 与邮箱双维度**各 10/min；同一账号连续失败 10 次锁定 15 分钟 → 403 `ACCOUNT_LOCKED`（正确密码也拒绝），并写 `audit_log(auth.locked)`（07 §5）。
+- **限流**：内存令牌桶，按 `userId` 或 IP；默认 600/min，上传 30/min，搜索 60/min，API Key 300/min/Key；返回 `RateLimit-Limit/Remaining/Reset`，超限 429 `RATE_LIMITED`。登录按 **IP 与邮箱双维度**各 10/min；同一账号连续失败 10 次锁定 15 分钟 → 403 `ACCOUNT_LOCKED`（正确密码也拒绝），并写 `audit_log(auth.locked)`（07 §5）。邮箱密码登录另须头 `x-captcha: <id>:<x>`（或邀请通行证 `pass:<id>`），在锁定与限流之后校验，失败 400 `CAPTCHA_INVALID`、不计入失败次数（ADR-0006）。
 
 ---
 
@@ -45,6 +45,7 @@
 | status | code | 场景 |
 |---|---|---|
 | 400 | `BAD_REQUEST` | 语法/参数不可解析 |
+| 400 | `CAPTCHA_INVALID` | 登录拼图缺失 / 错位 / 过期 / 已用（ADR-0006） |
 | 401 | `UNAUTHENTICATED` | 无会话 |
 | 403 | `FORBIDDEN` / `CSRF` / `SCOPE` / `ACCOUNT_LOCKED` | 权限、跨站、API Key scope、登录连续失败锁定（07 §5） |
 | 404 | `NOT_FOUND` | 不存在或不可见 |
@@ -183,7 +184,7 @@
 | POST | `/workspace/invitations` | `{ email, role }`；7 天一次性；成员数达 50 → 422 | REQ-AUTH-003 · 005 |
 | DELETE | `/workspace/invitations/:id` | 撤回 | REQ-AUTH-003 |
 | GET | `/workspace/invitations/:id` | **公开**（受邀者尚无账号）：邀请页读取；返回脱敏邮箱、角色、工作区名、邀请人；已用 / 过期 / 撤回 → 410 `INVITATION_EXPIRED` | REQ-AUTH-003 · 004 |
-| POST | `/workspace/invitations/:id/accept` | **公开**：`{ email, name, password }`；邮箱须与邀请一致（否则 403）；建号 + `member(role)` + 个人空间 + `member.joined`；一次性，再次 → 410 | REQ-AUTH-003 · 004 · REQ-SPACE-009 |
+| POST | `/workspace/invitations/:id/accept` | **公开**：`{ email, name, password }`；邮箱须与邀请一致（否则 403）；建号 + `member(role)` + 个人空间 + `member.joined`；一次性，再次 → 410；201 响应含 `captchaPass`（60 s 一次性，供随后自动登录免拼图，ADR-0006） | REQ-AUTH-003 · 004 · REQ-SPACE-009 · REQ-AUTH-016 |
 | GET | `/workspace/audit-log` | 游标；`action / actorId / from / to / jobId` 筛选（admin） | REQ-WS-005 |
 | GET | `/spaces` | 筛选 `archived=1`、`deleted=1`；sort 白名单 `sortKey name createdAt` | REQ-SPACE-001 · 004 |
 | POST | `/spaces` | 创建，创建者为 space admin | REQ-SPACE-001 |
@@ -206,7 +207,7 @@
 - `reorder` 要求对被拖项有 `space.manage`，因为 `sort_key` 是工作区共享顺序；`after` 只需可读。
 - 个人空间不可归档（它是收件箱默认落点），也不可改成员。`POST /spaces/:id/members` 按工作区角色封顶：guest 只能是 `viewer`，否则 422。
 - `DELETE /spaces/:id?permanent=1` 连同任务 / 记录 / 评论 / 附件一并清除，记审计 `space.permanently_deleted`；未软删的空间也可直接永久删。
-| GET | `/tasks` | 筛选 `spaceId status assigneeId cycleId tag dueBefore dueAfter q deleted`；`view=today\|inbox`（服务端按用户时区；**两者都排除 `done / cancelled`**，`today` = 逾期未完成 ∪ 今日到期 ∪ 今日开始，`inbox` = `status=inbox` 且创建者或指派人为我）；`due=today\|week\|overdue`；sort 白名单 `updatedAt createdAt dueAt priority title sortKey` | REQ-TASK-004 · 005 · 006 |
+| GET | `/tasks` | 筛选 `spaceId status assigneeId cycleId tag dueBefore dueAfter q deleted`；日历区间 `from to`（dueAt 或 scheduledAt ∈ [from, to)，须同给、≤ 62 天，REQ-TASK-024）；`view=today\|inbox`（服务端按用户时区；**两者都排除 `done / cancelled`**，`today` = 逾期未完成 ∪ 今日到期 ∪ 今日开始，`inbox` = `status=inbox` 且创建者或指派人为我）；`due=today\|week\|overdue`；sort 白名单 `updatedAt createdAt dueAt priority title sortKey` | REQ-TASK-004 · 005 · 006 |
 | POST | `/tasks` | 创建；`Idempotency-Key` | REQ-TASK-001 |
 | GET | `/tasks/:id` | 详情（含 `descriptionPm`）；Peek 复用 | REQ-TASK-012 · REQ-UI-007 |
 | PATCH | `/tasks/:id` | 带 `ifUpdatedAt`；改 `assigneeId` 发 `task.assigned` | REQ-TASK-007 · 012 |

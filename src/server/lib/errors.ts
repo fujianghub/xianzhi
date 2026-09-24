@@ -9,6 +9,7 @@ export type ErrorCode =
   | 'CSRF'
   | 'SCOPE'
   | 'ACCOUNT_LOCKED'
+  | 'CAPTCHA_INVALID'
   | 'NOT_FOUND'
   | 'CONFLICT_STALE'
   | 'CONFLICT_UNIQUE'

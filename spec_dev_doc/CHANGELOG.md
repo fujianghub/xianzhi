@@ -4,6 +4,16 @@
 
 ## 2026-09-24
 
+**侧栏改版 · 登录拼图滑块（ADR-0006）· 日历 · 未登录主题选择**
+- 新增 ADR-0006（登录拼图滑块，服务端出题、PG 一次性答案、不计入锁定、邀请通行证、production 禁回显）。
+- 00：新增 REQ-AUTH-016、REQ-TASK-024、REQ-UI-031（日历）、REQ-UI-032（侧栏改版）；REQ-UI-020 当前项改为翡翠渐变胶囊（无竖条）；REQ-UI-001 加注未登录页主题选择。
+- 02：§1 前缀加 `/api/captcha`；§2 登录加 `x-captcha`；§3 错误码加 `CAPTCHA_INVALID`；§9 `/tasks` 加 `from/to`、邀请接受响应加 `captchaPass`。07 §2.1 威胁表加「脚本 / AI 批量登录」。08：§2.1 登录页加注、新增 §2.17 日历、路由表文件名更正为 `_app.calendar.tsx`。glossary：拼图滑块、拼图通行证、动效档位、展开指示。
+- tokens：侧栏导航图标色组 `--xz-icon-*`（8 色，日场 amber / lime 加深到 ≥ 3:1）；check-contrast 88 项。
+- 用户裁定（2026-09-24）：先要求「默认日场」随即改为「登录页默认跟随系统 + 未登录可切换」，最终保留跟随系统，仅新增未登录页主题选择。
+
+**ADR-0005 · e2e 回归修复（REQ-UI-013）**
+- 06 §3.1 相关：光晕移入 `body::before` 后 axe 可算背景，暴露既有对比度违规（debug/2026-09-24-axe-contrast-body-pseudo）。`--xz-danger` 日场 `#C0483F` → `#B8433A`；`check-contrast` 增「danger 文字 / 底板 ≥ 4.5」（72 项）；侧栏与 `/design` 的 `fg-faint` 小字改 `fg-muted`。
+
 **ADR-0005 · P1 动效体系**
 - 00：新增 REQ-UI-028（动效档位）、029（路由转场）、030（展开指示），Phase 2、P1；REQ-UI-021 加注（借路由转场实现，Peek 暂未接）。
 - 04 §2.4 加注：档位落地位置、路由转场规则、列表重排改用 CSS transform 过渡（不上 Motion `layout`，保 REQ-UI-017）。

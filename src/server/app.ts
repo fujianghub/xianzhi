@@ -22,7 +22,7 @@ import { csrf } from './middleware/csrf.ts'
 import { LoginGuard, loginGuard } from './middleware/login-guard.ts'
 import { logoutAudit } from './middleware/logout-audit.ts'
 import { FixedWindowLimiter, rateLimit } from './middleware/rate-limit.ts'
-import { requestContext } from './middleware/request-context.ts'
+import { clientIp, requestContext } from './middleware/request-context.ts'
 import { session } from './middleware/session.ts'
 import { attachmentRoutes, avatarRoutes } from './routes/attachments.ts'
 import { collabRoutes } from './routes/collab.ts'
@@ -38,6 +38,7 @@ import { streamRoutes } from './routes/stream.ts'
 import { tagRoutes } from './routes/tags.ts'
 import { taskRoutes } from './routes/tasks.ts'
 import { workspaceRoutes } from './routes/workspace.ts'
+import { type CaptchaOptions, createCaptcha } from './services/captcha.ts'
 import { spaceReaders } from './services/realtime.ts'
 import type { AppEnv } from './types.ts'
 
@@ -58,6 +59,8 @@ export interface AppDeps {
   bus?: EventBus
   sseHub?: SseHub
   loginGuard?: LoginGuard
+  /** 登录拼图滑块（ADR-0006）；production 下 debug 强制关闭 */
+  captcha?: CaptchaOptions
   /** 生产托管的前端构建目录（dist/client）；dev 下由 Vite 提供 */
   staticDir?: string
 }
@@ -83,6 +86,10 @@ const DISABLED_AUTH_PATHS = [
 export function createApp(deps: AppDeps) {
   const generalLimiter = deps.generalLimiter ?? new FixedWindowLimiter(600, 60_000)
   const guard = deps.loginGuard ?? new LoginGuard()
+  // 答案回显只允许在非生产环境（REQ-AUTH-016 安全测试锁定）
+  const captcha: CaptchaOptions =
+    deps.nodeEnv === 'production' ? { ...deps.captcha, debug: false } : { ...deps.captcha }
+  const captchaLimiter = new FixedWindowLimiter(30, 60_000)
   const wsHost = new URL(deps.appUrl).host
 
   // SSE：EventBus notify → hub；user.revoked → 断开（07 §4）
@@ -126,9 +133,19 @@ export function createApp(deps: AppDeps) {
     if (DISABLED_AUTH_PATHS.includes(c.req.path)) throw AppError.notFound()
     await next()
   })
-  app.use('/api/auth/sign-in/email', loginGuard(guard, deps.db))
+  app.use('/api/auth/sign-in/email', loginGuard(guard, deps.db, captcha))
   app.use('/api/auth/sign-out', logoutAudit(deps.auth, deps.db))
   app.on(['GET', 'POST'], '/api/auth/*', (c) => deps.auth.handler(c.req.raw))
+
+  // ---- 登录拼图（ADR-0006）：匿名可取，按 IP 30/min；在 session 中间件之前注册，不查会话 ----
+  app.get(
+    '/api/captcha',
+    rateLimit(captchaLimiter, (c) => `ip:${clientIp(c.req.raw.headers)}`),
+    async (c) => {
+      c.header('Cache-Control', 'no-store')
+      return c.json(await createCaptcha(deps.db, captcha))
+    },
+  )
 
   // ---- 业务 API ----
   app.use('/api/*', session(deps.auth, deps.db))

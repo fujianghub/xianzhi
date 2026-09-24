@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as AppCalendarRouteImport } from './routes/_app.calendar'
 import { Route as AppDesignRouteImport } from './routes/_app.design'
 import { Route as AppInboxRouteImport } from './routes/_app.inbox'
 import { Route as AppNotificationsRouteImport } from './routes/_app.notifications'
@@ -48,6 +49,11 @@ const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AppCalendarRoute = AppCalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
+  getParentRoute: () => AppRoute,
 } as any)
 const AppDesignRoute = AppDesignRouteImport.update({
   id: '/design',
@@ -169,6 +175,7 @@ const AppSpacesSpaceSlugTasksTaskIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/calendar': typeof AppCalendarRoute
   '/design': typeof AppDesignRoute
   '/inbox': typeof AppInboxRoute
   '/notifications': typeof AppNotificationsRoute
@@ -195,6 +202,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/calendar': typeof AppCalendarRoute
   '/design': typeof AppDesignRoute
   '/inbox': typeof AppInboxRoute
   '/notifications': typeof AppNotificationsRoute
@@ -222,6 +230,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
+  '/_app/calendar': typeof AppCalendarRoute
   '/_app/design': typeof AppDesignRoute
   '/_app/inbox': typeof AppInboxRoute
   '/_app/notifications': typeof AppNotificationsRoute
@@ -250,6 +259,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/calendar'
     | '/design'
     | '/inbox'
     | '/notifications'
@@ -276,6 +286,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/calendar'
     | '/design'
     | '/inbox'
     | '/notifications'
@@ -302,6 +313,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_app'
     | '/login'
+    | '/_app/calendar'
     | '/_app/design'
     | '/_app/inbox'
     | '/_app/notifications'
@@ -356,6 +368,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_app/calendar': {
+      id: '/_app/calendar'
+      path: '/calendar'
+      fullPath: '/calendar'
+      preLoaderRoute: typeof AppCalendarRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/design': {
       id: '/_app/design'
@@ -550,6 +569,7 @@ const AppSpacesSpaceSlugRouteWithChildren =
   AppSpacesSpaceSlugRoute._addFileChildren(AppSpacesSpaceSlugRouteChildren)
 
 interface AppRouteChildren {
+  AppCalendarRoute: typeof AppCalendarRoute
   AppDesignRoute: typeof AppDesignRoute
   AppInboxRoute: typeof AppInboxRoute
   AppNotificationsRoute: typeof AppNotificationsRoute
@@ -565,6 +585,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppCalendarRoute: AppCalendarRoute,
   AppDesignRoute: AppDesignRoute,
   AppInboxRoute: AppInboxRoute,
   AppNotificationsRoute: AppNotificationsRoute,

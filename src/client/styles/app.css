@@ -211,6 +211,129 @@ html[data-dialog-open] body::before {
   transition: none;
 }
 
+/*
+ * ---- 侧栏（2026-09-24 改版，REQ-UI-020 · 032；参照简斋后台）----
+ * 整高贴左的实玻璃板，右侧 1px 线 + 柔阴影与内容区分开；导航项 42px 圆角 10，图标槽 30px 带专属色；
+ * 当前项为翡翠渐变胶囊 + inset 描边（不再用左侧竖条）。导航与空间树共用 .xz-nav-item。
+ */
+.xz-sidebar {
+  background: var(--xz-glass-thick);
+  -webkit-backdrop-filter: blur(var(--xz-blur-thick)) saturate(186%);
+  backdrop-filter: blur(var(--xz-blur-thick)) saturate(186%);
+  border-right: 1px solid var(--xz-border);
+  box-shadow:
+    inset -1px 0 0 var(--xz-edge),
+    6px 0 28px -18px color-mix(in srgb, var(--xz-fg) 30%, transparent);
+}
+/* 须写在 .xz-sidebar 之后：同为无层规则，靠源码顺序覆盖（REQ-UI-016 reduced-transparency） */
+@media (prefers-reduced-transparency: reduce), print {
+  .xz-sidebar {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+:root[data-transparency="reduce"] .xz-sidebar {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.xz-brand {
+  border-bottom: 1px solid var(--xz-divider);
+}
+.xz-nav-label {
+  padding: 14px 12px 6px;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: var(--xz-fg-muted);
+}
+.xz-nav-item {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  height: 42px;
+  align-items: center;
+  gap: 8px;
+  padding-inline: 6px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--xz-fg-muted);
+  transition:
+    background-color var(--xz-dur-fast) var(--xz-ease-out),
+    color var(--xz-dur-fast) var(--xz-ease-out),
+    box-shadow var(--xz-dur-base) var(--xz-ease-out);
+}
+.xz-nav-icon {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  place-items: center;
+  color: color-mix(in srgb, var(--xz-ico, var(--xz-fg-muted)) 80%, var(--xz-fg-muted));
+  transition:
+    transform var(--xz-dur-base) var(--xz-ease-spring),
+    color var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-nav-icon > svg {
+  width: 19px;
+  height: 19px;
+  stroke-width: 1.75;
+}
+.xz-nav-item:hover {
+  background: var(--xz-hover-bg);
+  color: var(--xz-fg);
+}
+.xz-nav-item:hover .xz-nav-icon {
+  color: var(--xz-ico, var(--xz-fg));
+  transform: scale(1.06);
+}
+.xz-nav-item[data-active] {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--xz-primary) 18%, transparent) 0%,
+    color-mix(in srgb, var(--xz-primary) 6%, transparent) 100%
+  );
+  box-shadow:
+    0 4px 14px color-mix(in srgb, var(--xz-primary) 15%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--xz-primary) 25%, transparent);
+  color: var(--xz-primary-text);
+  font-weight: 600;
+}
+.xz-nav-item[data-active] .xz-nav-icon {
+  color: var(--xz-ico, var(--xz-primary-text));
+  filter: drop-shadow(
+    0 0 3px color-mix(in srgb, var(--xz-ico, var(--xz-primary)) 30%, transparent)
+  );
+}
+.xz-nav-item[aria-disabled="true"] {
+  color: var(--xz-fg-faint);
+  pointer-events: none;
+}
+.xz-nav-item[aria-disabled="true"] .xz-nav-icon {
+  color: var(--xz-fg-faint);
+}
+/* 内容区内衬：内缩的圆角淡翡翠面板（简斋 --glass-bg-content） */
+.xz-main {
+  position: relative;
+  isolation: isolate;
+}
+.xz-main::before {
+  content: "";
+  position: absolute;
+  inset: 8px 12px;
+  z-index: -1;
+  border-radius: 18px;
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--xz-primary) 5%, transparent) 0%,
+    transparent 55%
+  );
+  pointer-events: none;
+}
+@media (width < 64rem) {
+  .xz-main::before {
+    inset: 4px 6px;
+  }
+}
+
 /* ---- ADR-0005 §2 燕印（REQ-UI-024）：翡翠渐变方印 + 深墨燕；宿主 hover 轻转，减弱档静止 ---- */
 .xz-seal {
   display: inline-grid;

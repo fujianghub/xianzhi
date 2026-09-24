@@ -91,3 +91,54 @@ export function weekRange(tz: string, weekStartsOn: number, now: Date): { start:
   const first = addDays(today, -((dow - weekStartsOn + 7) % 7))
   return { start: zonedMidnight(tz, first), end: zonedMidnight(tz, addDays(first, 7)) }
 }
+
+/** 'YYYY-MM-DD' ⇄ LocalDate（日历 search param，REQ-UI-031）；非法返回 null。 */
+export function parseLocalDate(s: string | undefined): LocalDate | null {
+  const m = s ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(s) : null
+  if (!m) return null
+  const d = { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) }
+  const t = addDays(d, 0)
+  return t.y === d.y && t.m === d.m && t.d === d.d ? d : null
+}
+export const formatLocalDate = (d: LocalDate) =>
+  `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`
+export const sameLocalDate = (a: LocalDate, b: LocalDate) =>
+  a.y === b.y && a.m === b.m && a.d === b.d
+/** 0 = 周日 … 6 = 周六 */
+export const dayOfWeek = (d: LocalDate) => new Date(Date.UTC(d.y, d.m - 1, d.d)).getUTCDay()
+
+/** 含 anchor 的那一周的 7 天（按 weekStartsOn 起始）。 */
+export function weekDays(weekStartsOn: number, anchor: LocalDate): LocalDate[] {
+  const first = addDays(anchor, -((dayOfWeek(anchor) - weekStartsOn + 7) % 7))
+  return Array.from({ length: 7 }, (_, i) => addDays(first, i))
+}
+
+/**
+ * 月视图 6×7 网格（REQ-UI-031）：从含本月 1 日那一周的周起始日开始，固定 42 天；
+ * 返回本地日期序列与对应的 UTC 区间 [start, end)（供 GET /tasks?from&to）。
+ */
+export function monthGrid(
+  tz: string,
+  weekStartsOn: number,
+  anchor: LocalDate,
+): { days: LocalDate[]; start: Date; end: Date } {
+  const first = weekDays(weekStartsOn, { y: anchor.y, m: anchor.m, d: 1 })[0] as LocalDate
+  const days = Array.from({ length: 42 }, (_, i) => addDays(first, i))
+  return {
+    days,
+    start: zonedMidnight(tz, first),
+    end: zonedMidnight(tz, addDays(first, 42)),
+  }
+}
+
+/** 加减月份（日取 1 号，避免 1/31 + 1 月溢出）。 */
+export function addMonths(d: LocalDate, n: number): LocalDate {
+  const t = new Date(Date.UTC(d.y, d.m - 1 + n, 1))
+  return { y: t.getUTCFullYear(), m: t.getUTCMonth() + 1, d: 1 }
+}
+
+/** 本地日期 + 当日分钟数（日历事件归日与时间轴定位，REQ-UI-031）。 */
+export function localDateTimeOf(tz: string, at: Date): { date: LocalDate; minutes: number } {
+  const p = parts(tz, at)
+  return { date: { y: p.year, m: p.month, d: p.day }, minutes: (p.hour % 24) * 60 + p.minute }
+}

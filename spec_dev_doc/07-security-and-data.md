@@ -44,6 +44,7 @@ pg-boss worker（xz-app 进程内）──▶ SMTP(腾讯云 SES) / WebPush 端�
 | 自助注册滥用 | 攻击者批量建号 | `disableSignUp`，只经邀请（01 §2） | 已覆盖 |
 | 邀请链接重放 | 链接被转发、被多人使用 | 邀请**一次性**、7 天过期、接受时绑定邀请邮箱（邮箱不匹配 → 拒绝）；接受后 `invitation.status = accepted` 不可再用 | 需新增 |
 | 暴力破解登录 | 密码字典 | 登录限流 10/min（02 §2）；连续失败 10 次锁定 15 分钟并写 `audit_log`；2FA 可开 | 需新增（锁定） |
+| 脚本 / AI 批量登录 | 自动化工具直接调登录接口 | 服务端拼图滑块（ADR-0006）：答案只在 PG、一次性、120 s、±6px、≥ 600 ms；拼图失败不计入锁定（防借锁定做 DoS）；production 禁止回显答案（单测锁定）。强度有限（视觉模型可解），仅抬高批量成本 | 已覆盖（2026-09-24） |
 | 会话固定 / 劫持 | XSS 或网络窃取 Cookie | HttpOnly/Secure/SameSite=Lax；CSP 无 `unsafe-inline` 脚本（02 §2）；登录成功后轮换会话 id（Better Auth 默认） | 已覆盖 |
 | 会话吊销不彻底 | 改密 / 被移除 / 被封禁后旧会话与 WS 仍活 | 改密、封禁、移除成员、吊销 API Key 时：同事务删除该用户全部 `session` 行，提交后经进程内 `EventBus` 广播 `user.revoked(userId)`，collab 断开其所有连接（关闭码 4403）、SSE 关闭其连接。空间成员或记录可见性变更时广播 `entry.access_changed(entryId)`，collab 对该文档所有连接重跑 `can()`，无权者断开。不做定时复核（03 §4.2） | 需新增 |
 | 管理员模拟登录（impersonation） | Better Auth `admin` 插件的 impersonate 等于持有任意用户会话 | **一期禁用**：`admin` 插件不暴露 impersonate 能力（不注册路由）。若二期开启：每次写 `audit_log(action=admin.impersonated, target=userId)`，禁止对 owner 使用，会话 1 小时过期 | 需新增 |

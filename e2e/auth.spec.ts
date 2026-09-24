@@ -1,6 +1,16 @@
 /** 认证与邀请（REQ-AUTH-001 · 003 · 004 · 006、REQ-NOTIF-009）。 */
 import { expect, type Page, test } from '@playwright/test'
-import { BASE, login, MEMBER, mailTo, OWNER, STATE, sameSite, totp } from './helpers.ts'
+import {
+  BASE,
+  login,
+  MEMBER,
+  mailTo,
+  OWNER,
+  STATE,
+  sameSite,
+  solveCaptcha,
+  totp,
+} from './helpers.ts'
 
 async function signOut(page: Page) {
   await page.getByRole('button', { name: '退出登录' }).click()
@@ -10,7 +20,8 @@ async function signOut(page: Page) {
 test('REQ-AUTH-001 登录成功跳 /today；密码错误统一提示「邮箱或密码不正确」', async ({ page }) => {
   await login(page, { email: OWNER.email, password: 'wrong-password-000' })
   await expect(page.getByRole('alert')).toHaveText('邮箱或密码不正确')
-  await page.getByLabel('密码').fill(OWNER.password)
+  await page.getByLabel('密码', { exact: true }).fill(OWNER.password)
+  await solveCaptcha(page) // 失败后旧题已被消费，换了新题（REQ-AUTH-016）
   await page.getByTestId('login-submit').click()
   await page.waitForURL('**/today')
   await expect(page.getByTestId('today')).toBeVisible()

@@ -291,6 +291,19 @@ export async function listTasks(db: DbOrTx, ctx: TaskCtx, q: z.infer<typeof list
     throw AppError.validation([{ path: 'status', message: 'view=inbox 时不能再筛 status' }])
   if (q.view && q.deleted)
     throw AppError.validation([{ path: 'view', message: 'view 不能与 deleted 同用' }])
+  let range: { from: Date; to: Date } | null = null
+  if (q.from || q.to) {
+    if (!q.from || !q.to)
+      throw AppError.validation([
+        { path: q.from ? 'to' : 'from', message: 'from 与 to 须同时给出' },
+      ])
+    if (q.view || q.deleted)
+      throw AppError.validation([{ path: 'from', message: '日历区间不能与 view / deleted 同用' }])
+    range = { from: new Date(q.from), to: new Date(q.to) }
+    const span = range.to.getTime() - range.from.getTime()
+    if (span <= 0 || span > 62 * 86_400_000)
+      throw AppError.validation([{ path: 'to', message: '区间须满足 from < to 且不超过 62 天' }])
+  }
   const conds: SQL[] = [eq(tasks.workspaceId, ctx.workspaceId)]
   if (q.deleted) {
     // 回收站（T1-037 细化）：本人创建的软删任务；owner/admin 全部
@@ -318,6 +331,14 @@ export async function listTasks(db: DbOrTx, ctx: TaskCtx, q: z.infer<typeof list
   if (q.dueAfter) conds.push(gte(tasks.dueAt, new Date(q.dueAfter)))
   if (q.q)
     conds.push(or(ilike(tasks.title, `%${q.q}%`), ilike(tasks.descriptionPlain, `%${q.q}%`))!)
+  if (range)
+    // 日历（REQ-TASK-024）：截止或计划开始落在区间内都算；可见性已由 visibleTasksWhere 保证
+    conds.push(
+      or(
+        and(gte(tasks.dueAt, range.from), lt(tasks.dueAt, range.to)),
+        and(gte(tasks.scheduledAt, range.from), lt(tasks.scheduledAt, range.to)),
+      )!,
+    )
 
   if (q.view === 'today') {
     // 逾期未完成 ∪ 今日到期 ∪ 今日开始（08 §2.3）；dueAt < 明日 00:00 已覆盖前两者

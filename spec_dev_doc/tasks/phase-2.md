@@ -15,3 +15,11 @@
 | T1-043 | 工作区 Logo | — | 08 §2.13 注 |
 | T1-027 | WebPush 通道（偏好页已置灰） | REQ-MOBILE-005 · REQ-NOTIF（push） | 投递表写 `skipped` |
 | T1-029 | ⌘K「移到周期」（周期功能整体属二期） | REQ-CYCLE-* | ⌘K 中为置灰项 |
+
+## 2026-09-24 已提前实现（记录，便于 Phase 2 验收对账）
+
+| 任务 | 内容 | REQ |
+|---|---|---|
+| T2-X01 | 登录拼图滑块（ADR-0006） | REQ-AUTH-016 |
+| T2-X02 | 日历月 / 周视图与 `GET /tasks?from&to` | REQ-UI-031 · REQ-TASK-024 |
+| T2-X03 | 侧栏改版（简斋后台风格） | REQ-UI-032 · REQ-UI-020 |

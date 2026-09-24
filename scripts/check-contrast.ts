@@ -98,6 +98,11 @@ for (const [name, t, worstGlass, worstGlow] of [
     check(`${s} 图标 / 纸面`, get(`--xz-${s}`), paperBg, 3)
   check('danger / danger-soft', get('--xz-danger'), get('--xz-danger-soft'), 4.5)
   check('danger-fg / danger', get('--xz-danger-fg'), get('--xz-danger'), 4.5)
+  // 逾期标题、错误说明等 danger 文字直接压在底板上（REQ-UI-013 axe）
+  check('danger 文字 / 底板', get('--xz-danger'), bg, 4.5)
+  // 侧栏导航图标色组（2026-09-24 侧栏改版）：图标 ≥ 3
+  for (const c of ['amber', 'blue', 'cyan', 'violet', 'rose', 'emerald', 'lime', 'sky'])
+    check(`icon-${c} / 最坏玻璃底`, get(`--xz-icon-${c}`), worst, 3)
   for (const c of [
     'fg',
     'comment',

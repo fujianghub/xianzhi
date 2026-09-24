@@ -76,6 +76,9 @@ export const listTasksQuery = pageParams.extend({
   tag: csvText, // 逗号多值，任一命中（REQ-TAG-002）
   dueBefore: isoDateTime.optional(),
   dueAfter: isoDateTime.optional(),
+  /** 日历区间（REQ-TASK-024）：dueAt 或 scheduledAt 落在 [from, to)；两者须同时给出，跨度 ≤ 62 天 */
+  from: isoDateTime.optional(),
+  to: isoDateTime.optional(),
   q: z.string().trim().max(200).optional(),
   deleted: bool01,
   view: z.enum(['today', 'inbox']).optional(),

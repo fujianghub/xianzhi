@@ -50,7 +50,7 @@
   --xz-success-soft: #e3f2ea;
   --xz-warning: #c9822e;
   --xz-warning-soft: #f8ebda;
-  --xz-danger: #c0483f;
+  --xz-danger: #b8433a; /* 原 #C0483F 作文字压底板 4.49 < 4.5（axe，光晕移入 body::before 后可测） */
   --xz-danger-fg: #ffffff;
   --xz-danger-soft: #fcf2f1; /* 原 #F8E4E2，danger 字 4.05 < 4.5 */
   --xz-info: #3b6fb6;
@@ -73,6 +73,16 @@
   --xz-palette-gray-fg: #4f554b;
   --xz-palette-pine-bg: #ddebe3;
   --xz-palette-pine-fg: #24513b;
+
+  /* ---- 侧栏导航图标色组（2026-09-24 侧栏改版，简斋后台同源；图标 ≥ 3:1） ---- */
+  --xz-icon-amber: #b45309;
+  --xz-icon-blue: #2563eb;
+  --xz-icon-cyan: #0891b2;
+  --xz-icon-violet: #7c3aed;
+  --xz-icon-rose: #c0564e;
+  --xz-icon-emerald: #059669;
+  --xz-icon-lime: #4d7c0f;
+  --xz-icon-sky: #0284c7;
 
   /* ---- 06 §3.3 深度 ---- */
   --xz-shadow-soft: 0 2px 10px rgba(0, 0, 0, 0.05);
@@ -190,6 +200,15 @@
   --xz-palette-gray-fg: #c7cbc2;
   --xz-palette-pine-bg: #1a2e24;
   --xz-palette-pine-fg: #9ccfb2;
+
+  --xz-icon-amber: #e8b04b;
+  --xz-icon-blue: #60a5fa;
+  --xz-icon-cyan: #22d3ee;
+  --xz-icon-violet: #a78bfa;
+  --xz-icon-rose: #d97b74;
+  --xz-icon-emerald: #34d399;
+  --xz-icon-lime: #a3e635;
+  --xz-icon-sky: #38bdf8;
 
   --xz-shadow-soft: 0 4px 14px rgba(0, 0, 0, 0.35);
   --xz-shadow-card:
