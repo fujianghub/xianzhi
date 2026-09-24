@@ -147,6 +147,7 @@ LOG_LEVEL=info
 - 视觉基线（`/design` 四页 + Toast 三态，阈值 0.1%）改视觉后须用户确认再重拍：`pnpm exec playwright test e2e/design.spec.ts e2e/feedback.spec.ts --project=setup --project=desktop --update-snapshots`，再不带参数复跑一次确认稳定。
 - 选择器用精确匹配避免文案包含关系（如 `getByLabel('密码', { exact: true })`，否则命中「显示密码」按钮）。
 - axe 用例在首个失败路由即停：修复后须确认其后路由也通过（可逐路由复扫）。
+- 测试 / 构建过程的产物**一律不入库**：`debug/perf/`（req-coverage、budget、lighthouse、tasks-list、editor-open 等测量值）、`test-results/`、`playwright-report/`、`e2e/.auth/`、`data/` 均在 `.gitignore`；`.claude/worktrees/` 同。需要留证的性能数字写进 CHANGELOG / 验收记录，不提交 JSON。入库的生成物只有构建必需的：视觉基线 `e2e/__screenshots__/`、`drizzle/`、`src/client/routeTree.gen.ts`。
 
 注（2026-09-23，T0-029）：**分层口径**——00 中测试层为 `unit` 的需求，可由同一 `test` 阶段的 `api` / `collab` 用例满足（更重的集成测试覆盖了同一断言）；`e2e` / `visual` / `a11y` 统一记为 e2e 层；`e2e（infra）` 记为 infra 层，只在 `pnpm e2e:infra` 校验（注 2026-09-24）。测试名里的缩写引用（`REQ-WS-004 · 012 · 013`）由 `scripts/req-ids.ts` 展开。
 

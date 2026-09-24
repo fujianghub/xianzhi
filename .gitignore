@@ -9,10 +9,10 @@ node_modules/.vite-verify/
 coverage/
 playwright-report/
 test-results/
-debug/perf/req-coverage.*.json
+# 测试 / 构建过程的测量产物一律不入库（req-coverage、budget、lighthouse、tasks-list、editor-open …）
+debug/perf/
 *.log
 .DS_Store
-debug/perf/budget.json
-debug/perf/lighthouse.json
-debug/perf/tasks-list.json
 e2e/.auth/
+# 本地 git worktree（会话隔离用），不入库
+.claude/worktrees/

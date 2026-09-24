@@ -4,6 +4,10 @@
 
 ## 2026-09-24
 
+**测试产物不入库（用户要求根治）**
+- `.gitignore` 改为忽略整个 `debug/perf/`，并忽略 `.claude/worktrees/`；`debug/perf/editor-open.json` 移出版本库（此前被跟踪，每跑一次 e2e 就出现修改）。REQ-EDITOR-014 的测量结论仍以本文 Phase 1 条目为准（中位 72.7 ms）。
+- 05 §5 注：测试 / 构建产物一律不入库，列出例外（视觉基线、drizzle、routeTree.gen.ts）。
+
 **文档同步（CLAUDE.md · 00 / 02 / 04 / 05 / 06 / 07 / 08 / glossary 头部）**
 - CLAUDE.md（用户要求更新）：更名残留修正（标题衔枝、`pnpm xz`、`xz rebuild-derived`、`xz:attachment/`）；坐标加视觉与拼图；命令加 `dev:verify`、`lint:drift`、验证实例拼图回显、视觉基线重拍、worktree 预览、大包安装；不变量 5 加 primary-text / motion / reduced-transparency，不变量 9 加登录拼图；索引加 ADR-0004 ~ 0006；纪律加「合并用 `--no-ff`」。74 行。
 - 05 §2 注：npmmirror 大 tarball 问题与代理解法；§5 注：拼图 e2e、`localhost:3011` 限制、视觉基线重拍流程、精确匹配选择器、axe 首错即停。
