@@ -1,6 +1,6 @@
 # 05 开发流程
 
-> 状态：已采纳 · 版本：v4 · 更新：2026-09-24 · 最后对照代码：2026-09-24（Phase 1：命令、verify 实例、e2e:infra） · 依据 ADR-0001 §6–7。命令、端口、环境、测试、CI、部署、备份、文档纪律的权威来源。CLAUDE.md 只摘录本文的命令段。
+> 状态：已采纳 · 版本：v4 · 更新：2026-09-24 · 最后对照代码：2026-09-24（拼图 e2e、视觉基线、依赖安装） · 依据 ADR-0001 §6–7。命令、端口、环境、测试、CI、部署、备份、文档纪律的权威来源。CLAUDE.md 只摘录本文的命令段。
 > 分期术语（全部规范统一）：**一期 = Phase 0 + 1 + 2**（可用版本；工期计划值见 ADR-0003 与 `tasks/phase-N.md`）；**二期 = Phase 3**（MCP、git / debug 导入、AI、pgvector、PWA 打磨）。不再使用「三期」。
 
 ---
@@ -70,6 +70,8 @@ LOG_LEVEL=info
 
 ---
 
+> 注 2026-09-24（依赖安装）：npmmirror 的大 tarball（如 `misans` 43 MB）CDN 仅约 20 KB/s，`pnpm add` 会长时间无响应甚至挂死（进程无 TCP 连接仍不退出）；腾讯云镜像 tarball 快但元数据接口常超时。装 > 10 MB 的包先 `curl` 测速；必要时用临时本地代理（元数据走 npmmirror、tarball 走腾讯并核对 `dist.integrity`），`--registry` 只在该次命令指定，lockfile 只记 integrity、不留镜像地址。
+
 ## 3. 命令（`package.json` scripts）
 
 | 命令 | 作用 |
@@ -138,6 +140,13 @@ LOG_LEVEL=info
 | 可访问性 | `@axe-core/playwright` | 每个路由 | 无 serious 以上 |
 
 约定：Playwright 对 sticky/被遮挡元素一律 `page.evaluate` DOM `click()`（简斋教训）；轮询网络时夹空 `page.evaluate`。
+
+注（2026-09-24，登录拼图与视觉基线）：
+- 登录前置服务端拼图（ADR-0006）。API 测试的 `signIn()` 先取 `/api/captcha`（`captcha: { debug: true, minSolveMs: 0 }`）再提交；e2e `login()` 调 `solveCaptcha()`：读 `data-debug-x`（验证实例 `XZ_CAPTCHA_DEBUG=1` 才有，production 服务端强制不回显），等 700 ms（最短解题时间 + 手柄回弹）后真实拖拽。
+- `pnpm e2e` 重建 `xz_e2e` 并只认 `localhost:3011`：按 IP 启动的验证实例（`APP_URL=http://<ip>:3011`）须先停，跑完再起。
+- 视觉基线（`/design` 四页 + Toast 三态，阈值 0.1%）改视觉后须用户确认再重拍：`pnpm exec playwright test e2e/design.spec.ts e2e/feedback.spec.ts --project=setup --project=desktop --update-snapshots`，再不带参数复跑一次确认稳定。
+- 选择器用精确匹配避免文案包含关系（如 `getByLabel('密码', { exact: true })`，否则命中「显示密码」按钮）。
+- axe 用例在首个失败路由即停：修复后须确认其后路由也通过（可逐路由复扫）。
 
 注（2026-09-23，T0-029）：**分层口径**——00 中测试层为 `unit` 的需求，可由同一 `test` 阶段的 `api` / `collab` 用例满足（更重的集成测试覆盖了同一断言）；`e2e` / `visual` / `a11y` 统一记为 e2e 层；`e2e（infra）` 记为 infra 层，只在 `pnpm e2e:infra` 校验（注 2026-09-24）。测试名里的缩写引用（`REQ-WS-004 · 012 · 013`）由 `scripts/req-ids.ts` 展开。
 

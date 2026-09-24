@@ -1,6 +1,6 @@
 # 06 视觉风格：Apple 玻璃 · 日场 / 夜场
 
-> 状态：已采纳 · 版本：v4 · 更新：2026-09-23 · 最后对照代码：2026-09-24（Phase 1：§7 触控与对比度、§8 blur 预算） · 依据 ADR-0002（推翻 ADR-0001 §9.3 与 `04` §1 的「不复制简斋玻璃态」）。
+> 状态：已采纳 · 版本：v4 · 更新：2026-09-24 · 最后对照代码：2026-09-24（ADR-0005 翡翠、侧栏改版、reduced-transparency） · 依据 ADR-0002（推翻 ADR-0001 §9.3 与 `04` §1 的「不复制简斋玻璃态」）。
 > 本文定义**材质与光影层**：背景、玻璃面板、深度、光效、主题切换。语义色阶、字体、间距、动效档位、布局、组件层次仍以 `04-design-system.md` 为准；两文冲突处以本文 §3 的 token 值为准（§3 明确列出覆盖项）。
 > 来源：简斋 `frontend/src/styles/tokens.css` / `theme.css` 的 `.jz-glass` 体系（2026-09 版）。本文取其配方与踩坑，去掉其古风、六主题、AntD 覆盖层，只保留**两种主题：日场（light）/ 夜场（dark）**。
 
@@ -174,7 +174,7 @@ Tailwind v4 的 `backdrop-blur-*` 会同时输出 `-webkit-backdrop-filter`；�
 | 组件 | 材质 | 圆角 | 阴影 | 备注 |
 |---|---|---|---|---|
 | Topbar | `glass` blur 20 | 0 | `inset 0 -1px 0 divider` | sticky；滚动 > 8px 后加 `shadow-soft` + 枝线（注 2026-09-24：`.xz-topbar[data-scrolled]`，ADR-0005） |
-| Sidebar | `glass` blur 24 | 0 | 右侧 1px border + `shadow-soft` | 当前项 `selected-bg` 胶囊 `radius-full`，左侧 3px 主色竖条 |
+| Sidebar | ~~`glass` blur 24~~ `.xz-sidebar`：`glass-thick` 底色 + blur-thick（注 2026-09-24 侧栏改版，REQ-UI-032） | 0 | 右侧 1px border + 内侧棱线 + 右向柔阴影 | ~~当前项 `selected-bg` 胶囊 `radius-full`，左侧 3px 主色竖条~~ 当前项翡翠渐变胶囊（18% → 6%）+ 1px inset 描边 + 柔光，圆角 10，无竖条；图标专属色 `--xz-icon-*`；reduced-transparency 覆盖须写在 `.xz-sidebar` 之后（debug/2026-09-24-reduced-transparency-unlayered-order） |
 | Aside（大纲/反链/评论/属性） | `glass` blur 20 | `xl` 左侧两角 | `shadow-soft` | 折叠时向右滑出 |
 | 底部导航（< lg） | `glass` blur 20 | `xl` 顶部两角 | 顶部 1px border | 加 `env(safe-area-inset-bottom)` |
 | 页面容器（列表/看板页） | 透明 | — | — | 直接露出底板光晕 |
