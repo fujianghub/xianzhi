@@ -16,17 +16,30 @@ describe('gates', () => {
   it('REQ-UI-002 check-css：src/client 无裸色值、!important、嵌套 glass', () => {
     expect(run('check-css.ts')).toContain('零违规')
   })
-  it('REQ-UI-020 主色辉光 glow-primary 引用点 ≤ 3；侧栏当前项为 selected 胶囊 + 左侧 3px 主色条', () => {
+  it('REQ-UI-020 主色辉光 glow-primary 引用点 ≤ 6（ADR-0005 §4）；侧栏当前项为 selected 胶囊 + 左侧 3px 主色条', () => {
     const out = run('check-css.ts')
-    const m = /glow-primary 引用 (\d+) \/ 3/.exec(out)
+    const m = /glow-primary 引用 (\d+) \/ 6/.exec(out)
     expect(m, out).not.toBeNull()
-    expect(Number(m?.[1])).toBeLessThanOrEqual(3)
+    expect(Number(m?.[1])).toBeLessThanOrEqual(6)
     const nav = read('src/client/components/domain/SpaceSwitcher.tsx')
     for (const cls of ['bg-selected', 'rounded-full', 'before:w-[3px]', 'before:bg-primary'])
       expect(nav, cls).toContain(cls)
   })
   it('REQ-UI-003 check-contrast：两主题最坏合成底对比度矩阵通过', () => {
     expect(run('check-contrast.ts')).toContain('全部达标')
+  })
+  it('REQ-UI-026 代码高亮九色、primary-text、danger-fg 进入对比度矩阵（ADR-0005）', () => {
+    const out = execFileSync(tsx, [join(root, 'scripts', 'check-contrast.ts'), '--verbose'], {
+      cwd: root,
+      encoding: 'utf8',
+    })
+    for (const k of [
+      'code-keyword / code-bg',
+      'code-comment / code-bg',
+      'primary-text / 纸面',
+      'danger-fg / danger',
+    ])
+      expect(out, k).toContain(k)
   })
   it('REQ-UI-012 check-i18n：src/client 组件无硬编码中文', () => {
     expect(run('check-i18n.ts')).toContain('零违规')

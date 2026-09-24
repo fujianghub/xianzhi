@@ -17,7 +17,7 @@
 | **层即材质** | 界面只有三层：底板（Backdrop）· 玻璃（Glass，最多两级嵌套）· 内容（Content，纸面）。每层材质固定，不按页面临时发明 | 卡片里再套卡片再套玻璃 |
 | **光从上来** | 所有玻璃顶缘有 1px 高光、底部有柔阴影；光晕固定在视口四角，不随滚动 | 四面等宽描边、无方向阴影 |
 | **正文是纸** | 阅读与编辑区永远是不透明纸面，玻璃只用于 chrome（顶栏、侧栏、浮层、面板） | 长文压在模糊背景上 |
-| **克制的辉光** | 主色辉光只出现在焦点、主按钮 hover、里程碑三处；日常界面里主色是「一条线、一枚点」 | 全屏绿色渐变、发光边框到处都是 |
+| **克制的辉光** | （注 2026-09-24：ADR-0005 §4 放宽为 ≤ 6 处）主色辉光只出现在焦点、主按钮 hover、里程碑三处；日常界面里主色是「一条线、一枚点」 | 全屏绿色渐变、发光边框到处都是 |
 
 与简斋的差异：无朱砂/水墨/楹联；无星空/深海/春水/冬雪；无「随时辰」；无 `!important`（shadcn 组件源码归自己，不需要压 AntD）；所有 token 挂 `:root`，不做 `.jz-glass` 类作用域（简斋 portal 拿不到作用域变量的坑，见 §9）。
 
@@ -70,6 +70,8 @@ body {
 ```
 
 光晕是全站唯一的「氛围」，位置与椭圆参数两主题相同，只换颜色；不加噪点、不加动画、不加 canvas。
+
+> 注 2026-09-24（ADR-0005 §1 · §3）：`glow-1` 改为翡翠色（日场 `rgba(2,179,119,.17)`、夜场 `rgba(46,231,156,.15)`）；光晕移到 `body::before` 独立 fixed 层（Dialog 打开时下移 4px、透明度 .94），为 P2 的分钟级漂移（只动 `transform`）预留；「不加动画」由 ADR-0005 取代，仍不加噪点与 canvas。
 
 ### 3.2 玻璃材质（四级）
 
@@ -151,8 +153,10 @@ Tailwind v4 的 `backdrop-blur-*` 会同时输出 `-webkit-backdrop-filter`；�
 
 | token | 定义 | 用于 |
 |---|---|---|
-| `--xz-primary-gradient` | `linear-gradient(135deg, var(--xz-primary) 0%, color-mix(in srgb, var(--xz-primary) 70%, var(--xz-accent)) 100%)` | 主按钮、选中态胶囊、进度 |
-| `--xz-primary-fg` | 日场 `#FFFFFF`（4.9:1）· 夜场 `#0F1A13` | 主色渐变上的文字。夜场主色偏亮，白字只有 2.3:1，简斋踩过 |
+| `--xz-primary-gradient` | ~~`linear-gradient(135deg, var(--xz-primary) 0%, color-mix(in srgb, var(--xz-primary) 70%, var(--xz-accent)) 100%)`~~ `linear-gradient(135deg, var(--xz-primary), var(--xz-primary-bright))`（ADR-0005） | 主按钮、选中态胶囊、进度 |
+| `--xz-primary-fg` | ~~日场 `#FFFFFF`（4.9:1）· 夜场 `#0F1A13`~~ 两主题 `#04231B`（6.1 / 10.3:1，ADR-0005） | 主色渐变上的文字。翡翠上白字只有 2.7:1 |
+| `--xz-primary-text` | 日场 `#0D7953` · 夜场 `#2EE79C` | 主色当文字 / 图标（ADR-0005；翡翠本色在纸面上仅 2.6:1） |
+| `--xz-branch-line` | `color-mix(in srgb, var(--xz-primary) 42%, transparent)` | 顶栏枝线（ADR-0005 §2） |
 | `--xz-hover-bg` | `color-mix(in srgb, var(--xz-fg) 6%, transparent)` | 所有无色 hover |
 | `--xz-active-bg` | `color-mix(in srgb, var(--xz-fg) 11%, transparent)` | 按下 |
 | `--xz-selected-bg` | `color-mix(in srgb, var(--xz-primary) 12%, transparent)` | 侧栏当前项、列表选中行 |
@@ -169,7 +173,7 @@ Tailwind v4 的 `backdrop-blur-*` 会同时输出 `-webkit-backdrop-filter`；�
 
 | 组件 | 材质 | 圆角 | 阴影 | 备注 |
 |---|---|---|---|---|
-| Topbar | `glass` blur 20 | 0 | `inset 0 -1px 0 divider` | sticky；滚动 > 8px 后加 `shadow-soft` |
+| Topbar | `glass` blur 20 | 0 | `inset 0 -1px 0 divider` | sticky；滚动 > 8px 后加 `shadow-soft` + 枝线（注 2026-09-24：`.xz-topbar[data-scrolled]`，ADR-0005） |
 | Sidebar | `glass` blur 24 | 0 | 右侧 1px border + `shadow-soft` | 当前项 `selected-bg` 胶囊 `radius-full`，左侧 3px 主色竖条 |
 | Aside（大纲/反链/评论/属性） | `glass` blur 20 | `xl` 左侧两角 | `shadow-soft` | 折叠时向右滑出 |
 | 底部导航（< lg） | `glass` blur 20 | `xl` 顶部两角 | 顶部 1px border | 加 `env(safe-area-inset-bottom)` |
@@ -196,7 +200,7 @@ Tailwind v4 的 `backdrop-blur-*` 会同时输出 `-webkit-backdrop-filter`；�
 | PeekPanel（悬停 / `p` 预览） | `glass-thick` blur 24 | `xl` 左侧两角 | `shadow-float` | Radix Dialog `modal={false}`：无 Scrim、不锁滚动、不抢焦点，z-index `peek 25`（04 §2.3）；右侧贴边宽 480；打开时源卡片作共享元素飞入面板头（04 §2.4）；内容区是 `paper` 纸面，玻璃只在外壳 |
 | 浮动工具条（编辑器 bubble menu） | `glass-thick` blur 24 | `full` | `shadow-float` | 与 Tiptap 内容用同一 token |
 | 表格（DataTable） | `paper`；**冻结表头/首列用 `surface-solid-2` 实色** | `lg` | `shadow-soft` | 透明表头会透出滚动内容，简斋实发 |
-| 代码块 | `surface-solid-2`（两主题都偏暗）| `md` | 无 | 代码高亮主题：One Dark 变体，token 映射见 `03` |
+| 代码块 | ~~`surface-solid-2`（两主题都偏暗）~~ `--xz-code-bg` 深底（两主题同值，注 2026-09-24）| `md` | 无 | 代码高亮主题：One Dark 变体，`--xz-code-*` 九色 ≥ 4.5:1（注释 `#9199A6`、标签 `#E5737B` 为提亮修正） |
 | Badge / Tag | `color-mix(tagColor 12%, transparent)` + 同色 1px 边 | `full` | 无 | 8 色板见 `04` §2.1 |
 | Skeleton | `surface-solid-2` + 微光扫过 | 同宿主 | 无 | 微光 `linear-gradient(90deg, transparent, var(--xz-edge), transparent)` 1.4s |
 
@@ -244,6 +248,7 @@ Tailwind v4 的 `backdrop-blur-*` 会同时输出 `-webkit-backdrop-filter`；�
 
 ### 5.6 品牌位
 
+- （注 2026-09-24：Logo 为燕印 `Seal size=sm`；「衔枝」改用 `--xz-font-display` 17px，副标 `Xianzhi` 改用 `--xz-font-brand-en` italic 12px；登录页燕印 `lg` + 展示字 26px，ADR-0005）
 - Sidebar 顶部：Logo（衔枝燕）+ 「衔枝」用 `--xz-font-serif`（`04` §2.2，LXGW WenKai Screen，与简斋品牌位同一字体）`font-weight 400 · letter-spacing .06em`；副标 `Xianzhi` 用 `--xz-font-sans · fg-faint · 11px · letter-spacing .18em`。
 - 登录页：底板光晕放大 1.4 倍 + 一张 `glass-thick` 卡片居中，卡片顶缘棱线加亮到 `rgba(255,255,255,.9)`（日场）。这是唯一允许调高棱线的地方。
 

@@ -5,6 +5,7 @@
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useHoverIntent } from '../../hooks/useHoverIntent.ts'
+import { markSharedSource } from '../../hooks/useSharedElement.ts'
 import { useSwipeRow } from '../../hooks/useSwipeRow.ts'
 import { cn } from '../../lib/cn.ts'
 import type { Task } from '../../lib/task-queries.ts'
@@ -126,7 +127,10 @@ export const TaskRow = memo(function TaskRow({
             'min-w-0 flex-1 truncate text-left transition-colors duration-(--xz-dur-base)',
             done && 'text-fg-muted line-through',
           )}
-          onClick={() => onOpen(task)}
+          onClick={(e) => {
+            markSharedSource(e.currentTarget)
+            onOpen(task)
+          }}
           tabIndex={-1}
         >
           {task.title}

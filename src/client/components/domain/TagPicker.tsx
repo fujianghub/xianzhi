@@ -134,7 +134,7 @@ export function TagPicker({
                   aria-hidden
                 />
                 <span className="flex-1 truncate text-left">{tag.name}</span>
-                {selected.has(tag.id) ? <Check className="size-4 text-primary" /> : null}
+                {selected.has(tag.id) ? <Check className="size-4 text-primary-text" /> : null}
               </button>
             </li>
           ))}

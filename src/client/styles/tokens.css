@@ -1,5 +1,5 @@
 /*
- * 设计 token 唯一来源（CLAUDE.md 不变量 5；04 §2、06 §3）。颜色只在 :root（日场）与 [data-theme='dark']（夜场）两处定义。
+ * 设计 token 唯一来源（CLAUDE.md 不变量 5；04 §2、06 §3；主色 / 燕印 / 代码色 / 展示字见 ADR-0005）。颜色只在 :root（日场）与 [data-theme='dark']（夜场）两处定义。
  * scripts/check-contrast.ts 解析本文件跑对比度矩阵；scripts/check-css.ts 允许本文件出现色值。
  */
 
@@ -9,7 +9,7 @@
 
   /* ---- 06 §3.1 底板与光晕 ---- */
   --xz-bg: #f4f4f1;
-  --xz-glow-1: rgba(63, 125, 90, 0.16);
+  --xz-glow-1: rgba(2, 179, 119, 0.17); /* ADR-0005：翡翠光晕 */
   --xz-glow-2: rgba(201, 138, 46, 0.12);
   --xz-glow-3: rgba(99, 102, 241, 0.1);
 
@@ -38,9 +38,12 @@
   --xz-fg-faint: #888e84; /* 06 §3.2 原 #8A9086，最坏底 2.93 < 3，按 check-contrast 最小修正 */
 
   /* ---- 04 §2.1 语义色 ---- */
-  --xz-primary: #3f7d5a;
-  --xz-primary-fg: #ffffff;
-  --xz-primary-soft: #e4f0e8;
+  /* ADR-0005 §1：primary 只作填充 / 品牌；主色当文字或图标用 primary-text；填充上的字用深墨 primary-fg */
+  --xz-primary: #02b377;
+  --xz-primary-bright: #19d191;
+  --xz-primary-fg: #04231b;
+  --xz-primary-text: #0d7953;
+  --xz-primary-soft: #dcf4ea;
   --xz-accent: #c2852c; /* 04 §2.1 原 #C98A2E，作图标 2.83 < 3 */
   --xz-accent-soft: #f7ecd9;
   --xz-success: #2f8f5b;
@@ -48,6 +51,7 @@
   --xz-warning: #c9822e;
   --xz-warning-soft: #f8ebda;
   --xz-danger: #c0483f;
+  --xz-danger-fg: #ffffff;
   --xz-danger-soft: #fcf2f1; /* 原 #F8E4E2，danger 字 4.05 < 4.5 */
   --xz-info: #3b6fb6;
   --xz-info-soft: #e3ecf8;
@@ -74,11 +78,30 @@
   --xz-shadow-soft: 0 2px 10px rgba(0, 0, 0, 0.05);
   --xz-shadow-card: 0 8px 24px rgba(0, 0, 0, 0.06), 0 2px 6px rgba(0, 0, 0, 0.04);
   --xz-shadow-float: 0 14px 40px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.06);
+  /* ADR-0005 §2：燕印投影（唯一允许的带色阴影）+ 1px 内高光 */
+  --xz-shadow-seal: 0 4px 14px rgba(2, 179, 119, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+
+  /* ---- ADR-0005 / 06 §4 代码块：One Dark 变体，两主题同一深底 ---- */
+  --xz-code-bg: #282c34;
+  --xz-code-bar: #21252b;
+  --xz-code-border: #3e4451;
+  --xz-code-fg: #abb2bf;
+  --xz-code-comment: #9199a6; /* One Dark 原 #5C6370 / #7F848E 均 < 4.5 */
+  --xz-code-keyword: #c678dd;
+  --xz-code-string: #98c379;
+  --xz-code-number: #d19a66;
+  --xz-code-function: #61afef;
+  --xz-code-type: #e5c07b;
+  --xz-code-tag: #e5737b; /* 原 #E06C75 4.38 < 4.5 */
+  --xz-code-builtin: #56b6c2;
 
   /* ---- 04 §2.2 字体 ---- */
   --xz-font-sans: "MiSans", "Inter", system-ui, "PingFang SC", "Noto Sans SC", sans-serif;
   --xz-font-serif: "LXGW WenKai Screen", "Noto Serif SC", serif;
   --xz-font-mono: "JetBrains Mono", "MiSans", ui-monospace, monospace;
+  /* ADR-0005 §2：展示字（品牌位 / 登录 / 页头题记；文楷只有 400，禁伪加粗）与英文品牌字 */
+  --xz-font-display: "LXGW WenKai Screen", "Kaiti SC", "STKaiti", "KaiTi", serif;
+  --xz-font-brand-en: "Cormorant Garamond", "EB Garamond", Georgia, serif;
 
   /* ---- 04 §2.3 间距 / 圆角 / 层级 ---- */
   --xz-radius-sm: 4px;
@@ -114,7 +137,7 @@
 [data-theme="dark"] {
   color-scheme: dark;
   --xz-bg: #0a0c0b;
-  --xz-glow-1: rgba(111, 181, 140, 0.2);
+  --xz-glow-1: rgba(46, 231, 156, 0.15);
   --xz-glow-2: rgba(226, 169, 79, 0.14);
   --xz-glow-3: rgba(129, 140, 248, 0.16);
   --xz-glass-thin: rgba(255, 255, 255, 0.035);
@@ -134,9 +157,11 @@
   --xz-fg-muted: #9aa094;
   --xz-fg-faint: #787f75; /* 06 §3.2 原 #6F766B，2.66 < 3 */
 
-  --xz-primary: #6fb58c;
-  --xz-primary-fg: #0f1a13;
-  --xz-primary-soft: #1f3428;
+  --xz-primary: #2ee79c;
+  --xz-primary-bright: #62efb6;
+  --xz-primary-fg: #04231b;
+  --xz-primary-text: #2ee79c;
+  --xz-primary-soft: #10301f;
   --xz-accent: #e2a94f;
   --xz-accent-soft: #3a2d17;
   --xz-success: #4db07a;
@@ -144,6 +169,7 @@
   --xz-warning: #e2a04f;
   --xz-warning-soft: #3a2a15;
   --xz-danger: #e0685e;
+  --xz-danger-fg: #1a0f0e;
   --xz-danger-soft: #3a1c1a;
   --xz-info: #6a98da;
   --xz-info-soft: #1b2a40;
@@ -170,15 +196,17 @@
     0 8px 28px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.35),
     inset 0 0 0 1px rgba(255, 255, 255, 0.05);
   --xz-shadow-float: 0 20px 60px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --xz-shadow-seal: 0 4px 18px rgba(46, 231, 156, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.45);
 }
 
 /* ---- 两主题共用的派生 token（06 §3.4，color-mix 不新增手调色）；在每个主题容器上重算，嵌套 [data-theme] 才能取到本主题值 ---- */
 :root,
 [data-theme] {
+  /* ADR-0005 §1：翡翠 → 亮翡翠，不再混琥珀 */
   --xz-primary-gradient: linear-gradient(
     135deg,
     var(--xz-primary) 0%,
-    color-mix(in srgb, var(--xz-primary) 70%, var(--xz-accent)) 100%
+    var(--xz-primary-bright) 100%
   );
   --xz-glow-primary: 0 0 0 4px color-mix(in srgb, var(--xz-primary) 22%, transparent);
   --xz-hover-bg: color-mix(in srgb, var(--xz-fg) 6%, transparent);
@@ -190,6 +218,8 @@
   --xz-code-inline-bg: color-mix(in srgb, var(--xz-primary) 8%, transparent);
   --xz-selection: color-mix(in srgb, var(--xz-primary) 28%, transparent);
   --xz-scrollbar: color-mix(in srgb, var(--xz-fg) 22%, transparent);
+  /* ADR-0005 §2：顶栏滚动后的枝线 */
+  --xz-branch-line: color-mix(in srgb, var(--xz-primary) 42%, transparent);
 }
 
 /* 06 §8：窄屏降 blur */

@@ -2,6 +2,8 @@
  * 主题（06 §6、REQ-UI-001）：light / dark / system；持久化 localStorage `xz:theme`；
  * View Transitions：有坐标 → 圆形揭幕（dur-theme），无坐标 → 整页溶解（dur-stage）；reduced-motion 瞬切；连点 skip 上一个。
  */
+import { effectiveMotion } from './motion.ts'
+
 export type ThemeChoice = 'light' | 'dark' | 'system'
 export type Theme = 'light' | 'dark'
 
@@ -34,11 +36,9 @@ function persist(choice: ThemeChoice): void {
   }
 }
 
+/** 动效档位的唯一判定在 lib/motion.ts（REQ-UI-028）。 */
 export function reducedMotion(): boolean {
-  return (
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
-    document.documentElement.dataset.motion === 'reduce'
-  )
+  return effectiveMotion() === 'reduce'
 }
 
 function farthestCorner(o: { x: number; y: number }): number {

@@ -63,7 +63,7 @@ function Invite() {
                   : t('auth.invitation.expired')
                 : t('auth.invitation.notFound')}
             </p>
-            <Link to="/login" search={{}} className="mt-4 inline-block text-primary">
+            <Link to="/login" search={{}} className="mt-4 inline-block text-primary-text">
               {t('auth.invitation.goLogin')}
             </Link>
           </div>

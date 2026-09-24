@@ -6,7 +6,7 @@ import { cn } from '../../lib/cn.ts'
 const MAP = {
   0: { Icon: Minus, cls: 'text-fg-muted' },
   1: { Icon: ChevronDown, cls: 'text-info' },
-  2: { Icon: ChevronUp, cls: 'text-primary' },
+  2: { Icon: ChevronUp, cls: 'text-primary-text' },
   3: { Icon: ChevronsUp, cls: 'text-warning' },
   4: { Icon: AlertTriangle, cls: 'text-danger' },
 } as const

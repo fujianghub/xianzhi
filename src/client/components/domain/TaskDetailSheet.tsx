@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useMe } from '../../hooks/useMe.ts'
 import { useSpaceCandidates } from '../../hooks/useMembers.ts'
+import { useSharedTarget } from '../../hooks/useSharedElement.ts'
 import { type TaskPatch, useTaskActions } from '../../hooks/useTasks.ts'
 import { api, unwrap } from '../../lib/api.ts'
 import { pushRecent } from '../../lib/recent.ts'
@@ -75,6 +76,7 @@ export function TaskDetailSheet({
   const { data: me } = useMe()
   const actions = useTaskActions()
   const { data: task, isPending, isError } = useQuery(taskQuery(taskId))
+  const sharedTarget = useSharedTarget(taskId)
   // ⌘K：详情打开时上下文为该任务
   const setCmdFocus = useCommandContext((s) => s.setFocus)
   useEffect(() => {
@@ -153,7 +155,7 @@ export function TaskDetailSheet({
           <div className="paper min-h-full p-6">
             <SheetTitle className="sr-only">{task.title}</SheetTitle>
             <SheetDescription className="sr-only">{t('task.task')}</SheetDescription>
-            <div className="flex items-start gap-2 pr-8">
+            <div ref={sharedTarget} className="flex items-start gap-2 pr-8">
               <PriorityIcon priority={task.priority} className="mt-2" />
               <InlineEdit
                 value={task.title}

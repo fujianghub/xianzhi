@@ -136,7 +136,9 @@ export const zhCN = {
       density: '列表密度',
       comfortable: '舒适',
       compact: '紧凑',
-      localHint: '主题与密度只保存在本机浏览器（当前：{{theme}}）',
+      motion: '动效',
+      motionLevel: { standard: '标准', rich: '丰富', reduce: '减弱' },
+      localHint: '主题、密度与动效只保存在本机浏览器（当前：{{theme}}）',
       zhCN: '简体中文',
     },
     keys: {

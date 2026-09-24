@@ -4,14 +4,16 @@
  */
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, notFound, useNavigate } from '@tanstack/react-router'
-import { ChevronDown, Pin } from 'lucide-react'
+import { Pin } from 'lucide-react'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type AsideTab, EntryAside } from '../components/domain/EntryAside.tsx'
+import { Disclosure } from '../components/ui/disclosure.tsx'
 import { InlineEdit } from '../components/ui/inline-edit.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
 import { useEntryActions } from '../hooks/useEntries.ts'
 import type { Me } from '../hooks/useMe.ts'
+import { useSharedTarget } from '../hooks/useSharedElement.ts'
 import { ApiError } from '../lib/api.ts'
 import { cn } from '../lib/cn.ts'
 import { type Entry, entryQuery } from '../lib/entry-queries.ts'
@@ -50,6 +52,7 @@ function EntryPage() {
   const q = useQuery(entryQuery(entryId))
   const e = q.data as Entry | undefined
   const actions = useEntryActions()
+  const sharedTarget = useSharedTarget(entryId)
   const setAside = useAsideSlot((s) => s.set)
   const [fieldsOpen, setFieldsOpen] = useState(false)
   // 写权限由服务端票据最终判定（onAuthenticated scope）；此处按角色给乐观值
@@ -115,7 +118,7 @@ function EntryPage() {
                   onClick={() => void actions.patch(e, { pinned: !e.pinned })}
                   className={cn(
                     'inline-flex h-7 items-center gap-1 rounded-full px-2 hover:bg-hover',
-                    e.pinned ? 'text-primary' : 'text-fg-muted',
+                    e.pinned ? 'text-primary-text' : 'text-fg-muted',
                   )}
                 >
                   <Pin className="size-3.5" />
@@ -124,21 +127,23 @@ function EntryPage() {
               ) : null}
             </div>
           </div>
-          {canWrite ? (
-            <InlineEdit
-              value={e.title}
-              label={t('entry.title')}
-              onSave={(v) =>
-                v.trim() && v !== e.title ? actions.patch(e, { title: v.trim() }) : undefined
-              }
-              className="mb-4 font-semibold text-3xl leading-tight"
-              testId="entry-title"
-            />
-          ) : (
-            <h1 className="mb-4 font-semibold text-3xl leading-tight" data-testid="entry-title">
-              {e.title || t('entry.untitled')}
-            </h1>
-          )}
+          <div ref={sharedTarget}>
+            {canWrite ? (
+              <InlineEdit
+                value={e.title}
+                label={t('entry.title')}
+                onSave={(v) =>
+                  v.trim() && v !== e.title ? actions.patch(e, { title: v.trim() }) : undefined
+                }
+                className="mb-4 font-semibold text-3xl leading-tight"
+                testId="entry-title"
+              />
+            ) : (
+              <h1 className="mb-4 font-semibold text-3xl leading-tight" data-testid="entry-title">
+                {e.title || t('entry.untitled')}
+              </h1>
+            )}
+          </div>
           {e.kind !== 'note' ? (
             <div className="mb-6">
               <button
@@ -148,12 +153,7 @@ function EntryPage() {
                 className="inline-flex items-center gap-1 text-fg-muted text-xs hover:text-fg"
                 data-testid="entry-fields-toggle"
               >
-                <ChevronDown
-                  className={cn(
-                    'size-3.5 transition-transform duration-(--xz-dur-fast)',
-                    !fieldsOpen && '-rotate-90',
-                  )}
-                />
+                <Disclosure open={fieldsOpen} />
                 {t('entry.fieldsLabel')}
               </button>
               {fieldsOpen ? (

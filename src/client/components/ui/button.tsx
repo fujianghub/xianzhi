@@ -10,13 +10,13 @@ export const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          'bg-(image:--xz-primary-gradient) text-primary-fg shadow-[inset_0_1px_0_color-mix(in_srgb,var(--xz-primary-fg)_25%,transparent)] hover:-translate-y-px hover:shadow-[var(--xz-glow-primary)] active:scale-[.985] active:shadow-none',
+          'bg-(image:--xz-primary-gradient) text-primary-fg shadow-[inset_0_1px_0_var(--xz-sheen)] hover:-translate-y-px hover:shadow-[var(--xz-glow-primary)] active:scale-[.985] active:shadow-none',
         // 06 §5.1 secondary = glass-thick 外观；按钮小且常成排出现，去掉 backdrop blur（同 Toast 做法），否则同屏 blur 超 §8 预算
         secondary: 'glass-thick-flat text-fg shadow-none hover:bg-hover active:bg-active',
         ghost: 'bg-transparent text-fg hover:bg-hover active:bg-active',
         destructive:
           'bg-danger-soft text-danger hover:bg-[color-mix(in_srgb,var(--xz-danger)_18%,var(--xz-danger-soft))]',
-        icon: 'size-9 bg-transparent p-0 text-fg-muted hover:bg-hover hover:text-fg active:bg-active',
+        icon: 'size-9 bg-transparent p-0 text-fg-muted hover:bg-hover hover:text-fg active:scale-[.92] active:bg-active',
       },
       size: { sm: 'h-8 px-3', md: 'h-10 px-4', lg: 'h-11 px-5 text-base' },
     },

@@ -82,7 +82,7 @@ export function MobileToolbar({ editor, onImage }: { editor: Editor; onImage: ()
       onClick={run}
       className={cn(
         'grid size-10 shrink-0 place-items-center rounded-md',
-        active ? 'bg-selected text-primary' : 'text-fg',
+        active ? 'bg-selected text-primary-text' : 'text-fg',
       )}
     >
       <Icon className="size-5" strokeWidth={1.75} />

@@ -15,6 +15,8 @@
   --color-divider: var(--xz-divider);
   --color-primary: var(--xz-primary);
   --color-primary-fg: var(--xz-primary-fg);
+  --color-primary-text: var(--xz-primary-text);
+  --color-primary-bright: var(--xz-primary-bright);
   --color-primary-soft: var(--xz-primary-soft);
   --color-accent: var(--xz-accent);
   --color-accent-soft: var(--xz-accent-soft);
@@ -23,6 +25,7 @@
   --color-warning: var(--xz-warning);
   --color-warning-soft: var(--xz-warning-soft);
   --color-danger: var(--xz-danger);
+  --color-danger-fg: var(--xz-danger-fg);
   --color-danger-soft: var(--xz-danger-soft);
   --color-info: var(--xz-info);
   --color-info-soft: var(--xz-info-soft);
@@ -57,6 +60,8 @@
   --font-sans: var(--xz-font-sans);
   --font-serif: var(--xz-font-serif);
   --font-mono: var(--xz-font-mono);
+  --font-display: var(--xz-font-display);
+  --font-brand-en: var(--xz-font-brand-en);
   --ease-out: var(--xz-ease-out);
   --ease-spring: var(--xz-ease-spring);
 }
@@ -158,7 +163,11 @@
   }
 }
 
-/* ---- 06 §3.1 底板与光晕 ---- */
+/*
+ * ---- 06 §3.1 底板与光晕 ----
+ * ADR-0005 §3：光晕放在 body::before 独立 fixed 层（只动 transform / opacity，走合成层不重绘视口）；
+ * Dialog 打开时下移 4px 并减弱（06 §4「被压住」的重量感）。
+ */
 html,
 body,
 #root {
@@ -169,23 +178,107 @@ body {
   font-family: var(--xz-font-sans);
   color: var(--xz-fg);
   background-color: var(--xz-bg);
-  background-image:
-    radial-gradient(ellipse 70% 50% at 0% 0%, var(--xz-glow-1) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 50% at 100% 0%, var(--xz-glow-2) 0%, transparent 60%),
-    radial-gradient(ellipse 80% 60% at 100% 100%, var(--xz-glow-3) 0%, transparent 60%);
-  background-attachment: fixed;
   transition: background-color var(--xz-dur-base) var(--xz-ease-out);
   -webkit-font-smoothing: antialiased;
   text-wrap: pretty;
 }
-body.xz-login {
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(ellipse 70% 50% at 0% 0%, var(--xz-glow-1) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 100% 0%, var(--xz-glow-2) 0%, transparent 60%),
+    radial-gradient(ellipse 80% 60% at 100% 100%, var(--xz-glow-3) 0%, transparent 60%);
+  transition:
+    transform var(--xz-dur-stage) var(--xz-ease-out),
+    opacity var(--xz-dur-stage) var(--xz-ease-out);
+}
+body.xz-login::before {
   background-image:
     radial-gradient(ellipse 98% 70% at 0% 0%, var(--xz-glow-1) 0%, transparent 60%),
     radial-gradient(ellipse 84% 70% at 100% 0%, var(--xz-glow-2) 0%, transparent 60%),
     radial-gradient(ellipse 112% 84% at 100% 100%, var(--xz-glow-3) 0%, transparent 60%);
 }
-:root.vt-live body {
+html[data-dialog-open] body::before {
+  transform: translateY(4px);
+  opacity: 0.94;
+}
+:root.vt-live body,
+:root.vt-live body::before {
   transition: none;
+}
+
+/* ---- ADR-0005 §2 燕印（REQ-UI-024）：翡翠渐变方印 + 深墨燕；宿主 hover 轻转，减弱档静止 ---- */
+.xz-seal {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  color: var(--xz-primary-fg);
+  background: var(--xz-primary-gradient);
+  box-shadow: var(--xz-shadow-seal);
+  transition: transform var(--xz-dur-base) var(--xz-ease-spring);
+}
+.xz-seal-sm {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+}
+.xz-seal-md {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+}
+.xz-seal-lg {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+}
+.xz-seal-mark {
+  width: 78%;
+  height: 78%;
+}
+:root:not([data-motion="reduce"]) .xz-seal-host:hover .xz-seal {
+  transform: rotate(-6deg) scale(1.05);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root .xz-seal-host:hover .xz-seal {
+    transform: none;
+  }
+}
+
+/* ---- ADR-0005 §2 顶栏枝线（REQ-UI-027）：滚动 > 8px 后下沿出现两端渐隐的翡翠细线 + shadow-soft ---- */
+.xz-topbar {
+  box-shadow:
+    inset 0 1px 0 var(--xz-edge),
+    inset 0 -1px 0 var(--xz-divider);
+  transition: box-shadow var(--xz-dur-base) var(--xz-ease-out);
+}
+.xz-topbar::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0; /* glass 带 contain: paint，线必须在盒内 */
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--xz-branch-line) 18%,
+    var(--xz-branch-line) 82%,
+    transparent
+  );
+  opacity: 0;
+  transition: opacity var(--xz-dur-slow) var(--xz-ease-out);
+  pointer-events: none;
+}
+.xz-topbar[data-scrolled] {
+  box-shadow:
+    inset 0 1px 0 var(--xz-edge),
+    var(--xz-shadow-soft);
+}
+.xz-topbar[data-scrolled]::after {
+  opacity: 1;
 }
 
 /* ---- 06 §5.4 滚动条与选区；§3.4 焦点环（outline，forced-colors 可见） ---- */
@@ -261,12 +354,43 @@ body.xz-login {
     opacity: 0;
   }
 }
+/* 路由转场（04 §2.4、REQ-UI-029）：旧页 fast 淡出、新页 base 淡入；壳层内容相同，交叉淡化不可见，只有主区在变 */
+html:active-view-transition-type(route)::view-transition-old(root) {
+  animation: xz-vt-fade-out var(--xz-dur-fast) var(--xz-ease-out) both;
+}
+html:active-view-transition-type(route)::view-transition-new(root) {
+  animation: xz-fade-in var(--xz-dur-base) var(--xz-ease-out) both;
+}
+/* 卡片 → 详情共享元素（REQ-UI-021）：只在路由转场期间赋名，来源 / 目标各一（hooks/useSharedElement.ts） */
+html:active-view-transition-type(route) :is([data-shared-source], [data-shared-target]) {
+  view-transition-name: xz-shared;
+}
+::view-transition-group(xz-shared) {
+  animation-duration: var(--xz-dur-slow);
+  animation-timing-function: var(--xz-ease-out);
+}
+::view-transition-old(xz-shared),
+::view-transition-new(xz-shared) {
+  height: 100%;
+  object-fit: cover;
+  object-position: left top;
+}
+@keyframes xz-vt-fade-out {
+  to {
+    opacity: 0;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*),
   ::view-transition-old(*),
   ::view-transition-new(*) {
     animation: none;
   }
+}
+:root[data-motion="reduce"]::view-transition-group(*),
+:root[data-motion="reduce"]::view-transition-old(*),
+:root[data-motion="reduce"]::view-transition-new(*) {
+  animation: none;
 }
 
 /* ---- 进入动画（进入 ≤ 320ms；reduced-motion 时时长 token 为 0） ---- */
@@ -352,12 +476,66 @@ body.xz-login {
   font-size: 0.9em;
 }
 .xz-prose pre {
-  background: var(--xz-surface-solid-2);
+  background: var(--xz-code-bg);
+  color: var(--xz-code-fg);
+  border: 1px solid var(--xz-code-border);
   border-radius: var(--xz-radius-md);
   padding: 0.75em 1em;
   font-family: var(--xz-font-mono);
   font-size: 0.875rem;
+  line-height: 1.6;
   overflow-x: auto;
+}
+.xz-prose pre ::selection {
+  background: color-mix(in srgb, var(--xz-code-function) 30%, transparent);
+}
+/* ADR-0005 / 06 §4 代码高亮：lowlight 输出 hljs 类，One Dark 变体（REQ-UI-026） */
+.xz-prose pre :is(.hljs-comment, .hljs-quote) {
+  color: var(--xz-code-comment);
+  font-style: italic;
+}
+.xz-prose pre :is(.hljs-keyword, .hljs-selector-tag, .hljs-doctag, .hljs-formula) {
+  color: var(--xz-code-keyword);
+}
+.xz-prose
+  pre
+  :is(.hljs-string, .hljs-regexp, .hljs-addition, .hljs-attribute, .hljs-meta .hljs-string) {
+  color: var(--xz-code-string);
+}
+.xz-prose
+  pre
+  :is(
+    .hljs-number,
+    .hljs-literal,
+    .hljs-attr,
+    .hljs-variable,
+    .hljs-template-variable,
+    .hljs-type,
+    .hljs-selector-class,
+    .hljs-selector-attr,
+    .hljs-selector-pseudo
+  ) {
+  color: var(--xz-code-number);
+}
+.xz-prose pre :is(.hljs-title, .hljs-section, .hljs-title.function_) {
+  color: var(--xz-code-function);
+}
+.xz-prose
+  pre
+  :is(.hljs-title.class_, .hljs-class .hljs-title, .hljs-symbol, .hljs-bullet, .hljs-link) {
+  color: var(--xz-code-type);
+}
+.xz-prose pre :is(.hljs-name, .hljs-tag, .hljs-selector-id, .hljs-deletion) {
+  color: var(--xz-code-tag);
+}
+.xz-prose pre :is(.hljs-built_in, .hljs-meta, .hljs-params, .hljs-subst) {
+  color: var(--xz-code-builtin);
+}
+.xz-prose pre .hljs-emphasis {
+  font-style: italic;
+}
+.xz-prose pre .hljs-strong {
+  font-weight: 600;
 }
 .xz-prose pre code {
   background: none;
@@ -391,7 +569,7 @@ body.xz-login {
 }
 .xz-prose .xz-mention,
 .xz-prose .xz-entry-link {
-  color: var(--xz-primary);
+  color: var(--xz-primary-text);
   background: var(--xz-selected-bg);
   border-radius: var(--xz-radius-sm);
   padding: 0 0.2em;

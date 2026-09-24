@@ -86,7 +86,7 @@ export function BubbleBar({ editor, onComment }: { editor: Editor; onComment?: (
       onClick={run}
       className={cn(
         'grid size-8 place-items-center rounded-full transition-colors duration-(--xz-dur-fast) hover:bg-hover',
-        active && 'bg-selected text-primary',
+        active && 'bg-selected text-primary-text',
       )}
     >
       <Icon className="size-4" />

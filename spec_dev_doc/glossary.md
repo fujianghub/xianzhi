@@ -102,6 +102,8 @@
 | 实时失效 | data.changed → `invalidate` 帧 | EventBus + SSE | — | — | 数据写提交后按空间可读性推送 Query key 失效；不是通知 | 02 §6 注 |
 | 记录卡片 | entryCard | PM 节点 | 记录卡片 | `editor.slash.card` | 正文里以卡片形式引用另一篇记录 | 03 §3.2 |
 | 未知块 | unknownBlock | PM 节点 | 未识别的内容块 | `editor.unknownBlock` | schema 不认识的节点占位，保留原 JSON | 03 §3.3 |
+| 动效档位 | `MotionLevel`：`reduce / standard / rich` | `html[data-motion]` · `xz:motion` | 动效：减弱 / 标准 / 丰富 | `settings.profile.motionLevel.*` | 本机偏好；系统 reduced-motion 优先 | 04 §2.4 · ADR-0005 |
+| 展开指示 | `Disclosure` | 组件 | — | — | 可折叠区块标题前的圆角小三角，展开转 90° | 04 §2.4 · REQ-UI-030 |
 
 ---
 
@@ -113,8 +115,10 @@
 | 回望 Look-back | 周复盘 review | 复盘页空状态、完成态文案、「成巢」里程碑动效 |
 | 枝 Twig | 任务 Task | 看板列头进度刻度；空状态「这里还没有衔来的枝」 |
 | 巢 Nest | 空间 Space | 仅空状态与引导语；命名保持「空间」 |
+| 燕印 Seal | 品牌标识（`Seal` 组件 / `.xz-seal`） | Sidebar 品牌位、登录页、favicon（ADR-0005 §2） |
+| 枝线 Branch line | 顶栏滚动态下沿细线（`.xz-topbar[data-scrolled]`、`--xz-branch-line`） | 仅 Topbar（ADR-0005 §2） |
 
-克制原则（04 §1）：隐喻只出现在**命名、空状态、里程碑动效**三处。数据模型、API、代码标识符一律用英文本名（`cycle` / `review` / `task` / `space`），不用隐喻词。
+克制原则（04 §1）：隐喻只出现在**命名、空状态、里程碑动效**三处。（注 2026-09-24：ADR-0005 扩为五处，另加品牌位与顶栏枝线。）数据模型、API、代码标识符一律用英文本名（`cycle` / `review` / `task` / `space`），不用隐喻词。
 
 ---
 

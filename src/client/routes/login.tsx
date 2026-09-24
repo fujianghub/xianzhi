@@ -1,4 +1,4 @@
-/** 登录（08 §2.1、06 §5.6、REQ-AUTH-001 · 012）：glass-thick 卡片居中，光晕放大；401 统一文案，429 显示剩余秒数。 */
+/** 登录（08 §2.1、06 §5.6、REQ-AUTH-001 · 012 · REQ-UI-024）：燕印 + 展示字品牌区，glass-thick 卡片居中，光晕放大；401 统一文案，429 显示剩余秒数。 */
 import { createFileRoute } from '@tanstack/react-router'
 import { KeyRound, Mail } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '../components/ui/button.tsx'
 import { Input } from '../components/ui/input.tsx'
 import { FieldError, Label } from '../components/ui/label.tsx'
+import { Seal } from '../components/ui/seal.tsx'
 import { authClient } from '../lib/auth-client.ts'
 import { optString } from '../lib/search.ts'
 
@@ -61,7 +62,15 @@ function Login() {
         data-testid="login-form"
         noValidate
       >
-        <h1 className="mb-6 text-center font-serif text-2xl tracking-[.06em]">{t('app.name')}</h1>
+        <div className="xz-seal-host mb-7 flex flex-col items-center gap-3">
+          <Seal size="lg" />
+          <h1 className="font-display text-[26px] leading-none tracking-[.12em]">
+            {t('app.name')}
+          </h1>
+          <p className="font-brand-en text-fg-faint text-sm italic tracking-[.18em]">
+            {t('app.subtitle')}
+          </p>
+        </div>
         <div className="flex flex-col gap-4">
           <div>
             <Label htmlFor="email">{t('auth.email')}</Label>

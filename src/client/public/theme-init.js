@@ -8,4 +8,9 @@
   } catch (_) {}
   document.documentElement.dataset.theme = theme
   document.documentElement.style.colorScheme = theme
+  // 动效档位（04 §2.4、REQ-UI-028）：standard 不写属性
+  try {
+    const m = localStorage.getItem('xz:motion')
+    if (m === 'reduce' || m === 'rich') document.documentElement.dataset.motion = m
+  } catch (_) {}
 })()

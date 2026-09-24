@@ -205,7 +205,10 @@ export function Comments({
   return (
     <div className="flex flex-col gap-3" data-testid="comments">
       {pending ? (
-        <div className="paper rounded-lg border border-primary p-3" data-testid="comment-pending">
+        <div
+          className="paper rounded-lg border border-primary-text p-3"
+          data-testid="comment-pending"
+        >
           <blockquote className="mb-2 line-clamp-3 border-divider border-l-2 pl-2 text-fg-muted text-xs">
             {pending.quote}
           </blockquote>

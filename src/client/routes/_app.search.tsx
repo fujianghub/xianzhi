@@ -168,7 +168,7 @@ function Group({ title, q }: { title: string; q: ReturnType<typeof useGroup> }) 
       {q.hasNextPage ? (
         <button
           type="button"
-          className="mt-2 text-primary text-sm hover:underline"
+          className="mt-2 text-primary-text text-sm hover:underline"
           onClick={() => void q.fetchNextPage()}
           disabled={q.isFetchingNextPage}
         >

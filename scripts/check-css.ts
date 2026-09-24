@@ -1,7 +1,7 @@
 /**
  * 组件文件裸色值 / 嵌套 glass / !important 检查（04 §2、06 §8 §9、CLAUDE.md 不变量 5、REQ-UI-002）。
  * 扫描 src/client 下 .tsx/.ts/.css（tokens.css 除外）；注释跳过；行内 `xz-allow-color` 显式豁免。
- * 另：主色辉光 `glow-primary` 引用点 ≤ 3（06 §1 · §4、REQ-UI-020：只允许焦点、主按钮 hover、里程碑）。
+ * 另：主色辉光 `glow-primary` 引用点 ≤ 6（ADR-0005 §4、REQ-UI-020：主按钮 hover、燕印、侧栏当前项、登录聚焦、成巢、里程碑）。
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
@@ -39,7 +39,7 @@ function walk(dir: string, out: string[] = []): string[] {
   return out
 }
 
-export const GLOW_PRIMARY_MAX = 3
+export const GLOW_PRIMARY_MAX = 6
 const files = walk(ROOT)
 const problems: string[] = []
 const glowSites: string[] = []

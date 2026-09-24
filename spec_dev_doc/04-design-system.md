@@ -15,6 +15,8 @@
 | 任务 | 枝 Twig | 空状态「这里还没有衔来的枝」；看板列头进度用枝节式刻度，不用百分比条 |
 | 空间 | 巢 Nest | 只在空状态与引导语里出现；界面命名保持中性「空间」 |
 
+> 注 2026-09-24（ADR-0005）：隐喻位置扩为五处——另加品牌位（燕印 Logo / 登录 / 页头题记）与顶栏枝线；主色改为翡翠。
+
 克制原则：隐喻只出现在**命名、空状态、里程碑动效**三处；日常操作界面是安静的工具，不做主题化装饰。**不复制简斋的水墨与古风；材质层采用 Apple 玻璃，见 `06-visual-style.md`（ADR-0002 取代了此处原「不复制玻璃态」的规定）。**
 
 ---
@@ -25,7 +27,7 @@
 
 ### 2.1 色彩
 
-品牌主色：**苔绿**（生长）；强调色：**琥珀**（归巢的暖光）；中性色：暖灰（纸感，不用纯灰）。
+品牌主色：~~**苔绿**（生长）~~ **翡翠**（注 2026-09-24：ADR-0005 §1，`primary` 只作填充，文字 / 图标用 `primary-text`，填充上的字用深墨 `primary-fg`）；强调色：**琥珀**（归巢的暖光）；中性色：暖灰（纸感，不用纯灰）。
 
 > `--xz-bg / --xz-surface / --xz-surface-2 / --xz-border / --xz-fg / --xz-fg-muted` 的值已由 `06-visual-style.md` §3 覆盖（玻璃材质与预合成纸面）；下表这六行仅作语义说明，实际值以 `06` 为准。
 
@@ -37,9 +39,11 @@
 | `--xz-border` | → 06 §3.2 | 同 | 分隔 |
 | `--xz-fg` | → 06 §3.2 | 同 | 正文 |
 | `--xz-fg-muted` | → 06 §3.2 | 同 | 次要文字（06 另有 `--xz-fg-faint` 占位/禁用） |
-| `--xz-primary` | `#3F7D5A` | `#6FB58C` | 主操作、选中、链接 |
-| `--xz-primary-fg` | `#FFFFFF` | `#0F1A13` | 主色上的文字 |
-| `--xz-primary-soft` | `#E4F0E8` | `#1F3428` | 主色淡底 |
+| `--xz-primary` | ~~`#3F7D5A`~~ `#02B377` | ~~`#6FB58C`~~ `#2EE79C` | 填充：主操作、选中条、勾选、燕印（ADR-0005） |
+| `--xz-primary-bright` | `#19D191` | `#62EFB6` | 主色渐变终点（ADR-0005） |
+| `--xz-primary-text` | `#0D7953` | `#2EE79C` | 主色当文字 / 图标：链接、激活项、`ring`（ADR-0005） |
+| `--xz-primary-fg` | ~~`#FFFFFF`~~ `#04231B` | ~~`#0F1A13`~~ `#04231B` | 主色填充上的文字（深墨） |
+| `--xz-primary-soft` | ~~`#E4F0E8`~~ `#DCF4EA` | ~~`#1F3428`~~ `#10301F` | 主色淡底 |
 | `--xz-accent` | ~~`#C98A2E`~~ `#C2852C`（注 2026-09-23：作图标对比度 2.83 → 3.02，06 §3 注） | `#E2A94F` | 强调、里程碑、周期 |
 | `--xz-accent-soft` | `#F7ECD9` | `#3A2D17` | |
 | `--xz-success` / `-warning` / `-danger` / `-info` | `#2F8F5B` / `#C9822E` / `#C0483F` / `#3B6FB6` | 提亮 15% | 语义色，各配 `-soft` |
@@ -59,11 +63,13 @@
 | `--xz-font-sans` | `"MiSans", "Inter", system-ui, "PingFang SC", "Noto Sans SC", sans-serif` | UI 与正文；MiSans 自托管子集化（简斋已用，免费商用） |
 | `--xz-font-serif` | `"LXGW WenKai Screen", "Noto Serif SC", serif` | 仅 journal 阅读态可选 |
 | `--xz-font-mono` | `"JetBrains Mono", "MiSans", monospace` | 代码；回退到 MiSans 保证中文注释 |
+| `--xz-font-display` | `"LXGW WenKai Screen", "Kaiti SC", …` | 展示字：品牌位、登录标题、页头题记（ADR-0005；只有 400，禁伪加粗） |
+| `--xz-font-brand-en` | `"Cormorant Garamond", Georgia, serif` | 英文品牌字 `Xianzhi`（italic 500） |
 
 字号（rem，基准 16px）：`xs 0.75 · sm 0.875 · base 1 · lg 1.125 · xl 1.25 · 2xl 1.5 · 3xl 1.875`。
 行高：UI 1.5；正文阅读 1.75；标题 1.25。
 中文排版：`text-wrap: pretty`；标点挤压不做；中英文间不自动加空格（内容层由用户决定）。
-字体加载：`font-display: swap` + 预加载 UI 字重 400/500/600；子集按 `unicode-range` 分块（fontsource 方案）。
+字体加载：`font-display: swap` + 预加载 UI 字重 400/500/600；子集按 `unicode-range` 分块（fontsource 方案）。（注 2026-09-24：已实现于 `src/client/styles/fonts.css`，npm 包 `misans` / `lxgw-wenkai-screen-webfont` / `@fontsource/*`；未做 preload。）
 
 ### 2.3 间距、圆角、阴影、层级
 
@@ -84,6 +90,8 @@
 | 布局动画（列表重排、看板拖拽） | 无 | Motion `layout` 弹簧 `{stiffness 420, damping 34}` | 同标准 + 拖拽倾斜 |
 | 路由切换 | 无 | View Transitions 淡入 200ms；**卡片 → 详情 / Peek 用共享元素**（`view-transition-name` 只给当前被点的一张卡片，动态赋名、结束即清，避免同名冲突）320ms `ease-out` | 同标准 + 详情页头随卡片形变 |
 | 里程碑（周期完成、任务清空） | 无 | 一次性 600ms 粒子 | 完整「成巢」动画 1.2s |
+
+> 注 2026-09-24（ADR-0005 §3）：档位已实现——`lib/motion.ts` + 设置页「动效」，`html[data-motion]`（标准档不写属性）、本机键 `xz:motion`、首帧脚本同步写入（REQ-UI-028）；Motion 组件统一包 `XzMotionConfig`。路由转场由 TanStack Router `defaultViewTransition` 触发，类型 `route`，首次加载 / 仅 search 变化 / 减弱档不转场（REQ-UI-029）。共享元素借路由转场实现（REQ-UI-021），Peek 暂未接。列表重排未用 Motion `layout`：虚拟列表行 wrapper 用 CSS `transform` 过渡（`dur-base`），滚动时不触发，保住 REQ-UI-017。展开 / 收起统一为「展开指示」三角（`components/ui/disclosure.tsx`，REQ-UI-030）；图标按钮按下 `scale(.92)`。
 
 缓动：`--xz-ease-out: cubic-bezier(.22,1,.36,1)`，`--xz-ease-in-out: cubic-bezier(.65,0,.35,1)`，`--xz-ease-spring`（CSS 微交互专用：按钮按下、勾选、胶囊切换；`cubic-bezier(.34,1.56,.64,1)` 兜底，`@supports (transition-timing-function: linear(0,1))` 下换成简斋验证过的阻尼振荡 `linear()` 采样）。布局动画、拖拽、共享元素仍统一走 Motion 弹簧预设，不手写 keyframes 弹簧。
 规则：所有动效可中断；进入 ≤ 320ms，退出 ≤ 200ms；同屏同时动的元素 ≤ 3 组。
@@ -167,6 +175,6 @@
 
 ## 9. 资产
 
-- Logo：一只衔枝的燕子（待设计画布定稿）；提供 SVG 单色/彩色、favicon、PWA 图标 192/512、maskable。
+- Logo：一只衔枝的燕子（注 2026-09-24：已定稿为「燕印」，`components/ui/seal.tsx` 与 `public/favicon.svg`，ADR-0005 §2）；提供 SVG 单色/彩色、favicon、PWA 图标 192/512、maskable。
 - 插画：空状态 6 张（今日/收件箱/空间/记录/周期/搜索），线稿风格，用 `currentColor` 随主题。
 - 图标：Lucide，`stroke-width 1.75`，尺寸 16/20/24。

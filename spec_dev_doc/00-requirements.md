@@ -325,10 +325,17 @@
 | REQ-UI-017 | P1 | 1 | 1 万行任务列表滚动应不掉帧（≥ 50fps） | When Playwright 采 `requestAnimationFrame` 间隔 Then P95 ≤ 20ms | ADR §3 · 04 §5 | e2e |
 | REQ-UI-018 | P1 | 1 | 24h 内显示相对时间，悬停显示绝对时间；日期数字按 locale/timezone | When `updated_at` = 5 分钟前 Then 显示「5 分钟前」，title 为绝对时间 | 04 §7 | unit · e2e |
 | REQ-UI-019 | P1 | 1 | 拖拽应有拾起（倾斜 1.5° 放大）、经过（目标列变亮）、放下（弹簧归位）三态；放不下弹回并晃动 | When 拖到不可放置区域松手 Then 卡片回原位 | 06 §4 · 06 §5 | e2e · visual |
-| REQ-UI-020 | P1 | 1 | 侧栏当前项为主色胶囊 + 左侧 3px 主色条；主色辉光只出现在焦点、主按钮 hover、里程碑 | When 审计样式 Then `glow-primary` 引用点 ≤ 3 处 | 06 §1 · 06 §4 | visual · unit |
-| REQ-UI-021 | P1 | 2 | 卡片 → 详情 / Peek 应用共享元素过渡（320ms），只给被点击的一张卡片赋 `view-transition-name`，结束即清 | When 点击卡片 Then DOM 中同时带该 name 的元素 ≤ 1，过渡结束后为 0 | 04 §2.4 | e2e |
+| REQ-UI-020 | P1 | 1 | 侧栏当前项为主色胶囊 + 左侧 3px 主色条；主色辉光只出现在~~焦点、~~主按钮 hover、燕印、侧栏当前项、登录聚焦、成巢、里程碑（ADR-0005 §4） | When 审计样式 Then `glow-primary` 引用点 ~~≤ 3~~ ≤ 6 处 | 06 §1 · 06 §4 · ADR-0005 | visual · unit |
+| REQ-UI-021 | P1 | 2 | 卡片 → 详情 / Peek 应用共享元素过渡（320ms），只给被点击的一张卡片赋 `view-transition-name`，结束即清（注 2026-09-24：借 REQ-UI-029 路由转场实现，来源 / 目标用 `data-shared-*` 标记、仅 `route` 类型期间赋名；Peek 不经路由，暂未做） | When 点击卡片 Then DOM 中同时带该 name 的元素 ≤ 1，过渡结束后为 0 | 04 §2.4 | e2e |
 | REQ-UI-022 | P1 | 1 | 详情页不设保存按钮；标题 / 日期 / 优先级 / 指派人就地编辑，失焦即保存并显示「已保存 · 刚刚」 | When 改标题失焦 Then 1 次 PATCH，提示出现 | 04 §6 · 04 §5 InlineEdit | e2e |
 | REQ-UI-023 | P0 | 0 | 所有浮层（Popover / Dialog / ⌘K / Toast / Tooltip）应 portal 到 body，不在 `backdrop-filter` 元素内 fixed 定位 | When 在 Sidebar 内打开 Popover Then 其父为 body | 06 §2 · 06 §9 | unit |
+| REQ-UI-024 | P1 | 2 | 品牌标识应为燕印（翡翠渐变方印 + 深墨衔枝燕）：Sidebar 品牌位 28、登录页 56、favicon 同形；宿主 hover 印章轻转，减弱档静止 | When 打开 `/today` Then Sidebar 含 `.xz-seal`；打开 `/login` Then 含 `.xz-seal-lg`；`/favicon.svg` 标题为 `Xianzhi` | ADR-0005 §2 · 04 §9 | e2e |
+| REQ-UI-025 | P1 | 2 | UI / 展示 / 代码 / 英文品牌字应自托管（npm 包、`unicode-range` 分片、`font-display: swap`），不请求任何外部字体 CDN | When 加载 `/login` Then `document.fonts` 含 `MiSans` 与 `LXGW WenKai Screen`，且无跨域字体请求 | ADR-0005 §5 · 04 §2.2 | e2e |
+| REQ-UI-026 | P1 | 2 | 编辑器代码块应按 One Dark 变体高亮，两主题同一深底；每个高亮色在代码底上 ≥ 4.5:1 | When 插入 `ts` 代码块 Then 关键字元素颜色 = `--xz-code-keyword`；`check-contrast` 含 `code-*` 项并通过 | ADR-0005 · 06 §4 | e2e · unit |
+| REQ-UI-028 | P1 | 2 | 动效档位 `reduce / standard / rich` 应可在设置页选择，写 `html[data-motion]`（standard 不写）并持久化 `xz:motion`；首帧前生效；系统 reduced-motion 优先；Motion 组件随档位关闭动画 | When 选「减弱」Then `data-motion=reduce`，刷新仍在；选「标准」Then 属性移除、存储清空 | 04 §2.4 · ADR-0005 §3 | e2e |
+| REQ-UI-029 | P1 | 2 | 路径变化的导航应以 View Transition 淡出 / 淡入（旧页 `dur-fast`、新页 `dur-base`），转场带 `route` 类型以区别主题切换；首次加载、仅 search 变化、减弱档不转场；浏览器不支持 view-transition types 时关闭 | When 侧栏点「收件箱」Then 一次 `startViewTransition` 且 types = `['route']`<br>Given 减弱档 Then 无调用 | 04 §2.4 · ADR-0005 §3 | e2e |
+| REQ-UI-030 | P1 | 2 | 展开 / 收起统一用圆角实心三角「展开指示」，展开时弹簧转 90°；纯方向仍用 Chevron | When 点击「今天完成的」Then 指示带 `data-open` 且旋转 90° | 04 §2.4 · 04 §5 | e2e |
+| REQ-UI-027 | P1 | 2 | Topbar 滚动 > 8px 后应显示 `shadow-soft` 与翡翠枝线，回到顶部即消失；Dialog 打开时底板光晕下移 4px 并减弱，关闭复原 | When 页面滚动 100px Then topbar 带 `data-scrolled`；When 打开 Dialog Then `html[data-dialog-open]` 且 `body::before` transform 非 none | 06 §4 · ADR-0005 §2 | e2e |
 
 ---
 

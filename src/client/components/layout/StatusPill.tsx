@@ -4,12 +4,13 @@
  * 原型结论（T0-019）：useSonner 提供完整队列与 dismiss，无需 Toaster；reduced-motion 下 Motion 自动退化为淡入。
  */
 import { CircleCheck, CloudOff, Loader2, Lock, TriangleAlert } from 'lucide-react'
-import { AnimatePresence, LayoutGroup, MotionConfig, motion } from 'motion/react'
+import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast, useSonner } from 'sonner'
 import { cn } from '../../lib/cn.ts'
 import { useStatus } from '../../lib/stores.ts'
+import { XzMotionConfig } from '../ui/motion-config.tsx'
 
 const SPRING = { type: 'spring', stiffness: 260, damping: 26 } as const
 
@@ -36,7 +37,7 @@ export function StatusPill() {
     )
   const isError = active?.type === 'error'
   return (
-    <MotionConfig reducedMotion="user">
+    <XzMotionConfig>
       <LayoutGroup>
         <div className="relative" data-testid="status-pill-host" aria-live="polite">
           <AnimatePresence initial={false} mode="popLayout">
@@ -77,6 +78,6 @@ export function StatusPill() {
           </AnimatePresence>
         </div>
       </LayoutGroup>
-    </MotionConfig>
+    </XzMotionConfig>
   )
 }

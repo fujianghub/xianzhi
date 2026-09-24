@@ -321,7 +321,7 @@ export function TaskList({
               key={v.key}
               data-index={v.index}
               className={cn(
-                'absolute inset-x-0 top-0 overflow-hidden border-divider border-b transition-[height,opacity] duration-(--xz-dur-base) ease-(--xz-ease-out) last:border-b-0',
+                'absolute inset-x-0 top-0 overflow-hidden border-divider border-b transition-[height,opacity,transform] duration-(--xz-dur-base) ease-(--xz-ease-out) last:border-b-0',
                 collapsing.has(task.id) ? 'h-0 opacity-0' : 'h-(--xz-row-h)',
               )}
               style={{ transform: `translateY(${v.start - virtualizer.options.scrollMargin}px)` }}

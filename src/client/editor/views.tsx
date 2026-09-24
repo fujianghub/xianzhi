@@ -27,7 +27,7 @@ export function CodeBlockView({ node, updateAttributes, editor }: NodeViewProps)
         disabled={!editor.isEditable}
         value={lang}
         aria-label={t('editor.language')}
-        className="absolute top-2 right-2 h-7 rounded-md border border-border bg-surface px-1 text-xs"
+        className="absolute top-2 right-2 h-7 rounded-md border border-(--xz-code-border) bg-(--xz-code-bar) px-1 text-(--xz-code-fg) text-xs"
         data-testid="code-language"
         onChange={async (e) => {
           const next = e.target.value
@@ -69,7 +69,7 @@ export function AttachmentView({ node }: NodeViewProps) {
         {id ? (
           <a
             href={`/api/v1/attachments/${id}?download=1`}
-            className="inline-flex items-center gap-1 text-primary text-xs"
+            className="inline-flex items-center gap-1 text-primary-text text-xs"
             aria-label={t('editor.download')}
           >
             <Download className="size-4" />
@@ -204,7 +204,7 @@ export function ImageView({ node, selected }: NodeViewProps) {
       <div
         className={cn(
           'relative overflow-hidden rounded-md bg-surface-2',
-          selected && 'ring-2 ring-primary',
+          selected && 'ring-2 ring-primary-text',
         )}
         style={{
           aspectRatio: w && h ? `${w} / ${h}` : undefined,

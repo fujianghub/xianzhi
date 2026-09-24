@@ -4,6 +4,19 @@
 
 ## 2026-09-24
 
+**ADR-0005 · P1 动效体系**
+- 00：新增 REQ-UI-028（动效档位）、029（路由转场）、030（展开指示），Phase 2、P1；REQ-UI-021 加注（借路由转场实现，Peek 暂未接）。
+- 04 §2.4 加注：档位落地位置、路由转场规则、列表重排改用 CSS transform 过渡（不上 Motion `layout`，保 REQ-UI-017）。
+- glossary §1：新增「动效档位」「展开指示」。
+- 更正：06 §5.3「完成后行高折叠移出」在 Phase 1 已实现（`TaskList` collapsing），此前盘点误记为未做。
+
+**ADR-0005 翡翠重音、燕印枝线与动态氛围（参考简斋的风格迁移 · P0）**
+- 新增 ADR-0005：主色改翡翠 `#02B377` / `#2EE79C`，拆出 `primary-text`（文字 / 图标）与深墨 `primary-fg`；`primary-gradient` 改为翡翠 → 亮翡翠；新增 `danger-fg`、`shadow-seal`、`branch-line`、`--xz-code-*` 九色、`--xz-font-display / brand-en`。
+- 04 §1 · §2.1 · §2.2 · §9、06 §1 · §3.1 · §3.4 · §4 · §5.6 加注；glossary §2 新增「燕印」「枝线」；隐喻位置由三处扩为五处。
+- 00：REQ-UI-020 辉光上限 3 → 6；新增 REQ-UI-024（燕印）、025（字体自托管）、026（代码高亮）、027（顶栏枝线与 Dialog 光晕下压），Phase 2、P1。
+- 工具：`check-contrast` 增 `primary-text`、`primary-fg / primary-bright`、`danger-fg`、`code-*` 共 70 项；`check-css` `GLOW_PRIMARY_MAX = 6`。
+- 看板列材质仍用实色 `bg-surface-2/60`（未按 06 §4 改 `glass-thin`：看板页已是 6 个 blur，满额）；`@theme` 不映射 z-index / 时长（Tailwind v4 无对应命名空间，沿用 `z-(--xz-z-*)` 写法）。
+
 **品牌更名：生长间奏 → 衔枝（ADR-0004）**
 - 全部规范（00–08、glossary、tasks）的品牌名、`gi` 前缀、命令（`pnpm xz`）、库名、容器名、环境变量同步更名；历史条目不回改。
 - 04 §1 与 glossary §2：音乐隐喻改为筑巢隐喻（巢 / 枝 / 程 / 回望 / 成巢）；00 REQ-UI-009、REQ-CYCLE-007 与 08 的空态文案随之更新。

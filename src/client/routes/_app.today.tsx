@@ -5,11 +5,11 @@
  */
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { ChevronRight } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { dayRange } from '../../shared/tz.ts'
 import { TaskList } from '../components/domain/TaskList.tsx'
+import { Disclosure } from '../components/ui/disclosure.tsx'
 import { EmptyState } from '../components/ui/empty-state.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
 import { useDelayedFlag } from '../hooks/useDelayedFlag.ts'
@@ -141,12 +141,7 @@ function Today() {
           aria-expanded={done === '1'}
           onClick={() => nav({ search: done === '1' ? {} : { done: '1' }, replace: true })}
         >
-          <ChevronRight
-            className={cn(
-              'size-4 transition-transform duration-(--xz-dur-fast)',
-              done === '1' && 'rotate-90',
-            )}
-          />
+          <Disclosure open={done === '1'} />
           {t('task.section.done')}
         </button>
         {done === '1' ? (

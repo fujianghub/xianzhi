@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { Pin } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useHoverIntent } from '../../hooks/useHoverIntent.ts'
+import { markSharedSource } from '../../hooks/useSharedElement.ts'
 import type { Entry } from '../../lib/entry-queries.ts'
 import { usePeek } from '../../lib/stores.ts'
 import { RelativeTime } from '../ui/relative-time.tsx'
@@ -19,6 +20,7 @@ export function EntryCard({ entry, showSpace }: { entry: Entry; showSpace?: bool
       data-entry-id={entry.id}
       data-pinned={entry.pinned ? 'true' : undefined}
       {...hover}
+      onClick={(e) => markSharedSource(e.currentTarget)}
       onKeyDown={(e) => {
         if (e.key === 'p') {
           e.preventDefault()
@@ -33,7 +35,7 @@ export function EntryCard({ entry, showSpace }: { entry: Entry; showSpace?: bool
         </span>
         {showSpace ? <span className="text-fg-muted">{entry.spaceSlug}</span> : null}
         {entry.pinned ? (
-          <Pin className="ml-auto size-3.5 text-primary" aria-label={t('entry.pinned')} />
+          <Pin className="ml-auto size-3.5 text-primary-text" aria-label={t('entry.pinned')} />
         ) : null}
       </div>
       <h3 className="line-clamp-2 font-medium leading-snug">

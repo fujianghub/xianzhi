@@ -22,7 +22,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { ChevronRight, GripVertical, Plus } from 'lucide-react'
+import { GripVertical, Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -30,6 +30,7 @@ import type { Me } from '../../hooks/useMe.ts'
 import { moveAfter, type Space, useReorderSpace, useSpaces } from '../../hooks/useSpaces.ts'
 import { cn } from '../../lib/cn.ts'
 import { useCreateSpaceDialog } from '../../lib/stores.ts'
+import { Disclosure } from '../ui/disclosure.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
 import { SpaceIcon } from './SpaceIcon.tsx'
 
@@ -234,12 +235,7 @@ export function SpaceSwitcher({ me, onNavigate }: { me: Me; onNavigate?: () => v
             onClick={() => setShowArchived((v) => !v)}
             data-testid="toggle-archived"
           >
-            <ChevronRight
-              className={cn(
-                'size-3.5 transition-transform duration-(--xz-dur-fast)',
-                showArchived && 'rotate-90',
-              )}
-            />
+            <Disclosure open={showArchived} />
             {t('space.archived')}
           </button>
           {showArchived ? (

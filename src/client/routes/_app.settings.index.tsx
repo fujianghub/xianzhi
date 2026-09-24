@@ -1,6 +1,6 @@
 /**
  * 个人设置（08 §2.13、T1-033、REQ-WS-010）：显示名、时区、周起始（服务端，影响「今日」「周期」）；
- * 主题与密度为本机偏好。改动即保存，显示「已保存 · 刚刚」；时区改动后失效任务列表（今日边界变化）。
+ * 主题、密度与动效档位为本机偏好。改动即保存，显示「已保存 · 刚刚」；时区改动后失效任务列表（今日边界变化）。
  */
 import { useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
@@ -32,7 +32,7 @@ function Profile() {
   const { data: me } = useMe()
   const [saved, setSaved] = useState(false)
   const [name, setName] = useState<string | null>(null)
-  const { density, setDensity } = useLayout()
+  const { density, setDensity, motion, setMotion } = useLayout()
   const [theme, setThemeChoice] = useState<ThemeChoice>(() => storedChoice())
   const allZones = useMemo(zones, [])
   const weekdays = useMemo(
@@ -129,7 +129,7 @@ function Profile() {
             <option value="zh-CN">{t('settings.profile.zhCN')}</option>
           </select>
         </label>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-3">
           <label className={row}>
             <span className={label}>{t('ui.theme.toggle')}</span>
             <select
@@ -157,6 +157,21 @@ function Profile() {
             >
               <option value="comfortable">{t('settings.profile.comfortable')}</option>
               <option value="compact">{t('settings.profile.compact')}</option>
+            </select>
+          </label>
+          <label className={row}>
+            <span className={label}>{t('settings.profile.motion')}</span>
+            <select
+              className={select}
+              value={motion}
+              onChange={(e) => setMotion(e.target.value as typeof motion)}
+              data-testid="profile-motion"
+            >
+              {(['standard', 'rich', 'reduce'] as const).map((v) => (
+                <option key={v} value={v}>
+                  {t(`settings.profile.motionLevel.${v}`)}
+                </option>
+              ))}
             </select>
           </label>
         </div>

@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next'
 import { hotkeyParts, useCommands } from '../../hooks/useCommands.ts'
 import { useHotkeys } from '../../hooks/useHotkeys.ts'
 import { isAdmin, type Me } from '../../hooks/useMe.ts'
+import { useScrolled } from '../../hooks/useScrolled.ts'
 import { authClient } from '../../lib/auth-client.ts'
 import { cn } from '../../lib/cn.ts'
 import { useLayout, useNewEntry, usePalette, usePeek } from '../../lib/stores.ts'
@@ -39,6 +40,7 @@ import { SpaceSwitcher } from '../domain/SpaceSwitcher.tsx'
 import { Avatar } from '../ui/avatar.tsx'
 import { Button } from '../ui/button.tsx'
 import { KeyHint } from '../ui/key-hint.tsx'
+import { Seal } from '../ui/seal.tsx'
 import { Sheet, SheetContent, SheetTitle } from '../ui/sheet.tsx'
 import { Tooltip } from '../ui/tooltip.tsx'
 import { NotificationBell } from './NotificationBell.tsx'
@@ -48,20 +50,13 @@ import { ThemeToggle } from './ThemeToggle.tsx'
 function Brand() {
   const { t } = useTranslation()
   return (
-    <div className="flex items-center gap-2 px-3 py-4">
-      <svg viewBox="0 0 32 32" className="size-7 text-primary" aria-hidden>
-        <circle cx="12" cy="22" r="6" fill="currentColor" />
-        <path
-          d="M17 22V5l9 3v5l-9-3"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinejoin="round"
-        />
-      </svg>
+    <div className="xz-seal-host flex items-center gap-2.5 px-4 py-4">
+      <Seal size="sm" />
       <div className="leading-tight">
-        <div className="font-serif text-base tracking-[.06em]">{t('app.name')}</div>
-        <div className="text-[11px] text-fg-faint tracking-[.18em]">{t('app.subtitle')}</div>
+        <div className="font-display text-[17px] tracking-[.08em]">{t('app.name')}</div>
+        <div className="font-brand-en text-[12px] text-fg-faint italic tracking-[.12em]">
+          {t('app.subtitle')}
+        </div>
       </div>
     </div>
   )
@@ -192,6 +187,7 @@ export function AppShell({
   )
   useHotkeys(hotkeys)
   const name = me.displayName || me.name
+  const scrolled = useScrolled()
   const signOut = async () => {
     await authClient.signOut()
     window.location.assign('/login')
@@ -240,7 +236,8 @@ export function AppShell({
       >
         <header
           data-testid="topbar"
-          className="glass sticky top-0 z-(--xz-z-sticky) flex h-(--xz-topbar-h) items-center gap-2 rounded-none border-x-0 border-t-0 px-3 shadow-[inset_0_-1px_0_var(--xz-divider)]"
+          data-scrolled={scrolled || undefined}
+          className="glass xz-topbar sticky top-0 z-(--xz-z-sticky) flex h-(--xz-topbar-h) items-center gap-2 rounded-none border-x-0 border-t-0 px-3"
         >
           <Button
             variant="icon"
@@ -341,35 +338,35 @@ export function AppShell({
       >
         <Link
           to="/today"
-          className="flex flex-col items-center justify-center gap-0.5 text-[11px] text-fg-muted [&.active]:text-primary"
+          className="flex flex-col items-center justify-center gap-0.5 text-[11px] text-fg-muted [&.active]:text-primary-text"
         >
           <Sun className="size-5" strokeWidth={1.75} />
           {t('ui.page.today')}
         </Link>
         <Link
           to="/inbox"
-          className="flex flex-col items-center justify-center gap-0.5 text-[11px] text-fg-muted [&.active]:text-primary"
+          className="flex flex-col items-center justify-center gap-0.5 text-[11px] text-fg-muted [&.active]:text-primary-text"
         >
           <Inbox className="size-5" strokeWidth={1.75} />
           {t('ui.page.inbox')}
         </Link>
         <Link
           to="/search"
-          className="flex flex-col items-center justify-center gap-0.5 text-[11px] text-fg-muted [&.active]:text-primary"
+          className="flex flex-col items-center justify-center gap-0.5 text-[11px] text-fg-muted [&.active]:text-primary-text"
         >
           <Search className="size-5" strokeWidth={1.75} />
           {t('ui.page.search')}
         </Link>
         <Link
           to="/notifications"
-          className="flex flex-col items-center justify-center gap-0.5 text-[11px] text-fg-muted [&.active]:text-primary"
+          className="flex flex-col items-center justify-center gap-0.5 text-[11px] text-fg-muted [&.active]:text-primary-text"
         >
           <Bell className="size-5" strokeWidth={1.75} />
           {t('ui.page.notifications')}
         </Link>
         <Link
           to="/settings"
-          className="flex flex-col items-center justify-center gap-0.5 text-[11px] text-fg-muted [&.active]:text-primary"
+          className="flex flex-col items-center justify-center gap-0.5 text-[11px] text-fg-muted [&.active]:text-primary-text"
         >
           <User className="size-5" strokeWidth={1.75} />
           {t('ui.nav.me')}

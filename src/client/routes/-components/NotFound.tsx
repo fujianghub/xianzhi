@@ -9,7 +9,7 @@ export function NotFound() {
       <p className="mt-2 text-fg-muted">{t('ui.notFound.body')}</p>
       <Link
         to="/today"
-        className="mt-6 inline-block text-primary underline-offset-4 hover:underline"
+        className="mt-6 inline-block text-primary-text underline-offset-4 hover:underline"
       >
         {t('ui.notFound.home')}
       </Link>

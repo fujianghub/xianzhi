@@ -1,13 +1,13 @@
 /** 空间列表（08 §2.5、REQ-SPACE-001 · 004 · 005 · 008）：我的空间 / 其他可见空间 / 归档折叠区（`?archived=1` 展开）。 */
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { ChevronRight, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { SpaceCard } from '../components/domain/SpaceCard.tsx'
 import { Button } from '../components/ui/button.tsx'
+import { Disclosure } from '../components/ui/disclosure.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
 import type { Me } from '../hooks/useMe.ts'
 import { type Space, useSpaces } from '../hooks/useSpaces.ts'
-import { cn } from '../lib/cn.ts'
 import { optOneOf } from '../lib/search.ts'
 import { useCreateSpaceDialog } from '../lib/stores.ts'
 
@@ -107,12 +107,7 @@ function SpacesPage() {
           onClick={() => nav({ search: archived === '1' ? {} : { archived: '1' }, replace: true })}
           data-testid="spaces-archived-toggle"
         >
-          <ChevronRight
-            className={cn(
-              'size-4 transition-transform duration-(--xz-dur-fast)',
-              archived === '1' && 'rotate-90',
-            )}
-          />
+          <Disclosure open={archived === '1'} />
           {t('space.archived')}
         </button>
         {archived === '1' ? (

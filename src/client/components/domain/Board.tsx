@@ -28,11 +28,11 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { generateKeyBetween } from 'fractional-indexing'
-import { ChevronRight } from 'lucide-react'
 import { type FormEvent, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useHoverIntent } from '../../hooks/useHoverIntent.ts'
+import { markSharedSource } from '../../hooks/useSharedElement.ts'
 import { useTaskActions } from '../../hooks/useTasks.ts'
 import { ApiError } from '../../lib/api.ts'
 import { cn } from '../../lib/cn.ts'
@@ -49,6 +49,7 @@ import { dueLabel } from '../../lib/time.ts'
 import { AnimatedCount } from '../ui/animated-count.tsx'
 import { Avatar } from '../ui/avatar.tsx'
 import { Button } from '../ui/button.tsx'
+import { Disclosure } from '../ui/disclosure.tsx'
 import { useUserTimeZone } from '../ui/relative-time.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
 import { PriorityIcon } from './PriorityIcon.tsx'
@@ -60,7 +61,7 @@ function Card({ task, dragging, shaking }: { task: Task; dragging?: boolean; sha
   return (
     <div
       className={cn(
-        'paper flex cursor-grab flex-col gap-2 rounded-md p-3 text-sm shadow-(--xz-shadow-soft) active:cursor-grabbing',
+        'paper flex cursor-grab flex-col gap-2 rounded-lg p-3 text-sm shadow-(--xz-shadow-soft) active:cursor-grabbing',
         dragging && 'rotate-[1.5deg] scale-[1.03] shadow-(--xz-shadow-float)',
         shaking && 'animate-[xz-shake_var(--xz-dur-slow)_var(--xz-ease-out)]',
       )}
@@ -117,12 +118,16 @@ function SortableCard({
       role="button"
       tabIndex={0}
       aria-label={task.title}
-      onClick={() => onOpen(task)}
+      onClick={(e) => {
+        markSharedSource(e.currentTarget)
+        onOpen(task)
+      }}
       onFocus={() => setCmdFocus({ kind: 'task', id: task.id })}
       {...hover}
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           e.preventDefault()
+          markSharedSource(e.currentTarget)
           onOpen(task)
           return
         }
@@ -192,12 +197,7 @@ function Column({
         className="flex items-center gap-2 px-1.5 py-1 text-left font-medium text-sm"
         aria-expanded={!collapsed}
       >
-        <ChevronRight
-          className={cn(
-            'size-4 transition-transform duration-(--xz-dur-fast)',
-            !collapsed && 'rotate-90',
-          )}
-        />
+        <Disclosure open={!collapsed} />
         {collapsed ? null : <span className="flex-1">{t(`task.status.${status}`)}</span>}
         <AnimatedCount value={tasks.length} className="text-fg-muted text-xs" />
       </button>

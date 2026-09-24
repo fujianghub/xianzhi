@@ -1,0 +1,16 @@
+/*
+ * 全站唯一 @font-face 入口（04 §2.2、ADR-0005 §5、REQ-UI-025）：npm 包自托管，unicode-range 分片按需加载，无外部 CDN。
+ * 族名与 tokens.css 的 --xz-font-* 保持同步；新增字体族只改本文件。
+ *   MiSans              380 / 630（小米刻度；按 CSS 字重匹配规则 400 / 500 → 380、600 / 700 → 630。代码只用
+ *                       400 / 500 / 600，330 / 520 匹配不到，不引入以减少 @font-face 条数；缺 630 时 600 会被合成假粗体）
+ *   LXGW WenKai Screen  400（GB 字符集版；展示字，禁伪加粗）
+ *   JetBrains Mono      400 / 500
+ *   Cormorant Garamond  500 italic（英文品牌字 Xianzhi）
+ * 本文件由 main.tsx 动态 import，Vite 拆成独立 CSS 异步插入，不阻塞首帧（font-display: swap 先用系统字）。
+ */
+@import "misans/lib/Normal/MiSans-Medium.min.css";
+@import "misans/lib/Normal/MiSans-Bold.min.css";
+@import "lxgw-wenkai-screen-webfont/lxgwwenkaigbscreen.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+@import "@fontsource/cormorant-garamond/500-italic.css";

@@ -1,5 +1,6 @@
-/** 本地 UI 状态（Zustand，ADR §3：仅主题、布局）：侧栏 / Aside 折叠、StatusPill 状态。 */
+/** 本地 UI 状态（Zustand，ADR §3：仅主题、布局）：侧栏 / Aside 折叠、密度、动效档位、StatusPill 状态。 */
 import { create } from 'zustand'
+import { type MotionLevel, setMotion as persistMotion, storedMotion } from './motion.ts'
 
 export type PillStatus = 'idle' | 'synced' | 'connecting' | 'offline' | 'readOnly'
 
@@ -8,6 +9,8 @@ export type Density = 'comfortable' | 'compact'
 interface LayoutState {
   density: Density
   setDensity: (d: Density) => void
+  motion: MotionLevel
+  setMotion: (m: MotionLevel) => void
   sidebarOpen: boolean
   asideOpen: boolean
   drawerOpen: boolean
@@ -55,6 +58,11 @@ export const useLayout = create<LayoutState>((set, get) => ({
     }
     applyDensity(density)
     set({ density })
+  },
+  motion: typeof window === 'undefined' ? 'standard' : storedMotion(),
+  setMotion: (motion) => {
+    persistMotion(motion)
+    set({ motion })
   },
   sidebarOpen: typeof window === 'undefined' ? true : read('xz:sidebar', true),
   asideOpen: typeof window === 'undefined' ? true : read('xz:aside', true),

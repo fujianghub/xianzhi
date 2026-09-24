@@ -182,7 +182,9 @@ function Security() {
               <span className="min-w-0 truncate">
                 {s.userAgent ?? t('settings.security.unknownDevice')} · {s.ipAddress ?? '—'}{' '}
                 {s.current ? (
-                  <strong className="ml-1 text-primary">{t('settings.security.current')}</strong>
+                  <strong className="ml-1 text-primary-text">
+                    {t('settings.security.current')}
+                  </strong>
                 ) : null}
               </span>
               {s.current ? null : (

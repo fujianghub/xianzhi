@@ -20,7 +20,7 @@ function marks(text: ReactNode, ms: PmNode['marks'], key: string): ReactNode {
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-primary underline"
+            className="text-primary-text underline"
           >
             {out}
           </a>

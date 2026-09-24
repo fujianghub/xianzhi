@@ -1,9 +1,10 @@
 /** 滚动数字（08 §2.6 列头计数，NumberFlow 式）：数值变化时新数字从下方滑入；reduced-motion 下直接替换。 */
-import { AnimatePresence, MotionConfig, motion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
+import { XzMotionConfig } from './motion-config.tsx'
 
 export function AnimatedCount({ value, className }: { value: number; className?: string }) {
   return (
-    <MotionConfig reducedMotion="user">
+    <XzMotionConfig>
       <span
         className={`relative inline-flex overflow-hidden tabular-nums ${className ?? ''}`}
         aria-live="polite"
@@ -20,6 +21,6 @@ export function AnimatedCount({ value, className }: { value: number; className?:
           </motion.span>
         </AnimatePresence>
       </span>
-    </MotionConfig>
+    </XzMotionConfig>
   )
 }

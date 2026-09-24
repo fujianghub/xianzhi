@@ -37,7 +37,7 @@ export function NotificationBell() {
           {count ? (
             <span
               data-testid="bell-count"
-              className="absolute top-1 right-1 min-w-4 rounded-full bg-danger px-1 text-center font-medium text-[10px] text-primary-fg leading-4"
+              className="absolute top-1 right-1 min-w-4 rounded-full bg-danger px-1 text-center font-medium text-[10px] text-danger-fg leading-4"
             >
               {count > 99 ? '99+' : count}
             </span>
@@ -74,7 +74,7 @@ export function NotificationBell() {
           <Link
             to="/notifications"
             onClick={() => setOpen(false)}
-            className="rounded px-2 py-1 text-primary hover:bg-hover"
+            className="rounded px-2 py-1 text-primary-text hover:bg-hover"
           >
             {t('notif.viewAll')}
           </Link>

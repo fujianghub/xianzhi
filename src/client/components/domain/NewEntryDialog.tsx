@@ -85,7 +85,7 @@ export default function NewEntryDialog() {
                 onClick={() => pickKind(k)}
                 className={cn(
                   'h-8 rounded-full border border-border px-3 text-sm transition-colors duration-(--xz-dur-fast) hover:bg-hover',
-                  kind === k && 'border-transparent bg-selected font-medium text-primary',
+                  kind === k && 'border-transparent bg-selected font-medium text-primary-text',
                 )}
               >
                 {t(`entry.kind.${k}`)}

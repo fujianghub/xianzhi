@@ -64,6 +64,21 @@ test('REQ-EDITOR-003 代码块选 rust：高亮出现且只发一次语言 chunk
   expect(chunks.length).toBe(1)
 })
 
+test('REQ-UI-026 代码块 One Dark 高亮：深底、关键字取 --xz-code-keyword', async ({
+  page,
+  request,
+}) => {
+  await open(page, request)
+  await page.keyboard.type('/代码')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('const answer = 42')
+  await page.getByTestId('code-language').selectOption('javascript')
+  const kw = editor(page).locator('pre .hljs-keyword').first()
+  await expect(kw).toHaveCSS('color', 'rgb(198, 120, 221)') // --xz-code-keyword #C678DD
+  // --xz-code-bg #282C34
+  await expect(editor(page).locator('pre').first()).toHaveCSS('background-color', 'rgb(40, 44, 52)')
+})
+
 test('REQ-EDITOR-013 Mod+Shift+2 变 H2；编辑器内按 c 输入字符而不新建任务', async ({
   page,
   request,
