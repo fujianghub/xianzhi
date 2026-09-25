@@ -177,6 +177,6 @@
 
 ## 9. 资产
 
-- Logo：一只衔枝的燕子（注 2026-09-24：已定稿为「燕印」，`components/ui/seal.tsx` 与 `public/favicon.svg`，ADR-0005 §2）；提供 SVG 单色/彩色、favicon、PWA 图标 192/512、maskable。
+- Logo：一只衔枝的燕子（注 2026-09-24：已定稿为「燕印」，`components/ui/seal.tsx` 与 `public/favicon.svg`，ADR-0005 §2；注 2026-09-25：改为「晨光白燕」，配色走 `--xz-seal-*`，ADR-0007）；提供 SVG 单色/彩色、favicon、PWA 图标 192/512、maskable。
 - 插画：空状态 6 张（今日/收件箱/空间/记录/周期/搜索），线稿风格，用 `currentColor` 随主题。
 - 图标：Lucide，`stroke-width 1.75`，尺寸 16/20/24。

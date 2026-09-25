@@ -1,6 +1,6 @@
 /** zh-CN 资源（一期唯一语言，REQ-UI-012）。key 约定 `<area>.<term>[.<value>]`（glossary）。 */
 export const zhCN = {
-  app: { name: '衔枝', subtitle: 'Xianzhi' },
+  app: { name: '衔枝', tagline: '日衔寸枝，岁成一巢' },
   ui: {
     page: {
       today: '今日',
@@ -111,7 +111,6 @@ export const zhCN = {
     invalid: '邮箱或密码不正确',
     rateLimited: '尝试过于频繁，请在 {{seconds}} 秒后重试',
     locked: '连续失败次数过多，账号已锁定 15 分钟',
-    tagline: '一枝一枝，衔成自己的巢',
     showPassword: '显示密码',
     hidePassword: '隐藏密码',
     or: '或',

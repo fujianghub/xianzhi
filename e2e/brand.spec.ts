@@ -5,15 +5,22 @@ import { BASE, STATE } from './helpers.ts'
 test.describe('已登录', () => {
   test.use({ storageState: STATE.owner })
 
-  test('REQ-UI-024 Sidebar 品牌位为燕印（侧栏改版后 42px）；favicon 为同形燕印', async ({
+  test('REQ-UI-024 Sidebar 品牌位为燕印完整版（42px，暖白燕 + 三片嫩叶）；favicon 为小尺寸简化版', async ({
     page,
     request,
   }) => {
     await page.setViewportSize({ width: 1280, height: 800 })
     await page.goto('/today')
-    await expect(page.getByTestId('sidebar').locator('.xz-seal.xz-seal-md')).toBeVisible()
+    const seal = page.getByTestId('sidebar').locator('.xz-seal.xz-seal-md')
+    await expect(seal).toBeVisible()
+    await expect(seal.locator('.xz-seal-bird')).toHaveCount(1)
+    await expect(seal.locator('.xz-seal-leaf, .xz-seal-leaf-2')).toHaveCount(3)
+    // ADR-0007：燕子用 --xz-seal-bird（暖白），不再跟随 primary-fg 深墨
+    const fill = await seal.locator('.xz-seal-bird').evaluate((el) => getComputedStyle(el).fill)
+    expect(fill).toBe('rgb(255, 253, 244)')
     const svg = await (await request.get(`${BASE}/favicon.svg`)).text()
     expect(svg).toContain('<title>Xianzhi</title>')
+    expect(svg).toContain('#FFFDF4')
     expect(svg).not.toContain('Growing Interlude')
   })
 

@@ -90,6 +90,15 @@
   --xz-shadow-float: 0 14px 40px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.06);
   /* ADR-0005 §2：燕印投影（唯一允许的带色阴影）+ 1px 内高光 */
   --xz-shadow-seal: 0 4px 14px rgba(2, 179, 119, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  /* ADR-0007：燕印「晨光白燕」——两主题同值（夜场不覆盖）；深端压深保证暖白燕 ≥ 3:1 */
+  --xz-seal-from: #14c98a;
+  --xz-seal-to: #028f5e;
+  --xz-seal-sun: rgba(244, 255, 184, 0.7);
+  --xz-seal-bird: #fffdf4;
+  --xz-seal-bird-shadow: rgba(3, 77, 51, 0.35);
+  --xz-seal-twig: #7a4a22;
+  --xz-seal-leaf: #e4f76a;
+  --xz-seal-leaf-2: #c4ee55;
 
   /* ---- ADR-0005 / 06 §4 代码块：One Dark 变体，两主题同一深底 ---- */
   --xz-code-bg: #282c34;
