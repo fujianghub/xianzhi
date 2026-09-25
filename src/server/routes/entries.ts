@@ -7,6 +7,7 @@ import {
   createSnapshotSchema,
   entryDetailQuery,
   listEntriesQuery,
+  moveEntrySchema,
   patchEntrySchema,
 } from '../../shared/schemas/entries.ts'
 import type { Actor } from '../authz.ts'
@@ -17,6 +18,8 @@ import { idempotency } from '../middleware/idempotency.ts'
 import { clientIp } from '../middleware/request-context.ts'
 import { requireAuth, requireScope } from '../middleware/session.ts'
 import * as svc from '../services/entries.ts'
+import * as tree from '../services/entry-tree.ts'
+import { listBacklinks } from '../services/links.ts'
 import * as snap from '../services/snapshots.ts'
 import type { AppEnv } from '../types.ts'
 
@@ -80,6 +83,19 @@ export function entryRoutes(deps: { db: Db }) {
     )
     .post('/:id/unarchive', requireScope('write'), validate('param', idParam), async (c) =>
       c.json(await svc.archiveEntry(deps.db, ctxOf(c), c.req.valid('param').id, false)),
+    )
+    .patch(
+      '/:id/move',
+      requireScope('write'),
+      validate('param', idParam),
+      validate('json', moveEntrySchema),
+      async (c) =>
+        c.json(
+          await tree.moveEntry(deps.db, ctxOf(c), c.req.valid('param').id, c.req.valid('json')),
+        ),
+    )
+    .get('/:id/backlinks', validate('param', idParam), async (c) =>
+      c.json({ items: await listBacklinks(deps.db, ctxOf(c), c.req.valid('param').id) }),
     )
     .get('/:id/preview', validate('param', idParam), async (c) =>
       c.json(await svc.previewEntry(deps.db, ctxOf(c), c.req.valid('param').id)),

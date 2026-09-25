@@ -2,6 +2,14 @@
 
 > 只记规范文件的变更；代码变更看 git log。格式：日期 → 文件 → 一行一条。每个 Phase 结束前的一致性审查结果也记在这里。
 
+## 2026-09-26
+
+**分类：大类、概览与类型视图、目录树、关联（ADR-0012）**
+- 新增 ADR-0012。00：新增 §6c KB（REQ-KB-001 ~ 005）；REQ-LINK-001 · 002 · 003 · 005 加注已实现。
+- 01：§3.0 `space_groups`；spaces +`group_id`；entries +`parent_id` `tree_order`；§5 +`group.manage`。
+- 02 §9：+`/space-groups` 5 条、`GET /spaces/:id/tree`、`PATCH /entries/:id/move`；`PATCH /spaces/reorder` +`groupId`；`GET /entries` 注 `kind` 多值 / `fields` / `inTree` / `tagIds`。
+- 08 §1：+`/spaces/$slug/home`、`/spaces/$slug/tree`。glossary：+分类、大类、目录、概览。tasks/phase-2：反链 / 链接划线加注。
+
 ## 2026-09-25
 
 **历史版本恢复、Markdown 源码编辑与识别、附件类型、记录模板（ADR-0011）**

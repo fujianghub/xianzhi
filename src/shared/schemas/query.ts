@@ -26,6 +26,37 @@ export const csvText = z
   .pipe(z.array(z.string().min(1).max(60)).min(1).max(20))
   .optional()
 
+/**
+ * 记录元数据字段过滤（ADR-0012、REQ-KB-004）：`status=open|fixed,severity=high` → { status: [open, fixed], severity: [high] }。
+ * 字段名只允许字母（与 entryFields 键一致）；最多 5 个字段、每个 ≤ 10 个值、值 ≤ 64 字符。
+ */
+export const fieldsFilter = z
+  .string()
+  .optional()
+  .transform((s, ctx): Record<string, string[]> | undefined => {
+    if (!s) return undefined
+    const out: Record<string, string[]> = {}
+    for (const part of s
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean)) {
+      const m = /^([a-zA-Z]{1,40})=(.+)$/.exec(part)
+      const vals =
+        m?.[2]
+          ?.split('|')
+          .map((v) => v.trim())
+          .filter(Boolean) ?? []
+      if (!m?.[1] || !vals.length || vals.length > 10 || vals.some((v) => v.length > 64)) {
+        ctx.addIssue({ code: 'custom', message: `fields 过滤格式无效：${part}`, path: ['fields'] })
+        return undefined
+      }
+      out[m[1]] = vals
+    }
+    if (Object.keys(out).length > 5)
+      ctx.addIssue({ code: 'custom', message: 'fields 过滤最多 5 个字段', path: ['fields'] })
+    return out
+  })
+
 /** `*Id` 参数接受 `me` 别名；调用方在 service 内替换为当前用户 id。 */
 export const idOrMe = z.union([z.literal('me'), z.string().min(1).max(64)]).optional()
 export const bool01 = z

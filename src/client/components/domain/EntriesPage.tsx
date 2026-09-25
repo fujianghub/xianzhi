@@ -1,9 +1,11 @@
 /**
- * 记录列表（08 §2.8、REQ-ENTRY-002 · 006）：卡片流；固定项置顶（先查 pinned=1，再查 pinned=0）；
- * 筛选 kind / 只看我的 / 标题 q / 排序，参数与 02 §9 同名、全部进 URL。`/entries` 与空间记录页共用。
+ * 记录列表（08 §2.8、REQ-ENTRY-002 · 006、REQ-KB-004）：卡片 / 表格两种视图；固定项置顶（先查 pinned=1，再查 pinned=0）；
+ * 类型可多选（`kind=bug,iteration`）；只选一种类型时按其 fields 给出下拉过滤（`fields=status=open,severity=high`）；
+ * 表格视图列 = 该类型的 fields，点列头在已加载的数据内排序（枚举按定义顺序），一次最多加载 200 条。
+ * 参数与 02 §9 同名、全部进 URL。`/entries` 与分类记录页共用。
  */
 import { useInfiniteQuery } from '@tanstack/react-query'
-import { Plus } from 'lucide-react'
+import { LayoutGrid, Plus, Table2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDelayedFlag } from '../../hooks/useDelayedFlag.ts'
@@ -16,20 +18,40 @@ import {
   entriesInfiniteQuery,
   flattenEntries,
 } from '../../lib/entry-queries.ts'
+import { csvList } from '../../lib/search.ts'
 import { useNewEntry } from '../../lib/stores.ts'
 import { Button } from '../ui/button.tsx'
 import { EmptyState } from '../ui/empty-state.tsx'
 import { Input } from '../ui/input.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
 import { EntryCard } from './EntryCard.tsx'
+import { fieldSpecs } from './EntryFieldsForm.tsx'
+import { EntryTable } from './EntryTable.tsx'
 
 export interface EntriesSearch {
   kind?: string
+  fields?: string
+  view?: 'table'
   authorId?: string
   tag?: string
   q?: string
   pinned?: '1'
   sort?: string
+}
+
+/** `status=open|fixed,severity=high` ⇄ { status: 'open|fixed', severity: 'high' } */
+export const parseFieldsParam = (s: string | undefined): Record<string, string> =>
+  Object.fromEntries(
+    (s ?? '')
+      .split(',')
+      .map((p) => p.split('='))
+      .filter((p): p is [string, string] => p.length === 2 && !!p[0] && !!p[1]),
+  )
+export const stringifyFieldsParam = (m: Record<string, string>): string | undefined => {
+  const parts = Object.entries(m)
+    .filter(([, v]) => v)
+    .map(([k, v]) => `${k}=${v}`)
+  return parts.length ? parts.join(',') : undefined
 }
 
 export function EntriesPage({
@@ -38,17 +60,22 @@ export function EntriesPage({
   spaceId,
   title,
   header,
+  hideTitle,
 }: {
   search: EntriesSearch
   setSearch: (patch: Partial<EntriesSearch>) => void
   spaceId?: string
   title: string
   header?: React.ReactNode
+  /** 分类页签内：页头已由 KbHeader 提供 */
+  hideTitle?: boolean
 }) {
   const { t } = useTranslation()
   const openNew = useNewEntry((s) => s.setOpen)
   const setDefaults = useNewEntry((s) => s.setDefaults)
-  const kind = search.kind?.includes(',') ? undefined : (search.kind as EntryKind | undefined)
+  const kinds = csvList(search.kind) as EntryKind[]
+  const kind = kinds.length === 1 ? kinds[0] : undefined
+  const table = search.view === 'table'
   useEffect(() => {
     setDefaults({ spaceId, kind })
     return () => setDefaults({})
@@ -67,14 +94,16 @@ export function EntriesPage({
   const base: EntryListParams = {
     spaceId,
     kind: search.kind,
+    fields: search.fields,
     authorId: search.authorId,
     tag: search.tag,
     q: search.q,
     sort: search.sort ?? '-updatedAt',
   }
+  const pageSize = table ? 200 : 30
   const pinned = useInfiniteQuery(entriesInfiniteQuery({ ...base, pinned: '1' }, 50))
   const rest = useInfiniteQuery({
-    ...entriesInfiniteQuery({ ...base, pinned: '0' }),
+    ...entriesInfiniteQuery({ ...base, pinned: '0' }, pageSize),
     enabled: search.pinned !== '1',
   })
   const pinnedItems = flattenEntries(pinned.data)
@@ -87,30 +116,69 @@ export function EntriesPage({
       'h-8 shrink-0 rounded-full border px-3 text-sm',
       active ? 'border-selected-border bg-selected' : 'border-border hover:bg-hover',
     )
+  const toggleKind = (k: EntryKind) => {
+    const next = kinds.includes(k) ? kinds.filter((x) => x !== k) : [...kinds, k]
+    // 类型变了，字段过滤可能不再适用：清空
+    setSearch({ kind: next.length ? next.join(',') : undefined, fields: undefined })
+  }
+  const fieldFilters = kind ? fieldSpecs(kind).filter((f) => f.kind === 'select') : []
+  const fieldValues = parseFieldsParam(search.fields)
 
   return (
     <section className="mx-auto max-w-[100rem]" data-testid="entries-page">
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h1 className="font-semibold text-2xl tracking-tight">{title}</h1>
+        {hideTitle ? null : <h1 className="font-semibold text-2xl tracking-tight">{title}</h1>}
         {header}
-        <Button
-          className="ml-auto"
-          variant="primary"
-          size="sm"
-          onClick={() => openNew(true, { spaceId, kind })}
-          data-testid="new-entry"
-        >
-          <Plus className="size-4" />
-          {t('entry.new')}
-        </Button>
+        <div className="ml-auto flex items-center gap-2">
+          <fieldset className="flex rounded-full border border-border p-0.5">
+            <legend className="sr-only">{t('kb.view')}</legend>
+            <button
+              type="button"
+              aria-pressed={!table}
+              aria-label={t('kb.viewCards')}
+              title={t('kb.viewCards')}
+              onClick={() => setSearch({ view: undefined })}
+              className={cn(
+                'grid h-7 w-8 place-items-center rounded-full',
+                !table ? 'bg-selected' : 'text-fg-muted',
+              )}
+              data-testid="view-cards"
+            >
+              <LayoutGrid className="size-4" />
+            </button>
+            <button
+              type="button"
+              aria-pressed={table}
+              aria-label={t('kb.viewTable')}
+              title={t('kb.viewTable')}
+              onClick={() => setSearch({ view: 'table' })}
+              className={cn(
+                'grid h-7 w-8 place-items-center rounded-full',
+                table ? 'bg-selected' : 'text-fg-muted',
+              )}
+              data-testid="view-table"
+            >
+              <Table2 className="size-4" />
+            </button>
+          </fieldset>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => openNew(true, { spaceId, kind })}
+            data-testid="new-entry"
+          >
+            <Plus className="size-4" />
+            {t('entry.new')}
+          </Button>
+        </div>
       </div>
       <div className="mb-5 flex flex-wrap items-center gap-2">
         <fieldset className="flex gap-1.5 overflow-x-auto">
           <legend className="sr-only">{t('entry.props.kind')}</legend>
           <button
             type="button"
-            className={chip(!search.kind)}
-            onClick={() => setSearch({ kind: undefined })}
+            className={chip(!kinds.length)}
+            onClick={() => setSearch({ kind: undefined, fields: undefined })}
           >
             {t('entry.allKinds')}
           </button>
@@ -118,14 +186,40 @@ export function EntriesPage({
             <button
               key={k}
               type="button"
-              aria-pressed={search.kind === k}
-              className={chip(search.kind === k)}
-              onClick={() => setSearch({ kind: search.kind === k ? undefined : k })}
+              aria-pressed={kinds.includes(k)}
+              className={chip(kinds.includes(k))}
+              onClick={() => toggleKind(k)}
+              data-kind-filter={k}
             >
               {t(`entry.kind.${k}`)}
             </button>
           ))}
         </fieldset>
+        {fieldFilters.map((f) =>
+          f.kind === 'select' ? (
+            <select
+              key={f.name}
+              value={fieldValues[f.name] ?? ''}
+              onChange={(e) =>
+                setSearch({
+                  fields: stringifyFieldsParam({ ...fieldValues, [f.name]: e.target.value }),
+                })
+              }
+              aria-label={t(`entry.field.${f.name}`)}
+              className="h-8 rounded-full border border-border bg-surface px-3 text-sm"
+              data-testid={`field-filter-${f.name}`}
+            >
+              <option value="">
+                {t(`entry.field.${f.name}`)}：{t('entry.allKinds')}
+              </option>
+              {f.options.map((o) => (
+                <option key={String(o)} value={String(o)}>
+                  {t(`entry.fieldValue.${o}`, { defaultValue: String(o) })}
+                </option>
+              ))}
+            </select>
+          ) : null,
+        )}
         <button
           type="button"
           aria-pressed={search.authorId === 'me'}
@@ -167,13 +261,15 @@ export function EntriesPage({
       ) : !loading && !items.length ? (
         <EmptyState
           illustration="entries"
-          title={t(`entry.empty.${kind ?? 'all'}`)}
+          title={t(`entry.empty.${kind ?? 'all'}`, { defaultValue: t('entry.empty.all') })}
           action={
             <Button variant="primary" onClick={() => openNew(true, { spaceId, kind })}>
               {t('entry.new')}
             </Button>
           }
         />
+      ) : table ? (
+        <EntryTable items={items} kinds={kinds} showSpace={!spaceId} />
       ) : (
         <>
           <div

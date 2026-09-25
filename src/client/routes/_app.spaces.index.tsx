@@ -1,14 +1,22 @@
-/** 空间列表（08 §2.5、REQ-SPACE-001 · 004 · 005 · 008）：我的空间 / 其他可见空间 / 归档折叠区（`?archived=1` 展开）。 */
+/**
+ * 分类列表（08 §2.5、REQ-SPACE-001 · 004 · 008、REQ-KB-001 · 002）：个人空间 + 按大类分区的卡片（大类按顺序，「其他」最后，
+ * 空大类显示「在此新建」）；管理员可「管理大类」；归档折叠区（`?archived=1` 展开）。
+ */
+import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Plus } from 'lucide-react'
+import { FolderCog, Plus } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SpaceCard } from '../components/domain/SpaceCard.tsx'
+import { SpaceGroupsDialog } from '../components/domain/SpaceGroupsDialog.tsx'
+import { PALETTE_DOT, type PaletteName } from '../components/domain/SpaceIcon.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { Disclosure } from '../components/ui/disclosure.tsx'
 import { PageHeader } from '../components/ui/page-header.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
-import type { Me } from '../hooks/useMe.ts'
-import { type Space, useSpaces } from '../hooks/useSpaces.ts'
+import { isAdmin, type Me } from '../hooks/useMe.ts'
+import { groupSpaces, type Space, spaceGroupsQuery, useSpaces } from '../hooks/useSpaces.ts'
+import { cn } from '../lib/cn.ts'
 import { optOneOf } from '../lib/search.ts'
 import { useCreateSpaceDialog } from '../lib/stores.ts'
 
@@ -19,13 +27,11 @@ export const Route = createFileRoute('/_app/spaces/')({
   component: SpacesPage,
 })
 
+const GRID = 'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'
+
 function Grid({ items, label, testId }: { items: Space[]; label: string; testId: string }) {
   return (
-    <ul
-      className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
-      aria-label={label}
-      data-testid={testId}
-    >
+    <ul className={GRID} aria-label={label} data-testid={testId}>
       {items.map((s, i) => (
         <SpaceCard key={s.id} space={s} index={i} />
       ))}
@@ -40,35 +46,48 @@ function SpacesPage() {
   const nav = useNavigate({ from: '/spaces/' })
   const openCreate = useCreateSpaceDialog((s) => s.setOpen)
   const { data, isPending, isError, refetch } = useSpaces()
+  const groups = useQuery(spaceGroupsQuery)
   const arch = useSpaces(true, archived === '1')
-  const mine = (data ?? []).filter((s) => s.isMember)
-  const others = (data ?? []).filter((s) => !s.isMember)
+  const [manage, setManage] = useState(false)
+  const personal = (data ?? []).filter((s) => s.isPersonal)
+  const sections = useMemo(() => groupSpaces(data ?? [], groups.data ?? []), [data, groups.data])
   const canCreate = me.workspaceRole !== 'guest'
+  const total = sections.reduce((n, s) => n + s.items.length, 0)
 
   return (
     <section className="mx-auto max-w-[96rem]" data-testid="spaces-page">
       <PageHeader
         title={t('ui.page.spaces')}
         actions={
-          canCreate ? (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => openCreate(true)}
-              data-testid="spaces-new"
-            >
-              <Plus className="size-4" />
-              {t('space.newSpace')}
-            </Button>
-          ) : null
+          <div className="flex gap-2">
+            {isAdmin(me) ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setManage(true)}
+                data-testid="groups-manage"
+              >
+                <FolderCog className="size-4" />
+                {t('space.groups.manage')}
+              </Button>
+            ) : null}
+            {canCreate ? (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => openCreate(true, null)}
+                data-testid="spaces-new"
+              >
+                <Plus className="size-4" />
+                {t('space.newSpace')}
+              </Button>
+            ) : null}
+          </div>
         }
       />
 
       {isPending ? (
-        <ul
-          className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
-          aria-busy="true"
-        >
+        <ul className={GRID} aria-busy="true">
           {Array.from({ length: 6 }, (_, i) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: 骨架占位无身份
             <li key={i}>
@@ -83,30 +102,57 @@ function SpacesPage() {
             {t('ui.action.retry')}
           </Button>
         </div>
-      ) : mine.length + others.length === 0 ? (
-        <div className="mx-auto mt-12 max-w-md text-center" data-testid="spaces-empty">
-          <h2 className="font-semibold text-lg">{t('space.empty')}</h2>
-          <p className="mt-2 text-fg-muted text-sm">{t('space.emptyHint')}</p>
-          {canCreate ? (
-            <Button variant="primary" className="mt-5" onClick={() => openCreate(true)}>
-              {t('space.newSpace')}
-            </Button>
-          ) : null}
-        </div>
       ) : (
         <div className="flex flex-col gap-8">
-          {mine.length ? (
+          {personal.length ? (
             <div>
-              <h2 className="mb-3 font-medium text-fg-muted text-sm">{t('space.mine')}</h2>
-              <Grid items={mine} label={t('space.mine')} testId="spaces-mine" />
+              <h2 className="mb-3 font-medium text-fg-muted text-sm">{t('space.personal')}</h2>
+              <Grid items={personal} label={t('space.personal')} testId="spaces-personal" />
             </div>
           ) : null}
-          {others.length ? (
-            <div>
-              <h2 className="mb-3 font-medium text-fg-muted text-sm">{t('space.others')}</h2>
-              <Grid items={others} label={t('space.others')} testId="spaces-others" />
+          {total === 0 && !(groups.data ?? []).length ? (
+            <div className="mx-auto mt-6 max-w-md text-center" data-testid="spaces-empty">
+              <h2 className="font-semibold text-lg">{t('space.empty')}</h2>
+              <p className="mt-2 text-fg-muted text-sm">{t('space.emptyHint')}</p>
             </div>
           ) : null}
+          {sections.map((sec) => {
+            const key = sec.group?.id ?? 'none'
+            const name = sec.group?.name ?? t('space.ungrouped')
+            return (
+              <div key={key} data-testid="spaces-section" data-group-id={key}>
+                <div className="mb-3 flex items-center gap-2">
+                  <span
+                    className={cn(
+                      'size-2.5 rounded-full',
+                      PALETTE_DOT[(sec.group?.color as PaletteName | null) ?? 'gray'],
+                    )}
+                    aria-hidden
+                  />
+                  <h2 className="font-medium text-sm">{name}</h2>
+                  <span className="text-fg-muted text-xs">
+                    {t('space.groups.count', { count: sec.items.length })}
+                  </span>
+                  {canCreate && sec.group ? (
+                    <button
+                      type="button"
+                      className="ms-2 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-fg-muted text-xs hover:bg-hover hover:text-fg"
+                      onClick={() => openCreate(true, sec.group?.id ?? null)}
+                      data-testid="spaces-new-here"
+                    >
+                      <Plus className="size-3.5" />
+                      {t('space.groups.newHere')}
+                    </button>
+                  ) : null}
+                </div>
+                {sec.items.length ? (
+                  <Grid items={sec.items} label={name} testId="spaces-grid" />
+                ) : (
+                  <p className="text-fg-muted text-sm">{t('space.empty')}</p>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -133,6 +179,7 @@ function SpacesPage() {
           </div>
         ) : null}
       </div>
+      <SpaceGroupsDialog open={manage} onOpenChange={setManage} />
     </section>
   )
 }

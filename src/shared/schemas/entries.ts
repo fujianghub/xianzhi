@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { isoDateTime, uuidSchema } from './common.ts'
 import { entryFieldsIssues } from './entryFields.ts'
 import { ENTRY_EXPORT_FORMATS, ENTRY_KINDS, ENTRY_VISIBILITIES } from './enums.ts'
-import { bool01, csvText, idOrMe, pageParams, sortParam } from './query.ts'
+import { bool01, csv, csvText, fieldsFilter, idOrMe, pageParams, sortParam } from './query.ts'
 import { templateIdSchema } from './templates.ts'
 
 export const createEntrySchema = z
@@ -16,6 +16,8 @@ export const createEntrySchema = z
     tagIds: z.array(uuidSchema).max(50).optional(),
     // 初始正文模板（ADR-0011 §2）：`builtin:<key>` / 用户模板 uuid；`builtin:blank` = 明确空白
     templateId: templateIdSchema.optional(),
+    // 目录树（ADR-0012）：给出该键 = 放进目录（null = 根级；uuid = 作为其子页）；省略 = 不进目录
+    parentId: uuidSchema.nullable().optional(),
   })
   .superRefine((v, ctx) => entryFieldsIssues(v.kind, v.fields, ctx))
 
@@ -35,7 +37,9 @@ export const patchEntrySchema = z
 export const ENTRY_SORT = ['updatedAt', 'createdAt', 'title'] as const
 export const listEntriesQuery = pageParams.extend({
   spaceId: uuidSchema.optional(),
-  kind: z.enum(ENTRY_KINDS).optional(),
+  kind: csv(ENTRY_KINDS), // 逗号多值（08 §2.8、ADR-0012 类型视图）
+  fields: fieldsFilter, // `status=open|fixed,severity=high`（ADR-0012）
+  inTree: bool01, // 1 = 只要在目录里的，0 = 只要「其余记录」（ADR-0012）
   authorId: idOrMe,
   tag: csvText, // 逗号多值，任一命中（REQ-TAG-002）
   q: z.string().trim().max(200).optional(),
@@ -45,5 +49,10 @@ export const listEntriesQuery = pageParams.extend({
   sort: sortParam(ENTRY_SORT, { field: 'updatedAt', dir: 'desc' }),
 })
 export const entryDetailQuery = z.object({ withBody: bool01 })
+/** PATCH /entries/:id/move（ADR-0012、REQ-KB-005）：移到 parentId 下、after 之后（null = 最前）；或 `{ detach: true }` 移出目录。 */
+export const moveEntrySchema = z.union([
+  z.object({ parentId: uuidSchema.nullable(), after: uuidSchema.nullable() }),
+  z.object({ detach: z.literal(true) }),
+])
 export const createSnapshotSchema = z.object({ label: z.string().trim().min(1).max(80) })
 export const entryExportQuery = z.object({ format: z.enum(ENTRY_EXPORT_FORMATS).default('md') })

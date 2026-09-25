@@ -23,19 +23,28 @@ export function EntryPicker({
   onOpenChange,
   excludeId,
   onPick,
+  kind,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
   excludeId?: string
   onPick: (e: Row) => void
+  /** 只列这些类型（逗号分隔，ADR-0012 关联面板） */
+  kind?: string
 }) {
   const { t } = useTranslation()
   const [q, setQ] = useState('')
   const { data } = useQuery({
-    queryKey: ['entries', 'picker', q],
+    queryKey: ['entries', 'picker', q, kind ?? ''],
     queryFn: () =>
       unwrap<{ items: Row[] }>(
-        api.entries.$get({ query: { limit: '10', ...(q.trim() ? { q: q.trim() } : {}) } as never }),
+        api.entries.$get({
+          query: {
+            limit: '10',
+            ...(q.trim() ? { q: q.trim() } : {}),
+            ...(kind ? { kind } : {}),
+          } as never,
+        }),
       ),
     enabled: open,
     staleTime: 10_000,

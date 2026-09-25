@@ -12,8 +12,22 @@ import {
   spacesQuery,
 } from '../lib/space-queries.ts'
 
-export type { Space, SpaceKind, SpaceVisibility } from '../lib/space-queries.ts'
-export { spaceQuery, spacesKey, spacesQuery } from '../lib/space-queries.ts'
+export type {
+  Space,
+  SpaceGroup,
+  SpaceKind,
+  SpaceSection,
+  SpaceVisibility,
+} from '../lib/space-queries.ts'
+export {
+  groupSpaces,
+  planSpaceMove,
+  sectionDropId,
+  spaceGroupsQuery,
+  spaceQuery,
+  spacesKey,
+  spacesQuery,
+} from '../lib/space-queries.ts'
 
 export const useSpaces = (archived = false, enabled = true) =>
   useQuery({ ...spacesQuery(archived), enabled })
@@ -41,8 +55,21 @@ export function useReorderSpace() {
   const qc = useQueryClient()
   const key = spacesKey(false)
   return useMutation({
-    mutationFn: (v: { id: string; after: string | null; order: string[] }) =>
-      unwrap<Space>(api.spaces.reorder.$patch({ json: { id: v.id, after: v.after } })),
+    mutationFn: (v: {
+      id: string
+      after: string | null
+      groupId?: string | null
+      order: string[]
+    }) =>
+      unwrap<Space>(
+        api.spaces.reorder.$patch({
+          json: {
+            id: v.id,
+            after: v.after,
+            ...(v.groupId !== undefined ? { groupId: v.groupId } : {}),
+          },
+        }),
+      ),
     onMutate: async (v) => {
       await qc.cancelQueries({ queryKey: key })
       const prev = qc.getQueryData<Space[]>(key)
@@ -55,7 +82,12 @@ export function useReorderSpace() {
         let i = 0
         qc.setQueryData<Space[]>(
           key,
-          prev.map((s) => (rank.has(s.id) ? (moving[i++] as Space) : s)),
+          prev
+            .map((s) => (rank.has(s.id) ? (moving[i++] as Space) : s))
+            // 跨大类拖放：同步改 groupId（ADR-0012）
+            .map((s) =>
+              s.id === v.id && v.groupId !== undefined ? { ...s, groupId: v.groupId } : s,
+            ),
         )
       }
       return { prev }
@@ -77,6 +109,7 @@ export function useCreateSpace() {
       visibility: SpaceVisibility
       color?: string | null
       icon?: string | null
+      groupId?: string | null
     }) => unwrap<Space>(api.spaces.$post({ json: json as never })),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['spaces'] }),
   })

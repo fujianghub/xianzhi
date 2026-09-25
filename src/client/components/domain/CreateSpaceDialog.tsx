@@ -1,12 +1,18 @@
 /**
- * 新建空间 Dialog（08 §2.5、REQ-SPACE-001 · 008）：名称、slug（留空按名称生成）、类型、可见性、颜色 token、图标。
+ * 新建分类 Dialog（08 §2.5、REQ-SPACE-001 · 008 · REQ-KB-002）：名称、slug（留空按名称生成）、大类、类型、可见性、颜色 token、图标。
  * 服务端校验错误按 `errors[].path` 落到对应字段；slug 冲突（409 CONFLICT_UNIQUE）落到 slug。
  */
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { type FormEvent, type ReactNode, useId, useState } from 'react'
+import { type FormEvent, type ReactNode, useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { type SpaceKind, type SpaceVisibility, useCreateSpace } from '../../hooks/useSpaces.ts'
+import {
+  type SpaceKind,
+  type SpaceVisibility,
+  spaceGroupsQuery,
+  useCreateSpace,
+} from '../../hooks/useSpaces.ts'
 import { ApiError } from '../../lib/api.ts'
 import { cn } from '../../lib/cn.ts'
 import { useCreateSpaceDialog } from '../../lib/stores.ts'
@@ -64,7 +70,12 @@ function Choice<T extends string>({
 
 export function CreateSpaceDialog() {
   const { t } = useTranslation()
-  const { open, setOpen } = useCreateSpaceDialog()
+  const { open, setOpen, groupId: presetGroup } = useCreateSpaceDialog()
+  const groups = useQuery({ ...spaceGroupsQuery, enabled: open })
+  const [group, setGroup] = useState<string>('none')
+  useEffect(() => {
+    if (open) setGroup(presetGroup ?? 'none')
+  }, [open, presetGroup])
   const nav = useNavigate()
   const create = useCreateSpace()
   const id = useId()
@@ -97,11 +108,12 @@ export function CreateSpaceDialog() {
         visibility,
         color: color === 'none' ? null : color,
         icon: icon === 'none' ? null : icon,
+        groupId: group === 'none' ? null : group,
       })
       toast.success(t('space.created', { name: s.name }))
       setOpen(false)
       reset()
-      void nav({ to: '/spaces/$spaceSlug', params: { spaceSlug: s.slug } })
+      void nav({ to: '/spaces/$spaceSlug/home', params: { spaceSlug: s.slug } })
     } catch (err) {
       if (err instanceof ApiError && err.problem.errors?.length) {
         setErrors(
@@ -161,6 +173,18 @@ export function CreateSpaceDialog() {
             <FieldError>{errors.slug}</FieldError>
           </div>
           <Choice
+            legend={t('space.group')}
+            name={`${id}-group`}
+            value={group}
+            options={['none', ...(groups.data ?? []).map((g) => g.id)] as const}
+            onChange={setGroup}
+            render={(g) =>
+              g === 'none'
+                ? t('space.groups.none')
+                : (groups.data?.find((x) => x.id === g)?.name ?? '')
+            }
+          />
+          <Choice
             legend={t('space.kindLabel')}
             name={`${id}-kind`}
             value={kind}
@@ -214,7 +238,9 @@ export function CreateSpaceDialog() {
               )
             }
           />
-          <FieldError>{errors.color ?? errors.icon ?? errors.kind ?? errors.visibility}</FieldError>
+          <FieldError>
+            {errors.color ?? errors.icon ?? errors.kind ?? errors.visibility ?? errors.groupId}
+          </FieldError>
           <div className="mt-2 flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
               {t('ui.action.cancel')}

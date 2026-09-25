@@ -40,6 +40,8 @@ export type EntryVisibility = (typeof ENTRY_VISIBILITIES)[number]
 export const LINK_FROM_TYPES = ['entry', 'task', 'cycle'] as const
 export const LINK_TO_TYPES = ['entry', 'task', 'cycle', 'external'] as const
 export const LINK_KINDS = ['relates', 'blocks', 'caused_by', 'resolves', 'mentions'] as const
+export type LinkKind = (typeof LINK_KINDS)[number]
+export type LinkFromType = (typeof LINK_FROM_TYPES)[number]
 
 export const ATTACHMENT_TARGET_TYPES = ['entry', 'task', 'comment', 'user'] as const
 export type AttachmentTargetType = (typeof ATTACHMENT_TARGET_TYPES)[number]

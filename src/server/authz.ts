@@ -137,6 +137,8 @@ export interface ActionMap {
   /** 资源为待建模板（id 为空，ownerId = 本人） */
   'template.create': TemplateRef
   'template.manage': TemplateRef
+  /** 大类的增删改排（ADR-0012）；把分类移入大类走 space.manage */
+  'group.manage': null
 }
 export type Action = keyof ActionMap
 export const ACTIONS = [
@@ -174,6 +176,7 @@ export const ACTIONS = [
   'template.read',
   'template.create',
   'template.manage',
+  'group.manage',
 ] as const satisfies readonly Action[]
 
 // ---------- 规则 ----------
@@ -269,6 +272,7 @@ export function can<A extends Action>(
   const admin = isWorkspaceAdmin(actor)
   switch (action) {
     case 'workspace.manage':
+    case 'group.manage':
     case 'member.suspend':
     case 'member.unsuspend':
     case 'member.revoke_sessions':

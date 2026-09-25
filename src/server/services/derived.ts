@@ -8,6 +8,7 @@ import type { PmNode } from '../../shared/schemas/pm.ts'
 import type { Db, DbOrTx } from '../db/index.ts'
 import { comments, entries, tasks } from '../db/schema/business.ts'
 import { tsvText } from '../lib/tokenize.ts'
+import { syncEntryMentions } from './links.ts'
 
 export interface RebuildReport {
   entries?: { total: number; ok: number; failed: number }
@@ -39,6 +40,7 @@ export async function writeEntryDerived(db: DbOrTx, id: string, ydoc: Uint8Array
     })
     .where(eq(entries.id, id))
   await syncCommentAnchors(db, id, d.pmJson)
+  await syncEntryMentions(db, id, d.pmJson) // REQ-LINK-001：正文引用 → links(kind=mentions)
 }
 
 /** 正文里所有 `comment(threadId)` 标记（03 §3.2）。 */

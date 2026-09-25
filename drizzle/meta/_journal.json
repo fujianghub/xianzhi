@@ -71,6 +71,20 @@
       "when": 1790355079770,
       "tag": "0009_entry_templates",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790359945879,
+      "tag": "0010_space_groups",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790361191602,
+      "tag": "0011_entry_tree",
+      "breakpoints": true
     }
   ]
 }

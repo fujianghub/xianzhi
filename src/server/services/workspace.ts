@@ -10,6 +10,7 @@ import type { Db } from '../db/index.ts'
 import { member, organization } from '../db/schema/auth.ts'
 import { AppError } from '../lib/errors.ts'
 import { audit } from './audit.ts'
+import { ensureDefaultGroups } from './space-groups.ts'
 import { ensurePersonalSpace } from './spaces.ts'
 
 export const DEFAULT_WORKSPACE = { name: '衔枝', slug: 'xz' } as const
@@ -87,6 +88,7 @@ export async function createOwner(db: Db, auth: Auth, input: CreateOwnerInput) {
       createdAt: new Date(),
     })
     await ensurePersonalSpace(tx, ws.id, user.id)
+    await ensureDefaultGroups(tx, ws.id, user.id)
     await audit(tx, {
       workspaceId: ws.id,
       actorId: user.id,

@@ -42,7 +42,10 @@ test('REQ-SPACE-005 侧栏拖动排序只发一条 PATCH 且仅一行 sort_key �
   await createSpace(req, `拖动 B ${stamp}`)
   const c = await createSpace(req, `拖动 C ${stamp}`)
   await page.goto('/today')
-  const rows = page.getByTestId('my-spaces').getByTestId('space-row')
+  // ADR-0012：新建分类默认「其他」分区
+  const rows = page
+    .locator('[data-testid="space-section"][data-group-id="none"]')
+    .getByTestId('space-row')
   await expect(rows.last()).toHaveAttribute('data-space-id', c.id)
   const first = await rows.first().getAttribute('data-space-id')
   const before = new Map((await listSpaces(req)).map((s) => [s.id, s.sortKey]))
@@ -62,10 +65,7 @@ test('REQ-SPACE-005 侧栏拖动排序只发一条 PATCH 且仅一行 sort_key �
   const changed = after.filter((s) => before.get(s.id) !== s.sortKey).map((s) => s.id)
   expect(changed).toEqual([c.id])
   await page.reload()
-  await expect(page.getByTestId('my-spaces').getByTestId('space-row').first()).toHaveAttribute(
-    'data-space-id',
-    c.id,
-  )
+  await expect(rows.first()).toHaveAttribute('data-space-id', c.id)
 })
 
 test('REQ-SPACE-008 新建空间 Dialog：选色板 token 与图标 → 创建后进入空间页，侧栏出现该空间', async ({
@@ -82,10 +82,11 @@ test('REQ-SPACE-008 新建空间 Dialog：选色板 token 与图标 → 创建�
   await dlg.getByText('绿', { exact: true }).click()
   await dlg.locator('label', { hasText: 'rocket' }).click()
   await dlg.getByTestId('create-space-submit').click()
-  await expect(page).toHaveURL(/\/spaces\/[a-z0-9-]+$/)
-  await expect(page.getByTestId('space-page').getByRole('heading', { level: 1 })).toHaveText(name)
+  // ADR-0012：进入分类默认是概览页
+  await expect(page).toHaveURL(/\/spaces\/[a-z0-9-]+\/home$/)
+  await expect(page.getByTestId('kb-home').getByRole('heading', { level: 1 })).toHaveText(name)
   await expect(page.getByTestId('sidebar').getByText(name)).toBeVisible()
-  const slug = new URL(page.url()).pathname.split('/').pop() ?? ''
+  const slug = new URL(page.url()).pathname.split('/').at(-2) ?? ''
   const s = (await (await request.get(`/api/v1/spaces/${slug}`)).json()) as Record<string, unknown>
   expect(s).toMatchObject({
     kind: 'learning',
@@ -121,7 +122,9 @@ test('REQ-SPACE-004 卡片菜单归档 → 空间页显示只读横幅、归档�
   await page.goto('/spaces?archived=1')
   await archivedCard.getByTestId('space-actions').click()
   await page.getByTestId('space-archive-toggle').click()
-  await expect(page.getByTestId('spaces-mine').locator(`[data-space-id="${s.id}"]`)).toBeVisible()
+  await expect(
+    page.getByTestId('spaces-page').locator(`[data-space-id="${s.id}"]`).first(),
+  ).toBeVisible()
 })
 
 test('REQ-SPACE-002 不可见空间直链显示 404 页（全新普通成员）', async ({ browser, playwright }) => {

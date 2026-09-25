@@ -41,6 +41,7 @@ export function useEntryActions() {
     spaceId?: string
     fields?: Record<string, unknown>
     templateId?: string
+    parentId?: string | null
   }) => {
     const r = await unwrap<{ id: string }>(
       api.entries.$post({ json: input as never }, { headers: { 'idempotency-key': newId() } }),

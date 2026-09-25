@@ -1,7 +1,7 @@
 /**
  * 记录 Aside（04 §4、08 §2.9、T1-017）：`?aside=outline|backlinks|comments|props|history`。
  * 大纲：实时标题，点击跳转；属性：可见性、所在空间（移动，REQ-ENTRY-011）、标记版本（REQ-COLLAB-007）、作者与时间。
- * 历史：快照列表 → 预览 / 对比 / 恢复（REQ-COLLAB-008）；反链属 Phase 2，评论随 T1-023 接入。
+ * 历史：快照列表 → 预览 / 对比 / 恢复（REQ-COLLAB-008）；关联：出链 / 反链 / Bug ↔ 迭代（ADR-0012）；评论随 T1-023 接入。
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, lazy, Suspense, useMemo, useState } from 'react'
@@ -19,6 +19,8 @@ import { Input } from '../ui/input.tsx'
 import { RelativeTime } from '../ui/relative-time.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
 import { Comments } from './Comments.tsx'
+import { EntryRelations } from './EntryRelations.tsx'
+import { TagPicker, tagsQuery } from './TagPicker.tsx'
 
 type SnapshotMeta = import('../../editor/SnapshotPreview.tsx').SnapshotMeta
 const SnapshotPreview = lazy(() => import('../../editor/SnapshotPreview.tsx'))
@@ -71,9 +73,7 @@ export function EntryAside({
         {tab === 'props' ? <Props entry={entry} canWrite={canWrite} me={me} /> : null}
         {tab === 'comments' ? <EntryComments entry={entry} me={me} /> : null}
         {tab === 'history' ? <History entry={entry} canWrite={canWrite} /> : null}
-        {tab === 'backlinks' ? (
-          <p className="text-fg-muted text-sm">{t('entry.aside.comingSoon')}</p>
-        ) : null}
+        {tab === 'backlinks' ? <EntryRelations entry={entry} canWrite={canWrite} /> : null}
       </div>
     </div>
   )
@@ -114,6 +114,7 @@ function Props({
   const qc = useQueryClient()
   const actions = useEntryActions()
   const spaces = useQuery(spacesQuery())
+  const allTags = useQuery(tagsQuery)
   const snaps = useQuery({
     queryKey: ['entry', entry.id, 'snapshots'],
     queryFn: () =>
@@ -200,6 +201,16 @@ function Props({
           ))}
         </select>
       </label>
+      <div className={row} data-testid="entry-tags">
+        <span className={labelCls}>{t('kb.tags')}</span>
+        <TagPicker
+          value={(entry.tagIds ?? [])
+            .map((id) => allTags.data?.find((x) => x.id === id))
+            .filter((x): x is NonNullable<typeof x> => !!x)}
+          onChange={(ids) => void actions.patch(entry, { tagIds: ids })}
+          disabled={!canWrite}
+        />
+      </div>
       <div className={row}>
         <span className={labelCls}>{t('entry.aside.author')}</span>
         <span>{entry.author.displayName}</span>

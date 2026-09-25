@@ -154,6 +154,8 @@ expectMatrix('calendar.write(other)', NEVER, (a) =>
 )
 // ADR-0008：审批注册申请 = owner/admin
 expectMatrix('member.approve', ADMIN_ONLY, (a) => can(a, 'member.approve', null))
+// ADR-0012：大类由管理员维护
+expectMatrix('group.manage', ADMIN_ONLY, (a) => can(a, 'group.manage', null))
 
 // ADR-0011 §2 模板：personal 仅本人；workspace 全员可读、管理员创建 / 管理，创建者可管自己的
 const NON_GUEST: Matrix = {
@@ -449,6 +451,7 @@ describe('archived / deleted / suspended', () => {
         'template.read': { id: 'tp', ownerId: ME, scope: 'workspace' },
         'template.create': { id: '', ownerId: ME, scope: 'personal' },
         'template.manage': { id: 'tp', ownerId: ME, scope: 'personal' },
+        'group.manage': null,
       }
       const r = action in res ? res[action] : { id: ME }
       // biome-ignore lint/suspicious/noExplicitAny: 枚举遍历

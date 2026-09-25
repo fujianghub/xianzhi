@@ -7,6 +7,7 @@ import {
   boolean,
   check,
   date,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -52,6 +53,29 @@ const orgRef = () =>
     .references(() => organization.id)
 const userRef = () => text().references(() => user.id)
 
+// ---------- 3.0 space_groups（ADR-0012 大类）----------
+/** 大类（产品开发 / 技术学习规划 / 生活…）：工作区共享、管理员维护；删大类 → 其下分类变「其他」。 */
+export const spaceGroups = pgTable(
+  'space_groups',
+  {
+    id: pk(),
+    workspaceId: orgRef(),
+    name: text().notNull(),
+    color: text(),
+    icon: text(),
+    description: text(),
+    // 同 spaces.sort_key：列级 COLLATE "C"（迁移 0010 手写）
+    sortKey: text().notNull(),
+    createdBy: userRef(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique('space_groups_workspace_name_uq').on(t.workspaceId, t.name),
+    check('space_groups_color_ck', sql`${t.color} is null or ${inList(t.color, PALETTE_COLORS)}`),
+  ],
+)
+
 // ---------- 3.1 spaces ----------
 export const spaces = pgTable(
   'spaces',
@@ -66,6 +90,8 @@ export const spaces = pgTable(
     visibility: text().notNull(),
     isPersonal: boolean().notNull().default(false),
     description: text(),
+    /** 所属大类（ADR-0012）；null = 其他（未归入大类）；个人空间恒为 null */
+    groupId: uuid().references(() => spaceGroups.id, { onDelete: 'set null' }),
     // 列级 COLLATE "C"（drizzle/0003_sort_key_collate_c.sql）：fractional-indexing 键须按字节序比较
     sortKey: text().notNull(),
     archivedAt: timestamptz(),
@@ -201,6 +227,10 @@ export const entries = pgTable(
     embedding: vector(1024)(),
     editorSchemaVersion: integer().notNull().default(1),
     pinned: boolean().notNull().default(false),
+    /** 目录树（ADR-0012）：父页（同分类）；硬删父页时置空 */
+    parentId: uuid(),
+    /** 目录内同级顺序（fractional-indexing，列级 COLLATE "C"）；null = 不在目录里（「其余记录」） */
+    treeOrder: text(),
     archivedAt: timestamptz(),
     deletedAt: timestamptz(),
     createdAt: createdAt(),
@@ -212,6 +242,12 @@ export const entries = pgTable(
     index('entries_tsv_idx').using('gin', t.tsv),
     index('entries_title_trgm_idx').using('gin', sql`${t.title} gin_trgm_ops`),
     index('entries_fields_idx').using('gin', sql`${t.fields} jsonb_path_ops`),
+    index('entries_space_tree_idx').on(t.spaceId, t.parentId, t.treeOrder),
+    foreignKey({
+      columns: [t.parentId],
+      foreignColumns: [t.id],
+      name: 'entries_parent_id_fk',
+    }).onDelete('set null'),
     check('entries_kind_ck', inList(t.kind, ENTRY_KINDS)),
     check('entries_visibility_ck', inList(t.visibility, ENTRY_VISIBILITIES)),
   ],

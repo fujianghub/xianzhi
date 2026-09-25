@@ -36,7 +36,24 @@
 
 表格格式是**机器契约**（05 §6 `check-schema-drift.ts` 逐行解析）：每张表固定三列「列 | 类型 | 说明」，一行一列，不合并单元格；类型用 PG 类型，可空在类型后加 `?`（如 `text?`），主键 / 外键写在说明列；索引、唯一约束、说明性文字放在表格下方的列表，不进表。
 
-### 3.1 spaces —— 空间
+### 3.0 space_groups —— 大类（ADR-0012）
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| id | uuid | PK |
+| workspace_id | text | FK organization |
+| name | text | 工作区内唯一（如 产品开发 / 技术学习规划 / 生活） |
+| color | text? | 9 色板 token 名 |
+| icon | text? | emoji 或 Lucide 名 |
+| description | text? | |
+| sort_key | text | fractional indexing；列级 `COLLATE "C"`（迁移 0010） |
+| created_by | text? | FK user；预置大类为空 |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
+
+- 新工作区（create-owner / seed）与迁移 0010 预置「产品开发 / 技术学习规划 / 生活」，可改名 / 删除，不自动补回。删除大类 → 其下空间 `group_id` 置空（其他（未归入大类））。
+
+### 3.1 spaces —— 空间（界面称「分类」，ADR-0012）
 
 | 列 | 类型 | 说明 |
 |---|---|---|
@@ -50,6 +67,7 @@
 | visibility | text | `workspace`（全员可见）\| `members`（仅 space_members） |
 | is_personal | bool | 个人空间，默认 false；见下 |
 | description | text? | |
+| group_id | uuid? | FK space_groups（on delete set null）；null = 其他（未归入大类）；个人空间恒为 null（ADR-0012） |
 | sort_key | text | fractional indexing；列级 `COLLATE "C"`（注 2026-09-24：键须按字节序比较，库默认 en_US.utf8 大小写不敏感会排错，迁移 0003） |
 | archived_at | timestamptz? | 归档后空间只读：其任务与记录的写操作 403；列表默认隐藏（`?archived=1` 显示） |
 | deleted_at | timestamptz? | 软删 |
@@ -152,6 +170,8 @@
 | embedding | vector(1024)? | 派生（二期）；维度随模型定，迁移时确定 |
 | editor_schema_version | int | 编辑器 schema 版本（03 §3.3）；`onLoadDocument` 迁移后 bump；不放进 `fields` |
 | pinned | bool | 默认 false |
+| parent_id | uuid? | 目录树父页（同空间，FK entries on delete set null；ADR-0012） |
+| tree_order | text? | 目录内同级顺序（fractional indexing，`COLLATE "C"`）；null = 不在目录（「其余记录」） |
 | archived_at | timestamptz? | |
 | deleted_at | timestamptz? | 软删 |
 | created_at | timestamptz | |
@@ -590,6 +610,7 @@ Workspace 角色 × Space 角色 → 有效角色取**较高者**，`guest` 只�
 | cycle.* | 仅 owner_id 本人（admin 可 read） | | |
 | calendar.read / calendar.write（日历与日程，ADR-0009） | 仅 owner_id 本人（admin 也不可见） | 仅本人 | 仅本人 |
 | member.approve（审批注册申请，ADR-0008） | ✓ | ✗ | ✗ |
+| group.manage（大类增删改排，ADR-0012；把分类移入大类走 space.manage） | ✓ | ✗ | ✗ |
 | template.read（记录模板，ADR-0011） | personal 仅本人；workspace 全员 | 同左 | 同左 |
 | template.create | personal：非 guest；workspace：仅 owner / admin | personal ✓ | ✗ |
 | template.manage（改名 / 范围 / 删除） | 本人的（非 guest）；workspace 模板管理员可管 | 本人的 | ✗ |

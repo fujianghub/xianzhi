@@ -3,6 +3,7 @@
  * - 可见性与权限全部经 authz：列表用 visibleSpacesWhere，单个对象用 can()；不可见一律 404（02 §2）。
  * - 归档 = 只读（其任务 / 记录写操作由 authz 的 spaceWritable 拒绝）；软删 = 连同其下内容对所有人不可见，30 天后由 gc 清除。
  * - 排序：工作区内一列 fractional-indexing `sort_key`；reorder 只改被拖项一行（REQ-SPACE-005）。
+ * - 大类（ADR-0012）：`group_id` 可空；移入大类需 space.manage；个人空间不入大类。
  * - 访问变化（成员增删改、可见性、归档、软删、恢复、永久删）提交后广播 `entry.access_changed`，collab 重新 can()（01 §5）。
  */
 import { and, asc, desc, eq, gt, isNotNull, isNull, ne, not, type SQL, sql } from 'drizzle-orm'
@@ -33,6 +34,7 @@ import { AppError } from '../lib/errors.ts'
 import { type EventBus, getEventBus } from '../lib/event-bus.ts'
 import { audit } from './audit.ts'
 import { emit } from './events.ts'
+import { requireGroupId } from './space-groups.ts'
 
 export const PERSONAL_SPACE_NAME = '个人'
 /** 软删保留天数（01 §1、07 §3 gc.soft_deleted）。 */
@@ -62,6 +64,8 @@ export interface SpaceView {
   visibility: 'workspace' | 'members'
   isPersonal: boolean
   description: string | null
+  /** 所属大类（ADR-0012）；null = 其他（未归入大类） */
+  groupId: string | null
   sortKey: string
   /** 当前用户的有效空间角色（01 §5，取较高者）；前端据此显示管理入口。 */
   myRole: SpaceRole | null
@@ -208,6 +212,7 @@ function toView(
     visibility: row.visibility as SpaceView['visibility'],
     isPersonal: row.isPersonal,
     description: row.description,
+    groupId: row.groupId,
     sortKey: row.sortKey,
     myRole: effectiveSpaceRole(actor, toRef(row, memberRole)),
     isMember: memberRole !== null,
@@ -360,6 +365,7 @@ export async function createSpace(
   input: z.infer<typeof createSpaceSchema>,
 ): Promise<SpaceView> {
   assertCan(ctx.actor, 'space.create', null)
+  const groupId = input.groupId ? await requireGroupId(db, ctx.workspaceId, input.groupId) : null
   let slug = input.slug
   if (slug) {
     if (await slugTaken(db, ctx.workspaceId, slug)) throw slugConflict()
@@ -381,6 +387,7 @@ export async function createSpace(
           color: input.color ?? null,
           visibility: input.visibility,
           description: input.description ?? null,
+          groupId,
           sortKey: await nextSortKey(tx, ctx.workspaceId),
           createdBy: ctx.actor.id,
         })
@@ -417,6 +424,11 @@ export async function patchSpace(
   if (patch.color !== undefined) set.color = patch.color
   if (patch.visibility !== undefined) set.visibility = patch.visibility
   if (patch.description !== undefined) set.description = patch.description
+  if (patch.kind !== undefined) set.kind = patch.kind
+  if (patch.groupId !== undefined) {
+    if (row.isPersonal && patch.groupId) throw AppError.forbidden('个人空间不归入大类')
+    set.groupId = patch.groupId ? await requireGroupId(db, ctx.workspaceId, patch.groupId) : null
+  }
   await db.update(spaces).set(set).where(eq(spaces.id, row.id))
   if (patch.visibility !== undefined && patch.visibility !== row.visibility)
     accessChanged(ctx, { spaceId: row.id })
@@ -513,7 +525,7 @@ export async function permanentlyDeleteSpace(db: Db, ctx: SpaceCtx, key: string)
 export async function reorderSpace(
   db: DbOrTx,
   ctx: SpaceCtx,
-  input: { id: string; after: string | null },
+  input: { id: string; after: string | null; groupId?: string | null },
 ): Promise<SpaceView> {
   if (input.after === input.id)
     throw AppError.validation([{ path: 'after', message: '不能放在自己之后' }])
@@ -534,7 +546,13 @@ export async function reorderSpace(
     .limit(1)
   // 放到最前且最前面就是自己之外的最小键：取 (null, 最小键)
   const sortKey = generateKeyBetween(lowKey, next?.k ?? null)
-  await db.update(spaces).set({ sortKey, updatedAt: new Date() }).where(eq(spaces.id, moved.row.id))
+  // 拖到另一大类（ADR-0012）：键仍是工作区全局序，组内相对顺序自然正确
+  const set: Partial<typeof spaces.$inferInsert> = { sortKey, updatedAt: new Date() }
+  if (input.groupId !== undefined) {
+    if (moved.row.isPersonal && input.groupId) throw AppError.forbidden('个人空间不归入大类')
+    set.groupId = input.groupId ? await requireGroupId(db, ctx.workspaceId, input.groupId) : null
+  }
+  await db.update(spaces).set(set).where(eq(spaces.id, moved.row.id))
   return viewOf(db, ctx, moved.row.id)
 }
 

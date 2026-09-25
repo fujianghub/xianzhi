@@ -32,6 +32,8 @@
 | `/settings/notifications` | `routes/settings.notifications.tsx` | 通知偏好 | guest+ | 1 | REQ-NOTIF-006 |
 | `/settings/security` | `routes/settings.security.tsx` | 密码 / 2FA / Passkey / 会话 | guest+ | 0 | REQ-AUTH-006 · 007 · 009 |
 | `/settings/api-keys` | `routes/settings.api-keys.tsx` | API Key | member+ | ~~0~~ 1 | REQ-AUTH-010 |
+| `/spaces/$slug/home` | `routes/_app.spaces.$spaceSlug_.home.tsx` | 分类概览（进入分类默认页，ADR-0012） | guest+ | 2 | REQ-KB-003 |
+| `/spaces/$slug/tree` | `routes/_app.spaces.$spaceSlug_.tree.tsx` | 分类目录 + 其余记录（ADR-0012） | guest+ | 2 | REQ-KB-005 |
 | `/settings/templates` | `routes/_app.settings.templates.tsx` | 模板：内置 / 我的 / 工作区，预览、用此模板新建、改名 / 范围 / 删除（ADR-0011） | guest+（管理需 member+） | 2 | REQ-TPL-001 · 004 |
 | `/settings/workspace` | `routes/settings.workspace.index.tsx` | 工作区设置 | admin+ | ~~0~~ 1 | REQ-WS-001 |
 | `/settings/workspace/members` | `routes/settings.workspace.members.tsx` | 成员与邀请 | admin+ | ~~0~~ 1 | REQ-AUTH-003 · REQ-WS-002 · 004 |

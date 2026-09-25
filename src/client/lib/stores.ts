@@ -94,9 +94,16 @@ export const useAsideSlot = create<{
 }>((set) => ({ node: null, set: (node) => set({ node }) }))
 
 /** 新建空间 Dialog（侧栏 + 空间列表页两个入口共用，08 §2.5）。 */
-export const useCreateSpaceDialog = create<{ open: boolean; setOpen: (v: boolean) => void }>(
-  (set) => ({ open: false, setOpen: (open) => set({ open }) }),
-)
+/** 新建分类；`groupId` = 预选大类（列表页「在此新建」，ADR-0012）。 */
+export const useCreateSpaceDialog = create<{
+  open: boolean
+  groupId: string | null
+  setOpen: (v: boolean, groupId?: string | null) => void
+}>((set) => ({
+  open: false,
+  groupId: null,
+  setOpen: (open, groupId) => set(groupId !== undefined ? { open, groupId } : { open }),
+}))
 
 /** 全局「新任务」（`c`，04 §6）：页面登记当前上下文的默认值（空间 / 状态 / 截止）。 */
 export interface NewTaskDefaults {
@@ -123,6 +130,8 @@ export interface NewEntryDefaults {
   kind?: EntryKind
   /** 预选模板（ADR-0011 §2）：内置 `builtin:<key>` 或用户模板 uuid */
   templateId?: string
+  /** 目录（ADR-0012）：null = 放进目录根级；uuid = 作为其子页；undefined = 不进目录 */
+  parentId?: string | null
 }
 export const useNewEntry = create<{
   open: boolean
