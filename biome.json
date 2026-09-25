@@ -16,7 +16,8 @@
       "!src/client/routeTree.gen.ts",
       "!src/client/public",
       "!debug/perf",
-      "!e2e/.auth"
+      "!e2e/.auth",
+      "!!.claude"
     ]
   },
   "formatter": {
