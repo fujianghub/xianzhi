@@ -50,7 +50,7 @@ pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore 
 |---|---|
 | `spec_dev_doc/adr/0001-tech-stack.md` | 选型与 8 项决定、分期、各技术介绍 / 作用 / 语言（§10） |
 | `spec_dev_doc/adr/0002 · 0003 · 0004` | 视觉改 Apple 玻璃 · 工期基线 = 任务级估时 · 更名衔枝（gi → xz） |
-| `spec_dev_doc/adr/0005 · 0006` | 翡翠主色 / 燕印 / 动效档位 · 登录拼图滑块 |
+| `spec_dev_doc/adr/0005 · 0006 · 0007` | 翡翠主色 / 燕印 / 动效档位 · 登录拼图滑块 · 晨光白燕燕印 |
 | `spec_dev_doc/01-domain-model.md` | 表结构、`fields` schema、事件种类、权限矩阵 |
 | `spec_dev_doc/02-api-conventions.md` | 路由/错误/分页/SSE/文件/MCP 约定、路由清单 |
 | `spec_dev_doc/03-editor-kernel.md` | Tiptap schema、Hocuspocus 钩子、快照、模板、交互规格、简斋陷阱 |
