@@ -17,9 +17,10 @@ async function signOut(page: Page) {
   await page.waitForURL('**/login**')
 }
 
-test('REQ-AUTH-001 登录成功跳 /today；密码错误统一提示「邮箱或密码不正确」', async ({ page }) => {
+test('REQ-AUTH-001 登录成功跳 /today；密码错误统一提示「账号或密码不正确」', async ({ page }) => {
   await login(page, { email: OWNER.email, password: 'wrong-password-000' })
-  await expect(page.getByRole('alert')).toHaveText('邮箱或密码不正确')
+  // 注 2026-09-25（ADR-0008）：可用用户名登录后文案由「邮箱」改「账号」
+  await expect(page.getByRole('alert')).toHaveText('账号或密码不正确')
   await page.getByLabel('密码', { exact: true }).fill(OWNER.password)
   await solveCaptcha(page) // 失败后旧题已被消费，换了新题（REQ-AUTH-016）
   await page.getByTestId('login-submit').click()
@@ -41,7 +42,9 @@ test('REQ-AUTH-003 · REQ-NOTIF-009 邀请 → Mailpit 收到邀请邮件 → �
   expect(r.status()).toBe(201)
   const mail = await mailTo(owner, email)
   expect(mail.Subject).toContain('邀请你加入')
-  const link = /http:\/\/localhost:3011\/invite\/[0-9a-f-]+/.exec(mail.Text)?.[0]
+  const link = new RegExp(`${BASE.replace(/[.:/]/g, '\\$&')}/invite/[0-9a-f-]+`).exec(
+    mail.Text,
+  )?.[0]
   expect(link).toBeTruthy()
   await page.goto(link as string)
   await expect(page.getByTestId('invite')).toContainText('成员')

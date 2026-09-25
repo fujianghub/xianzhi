@@ -62,7 +62,7 @@ function NotificationPrefs() {
     save.mutate(items)
   }
   return (
-    <section className="mx-auto max-w-3xl" data-testid="notif-prefs">
+    <section className="max-w-4xl" data-testid="notif-prefs">
       <div className="mb-4 flex items-center gap-3">
         <h1 className="font-semibold text-2xl tracking-tight">{t('notif.prefs.title')}</h1>
         {saved && !save.isPending ? (

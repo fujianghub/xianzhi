@@ -60,7 +60,7 @@ function ApiKeys() {
   }
   const items = q.data?.items ?? []
   return (
-    <section className="max-w-3xl" data-testid="settings-api-keys">
+    <section className="max-w-4xl" data-testid="settings-api-keys">
       <h1 className="mb-2 font-semibold text-2xl">{t('settings.nav.apiKeys')}</h1>
       <p className="mb-6 text-fg-muted text-sm">{t('settings.keys.hint')}</p>
       <form

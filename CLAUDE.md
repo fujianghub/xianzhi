@@ -1,13 +1,13 @@
 # 衔枝 / Xianzhi — AI 开发指南
 
-> 个人工作台：学习计划 · 工作任务 · 开发过程沉淀（迭代 / 决策 / Bug / 变更）。多用户邀请制。燕子衔枝筑巢（ADR-0004）。
+> 个人工作台：学习计划 · 工作任务 · 开发过程沉淀（迭代 / 决策 / Bug / 变更）。多用户：邀请或注册 + 管理员审批（ADR-0008）。燕子衔枝筑巢（ADR-0004）。
 > 本文只放坐标、命令、不变量。**规范在 `spec_dev_doc/`（权威），踩坑在 `debug/`，本文 ≤ 80 行。**
 
 ## 坐标
 
 - 单 package TypeScript：`src/client`（Vite 8 + React 19 + TanStack + Tailwind v4 + shadcn）· `src/server`（Hono + Drizzle + pg-boss）· `src/collab`（Hocuspocus）· `src/shared`（Zod schema、编辑器模板、`tz.ts`）
 - 数据：PostgreSQL 16（pgvector 镜像，独立容器）；正文 = Yjs 二进制 `entries.ydoc`
-- 认证：Better Auth（organization/admin/2FA/passkey/magicLink/apiKey），不开放注册；邮箱密码登录前置服务端拼图滑块（ADR-0006）；collab WebSocket 用 `POST /collab/token` 按文档签发的 5 分钟票据，不用 Cookie
+- 认证：Better Auth（organization/admin/2FA/passkey/magicLink/apiKey/username）；Better Auth 自助注册关闭，注册只走 `POST /workspace/join-requests`，审批前无 `member` 行 = 不能登录；邮箱或用户名 + 密码（≥ 8 位）登录，前置服务端拼图滑块（ADR-0006 / 0008）；collab WebSocket 用 `POST /collab/token` 按文档签发的 5 分钟票据，不用 Cookie
 - 视觉：Apple 玻璃（ADR-0002）+ 翡翠主色、燕印、动效档位（ADR-0005）；日场 / 夜场，默认跟随系统；字体 npm 自托管、异步加载
 - 分期：一期 = Phase 0–2（可用版本）· 二期 = Phase 3（MCP / 导入 / AI / pgvector）；规范里不出现「三期」
 - 端口：3010 Vite · 8010 API · 8011 collab · 5433 PG · 8025 Mailpit（简斋占 3001/8002/5432/6379，勿撞）
@@ -23,10 +23,10 @@ pnpm dev:verify        # 验证实例 3011/8012/8013 + xz_e2e；从局域网访�
 pnpm db:generate / db:migrate / auth:generate
 pnpm test / e2e / lint / lint:drift / build   # lint 含裸色值/对比度/i18n；build 含性能预算
 pnpm start / start:collab        # 生产：app 容器（migrate+api+worker）/ collab 容器，一一对应
-pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore | create-owner | seed | migrate-prefix（import-debug 属二期）
+pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore | create-owner [--username] | seed | migrate-prefix（import-debug 属二期）
 ```
 
-- 后端 API 测试用 `app.request()`，不起端口；`signIn()` 辅助自动取拼图答案。E2E 用独立端口 3011/8012/8013 与独立 `.vite-verify` 缓存；`pnpm e2e` 会重建 `xz_e2e`，且只认 `localhost:3011`（跑前停掉按 IP 起的验证实例）
+- 后端 API 测试用 `app.request()`，不起端口；`signIn()` 辅助自动取拼图答案。E2E 用独立端口 3011/8012/8013 与独立 `.vite-verify` 缓存；`pnpm e2e` 会重建 `xz_e2e`，且只认 `localhost:3011`（跑前停掉按 IP 起的验证实例）；对其它实例跑指定用例：`XZ_E2E_BASE=http://localhost:<port> pnpm exec playwright test <spec> --project=setup --project=desktop`
 - 验证实例设 `XZ_CAPTCHA_DEBUG=1`（拼图答案回显，e2e `solveCaptcha()` 真实拖拽）；production 由服务端强制忽略
 - 视觉基线：确认新视觉后 `pnpm exec playwright test e2e/design.spec.ts e2e/feedback.spec.ts --project=setup --project=desktop --update-snapshots`
 - **主 dev server 运行时勿在同目录再起共享 `.vite` 缓存的实例**（简斋教训：prosemirror/codemirror 多实例崩溃）；worktree 有自己的 `node_modules`，可在另一端口起预览
@@ -51,6 +51,7 @@ pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore 
 | `spec_dev_doc/adr/0001-tech-stack.md` | 选型与 8 项决定、分期、各技术介绍 / 作用 / 语言（§10） |
 | `spec_dev_doc/adr/0002 · 0003 · 0004` | 视觉改 Apple 玻璃 · 工期基线 = 任务级估时 · 更名衔枝（gi → xz） |
 | `spec_dev_doc/adr/0005 · 0006 · 0007` | 翡翠主色 / 燕印 / 动效档位 · 登录拼图滑块 · 晨光白燕燕印 |
+| `spec_dev_doc/adr/0008 · 0009` | 开放注册 + 审批 / 用户名 / 密码 8 位 · 日历日程（重复、提醒、节假日） |
 | `spec_dev_doc/01-domain-model.md` | 表结构、`fields` schema、事件种类、权限矩阵 |
 | `spec_dev_doc/02-api-conventions.md` | 路由/错误/分页/SSE/文件/MCP 约定、路由清单 |
 | `spec_dev_doc/03-editor-kernel.md` | Tiptap schema、Hocuspocus 钩子、快照、模板、交互规格、简斋陷阱 |

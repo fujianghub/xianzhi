@@ -102,7 +102,7 @@ function SearchPage() {
   )
 
   return (
-    <section className="mx-auto max-w-3xl" data-testid="search-page">
+    <section className="mx-auto max-w-5xl" data-testid="search-page">
       <form
         onSubmit={(e) => {
           e.preventDefault()

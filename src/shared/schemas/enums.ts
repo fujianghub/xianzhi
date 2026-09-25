@@ -47,6 +47,7 @@ export const EVENT_TARGET_TYPES = [
   'member',
   'job',
   'system',
+  'calendar_event',
 ] as const
 
 export const EVENT_KINDS = [
@@ -61,8 +62,10 @@ export const EVENT_KINDS = [
   'mention.created',
   'space.invited',
   'member.joined',
+  'member.requested',
   'workspace.owner_transferred',
   'cycle.review_due',
+  'calendar.reminder',
   'system.export_done',
   'system.backup_failed',
   'system.outbox_stalled',
@@ -74,7 +77,7 @@ export const DELIVERY_CHANNELS = ['in_app', 'webpush', 'email'] as const
 export const DELIVERY_STATUSES = ['pending', 'sent', 'failed', 'skipped'] as const
 export const DIGESTS = ['instant', 'daily'] as const
 
-/** 01 §3.12 审计 action 枚举（29 项）；写入非枚举值即抛错（REQ-WS-017）。 */
+/** 01 §3.12 审计 action 枚举（32 项；+3 注册审批 ADR-0008）；写入非枚举值即抛错（REQ-WS-017）。 */
 export const AUDIT_ACTIONS = [
   'auth.login',
   'auth.logout',
@@ -86,6 +89,9 @@ export const AUDIT_ACTIONS = [
   'auth.2fa_reset_by_admin',
   'member.invited',
   'member.joined',
+  'member.registered',
+  'member.approved',
+  'member.rejected',
   'member.role_changed',
   'member.suspended',
   'member.unsuspended',
@@ -123,6 +129,13 @@ export const PALETTE_COLORS = [
   'pine',
 ] as const
 export type PaletteColor = (typeof PALETTE_COLORS)[number]
+
+/** 注册申请状态（ADR-0008；驳回即删号，不留 rejected 行）。 */
+export const JOIN_REQUEST_STATUSES = ['pending', 'approved'] as const
+
+/** 日程重复频率（ADR-0009；RRULE FREQ 子集）。 */
+export const CAL_FREQS = ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'] as const
+export type CalFreq = (typeof CAL_FREQS)[number]
 
 export const TASK_PRIORITIES = [0, 1, 2, 3, 4] as const
 export const RECURRENCE_FREQS = ['daily', 'weekly', 'monthly'] as const

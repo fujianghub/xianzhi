@@ -22,7 +22,7 @@ export const Route = createFileRoute('/_app/spaces/')({
 function Grid({ items, label, testId }: { items: Space[]; label: string; testId: string }) {
   return (
     <ul
-      className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
+      className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
       aria-label={label}
       data-testid={testId}
     >
@@ -46,7 +46,7 @@ function SpacesPage() {
   const canCreate = me.workspaceRole !== 'guest'
 
   return (
-    <section className="mx-auto max-w-5xl" data-testid="spaces-page">
+    <section className="mx-auto max-w-[96rem]" data-testid="spaces-page">
       <PageHeader
         title={t('ui.page.spaces')}
         actions={
@@ -65,7 +65,10 @@ function SpacesPage() {
       />
 
       {isPending ? (
-        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true">
+        <ul
+          className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+          aria-busy="true"
+        >
           {Array.from({ length: 6 }, (_, i) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: 骨架占位无身份
             <li key={i}>

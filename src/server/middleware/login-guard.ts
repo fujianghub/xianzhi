@@ -5,12 +5,17 @@
  * - 成功 → 清零并写 audit(auth.login)；失败 → audit(auth.login_failed)
  * - 拼图滑块（ADR-0006、REQ-AUTH-016）：锁定与限流之后、交给 Better Auth 之前校验 `x-captcha`；
  *   失败 400 CAPTCHA_INVALID，**不计入失败次数**（拿不到滑块就无法把别人的账号刷到锁定）
+ * - 同时包 `/sign-in/username`（ADR-0008）：用户名先解析成邮箱，锁定 / 限流 / 审计仍按邮箱计
+ * - 待审批账号（ADR-0008）：密码正确后撤销刚建的会话、不下发 Cookie，返回 403 REGISTRATION_PENDING
  */
+import { and, eq } from 'drizzle-orm'
 import type { MiddlewareHandler } from 'hono'
 import type { Db } from '../db/index.ts'
-import { AppError } from '../lib/errors.ts'
+import { member, session, user } from '../db/schema/auth.ts'
+import { AppError, PROBLEM_CONTENT_TYPE, toProblem } from '../lib/errors.ts'
 import { audit } from '../services/audit.ts'
 import { type CaptchaOptions, verifyCaptcha } from '../services/captcha.ts'
+import { isPending } from '../services/join-requests.ts'
 import type { AppEnv } from '../types.ts'
 import { FixedWindowLimiter } from './rate-limit.ts'
 import { clientIp } from './request-context.ts'
@@ -64,8 +69,18 @@ export function loginGuard(
   return async (c, next) => {
     let email = ''
     try {
-      const body = (await c.req.raw.clone().json()) as { email?: unknown }
+      const body = (await c.req.raw.clone().json()) as { email?: unknown; username?: unknown }
       if (typeof body.email === 'string') email = body.email.trim().toLowerCase()
+      else if (typeof body.username === 'string' && body.username.trim()) {
+        const uname = body.username.trim().toLowerCase()
+        const [u] = await db
+          .select({ email: user.email })
+          .from(user)
+          .where(eq(user.username, uname))
+          .limit(1)
+        // 不存在的用户名也按固定键计数，避免据响应差异探测用户名
+        email = u?.email ?? `@${uname}`
+      }
     } catch {
       /* 非 JSON 交给 Better Auth 处理 */
     }
@@ -88,6 +103,18 @@ export function loginGuard(
     const status = c.res.status
     if (status === 200) {
       guard.recordSuccess(email)
+      const pendingUserId = await pendingUser(db, email)
+      if (pendingUserId) {
+        // 密码正确但尚未审批：撤销刚建的会话，丢弃 Better Auth 响应（含 Set-Cookie）
+        await db.delete(session).where(eq(session.userId, pendingUserId))
+        const err = new AppError(403, 'REGISTRATION_PENDING', '注册申请正在等待管理员审批')
+        c.res = undefined
+        c.res = new Response(JSON.stringify(toProblem(err, c.var.requestId ?? '')), {
+          status: 403,
+          headers: { 'Content-Type': PROBLEM_CONTENT_TYPE, 'Cache-Control': 'no-store' },
+        })
+        return
+      }
       await audit(db, {
         action: 'auth.login',
         targetType: 'user',
@@ -115,4 +142,16 @@ export function loginGuard(
         })
     }
   }
+}
+
+/** 邮箱对应的用户若无 member 行且有待审批申请，返回其 id。 */
+async function pendingUser(db: Db, email: string): Promise<string | null> {
+  const [row] = await db
+    .select({ id: user.id, memberId: member.id })
+    .from(user)
+    .leftJoin(member, and(eq(member.userId, user.id)))
+    .where(eq(user.email, email))
+    .limit(1)
+  if (!row || row.memberId) return null
+  return (await isPending(db, row.id)) ? row.id : null
 }

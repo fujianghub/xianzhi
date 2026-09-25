@@ -41,8 +41,10 @@ export const DEFAULT_CHANNELS: Record<EventKind, Channel[]> = {
   'mention.created': ['in_app', 'sse', 'webpush', 'email'],
   'space.invited': ['in_app', 'email'],
   'member.joined': ['in_app'],
+  'member.requested': ['in_app', 'sse', 'email'],
   'workspace.owner_transferred': ['in_app', 'email'],
   'cycle.review_due': ['in_app', 'webpush', 'email'],
+  'calendar.reminder': ['in_app', 'sse', 'webpush'],
   'system.export_done': ['in_app', 'sse', 'email'], // sse：前端据此弹状态 Toast（REQ-UI-008，01 §4 注 2026-09-24）
   'system.backup_failed': ['in_app', 'email'],
   'system.outbox_stalled': ['in_app', 'email'],
@@ -51,6 +53,7 @@ export const DEFAULT_CHANNELS: Record<EventKind, Channel[]> = {
 /** 不合并的种类（01 §4.1「不合并」）。 */
 const NO_MERGE = new Set<EventKind>([
   'mention.created',
+  'calendar.reminder',
   'space.invited',
   'workspace.owner_transferred',
   'system.export_done',
@@ -162,6 +165,26 @@ export function renderNotification(
             body: `角色 ${s(p, 'role')}，由 ${s(p, 'inviterName')} 邀请`,
             url: '/settings/workspace/members',
           }
+    case 'member.requested':
+      return mergedCount > 1
+        ? {
+            title: `${mergedCount} 个注册申请待审批`,
+            body: null,
+            url: '/settings/workspace/members?tab=requests',
+          }
+        : {
+            title: `${s(p, 'displayName')}（@${s(p, 'username')}）申请加入工作区`,
+            body: s(p, 'email'),
+            url: '/settings/workspace/members?tab=requests',
+          }
+    case 'calendar.reminder':
+      return {
+        title: p.allDay
+          ? `今天：${s(p, 'title')}`
+          : `${fmtWhen(p.occurrenceStart)} ${s(p, 'title')}`,
+        body: p.location ? `地点：${s(p, 'location')}` : null,
+        url: `/calendar?view=day&date=${s(p, 'date')}`,
+      }
     case 'workspace.owner_transferred':
       return {
         title: `工作区所有权已从 ${s(p, 'fromName')} 转给 ${s(p, 'toName')}`,
@@ -275,6 +298,10 @@ export async function recipientsFor(db: DbOrTx, ev: EventRow): Promise<string[]>
     }
     case 'member.joined':
       return (await admins(db, ev.workspaceId)).filter((u) => u !== s(p, 'inviterId'))
+    case 'member.requested':
+      return admins(db, ev.workspaceId)
+    case 'calendar.reminder':
+      return [s(p, 'ownerId')]
     case 'workspace.owner_transferred':
       return [s(p, 'fromUserId'), s(p, 'toUserId')]
     case 'cycle.review_due':
@@ -554,6 +581,7 @@ function mergeKey(ev: EventRow): string {
     case 'task.unassigned':
       return `prev:${s(p, 'prevAssigneeId')}`
     case 'member.joined':
+    case 'member.requested':
       return 'workspace'
     case 'task.commented':
     case 'entry.commented':

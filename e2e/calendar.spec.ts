@@ -82,3 +82,93 @@ test('REQ-UI-032 侧栏：整高实玻璃 + 右侧分隔；当前项为翡翠胶
   await expect(page).toHaveURL(/\/calendar/)
   await expect(side.locator('.xz-nav-item[data-active]')).toContainText('日历')
 })
+
+test('REQ-UI-034 宽屏今日页：四枚计数卡 + 右侧速览栏；1280 宽不出速览栏', async ({ page }) => {
+  await page.setViewportSize({ width: 1728, height: 1000 })
+  await page.goto('/today')
+  await expect(page.getByTestId('today-stats').locator(':scope > div')).toHaveCount(4)
+  await expect(page.getByTestId('glance-rail')).toBeVisible()
+  await expect(page.getByTestId('glance-schedule')).toBeVisible()
+  await page.setViewportSize({ width: 1279, height: 800 })
+  await expect(page.getByTestId('glance-rail')).toBeHidden()
+})
+
+// ---------------------------------------------------------------- ADR-0009 日程
+
+test('REQ-CAL-007 月视图标注法定节假日「休」与调休「班」，农历小字可见', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/calendar?date=2026-10-01')
+  const off = page.locator('[data-testid="cal-day"][data-date="2026-10-01"]')
+  await expect(off.getByTestId('cal-off')).toHaveText('休')
+  const work = page.locator('[data-testid="cal-day"][data-date="2026-10-10"]')
+  await expect(work.getByTestId('cal-work')).toHaveText('班')
+  await expect(off.getByTestId('cal-lunar')).toBeVisible()
+})
+
+test('REQ-CAL-002 · 003 周视图点空白新建 → 拖动改期 → 点开删除', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/calendar?view=week&date=2026-11-16')
+  const timeline = page.getByTestId('cal-timeline')
+  await timeline.evaluate((el) => {
+    el.scrollTop = 9 * 48
+  })
+  const col = page.locator('[data-testid="cal-col"][data-date="2026-11-18"]')
+  const box = await col.boundingBox()
+  if (!box) throw new Error('no column')
+  // 10:05 → 新建 10:00–11:00
+  await page.mouse.click(box.x + box.width / 2, box.y + 10 * 48 + 4)
+  const editor = page.getByTestId('cal-editor')
+  await expect(editor).toBeVisible()
+  await expect(page.getByTestId('cal-editor-start-time')).toHaveValue('10:00')
+  const title = `e2e 日程 ${Date.now()}`
+  await page.getByTestId('cal-editor-title').fill(title)
+  await page.getByTestId('cal-editor-save').click()
+  await expect(editor).toBeHidden()
+  const ev = page.locator('[data-testid="cal-event"][data-source="event"]', { hasText: title })
+  await expect(ev).toBeVisible()
+  await expect(ev).toHaveAttribute('title', /10:00–11:00/)
+
+  // 向下拖 1 小时
+  const eb = await ev.boundingBox()
+  if (!eb) throw new Error('no event box')
+  await page.mouse.move(eb.x + eb.width / 2, eb.y + 10)
+  await page.mouse.down()
+  await page.mouse.move(eb.x + eb.width / 2, eb.y + 10 + 48, { steps: 8 })
+  await page.mouse.up()
+  await expect(ev).toHaveAttribute('title', /11:00–12:00/)
+
+  // 点开 → 删除
+  await ev.click()
+  await expect(editor).toBeVisible()
+  await page.getByTestId('cal-editor-delete').click()
+  await expect(editor).toBeHidden()
+  await expect(ev).toHaveCount(0)
+})
+
+test('REQ-CAL-005 重复日程删除「仅此日程」只去掉这一次', async ({ page, request }) => {
+  const cals = (await (await request.get('/api/v1/calendars')).json()) as {
+    items: { id: string }[]
+  }
+  const title = `e2e 晨读 ${Date.now()}`
+  const r = await request.post('/api/v1/calendar-events', {
+    data: {
+      calendarId: cals.items[0]?.id,
+      title,
+      startAt: '2026-11-23T07:00:00+08:00',
+      endAt: '2026-11-23T07:30:00+08:00',
+      timezone: 'Asia/Shanghai',
+      rrule: 'FREQ=DAILY;COUNT=5',
+    },
+    headers: { ...sameSite, 'idempotency-key': crypto.randomUUID() },
+  })
+  expect(r.status()).toBe(201)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/calendar?view=week&date=2026-11-23')
+  const evs = page.locator('[data-testid="cal-event"][data-source="event"]', { hasText: title })
+  await expect(evs).toHaveCount(5)
+  await evs.nth(1).click()
+  await page.getByTestId('cal-editor-delete').click()
+  await expect(page.getByTestId('cal-scope-dialog')).toBeVisible()
+  await page.getByTestId('cal-scope-this').click()
+  await expect(evs).toHaveCount(4)
+})

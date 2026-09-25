@@ -67,7 +67,7 @@ function Profile() {
   const label = 'text-fg-muted text-xs'
   const select = 'h-10 rounded-md border border-border bg-surface px-3'
   return (
-    <section className="max-w-xl" data-testid="settings-profile">
+    <section className="max-w-3xl" data-testid="settings-profile">
       <div className="mb-6 flex items-center gap-3">
         <h1 className="font-semibold text-2xl tracking-tight">{t('settings.nav.profile')}</h1>
         {saved ? (

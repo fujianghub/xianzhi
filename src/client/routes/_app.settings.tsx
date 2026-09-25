@@ -32,7 +32,7 @@ function SettingsLayout() {
   const { t } = useTranslation()
   const { me } = Route.useRouteContext() as { me: Me }
   return (
-    <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[13rem_1fr] lg:gap-10">
+    <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-10">
       <nav
         aria-label={t('ui.page.settings')}
         className="flex gap-1 overflow-x-auto lg:sticky lg:top-4 lg:flex-col lg:self-start"

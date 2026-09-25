@@ -11,6 +11,7 @@
 |---|---|---|---|---|---|
 | `/login` | `routes/login.tsx` | 登录（邮箱密码 / Passkey / 魔法链接） | anon | 0 | REQ-AUTH-001 · 007 · 008 |
 | `/invite/$token` | `routes/invite.$token.tsx` | 接受邀请、设密码 | anon | 0 | REQ-AUTH-003 · 004 |
+| `/register` | `routes/register.tsx` | 申请注册（待审批，ADR-0008） | anon | 2 | REQ-AUTH-017 |
 | `/login/2fa` | `routes/login_.2fa.tsx`（注：TanStack 扁平命名下 `login.2fa.tsx` 会嵌套进 `/login`，须用 `login_` 前缀） | TOTP / 恢复码 | 半登录态 | 0 | REQ-AUTH-006 |
 | `/` | `routes/index.tsx` | 重定向 → `/today` | 已登录 | 0 | — |
 | `/today` | `routes/today.tsx` | 今日 | guest+ | 1 | REQ-TASK-005 · 017 |
@@ -24,7 +25,7 @@
 | `/entries/$entryId/history` | `routes/entries.$entryId.history.tsx` | 可分享短链：重定向到 `/entries/$entryId?aside=history` | `entry.read` | 2 | REQ-COLLAB-008 |
 | `/cycles` | `routes/cycles.index.tsx` | 周期列表（`?kind=&year=`） | member+ | 2 | REQ-CYCLE-001 · 002 |
 | `/cycles/$cycleId` | `routes/cycles.$cycleId.tsx` | 周期详情（目标、任务、复盘） | owner 本人 / admin 读 | 2 | REQ-CYCLE-003 · 006 · 007 |
-| `/calendar` | `routes/_app.calendar.tsx` | 日历（dueAt / scheduledAt；月 / 周视图） | guest+ | 2 | REQ-TASK-017 · 024 · REQ-UI-031 |
+| `/calendar` | `routes/_app.calendar.tsx` | 日历（日程 + 任务叠加；日 / 周 / 月 / 年视图，ADR-0009） | guest+ | 2 | REQ-CAL-001 ~ 009 · REQ-TASK-024 · REQ-UI-031 |
 | `/search` | `routes/search.tsx` | 搜索结果页（⌘K 的落地页） | guest+ | 1 | REQ-SEARCH-001 · 004 |
 | `/notifications` | `routes/notifications.tsx` | 通知中心 | guest+ | 1 | REQ-NOTIF-005 |
 | `/settings` | `routes/settings.index.tsx` | 个人资料 | guest+ | 1 | REQ-WS-010 |
@@ -63,6 +64,13 @@
 - **主操作**：Enter 提交。
 - **REQ**：REQ-AUTH-001 · 007 · 008 · 011 · 012 · 016。
 
+### 2.1b 申请注册 `/register`（2026-09-25 新增，ADR-0008）
+- **显示**：与登录页同一玻璃卡；字段：邮箱、用户名（3–30 位字母 / 数字 / `_ . -`，可用于登录，下方常驻规则提示）、显示名、密码（≥ 8 位，可显隐）、拼图滑块；底部「已有账号？登录」。
+- **提交**：`POST /workspace/join-requests` + `x-captcha`；成功切为「申请已提交」状态卡（管理员审批后可用邮箱或用户名登录）；409 / 422 就地显示到对应字段；拼图失败换新题；429 显示服务端文案。
+- **登录页联动**：登录框改为「邮箱或用户名」（含 `@` 走邮箱登录，否则用户名登录；魔法链接按钮仅邮箱时可用）；待审批账号显示「注册申请正在等待管理员审批」；底部「还没有账号？申请注册」。
+- **审批**：`/settings/workspace/members?tab=requests`（owner/admin）：行内显示显示名 · @用户名 · 邮箱 · 申请时间；选角色后「批准」，或「驳回」（确认后删号）；tab 上显示待审批数徽标；新申请经 `member.requested` 通知到铃铛与邮件。
+- **REQ**：REQ-AUTH-017 ~ 020。
+
 ### 2.2 接受邀请 `/invite/$token`
 - **显示**：邀请人、工作区名、角色；设置显示名与密码。
 - **search params**：无。
@@ -70,6 +78,7 @@
 - **REQ**：REQ-AUTH-003 · 004。
 
 ### 2.3 今日 `/today`
+- 注（2026-09-25，REQ-UI-034）：≥ xl 为「主列 + 右侧速览栏」（`WithRail`），主列顶部四枚计数卡（逾期 / 今日到期 / 今日开始 / 今日日程）；收件箱、通知同用速览栏。
 - **显示**：三段列表：**逾期**（`dueAt < 今日 00:00`，未完成）、**今日到期**（`dueAt ∈ 今日`）、**今日开始**（`scheduledAt ∈ 今日`）；段内按优先级降序、`sort_key`。数据：`GET /tasks?view=today`（02 §9；服务端按 `c.var.user.timezone` 计算边界，00 §21 #20）。顶部一行「第 N 程 · 第 M 周」链到当前周期（Phase 2）。
 - **search params**：`{ done?: '1' }`。`view=today` 的服务端集合**不含** `done / cancelled`（02 §9）；`done=1` 时前端追加一次 `GET /tasks?status=done&dueAfter=今日00:00&dueBefore=明日00:00` 作为折叠区。
 - **三态**：空态「今天还没有要衔的枝，去收件箱挑一根？」+ 可直接输入的新任务框（REQ-UI-009）；骨架 3 段 × 4 行；错误态整页重试按钮。
@@ -171,7 +180,18 @@
 - **显示**：作业类型、进度条、完成后下载按钮与过期时间、失败原因。数据：`GET /jobs/:id`（轮询 2s，或 SSE `notification`）。
 - **REQ**：REQ-EXPORT-001 · 007。
 
-### 2.17 日历 `/calendar`（2026-09-24 新增）
+### 2.17 日历 `/calendar`（2026-09-24 新增；2026-09-25 按 ADR-0009 改版，对标 macOS 日历）
+注（2026-09-25）：以下为改版后规格，原「事件 = 任务」一段保留为叠加层说明。
+- **布局**：左栏 15.5rem（≥ xl，可折叠，本机记忆）：小月历（假日淡翡翠底、调休角点、有日程打点）· 我的日历（勾选显示、⋯ 改名 / 改色 / 删除、＋ 新建）· 同时显示（任务 / 法定节假日与调休 / 农历与节气，本机记忆）· 接下来 7 天。右侧主视图占满剩余高度。
+- **视图**：`?view=day|week|month|year`（缺省月）。月：格内左上「休 / 班」角标 + 农历（节日 / 节气优先，翡翠色），日期号右上；周 / 日：表头星期 + 日期 + 农历，全天行（全天与跨天事件），时间轴按真实时长、重叠分栏，打开时滚到 08:00 或更早的首个日程；日视图 ≥ 2xl 右侧当日详情栏（农历全称、干支年、节假日、当日清单）；年：12 个小月历。
+- **新建**：页头「新建日程」/ `n`；月格空白处单击 = 该日全天；时间轴空白单击 = 该半点起 1 小时，按住拖动 = 框选时段（15 分钟吸附）；全天行空白单击 = 全天。
+- **编辑器**（弹层）：标题、日历、全天、开始 / 结束（改开始保持时长）、重复（不重复 / 每天 / 每个工作日 / 每周 / 每两周 / 每月 / 每年 / 自定义：间隔 + 星期；结束：永不 / 于日期 / 次数）、提醒（≤ 5：事件发生时 / 5·10·15·30 分钟 / 1·2 小时 / 1·2 天前；全天：当天 09:00 / 1·2 天前 09:00 / 1 周前）、地点、链接、备注；⌘/Ctrl+Enter 保存；删除按钮。
+- **拖动**：时间轴拖日程块改期（可跨列）、拖底边改结束；月视图拖到别的日期；任务只可点开（Peek），不可拖。重复日程保存 / 删除 / 拖动都先弹「仅此日程 / 将来所有日程 / 所有日程」。
+- **数据**：`GET /calendars`、`GET /calendar-events?from&to`（年视图一次取整年）；任务叠加仍为 `GET /tasks?from&to`（年视图不叠加）。
+- **快捷键**：`t` 今天、`←` / `→` 翻页、`d` / `w` / `m` / `y` 切视图、`n` 新建。
+- **REQ**：REQ-CAL-001 ~ 009 · REQ-UI-031 · REQ-TASK-024。
+
+以下为 2026-09-24 原文：
 - **显示**：Apple 日历风格。页头左侧文楷大号「N月」+ 浅色「YYYY年」；右侧「周 / 月」分段控件与「‹ 今天 ›」按钮组。月视图 6×7（按 `weekStartsOn`），日期号右上、今天翡翠实心圆、每月 1 日显示「M月D日」、非本月格浅底；每格最多 3 条事件，余下「还有 N 项」。周视图：表头「周X + 日期」，全天行，24 小时时间轴（每小时 48px，打开滚到 08:00），时间重叠的事件分栏并排，今天列有当前时间红线。
 - **数据**：`GET /tasks?from&to&sort=dueAt`（REQ-TASK-024），翻页取全；空间色由 `GET /spaces` 映射。事件 = 任务：dueAt 优先、否则 scheduledAt；本地 23:59 / 00:00 视为全天。
 - **search params**：`{ view?: 'month' | 'week', date?: 'YYYY-MM-DD' }`（纯 UI，不发给 API；缺省 = 月视图、今天）。

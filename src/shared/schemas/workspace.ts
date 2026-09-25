@@ -9,12 +9,37 @@ export const createInvitationSchema = z.object({
 })
 export type CreateInvitationInput = z.infer<typeof createInvitationSchema>
 
+/** 密码下限（ADR-0008：10 → 8；与 auth.ts minPasswordLength 同值）。 */
+export const PASSWORD_MIN = 8
+export const passwordSchema = z.string().min(PASSWORD_MIN).max(128)
+
+/** 用户名（ADR-0008）：3–30 位，字母 / 数字 / `_` `.` `-`，字母或数字开头；大小写不敏感（username 存小写，displayUsername 存原样）。 */
+export const USERNAME_RE = /^[a-z0-9][a-z0-9_.-]{2,29}$/
+export const usernameSchema = z
+  .string()
+  .trim()
+  .refine((v) => USERNAME_RE.test(v.toLowerCase()), {
+    message: '用户名为 3–30 位字母、数字或 _ . -，以字母或数字开头',
+  })
+
 export const acceptInvitationSchema = z.object({
   email: z.email().max(254),
   name: z.string().trim().min(1).max(80),
-  password: z.string().min(10).max(128),
+  password: passwordSchema,
 })
 export type AcceptInvitationInput = z.infer<typeof acceptInvitationSchema>
+
+/** 自助注册（ADR-0008、REQ-AUTH-017）：需 `x-captcha`；提交后待 owner/admin 审批。 */
+export const registerSchema = z.object({
+  email: z.email().max(254),
+  username: usernameSchema,
+  name: z.string().trim().min(1).max(80),
+  password: passwordSchema,
+})
+export type RegisterInput = z.infer<typeof registerSchema>
+
+/** 审批注册申请：可指定角色（默认 member；owner 只能经转让）。 */
+export const approveJoinRequestSchema = z.object({ role: invitableRoleSchema.default('member') })
 
 export const invitationIdParam = z.object({ id: z.string().min(1).max(64) })
 

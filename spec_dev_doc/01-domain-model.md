@@ -27,7 +27,8 @@
 
 - Workspace ≡ `organization`；Workspace 角色 ≡ `member.role ∈ owner | admin | member | guest`。
 - 应用扩展 `user` 的附加字段（Better Auth `additionalFields`）：`display_name`、`avatar_attachment_id`、`locale`（默认 `zh-CN`）、`timezone`（默认 `Asia/Shanghai`）、`week_starts_on`（默认 1）。
-- 注册：`disableSignUp: true`，仅经 `invitation` 加入；`magicLink` 插件同样配置 `disableSignUp: true`（否则陌生邮箱会被自动建号）。
+- ~~注册：`disableSignUp: true`，仅经 `invitation` 加入；~~`magicLink` 插件同样配置 `disableSignUp: true`（否则陌生邮箱会被自动建号）。
+- 注（2026-09-25，ADR-0008）：加入途径 = **邀请**（`invitation`）或**自助注册 + 审批**（§3.14 `join_requests`）。Better Auth 的 `/sign-up/email` 仍关闭（`disableSignUp: true`），注册只走 `POST /workspace/join-requests`；注册后只有 `user`（无 `member` 行）→ 会话视为未登录，审批通过才写 `member`。`username` 插件给 `user` 增 `username`（唯一，存小写）与 `display_username`（原样）两列，可用用户名登录；密码下限 8 位。
 
 ---
 
@@ -298,7 +299,7 @@ note     : {}
 | workspace_id | text | FK organization |
 | kind | text | 见 §4 |
 | actor_id | text? | FK user；系统事件为空 |
-| target_type | text | `task` \| `entry` \| `cycle` \| `space` \| `comment` \| `member` \| `job` \| `system` |
+| target_type | text | `task` \| `entry` \| `cycle` \| `space` \| `comment` \| `member` \| `job` \| `system` \| `calendar_event`（注 2026-09-25，ADR-0009） |
 | target_id | uuid? | 目标对象；`system` 为空 |
 | payload | jsonb | 标题、摘要、变更前后值等，**自包含**，渲染通知不回查（§4.1） |
 | visibility_scope | jsonb | `{ spaceId?, userIds?[] }` 供活动流过滤 |
@@ -389,7 +390,8 @@ note     : {}
 - 索引：`(workspace_id, created_at desc)`、`(actor_id, created_at desc)`、`(action)`。
 - 只增不改，无软删，无 UPDATE/DELETE 端点。
 - `action` 枚举（Zod `AuditAction`，新增值先改本表）：
-  `auth.login` · `auth.logout` · `auth.login_failed` · `auth.locked` · `auth.password_reset` · `auth.2fa_enabled` · `auth.2fa_disabled` · `auth.2fa_reset_by_admin` · `member.invited` · `member.joined` · `member.role_changed` · `member.suspended` · `member.unsuspended` · `member.removed` · `member.content_transferred` · `user.deleted` · `workspace.owner_transferred` · `workspace.settings_changed` · `space.deleted` · `space.permanently_deleted` · `task.permanently_deleted` · `entry.permanently_deleted` · `export.requested` · `export.done` · `export.failed` · `api_key.created` · `api_key.revoked` · `gc.failed` · `backup.failed`
+  注（2026-09-25，ADR-0008）：+ `member.registered`（自助注册，actor 为空）· `member.approved` · `member.rejected`（驳回即删号，`meta` 留邮箱 / 用户名）。
+  `auth.login` · `auth.logout` · `auth.login_failed` · `auth.locked` · `auth.password_reset` · `auth.2fa_enabled` · `auth.2fa_disabled` · `auth.2fa_reset_by_admin` · `member.invited` · `member.joined` · `member.registered` · `member.approved` · `member.rejected` · `member.role_changed` · `member.suspended` · `member.unsuspended` · `member.removed` · `member.content_transferred` · `user.deleted` · `workspace.owner_transferred` · `workspace.settings_changed` · `space.deleted` · `space.permanently_deleted` · `task.permanently_deleted` · `entry.permanently_deleted` · `export.requested` · `export.done` · `export.failed` · `api_key.created` · `api_key.revoked` · `gc.failed` · `backup.failed`
 
 ### 3.13 idempotency_keys
 
@@ -403,7 +405,73 @@ note     : {}
 
 - 用途见 02 §5。
 
-### 3.14 二期预留
+### 3.14 join_requests —— 注册申请（ADR-0008）
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| id | uuid | PK |
+| workspace_id | text | FK organization |
+| user_id | text | FK user，级联删除；唯一 |
+| status | text | `pending` \| `approved`（驳回即删 user，不留 rejected 行） |
+| ip | text? | 注册来源 IP（审计 / 防刷） |
+| decided_by | text? | FK user；审批人 |
+| decided_at | timestamptz? | |
+| created_at | timestamptz | |
+
+- 索引：`(status, created_at)`；唯一 `(user_id)`。
+- 待审批总量上限 200（07 §5），超出注册返回 429。
+
+### 3.15 calendars / calendar_events —— 日历与日程（ADR-0009）
+
+**calendars**
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| id | uuid | PK |
+| workspace_id | text | FK organization |
+| owner_id | text | FK user，级联删除；**个人私有**，仅本人可读写（§5） |
+| name | text | ≤ 40 字 |
+| color | text | 04 §2.1 的 8 色 token 名 |
+| hidden | bool | 在日历页是否显示（macOS 勾选框） |
+| is_default | bool | 新建日程的默认日历；每人恰一个 |
+| position | int | 列表顺序 |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
+
+- 首次读取自动建 4 个：个人（moss，默认）· 工作（indigo）· 学习（amber）· 生活（plum）；每人上限 30；至少保留 1 个。删除日历级联删除其日程。
+
+**calendar_events**
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| id | uuid | PK |
+| workspace_id | text | FK organization |
+| calendar_id | uuid | FK calendars，级联删除 |
+| owner_id | text | FK user，级联删除 |
+| title | text | ≤ 200 字 |
+| location | text? | |
+| notes | text? | ≤ 5000 字，纯文本 |
+| url | text? | |
+| all_day | bool | 全天事件 |
+| start_at | timestamptz | 定时：开始时刻；全天：`timezone` 下开始日 00:00 |
+| end_at | timestamptz | 独占；全天：结束日次日 00:00；CHECK `end_at > start_at` |
+| timezone | text | IANA；重复展开与全天日期都按它计算 |
+| rrule | text? | RFC 5545 RRULE（不含 DTSTART），FREQ ∈ DAILY/WEEKLY/MONTHLY/YEARLY；null = 不重复 |
+| repeat_until | timestamptz? | 由 RRULE 的 UNTIL / COUNT 推得的系列结束；null = 无限（区间查询剪枝） |
+| exdates | timestamptz[] | 被排除的发生时刻（删 / 改单次） |
+| recurrence_id | uuid? | 单次改写行 → 母事件 id |
+| original_start_at | timestamptz? | 单次改写对应的原发生时刻；与 `recurrence_id` 同空同非空（CHECK） |
+| alarms | int[] | 提醒：开始前分钟数（≤ 5 个，-1440 ~ 10080；全天相对当天 00:00，负数 = 当天之后，如 -540 = 09:00） |
+| deleted_at | timestamptz? | 软删（整系列删除同时软删其改写行） |
+| created_at | timestamptz | |
+| updated_at | timestamptz | 乐观锁 `ifUpdatedAt` |
+
+- 索引：`(owner_id, start_at, end_at)`、`(recurrence_id)`、部分索引 `(start_at) WHERE cardinality(alarms) > 0 AND deleted_at IS NULL`（提醒作业）。
+- 重复展开在服务端按 `timezone` 的**本地墙钟**进行（跨 DST 仍是「每天 09:00」），单次查询最多展开 2000 次发生；`GET /calendar-events?from&to` 返回的是「发生」（occurrence），不是行。
+- 改 / 删范围（macOS 语义）：`this` = 母事件加 exdate + 插改写行（删则只加 exdate）；`future` = 母事件 RRULE 截断到该次之前（UNTIL），从该次起另起新系列（去 COUNT）；`all` = 改母事件（从某次拖动时按偏移平移整个系列，时间 / 规则变化时清空改写行与 exdates）。
+- 与任务的关系：任务不进本表；日历页把任务（`dueAt` / `scheduledAt`）作为叠加层只读显示（REQ-UI-031）。
+
+### 3.16 二期预留
 
 `git_repos(id, space_id, path, remote_url, last_scanned_sha, scanned_at)`；`import_jobs`。不在一期建表。
 
@@ -422,9 +490,11 @@ note     : {}
 | task.commented / entry.commented | 新评论 | 目标作者 + 线程参与者（task 另加 watchers，注 2026-09-24：按 REQ-TASK-014「watcher 收到完成与评论通知」补齐） | in_app, sse, webpush |
 | mention.created | @提及 | 被提及者 | in_app, sse, webpush, email |
 | space.invited | 加入空间 | 被邀者 | in_app, email |
-| member.joined | 受邀者接受邀请成为成员 | 所有 admin（除邀请人本人） | in_app |
+| member.joined | 受邀者接受邀请成为成员；注册申请被批准（注 2026-09-25，`inviter*` = 审批人） | 所有 admin（除邀请人本人） | in_app |
+| member.requested | 自助注册提交（ADR-0008） | 所有 owner / admin | in_app, sse, email |
 | workspace.owner_transferred | owner 转让 | 原 owner 与新 owner | in_app, email |
 | cycle.review_due | 周期结束当天 | owner | in_app, webpush, email |
+| calendar.reminder | 日程提醒时刻（开始 − 提前量；pg-boss 每分钟扫描，ADR-0009） | 日程 owner | in_app, sse, webpush |
 | system.export_done / system.backup_failed | 系统 | 发起人 / 所有 admin | in_app, email（export_done 另加 sse，注 2026-09-24：前端据此弹状态 Toast，REQ-UI-008） |
 | system.outbox_stalled | 有事件超过 1 小时未接力（§3.10） | 所有 admin | in_app, email |
 
@@ -445,6 +515,8 @@ payload **自包含**：渲染通知、活动流、邮件时不回查业务表�
 | mention.created | `{ targetType: 'entry' \| 'comment', targetId, title, commentId?, actorId, actorName, summary, url }` | `notif.mention.created` → 「{actor} 在 {title} 中提到了你」 | `{summary}`（含 @ 的那一句） | 记录：`/entries/:entryId#m-:mentionId`；评论：同 task/entry.commented | 不合并（每次提及单独一条） |
 | space.invited | `{ spaceId, spaceName, spaceSlug, actorId, actorName, role }` | `notif.space.invited` → 「{actor} 邀请你加入空间 {title}」 | 「你的角色：{role}」 | `/spaces/:spaceSlug` | 不合并 |
 | member.joined | `{ userId, displayName, email, role, inviterId, inviterName }` | `notif.member.joined` → 「{displayName} 已加入工作区」 | 「角色 {role}，由 {inviterName} 邀请」 | `/settings/workspace/members` | 5 分钟内多人 → 「{n} 位新成员已加入」 |
+| member.requested | `{ requestId, userId, displayName, username, email }` | 「{displayName}（@{username}）申请加入工作区」 | `{email}` | `/settings/workspace/members?tab=requests` | 5 分钟内多条 → 「{n} 个注册申请待审批」 |
+| calendar.reminder | `{ eventId, ownerId, title, location?, allDay, occurrenceStart, alarm, date }` | 定时：「{HH:mm} {title}」；全天：「今天：{title}」 | 「地点：{location}」或空 | `/calendar?view=day&date={date}` | 不合并；每（日程, 发生时刻, 提前量）只发一次，错过 5 分钟窗口不补发 |
 | workspace.owner_transferred | `{ fromUserId, fromName, toUserId, toName }` | `notif.workspace.owner_transferred` → 「工作区所有权已从 {fromName} 转给 {toName}」 | 「原 owner 降为 admin」 | `/settings/workspace` | 不合并 |
 | cycle.review_due | `{ cycleId, kind, title, ownerId, startDate, endDate, doneCount, totalCount }` | `notif.cycle.review_due` → 「{title} 已结束，停在枝头回望一下吧」 | 「本周期完成 {doneCount}/{totalCount} 个任务」 | `/cycles/:cycleId` | 同 cycle 只一条 |
 | system.export_done | `{ jobId, scope, format, fileName, sizeBytes, expiresAt }` | `notif.system.export_done` → 「导出已完成：{fileName}」 | 「{sizeBytes} · {expiresAt} 前可下载」 | `/jobs/:jobId` | 不合并 |
@@ -490,6 +562,8 @@ Workspace 角色 × Space 角色 → 有效角色取**较高者**，`guest` 只�
 | comment.resolve | ✓ | 目标作者 / 评论作者 | ✗ |
 | attachment.read | 跟随其 target 的 read；**无 target 的附件仅 `owner_id` 本人** | 同左 | 同左 |
 | cycle.* | 仅 owner_id 本人（admin 可 read） | | |
+| calendar.read / calendar.write（日历与日程，ADR-0009） | 仅 owner_id 本人（admin 也不可见） | 仅本人 | 仅本人 |
+| member.approve（审批注册申请，ADR-0008） | ✓ | ✗ | ✗ |
 | notification.* | 仅本人 | | |
 
 `entry.read`：`private` 仅作者；`space` 需 space.read；`workspace` 需 workspace 成员。**软删对象对所有人不可读**（作者可在回收站看到）。最后一名 owner 不可降级、移除、注销（409 `CONFLICT_LAST_OWNER`）；成员生命周期各转换的影响见 07 §4。
@@ -501,7 +575,7 @@ Workspace 角色 × Space 角色 → 有效角色取**较高者**，`guest` 只�
 不变量：
 1. `can()` 是唯一判定入口；API 中间件、Hocuspocus 钩子、SSE 订阅、附件下载、MCP 工具全部调用它，业务代码禁止直接比较角色。
 2. `can()` 输入只依赖 `(user, workspaceRole, spaceRole, resource 元数据)`，纯函数，可脱离 DB 单测；角色矩阵测试覆盖全部 动作 × 角色 组合。
-3. 列表查询用 `visibleEntriesWhere(user)` / `visibleTasksWhere(user)` 生成 Drizzle 条件，与 `can()` 共享同一份规则表，避免「能列出但不能读」或反之。
+3. 列表查询用 `visibleEntriesWhere(user)` / `visibleTasksWhere(user)`（日程：`visibleCalendarsWhere` / `visibleCalendarEventsWhere`）生成 Drizzle 条件，与 `can()` 共享同一份规则表，避免「能列出但不能读」或反之。
 
 ---
 

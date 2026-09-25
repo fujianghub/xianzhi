@@ -6,7 +6,14 @@
  */
 import { and, eq, exists, isNull, or, type SQL, sql } from 'drizzle-orm'
 import type { EntryVisibility, SpaceRole, WorkspaceRole } from '../shared/schemas/enums.ts'
-import { entries, spaceMembers, spaces, tasks } from './db/schema/business.ts'
+import {
+  calendarEvents,
+  calendars,
+  entries,
+  spaceMembers,
+  spaces,
+  tasks,
+} from './db/schema/business.ts'
 
 // ---------- 类型 ----------
 
@@ -70,6 +77,12 @@ export interface CycleRef {
   ownerId: string
 }
 
+/** 个人日历 / 日程（ADR-0009）：只有 owner 可读写，admin 也不可见（隐私）。 */
+export interface CalendarRef {
+  id: string
+  ownerId: string
+}
+
 export interface UserRef {
   id: string
 }
@@ -101,6 +114,9 @@ export interface ActionMap {
   'attachment.read': AttachmentRef
   'cycle.read': CycleRef
   'cycle.write': CycleRef
+  'calendar.read': CalendarRef
+  'calendar.write': CalendarRef
+  'member.approve': null
   'notification.read': UserRef
   'notification.write': UserRef
 }
@@ -131,6 +147,9 @@ export const ACTIONS = [
   'attachment.read',
   'cycle.read',
   'cycle.write',
+  'calendar.read',
+  'calendar.write',
+  'member.approve',
   'notification.read',
   'notification.write',
 ] as const satisfies readonly Action[]
@@ -232,6 +251,7 @@ export function can<A extends Action>(
     case 'member.unsuspend':
     case 'member.revoke_sessions':
     case 'member.transfer_content':
+    case 'member.approve':
       return admin
     case 'workspace.owner_transfer':
       return actor.workspaceRole === 'owner'
@@ -308,6 +328,9 @@ export function can<A extends Action>(
     }
     case 'cycle.write':
       return (resource as CycleRef).ownerId === actor.id
+    case 'calendar.read':
+    case 'calendar.write':
+      return (resource as CalendarRef).ownerId === actor.id
   }
   return false
 }
@@ -363,4 +386,16 @@ export function visibleEntriesWhere(actor: MaybeActor): SQL {
   )
   const vis = or(sql`${entries.visibility} <> 'private'`, eq(entries.authorId, actor.id))!
   return and(isNull(entries.deletedAt), spaceOk, vis)!
+}
+
+/** 可读日历：仅本人（与 can('calendar.read') 同规则）。 */
+export function visibleCalendarsWhere(actor: MaybeActor): SQL {
+  if (!actor || actor.suspended) return sql`false`
+  return eq(calendars.ownerId, actor.id)
+}
+
+/** 可读日程：本人 ∧ 未软删。 */
+export function visibleCalendarEventsWhere(actor: MaybeActor): SQL {
+  if (!actor || actor.suspended) return sql`false`
+  return and(eq(calendarEvents.ownerId, actor.id), isNull(calendarEvents.deletedAt))!
 }

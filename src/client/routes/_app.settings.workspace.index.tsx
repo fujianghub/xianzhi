@@ -28,7 +28,7 @@ function Workspace() {
   const q = useQuery({ queryKey: ['workspace'], queryFn: () => unwrap<Ws>(api.workspace.$get()) })
   const [name, setName] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
-  if (q.isPending) return <Skeleton className="h-40 w-full max-w-xl" />
+  if (q.isPending) return <Skeleton className="h-40 w-full max-w-3xl" />
   const ws = q.data
   if (!ws) return null
   const save = async () => {
@@ -43,7 +43,7 @@ function Workspace() {
     }
   }
   return (
-    <section className="max-w-xl" data-testid="settings-workspace">
+    <section className="max-w-3xl" data-testid="settings-workspace">
       <div className="mb-6 flex items-center gap-3">
         <h1 className="font-semibold text-2xl tracking-tight">{t('settings.nav.workspace')}</h1>
         {saved ? (

@@ -4,6 +4,20 @@
 
 ## 2026-09-25
 
+**开放注册 + 审批、用户名登录、密码 8 位（ADR-0008）**
+- 新增 ADR-0008；ADR-0001 §4.6 注册策略与 §8 决定 6 加注 / 删除线；ADR-0006 头部加注（用户名裁定被推翻）。
+- 00：非目标划掉「自助注册」；REQ-AUTH-002 修订为「拒绝绕过审批的注册」；新增 REQ-AUTH-017（注册）· 018（待审批不能登录 / 审批）· 019（驳回删号）· 020（用户名登录）。
+- 01：§2 注；§3.14 `join_requests`；§3.12 审计 +`member.registered / approved / rejected`；§4 / §4.1 +`member.requested`，`member.joined` 触发加「注册被批准」；§5 +`member.approve`。
+- 02：§2 注册与用户名登录；§3 +403 `REGISTRATION_PENDING`；§9 +4 条 `/workspace/join-requests*`。07 §2.1 威胁表改写「自助注册滥用」、加「注册探测」；§5 注册限额。08 §1 `/register`、§2.1b 注册与审批。glossary +注册申请、用户名，「邀请」定义改写。
+
+**日历改版：日程、重复、提醒、中国节假日（ADR-0009）**
+- 新增 ADR-0009。00：新增 §18b CAL（REQ-CAL-001 ~ 009），REQ-UI-031 加注。01：§3.15 `calendars` / `calendar_events`（原 §3.14 二期预留顺延为 §3.16）、§3.10 target_type +`calendar_event`、§4 / §4.1 +`calendar.reminder`、§5 +`calendar.read / write`。02 §9 +8 条路由。07 §5 日历限额。08 §1、§2.17 改版（原文保留在下方）。glossary +我的日历、日程、重复、提醒、休 / 班。
+- 05 §6 漂移脚本类型表加 `timestamptz[]` / `int[]`。
+
+**宽屏布局（REQ-UI-034）**
+- 00 新增 REQ-UI-034；08 §2.3 注：今日 / 收件箱 / 通知「主列 + 速览栏」，今日计数卡；glossary +速览栏。
+
+
 **燕印改为「晨光白燕」（ADR-0007）**
 - 新增 ADR-0007：燕印重画（剪刀尾、镰刀翼、褐枝嫩芽），翡翠深渐变 + 右上晨光 + 暖白燕；md / lg 完整版、sm 与 favicon 简化版；配色走两主题同值的 `--xz-seal-*`；对比度闸门加 3 项。
 - 品牌副标：侧栏与登录页「Xianzhi」及登录页口号统一为「日衔寸枝，岁成一巢」（`app.tagline`，原 `auth.tagline` 移除）；燕子占比 .82 → .9。06 §5.6 加注。

@@ -25,6 +25,8 @@ export interface CreateOwnerInput {
   email: string
   password: string
   name: string
+  /** ADR-0008：可用用户名登录 */
+  username?: string
   workspaceName?: string
 }
 
@@ -47,6 +49,9 @@ export async function createOwner(db: Db, auth: Auth, input: CreateOwnerInput) {
     {
       email: input.email.trim().toLowerCase(),
       name: input.name,
+      ...(input.username
+        ? { username: input.username.toLowerCase(), displayUsername: input.username }
+        : {}),
       emailVerified: true,
       role: 'admin', // Better Auth admin 插件角色（后台）；业务角色以 member.role 为准
     },

@@ -2,13 +2,15 @@
  * 今日（08 §2.3；REQ-TASK-005 · 017 · REQ-UI-009）：三段——逾期（dueAt < 今日 00:00）、今日到期、今日开始；
  * 段内按优先级降序、sortKey。边界由服务端按用户时区算（view=today）；前端分段用同一份 src/shared/tz.ts。
  * `done=1` 追加「今天完成的」折叠区；空态可直接输入（默认截止今天）。
+ * 宽屏（REQ-UI-034）：顶部四枚计数卡（逾期 / 今日到期 / 今日开始 / 今日日程），右侧速览栏（GlanceRail）。
  */
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { dayRange } from '../../shared/tz.ts'
 import { TaskList } from '../components/domain/TaskList.tsx'
+import { WithRail } from '../components/layout/WithRail.tsx'
 import { Disclosure } from '../components/ui/disclosure.tsx'
 import { EmptyState } from '../components/ui/empty-state.tsx'
 import { PageHeader } from '../components/ui/page-header.tsx'
@@ -16,6 +18,7 @@ import { Skeleton } from '../components/ui/skeleton.tsx'
 import { useDelayedFlag } from '../hooks/useDelayedFlag.ts'
 import type { Me } from '../hooks/useMe.ts'
 import { useTaskActions } from '../hooks/useTasks.ts'
+import { occurrencesQuery } from '../lib/calendar-queries.ts'
 import { cn } from '../lib/cn.ts'
 import { optOneOf } from '../lib/search.ts'
 import { useNewTask } from '../lib/stores.ts'
@@ -53,6 +56,7 @@ function Today() {
     }),
     enabled: done === '1',
   })
+  const todayEvents = useQuery(occurrencesQuery(range.start.toISOString(), range.end.toISOString()))
   const skeleton = useDelayedFlag(q.isPending)
   const tasks = flattenPages(q.data)
   const sections = useMemo(() => {
@@ -93,85 +97,115 @@ function Today() {
   const createToday = (title: string) =>
     actions.create({ title, status: 'todo', dueAt: endOfToday })
 
+  const stats = [
+    ...sections.map(([key, l]) => ({ key, n: l.length })),
+    { key: 'events' as const, n: todayEvents.data?.length ?? 0 },
+  ]
+
   return (
-    <section className="mx-auto max-w-3xl" data-testid="today">
-      <PageHeader
-        title={t('ui.page.today')}
-        eyebrow={dateLine}
-        description={summary || undefined}
-      />
-      {q.isError ? (
-        <div className="paper rounded-lg p-6 text-center" role="alert">
-          <button type="button" className="text-sm underline" onClick={() => void q.refetch()}>
-            {t('ui.action.retry')}
-          </button>
-        </div>
-      ) : q.isPending ? (
-        skeleton ? (
-          <div className="flex flex-col gap-6" aria-busy="true">
-            {[0, 1, 2].map((s) => (
-              <div key={s} className="flex flex-col gap-1">
-                {[0, 1, 2, 3].map((r) => (
-                  <Skeleton key={r} className="h-(--xz-row-h)" />
-                ))}
+    <WithRail tz={me.timezone} weekStartsOn={me.weekStartsOn} testId="today-layout">
+      <section data-testid="today">
+        <PageHeader
+          title={t('ui.page.today')}
+          eyebrow={dateLine}
+          description={summary || undefined}
+        />
+        {!q.isPending && !q.isError ? (
+          <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4" data-testid="today-stats">
+            {stats.map(({ key, n }) => (
+              <div
+                key={key}
+                className={cn(
+                  'paper flex flex-col gap-1 rounded-xl px-4 py-3',
+                  key === 'overdue' && n > 0 && 'ring-1 ring-danger/30',
+                )}
+              >
+                <span className="text-fg-muted text-xs">{t(`task.stat.${key}`)}</span>
+                <span
+                  className={cn(
+                    'font-display text-3xl tabular-nums leading-none',
+                    key === 'overdue' && n > 0 && 'text-danger',
+                  )}
+                >
+                  {n}
+                </span>
               </div>
             ))}
           </div>
-        ) : null
-      ) : !tasks.length ? (
-        <EmptyState
-          illustration="today"
-          title={t('ui.empty.today')}
-          hint={t('ui.empty.todayHint')}
-          input={{ placeholder: t('ui.empty.newTaskPlaceholder'), onSubmit: createToday }}
-        />
-      ) : (
-        <div className="flex flex-col gap-6">
-          {sections.map(([key, list]) =>
-            list.length ? (
-              <div key={key} data-testid={`today-${key}`}>
-                <h2
-                  className={cn(
-                    'mb-2 font-medium text-sm',
-                    key === 'overdue' ? 'text-danger' : 'text-fg-muted',
-                  )}
-                >
-                  {t(`task.section.${key}`)} · {list.length}
-                </h2>
-                <TaskList
-                  tasks={list}
-                  label={t(`task.section.${key}`)}
-                  onOpen={open}
-                  showSpace
-                  testId={`list-${key}`}
-                />
-              </div>
-            ) : null,
-          )}
-        </div>
-      )}
-      <div className="mt-8">
-        <button
-          type="button"
-          className="flex items-center gap-1 font-medium text-fg-muted text-sm hover:text-fg"
-          aria-expanded={done === '1'}
-          onClick={() => nav({ search: done === '1' ? {} : { done: '1' }, replace: true })}
-        >
-          <Disclosure open={done === '1'} />
-          {t('task.section.done')}
-        </button>
-        {done === '1' ? (
-          <div className="mt-2">
-            <TaskList
-              tasks={flattenPages(doneQ.data)}
-              label={t('task.section.done')}
-              onOpen={open}
-              showSpace
-              testId="list-done"
-            />
-          </div>
         ) : null}
-      </div>
-    </section>
+        {q.isError ? (
+          <div className="paper rounded-lg p-6 text-center" role="alert">
+            <button type="button" className="text-sm underline" onClick={() => void q.refetch()}>
+              {t('ui.action.retry')}
+            </button>
+          </div>
+        ) : q.isPending ? (
+          skeleton ? (
+            <div className="flex flex-col gap-6" aria-busy="true">
+              {[0, 1, 2].map((s) => (
+                <div key={s} className="flex flex-col gap-1">
+                  {[0, 1, 2, 3].map((r) => (
+                    <Skeleton key={r} className="h-(--xz-row-h)" />
+                  ))}
+                </div>
+              ))}
+            </div>
+          ) : null
+        ) : !tasks.length ? (
+          <EmptyState
+            illustration="today"
+            title={t('ui.empty.today')}
+            hint={t('ui.empty.todayHint')}
+            input={{ placeholder: t('ui.empty.newTaskPlaceholder'), onSubmit: createToday }}
+          />
+        ) : (
+          <div className="flex flex-col gap-6">
+            {sections.map(([key, list]) =>
+              list.length ? (
+                <div key={key} data-testid={`today-${key}`}>
+                  <h2
+                    className={cn(
+                      'mb-2 font-medium text-sm',
+                      key === 'overdue' ? 'text-danger' : 'text-fg-muted',
+                    )}
+                  >
+                    {t(`task.section.${key}`)} · {list.length}
+                  </h2>
+                  <TaskList
+                    tasks={list}
+                    label={t(`task.section.${key}`)}
+                    onOpen={open}
+                    showSpace
+                    testId={`list-${key}`}
+                  />
+                </div>
+              ) : null,
+            )}
+          </div>
+        )}
+        <div className="mt-8">
+          <button
+            type="button"
+            className="flex items-center gap-1 font-medium text-fg-muted text-sm hover:text-fg"
+            aria-expanded={done === '1'}
+            onClick={() => nav({ search: done === '1' ? {} : { done: '1' }, replace: true })}
+          >
+            <Disclosure open={done === '1'} />
+            {t('task.section.done')}
+          </button>
+          {done === '1' ? (
+            <div className="mt-2">
+              <TaskList
+                tasks={flattenPages(doneQ.data)}
+                label={t('task.section.done')}
+                onOpen={open}
+                showSpace
+                testId="list-done"
+              />
+            </div>
+          ) : null}
+        </div>
+      </section>
+    </WithRail>
   )
 }

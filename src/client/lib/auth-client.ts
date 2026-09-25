@@ -1,6 +1,6 @@
 /** Better Auth 客户端（登录 / 2FA / Passkey / 魔法链接）。 */
 import { passkeyClient } from '@better-auth/passkey/client'
-import { magicLinkClient, twoFactorClient } from 'better-auth/client/plugins'
+import { magicLinkClient, twoFactorClient, usernameClient } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
 
 export const authClient = createAuthClient({
@@ -14,5 +14,6 @@ export const authClient = createAuthClient({
     }),
     passkeyClient(),
     magicLinkClient(),
+    usernameClient(),
   ],
 })
