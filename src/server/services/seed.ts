@@ -498,6 +498,9 @@ export async function seed(deps: SeedDeps): Promise<Record<string, number>> {
     journal: ['周三随想', '周五的回望'],
     note: ['读书摘录：日志即数据库', '关于命名的一点想法'],
     review: [`${isoWeek(addDays(monday, -7))} 复盘`, `${isoWeek(monday)} 复盘（草稿）`],
+    // 新 kind 不进 seed 分布（08 §7 每 kind 2 篇为既有 7 种），仅满足类型
+    optimize: ['', ''],
+    plan: ['', ''],
   }
   kinds.forEach((kind, k) => {
     for (const j of [0, 1]) {

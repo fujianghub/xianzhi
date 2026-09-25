@@ -1,9 +1,10 @@
-/** 设置布局（08 §2.13、T1-033 · T1-043）：左侧二级导航（个人 / 通知 / 安全 / API Key；admin 多出工作区 / 成员 / 审计；owner 再多用户管理，ADR-0010）。 */
+/** 设置布局（08 §2.13、T1-033 · T1-043）：左侧二级导航（个人 / 通知 / 安全 / API Key / 模板；admin 多出工作区 / 成员 / 审计；owner 再多用户管理，ADR-0010）。 */
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router'
 import {
   Bell,
   Building2,
   KeyRound,
+  LayoutTemplate,
   type LucideIcon,
   ScrollText,
   ShieldCheck,
@@ -50,6 +51,9 @@ function SettingsLayout() {
         </Link>
         <Link to="/settings/api-keys" className={link}>
           <Item icon={KeyRound}>{t('settings.nav.apiKeys')}</Item>
+        </Link>
+        <Link to="/settings/templates" className={link} data-testid="nav-templates">
+          <Item icon={LayoutTemplate}>{t('settings.nav.templates')}</Item>
         </Link>
         {isAdmin(me) ? (
           <>

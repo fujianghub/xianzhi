@@ -155,6 +155,43 @@ expectMatrix('calendar.write(other)', NEVER, (a) =>
 // ADR-0008：审批注册申请 = owner/admin
 expectMatrix('member.approve', ADMIN_ONLY, (a) => can(a, 'member.approve', null))
 
+// ADR-0011 §2 模板：personal 仅本人；workspace 全员可读、管理员创建 / 管理，创建者可管自己的
+const NON_GUEST: Matrix = {
+  owner: [T, T, T, T],
+  admin: [T, T, T, T],
+  member: [T, T, T, T],
+  guest: [F, F, F, F],
+  anon: [F, F, F, F],
+}
+const tpl = (scope: 'personal' | 'workspace', ownerId: string) => ({ id: 'tp', ownerId, scope })
+expectMatrix('template.read(personal, own)', SELF_ONLY, (a) =>
+  can(a, 'template.read', tpl('personal', ME)),
+)
+expectMatrix('template.read(personal, other)', NEVER, (a) =>
+  can(a, 'template.read', tpl('personal', OTHER)),
+)
+expectMatrix('template.read(workspace, other)', SELF_ONLY, (a) =>
+  can(a, 'template.read', tpl('workspace', OTHER)),
+)
+expectMatrix('template.create(personal)', NON_GUEST, (a) =>
+  can(a, 'template.create', tpl('personal', ME)),
+)
+expectMatrix('template.create(workspace)', ADMIN_ONLY, (a) =>
+  can(a, 'template.create', tpl('workspace', ME)),
+)
+expectMatrix('template.manage(personal, own)', NON_GUEST, (a) =>
+  can(a, 'template.manage', tpl('personal', ME)),
+)
+expectMatrix('template.manage(personal, other)', NEVER, (a) =>
+  can(a, 'template.manage', tpl('personal', OTHER)),
+)
+expectMatrix('template.manage(workspace, other)', ADMIN_ONLY, (a) =>
+  can(a, 'template.manage', tpl('workspace', OTHER)),
+)
+expectMatrix('template.manage(workspace, own)', NON_GUEST, (a) =>
+  can(a, 'template.manage', tpl('workspace', ME)),
+)
+
 // ---------- 空间：visibility=members ----------
 // member 需显式行；guest 只在显式行时（且为 viewer 视角）；owner/admin 恒真
 const MEMBERS_SPACE_READ: Matrix = {
@@ -409,6 +446,9 @@ describe('archived / deleted / suspended', () => {
         'calendar.write': { id: 'k', ownerId: ME },
         'member.approve': null,
         'user.manage': { id: OTHER },
+        'template.read': { id: 'tp', ownerId: ME, scope: 'workspace' },
+        'template.create': { id: '', ownerId: ME, scope: 'personal' },
+        'template.manage': { id: 'tp', ownerId: ME, scope: 'personal' },
       }
       const r = action in res ? res[action] : { id: ME }
       // biome-ignore lint/suspicious/noExplicitAny: 枚举遍历

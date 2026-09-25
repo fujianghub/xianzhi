@@ -7,6 +7,7 @@ import { type FormEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useTaskActions } from '../../hooks/useTasks.ts'
+import { ApiError } from '../../lib/api.ts'
 import { useNewTask } from '../../lib/stores.ts'
 import { Button } from '../ui/button.tsx'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../ui/dialog.tsx'
@@ -42,7 +43,8 @@ export function NewTaskDialog() {
       })
       setTitle('')
       setOpen(false)
-    } catch {
+    } catch (err) {
+      if (!(err instanceof ApiError)) console.error('[task.create]', err)
       toast.error(t('task.saveFailed'))
     } finally {
       setBusy(false)

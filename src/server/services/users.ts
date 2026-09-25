@@ -323,6 +323,10 @@ export async function purgeUser(db: Db, ctx: UsersCtx, userId: string): Promise<
     await tx.execute(sql`delete from space_members where user_id = ${userId}`)
     await tx.execute(sql`delete from notification_preferences where user_id = ${userId}`)
     await tx.execute(sql`delete from push_subscriptions where user_id = ${userId}`)
+    // 个人模板随人删除；工作区模板保留（管理员可管，ADR-0011 §2）
+    await tx.execute(
+      sql`delete from entry_templates where owner_id = ${userId} and scope = 'personal'`,
+    )
     const unassigned = await unassignTasks(tx, ctx.workspaceId, target.u, 'member_removed')
     const revoked = await revokeAccess(tx, userId)
     await tx.delete(apikey).where(eq(apikey.referenceId, userId))

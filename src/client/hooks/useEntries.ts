@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { api, unwrap } from '../lib/api.ts'
 import type { Entry, EntryKind } from '../lib/entry-queries.ts'
 import { optimisticPatch } from '../lib/optimistic.ts'
+import { newId } from '../lib/uuid.ts'
 
 export type EntryPatch = Partial<
   Pick<Entry, 'title' | 'fields' | 'visibility' | 'spaceId' | 'pinned'>
@@ -39,12 +40,10 @@ export function useEntryActions() {
     title: string
     spaceId?: string
     fields?: Record<string, unknown>
+    templateId?: string
   }) => {
     const r = await unwrap<{ id: string }>(
-      api.entries.$post(
-        { json: input as never },
-        { headers: { 'idempotency-key': crypto.randomUUID() } },
-      ),
+      api.entries.$post({ json: input as never }, { headers: { 'idempotency-key': newId() } }),
     )
     await invalidate()
     return r

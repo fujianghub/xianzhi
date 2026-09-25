@@ -42,6 +42,10 @@ const EXT: Record<string, string> = {
   'text/markdown': 'md',
   'application/zip': 'zip',
   'application/json': 'json',
+  'text/csv': 'csv',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
 }
 
 export interface AttachmentView {

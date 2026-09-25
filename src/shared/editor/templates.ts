@@ -4,6 +4,7 @@
  */
 import type { EntryKind } from '../schemas/enums.ts'
 import type { PmNode } from '../schemas/pm.ts'
+import { builtinTemplate, fillTemplateVars, KIND_DEFAULT_TEMPLATE } from './builtin-templates.ts'
 
 const STRINGS: Record<string, Record<string, string>> = {
   'zh-CN': {
@@ -135,7 +136,17 @@ export function entryTemplate(kind: EntryKind, locale = 'zh-CN'): PmNode {
           },
         ],
       }
+    case 'optimize':
+    case 'plan': {
+      // ADR-0011 §3：新 kind 的默认骨架即对应内置模板
+      const tpl = builtinTemplate(KIND_DEFAULT_TEMPLATE[kind] ?? '')
+      return tpl
+        ? fillTemplateVars(tpl.body, { date: new Date().toISOString().slice(0, 10) })
+        : empty()
+    }
     default:
-      return { type: 'doc', content: [] }
+      return empty()
   }
 }
+
+const empty = (): PmNode => ({ type: 'doc', content: [] })

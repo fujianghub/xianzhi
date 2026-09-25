@@ -1,6 +1,7 @@
 /**
  * 组件文件裸色值 / 嵌套 glass / !important 检查（04 §2、06 §8 §9、CLAUDE.md 不变量 5、REQ-UI-002）。
  * 扫描 src/client 下 .tsx/.ts/.css（tokens.css 除外）；注释跳过；行内 `xz-allow-color` 显式豁免。
+ * 另：客户端禁用 `crypto.randomUUID`（HTTP 局域网访问时不存在）。
  * 另：主色辉光 `glow-primary` 引用点 ≤ 6（ADR-0005 §4、REQ-UI-020：主按钮 hover、燕印、侧栏当前项、登录聚焦、成巢、里程碑）。
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
@@ -11,6 +12,8 @@ const RULES: { name: string; re: RegExp }[] = [
   { name: '裸色值 hex', re: /#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b(?![\w-])/ },
   { name: '裸色值 rgb/hsl/oklch', re: /\b(?:rgba?|hsla?|oklch|oklab)\(/ },
   { name: '!important', re: /!important/ },
+  // 非安全上下文（局域网 IP + HTTP）下不存在；用 lib/uuid.ts 的 newId()（debug/2026-09-25-randomuuid-insecure-context）
+  { name: 'crypto.randomUUID', re: /\bcrypto\.randomUUID\b/ },
 ]
 
 /** 嵌套 glass：CSS 中某个（逗号分隔后的）选择器以后代 / 子代组合出现两个 glass* 类；:is()/:where() 内的列表不算嵌套。 */

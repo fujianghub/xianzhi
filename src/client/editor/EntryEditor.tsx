@@ -8,24 +8,31 @@
 import { HocuspocusProvider, WebSocketStatus } from '@hocuspocus/provider'
 import { DragHandle } from '@tiptap/extension-drag-handle-react'
 import { EditorContent, useEditor } from '@tiptap/react'
-import { GripVertical } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { FileCode, GripVertical } from 'lucide-react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { IndexeddbPersistence } from 'y-indexeddb'
 import * as Y from 'yjs'
 import type { EntryKind } from '../../shared/schemas/enums.ts'
 import { paletteOf } from '../components/ui/avatar.tsx'
 import { Button } from '../components/ui/button.tsx'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../components/ui/dialog.tsx'
 import { api, unwrap } from '../lib/api.ts'
 import { type OutlineItem, useCommentDraft, useOutline, useStatus } from '../lib/stores.ts'
+import { newId } from '../lib/uuid.ts'
 import { BubbleBar } from './BubbleBar.tsx'
 import { EntryPicker } from './EntryPicker.tsx'
+import { SOURCE_EVENT, TEMPLATE_EVENT } from './extensions.ts'
 import { fullKit } from './kit.ts'
 import { MobileToolbar } from './MobileToolbar.tsx'
+import { markdownToHtml } from './paste.ts'
 import type { SlashCtx } from './slash.tsx'
 import { pickFiles, uploadFiles } from './upload.ts'
 
 type Block = null | 'noAccess' | 'tooLarge' | 'tooMany'
+
+const SourceDialog = lazy(() => import('./SourceDialog.tsx'))
+const TemplateInsert = lazy(() => import('./TemplateInsert.tsx'))
 
 /** IndexedDB 可用性探测（隐私模式 / 禁用存储时 open 抛错或 onerror；500ms 无响应视为不可用）。 */
 export function probeIndexedDb(): Promise<boolean> {
@@ -69,6 +76,29 @@ export default function EntryEditor({
   const ydoc = useMemo(() => new Y.Doc({ gc: false }), [entryId])
   const [provider, setProvider] = useState<HocuspocusProvider | null>(null)
   const [picker, setPicker] = useState<null | { mode: 'card' | 'link'; at: number }>(null)
+  const [sourceOpen, setSourceOpen] = useState(false)
+  const [mdChoice, setMdChoice] = useState<null | { files: File[]; at: number }>(null)
+  const [others, setOthers] = useState(0)
+  // 在线协作者数（awareness 里除自己以外的客户端）：源码编辑整体写回，有人在线时禁用（ADR-0011 §1）
+  useEffect(() => {
+    const aw = provider?.awareness
+    if (!aw) return
+    const update = () => setOthers(Math.max(0, aw.getStates().size - 1))
+    update()
+    aw.on('change', update)
+    return () => aw.off('change', update)
+  }, [provider])
+  const [tplAt, setTplAt] = useState<number | null>(null)
+  useEffect(() => {
+    const onSource = () => setSourceOpen(true)
+    const onTemplate = (e: Event) => setTplAt((e as CustomEvent<{ at: number }>).detail.at)
+    window.addEventListener(SOURCE_EVENT, onSource)
+    window.addEventListener(TEMPLATE_EVENT, onTemplate)
+    return () => {
+      window.removeEventListener(SOURCE_EVENT, onSource)
+      window.removeEventListener(TEMPLATE_EVENT, onTemplate)
+    }
+  }, [])
   const readOnlyRef = useRef(readOnly)
   readOnlyRef.current = readOnly
 
@@ -181,7 +211,12 @@ export default function EntryEditor({
         // provider 就绪后编辑器会重建：经 ref 取当前实例，避免闭包拿到已销毁的旧编辑器
         onFiles: (files, at) => {
           const ed = editorRef.current
-          if (ed && !ed.isDestroyed) uploadFiles(ed, files, at, { entryId, ydoc })
+          if (!ed || ed.isDestroyed) return
+          // .md 拖入 / 粘贴：先问「插入内容」还是「作为附件」（REQ-EDITOR-022）
+          const md = files.filter((f) => /\.(md|markdown)$/i.test(f.name))
+          const rest = files.filter((f) => !md.includes(f))
+          if (rest.length) uploadFiles(ed, rest, at, { entryId, ydoc })
+          if (md.length) setMdChoice({ files: md, at })
         },
       }),
       editable: !readOnly,
@@ -255,7 +290,7 @@ export default function EntryEditor({
     if (!editor) return
     const { from, to, empty } = editor.state.selection
     if (empty) return
-    const threadId = crypto.randomUUID()
+    const threadId = newId()
     const quote = editor.state.doc.textBetween(from, to, ' ').slice(0, 200)
     editor.chain().focus().setMark('comment', { threadId }).run()
     setDraft({ threadId, quote })
@@ -286,6 +321,20 @@ export default function EntryEditor({
       ) : null}
       {editor && !readOnly ? (
         <>
+          <div className="mb-2 flex justify-end">
+            <Button
+              size="sm"
+              variant="ghost"
+              data-testid="source-open"
+              disabled={others > 0}
+              title={others > 0 ? t('editor.source.busy') : t('editor.source.title')}
+              onClick={() => setSourceOpen(true)}
+              className="text-fg-muted"
+            >
+              <FileCode className="size-4" />
+              {t('editor.source.open')}
+            </Button>
+          </div>
           <DragHandle editor={editor}>
             <span
               role="img"
@@ -308,6 +357,80 @@ export default function EntryEditor({
         </>
       ) : null}
       <EditorContent editor={editor} />
+      <Dialog open={!!mdChoice} onOpenChange={(v) => !v && setMdChoice(null)}>
+        <DialogContent className="w-[min(92vw,28rem)]" data-testid="md-file-choice">
+          <DialogTitle>{t('editor.mdFile.title')}</DialogTitle>
+          <DialogDescription className="mt-2 text-fg-muted text-sm">
+            {t('editor.mdFile.body', {
+              names: (mdChoice?.files ?? []).map((f) => f.name).join('、'),
+            })}
+          </DialogDescription>
+          <div className="mt-6 flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              data-testid="md-file-attach"
+              onClick={() => {
+                if (editor && mdChoice)
+                  uploadFiles(editor, mdChoice.files, mdChoice.at, { entryId, ydoc })
+                setMdChoice(null)
+              }}
+            >
+              {t('editor.mdFile.attach')}
+            </Button>
+            <Button
+              variant="primary"
+              data-testid="md-file-insert"
+              onClick={async () => {
+                const c = mdChoice
+                setMdChoice(null)
+                if (!editor || !c) return
+                const texts = await Promise.all(c.files.map((f) => f.text()))
+                if (editor.isDestroyed) return
+                editor
+                  .chain()
+                  .focus()
+                  .insertContentAt(
+                    Math.min(c.at, editor.state.doc.content.size),
+                    markdownToHtml(texts.join('\n\n')),
+                    {
+                      parseOptions: { preserveWhitespace: false },
+                    },
+                  )
+                  .run()
+              }}
+            >
+              {t('editor.mdFile.insert')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {editor && tplAt !== null ? (
+        <Suspense fallback={null}>
+          <TemplateInsert
+            kind={kind}
+            userName={user.name}
+            onClose={() => setTplAt(null)}
+            onInsert={(content) => {
+              if (editor.isDestroyed) return
+              editor
+                .chain()
+                .focus()
+                .insertContentAt(Math.min(tplAt, editor.state.doc.content.size), content)
+                .run()
+            }}
+          />
+        </Suspense>
+      ) : null}
+      {editor && sourceOpen ? (
+        <Suspense fallback={null}>
+          <SourceDialog
+            editor={editor}
+            entryId={entryId}
+            open={sourceOpen && others === 0}
+            onOpenChange={setSourceOpen}
+          />
+        </Suspense>
+      ) : null}
       <EntryPicker
         open={!!picker}
         onOpenChange={(v) => {

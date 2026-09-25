@@ -26,19 +26,69 @@ export function looksLikeMarkdown(text: string): boolean {
   return false
 }
 
+const STRUCTURAL_TAG =
+  /<(h[1-6]|ul|ol|li|table|tr|td|th|blockquote|pre|strong|b|em|i|a|img|code|hr)\b/i
+
+/**
+ * HTML 只是「纯文本的包装」（语雀式识别）：VS Code / Typora 源码模式 / 部分终端复制时会同时放 text/html，
+ * 但里面只有 div / span / br / p / meta 与内联样式，没有任何结构标签。此时应按 text/plain 的 Markdown 处理。
+ */
+export function htmlIsPlainWrapper(html: string): boolean {
+  if (!html.trim()) return true
+  if (/data-pm-slice/.test(html)) return false // 本编辑器复制的片段
+  if (/vscode|monaco|cm-line|CodeMirror/i.test(html)) return true
+  return !STRUCTURAL_TAG.test(html)
+}
+
+/** 粘贴文本按空行切段落（「撤销为纯文本」与超长截断共用）。 */
+export function plainParagraphs(text: string) {
+  return text.split(/\n{2,}/).map((p) => ({
+    type: 'paragraph',
+    content: p ? [{ type: 'text', text: p }] : [],
+  }))
+}
+
 let md: InstanceType<typeof MarkdownIt> | null = null
-/** Markdown → HTML（html:false 不透传原始 HTML；链接校验交给 schema 的 Link 白名单）。 */
+
+const CALLOUT_FENCE = /^:::(info|tip|warn|danger)[ \t]*\n([\s\S]*?)\n:::[ \t]*$/m
+
+/**
+ * Markdown → HTML（html:false 不透传原始 HTML；链接校验交给 schema 的 Link 白名单）。
+ * 与导出序列化（shared/editor/serializers/markdown.ts）对称：`:::kind` → callout、```mermaid → mermaid、
+ * `$$…$$` 段 → 公式块、`[标题](xz://entry/<id>)` → entryLink。
+ */
 export function markdownToHtml(text: string): string {
+  const m = CALLOUT_FENCE.exec(text)
+  if (m) {
+    const before = text.slice(0, m.index)
+    const after = text.slice(m.index + m[0].length)
+    return `${before.trim() ? markdownToHtml(before) : ''}<aside data-callout="${m[1]}">${markdownToHtml(m[2] ?? '')}</aside>${after.trim() ? markdownToHtml(after) : ''}`
+  }
   md ??= new MarkdownIt({ html: false, linkify: true, breaks: false })
-  // 任务列表：markdown-it 不内置，转成 Tiptap taskList 能解析的结构
-  return md
-    .render(text)
-    .replace(
-      /<li>\s*(?:<p>)?\[([ xX])\]\s*/g,
-      (_m: string, c: string) =>
-        `<li data-type="taskItem" data-checked="${c.trim() ? 'true' : 'false'}"><p>`,
-    )
-    .replace(/<ul>(\s*<li data-type="taskItem")/g, '<ul data-type="taskList">$1')
+  return (
+    md
+      .render(text)
+      .replace(
+        /<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/g,
+        (_m, code: string) => `<pre data-mermaid="">${code.replace(/\n$/, '')}</pre>`,
+      )
+      .replace(
+        /<p>\$\$\n?([\s\S]*?)\n?\$\$<\/p>/g,
+        (_m, latex: string) => `<div data-math="">${latex}</div>`,
+      )
+      .replace(
+        /<a href="xz:\/\/entry\/([0-9a-f-]{36})">([\s\S]*?)<\/a>/gi,
+        (_m, id: string, title: string) =>
+          `<a data-entry-link="${id}" id="${id}" title="${title.replace(/<[^>]*>/g, '')}">${title}</a>`,
+      )
+      // 任务列表：markdown-it 不内置，转成 Tiptap taskList 能解析的结构
+      .replace(
+        /<li>\s*(?:<p>)?\[([ xX])\]\s*/g,
+        (_m: string, c: string) =>
+          `<li data-type="taskItem" data-checked="${c.trim() ? 'true' : 'false'}"><p>`,
+      )
+      .replace(/<ul>(\s*<li data-type="taskItem")/g, '<ul data-type="taskList">$1')
+  )
 }
 
 /** 剥字体 / 颜色 / 字号 / style / class，丢 <font> 包裹与脚本（03 §11.3）；结构标签保留。 */

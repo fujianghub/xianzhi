@@ -40,7 +40,7 @@ export function sniffMime(b: Uint8Array, filename = ''): string | null {
   if (ascii(b, 4, 8) === 'ftyp' && /^(avif|avis)$/.test(ascii(b, 8, 12))) return 'image/avif'
   if (ascii(b, 0, 5) === '%PDF-') return 'application/pdf'
   if (startsWith(b, [0x50, 0x4b, 0x03, 0x04]) || startsWith(b, [0x50, 0x4b, 0x05, 0x06]))
-    return 'application/zip'
+    return sniffOoxml(b) ?? 'application/zip'
   if (!isText(b)) return null
   const text = new TextDecoder().decode(b.subarray(0, 4096)).replace(/^﻿/, '').trimStart()
   const lower = text.toLowerCase()
@@ -57,5 +57,27 @@ export function sniffMime(b: Uint8Array, filename = ''): string | null {
       /* 当普通文本 */
     }
   }
-  return /\.(md|markdown)$/i.test(filename) ? 'text/markdown' : 'text/plain'
+  if (/\.(md|markdown)$/i.test(filename)) return 'text/markdown'
+  if (/\.csv$/i.test(filename)) return 'text/csv'
+  // 代码 / 日志 / 配置等其余 UTF-8 文本统一 text/plain（扩展名保留在 filename，前端据此高亮预览）
+  return 'text/plain'
+}
+
+export const OOXML = {
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+} as const
+
+/**
+ * Office Open XML（REQ-ATTACH-012）：zip 容器 + `[Content_Types].xml` + 各自的主部件。
+ * 本地文件头与中央目录都带文件名明文，直接在字节里找；缺任一项按普通 zip 处理（不会因扩展名被骗成 Office）。
+ */
+function sniffOoxml(b: Uint8Array): string | null {
+  const buf = Buffer.from(b.buffer, b.byteOffset, b.byteLength)
+  if (!buf.includes('[Content_Types].xml')) return null
+  if (buf.includes('word/document.xml')) return OOXML.docx
+  if (buf.includes('xl/workbook.xml')) return OOXML.xlsx
+  if (buf.includes('ppt/presentation.xml')) return OOXML.pptx
+  return null
 }

@@ -643,6 +643,23 @@ html:active-view-transition-type(route) :is([data-shared-source], [data-shared-t
 .xz-prose pre ::selection {
   background: color-mix(in srgb, var(--xz-code-function) 30%, transparent);
 }
+/* 历史版本对比（REQ-COLLAB-008）：顶层块装饰；色取 9 色板（ADR-0010） */
+.xz-diff-add {
+  background: var(--xz-palette-green-bg);
+  color: var(--xz-palette-green-fg);
+  box-shadow: inset 3px 0 var(--xz-palette-green-solid);
+}
+.xz-diff-del {
+  background: var(--xz-palette-red-bg);
+  color: var(--xz-palette-red-fg);
+  box-shadow: inset 3px 0 var(--xz-palette-red-solid);
+  text-decoration: line-through;
+}
+.xz-prose > .xz-diff-add,
+.xz-prose > .xz-diff-del {
+  border-radius: var(--xz-radius-sm);
+  padding-inline-start: 0.75rem;
+}
 /* ADR-0005 / 06 §4 代码高亮：lowlight 输出 hljs 类，One Dark 变体（REQ-UI-026） */
 .xz-prose pre :is(.hljs-comment, .hljs-quote) {
   color: var(--xz-code-comment);

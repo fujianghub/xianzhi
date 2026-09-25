@@ -12,6 +12,7 @@ import { addMonths, type LocalDate } from '../../../shared/tz.ts'
 import { ApiError, api, unwrap } from '../../lib/api.ts'
 import type { CalendarView } from '../../lib/calendar-queries.ts'
 import { cn } from '../../lib/cn.ts'
+import { newId } from '../../lib/uuid.ts'
 import { PALETTE_DOT } from '../domain/SpaceIcon.tsx'
 import { Button } from '../ui/button.tsx'
 import { ConfirmDialog } from '../ui/confirm-dialog.tsx'
@@ -85,7 +86,7 @@ export function CalendarSidebar({
       unwrap(
         api.calendars.$post(
           { json: { name: newName.trim(), color: newColor } },
-          { headers: { 'Idempotency-Key': crypto.randomUUID() } },
+          { headers: { 'Idempotency-Key': newId() } },
         ),
       ),
     onSuccess: async () => {

@@ -136,3 +136,30 @@ test('REQ-ATTACH-008 上传中断后重试同一文件：同 sha256 幂等，无
   expect(b.status()).toBe(201)
   expect(((await b.json()) as { id: string }).id).toBe(((await a.json()) as { id: string }).id)
 })
+
+test('REQ-UI-036 非安全上下文（无 crypto.randomUUID）下新建记录与任务仍成功', async ({ page }) => {
+  // 模拟按局域网 IP 走 HTTP：浏览器不暴露 randomUUID
+  await page.addInitScript(() => {
+    Object.defineProperty(Crypto.prototype, 'randomUUID', { value: undefined, configurable: true })
+  })
+  const errors: string[] = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  await page.goto('/entries')
+  await expect(page.getByTestId('entries-page')).toBeVisible()
+  expect(await page.evaluate(() => typeof crypto.randomUUID)).toBe('undefined')
+  await page.keyboard.press('e')
+  const dlg = page.getByTestId('new-entry-dialog')
+  await expect(dlg).toBeVisible()
+  await dlg.locator('[data-kind="note"]').click()
+  await page.getByTestId('new-entry-title').fill('HTTP 局域网下创建')
+  await page.getByTestId('new-entry-submit').click()
+  await expect(page).toHaveURL(/\/entries\/[0-9a-f-]{36}$/)
+  await page.goto('/inbox')
+  await expect(page.getByTestId('inbox')).toBeVisible()
+  await page.keyboard.press('c')
+  await expect(page.getByTestId('new-task-dialog')).toBeVisible()
+  await page.getByTestId('new-task-input').fill('HTTP 局域网下的任务')
+  await page.getByTestId('new-task-input').press('Enter')
+  await expect(page.getByTestId('new-task-dialog')).toBeHidden()
+  expect(errors.filter((m) => m.includes('randomUUID'))).toEqual([])
+})

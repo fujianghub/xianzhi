@@ -44,9 +44,12 @@ export function fullPlain(doc: PmNode): string {
       case 'hardBreak':
         out.push('\n')
         break
-      case 'image':
-        out.push('[图片]')
+      case 'image': {
+        // 图注参与检索（REQ-EDITOR-021）
+        const caption = String((n.attrs as { caption?: unknown } | undefined)?.caption ?? '').trim()
+        out.push(caption ? `[图片：${caption}]` : '[图片]')
         break
+      }
       case 'mermaid':
         out.push('[图表]')
         break

@@ -85,6 +85,7 @@ pg-boss worker（xz-app 进程内）──▶ SMTP(腾讯云 SES) / WebPush 端�
 |---|---|---|---|
 | SVG 脚本注入 | 上传含 `<script>` / `onload` 的 SVG，被 `<img>` 或直接打开 | **SVG 一律经 sharp 栅格化为 PNG 存储**（原 SVG 丢弃）；若必须保留矢量（二期），则 `Content-Disposition: attachment` + 响应头 `Content-Security-Policy: sandbox` | 需新增 |
 | MIME 伪造 | `.png` 实为 HTML | 按**魔数**（`file-type` 包）判定 mime，与扩展名不符则拒 415；白名单外拒；响应 `X-Content-Type-Options: nosniff`（`secure-headers` 已含） | 需新增（魔数） |
+| Office / 预览注入（ADR-0011 §5） | 改名为 .docx 的 zip；docx 内嵌脚本 / 链接 | Office 由 zip 内 `[Content_Types].xml` + 主部件判定（否则仍是 `application/zip`）；应用内 docx / Markdown 预览经白名单净化（只留结构标签、`a[href=http(s)/mailto]`、`img[src=data:image]`），不透传 style / 事件；PDF 仅新标签页打开；音视频与外链嵌入不支持 | 已覆盖 |
 | 路径穿越 | `filename=../../.env` | `storage_key` 完全由服务端生成（01 §3.8），原始 `filename` 只存列、只用于 `Content-Disposition`（RFC 5987 编码） | 已覆盖 |
 | 解压炸弹 / 超大文件 | 100 MB PDF ×N | 按 mime 上限（02 §7）+ 每用户配额（§5）；流式写盘，超限即中断返回 413 | 已覆盖 |
 | 图片处理 DoS | 恶意像素尺寸（decompression bomb） | sharp `limitInputPixels: 50e6`，超限 422 `VALIDATION`（`errors[].path = file`）；变体与 blurhash 在上传请求内**同步**生成（响应含 `width/height/blurhash/variants`，02 §7、03 §11.4），单张处理超 10 s 视为失败 422；上传限流 30/min 与配额是并发保护，不引入异步作业 | 需新增 |

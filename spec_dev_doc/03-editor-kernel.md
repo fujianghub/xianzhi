@@ -121,7 +121,11 @@
 - 触发：每 50 次 `onStoreDocument` 或 距上次 ≥ 30 分钟 或 用户手动「标记版本」（带 label）。
 - 存储：`entry_snapshots.snapshot = Y.encodeSnapshot(Y.snapshot(doc))`，附 `ydoc_version`。
 - 保留：未标记快照保留最近 100 个 + 每天最后一个保留 90 天；标记快照永久。
-- 前端历史面板：选择两个快照 → `y-prosemirror` 的 `ySyncPluginKey` snapshot 模式渲染 diff（增删着色）；「恢复到此版本」= 在当前文档上应用反向变更（**不是**覆盖 ydoc，历史仍连续）。
+- ~~前端历史面板：选择两个快照 → `y-prosemirror` 的 `ySyncPluginKey` snapshot 模式渲染 diff（增删着色）~~；「恢复到此版本」= 在当前文档上应用反向变更（**不是**覆盖 ydoc，历史仍连续）。
+  > 注 2026-09-25（REQ-COLLAB-008 实现）：
+  > - 预览：`GET /entries/:id/snapshots/:sid/content` 服务端以已落库 ydoc（gc:false）`Y.createDocFromSnapshot` 重建快照正文；前端用只读 schemaKit 编辑器渲染（不进入在线编辑器的 snapshot 模式——schema 无 `ychange` 标记，且会中断编辑）。
+  > - 对比：「快照 ↔ 当前」顶层块 LCS（`src/shared/editor/diff.ts`），块相等 = 键排序后的 JSON 相等（pm_json 经 jsonb 键序会变，见 debug/2026-09-26-jsonb-key-order-diff）。
+  > - 恢复：`POST …/:sid/restore`（202）→ 审计 `entry.restored` → 总线 `entry.restore`（PG NOTIFY 跨进程）→ collab `openDirectConnection`：先以在线状态打「恢复前自动保存」标记快照，再用同一 LCS 删 / 插顶层块（未变块保留 CRDT 身份；插入块从快照文档 `clone()`），disconnect 立即落库并记 `entry.updated`。
 
 ---
 
@@ -140,6 +144,8 @@
 
 模板文本用 i18n key，注入时按用户 locale 取值。
 
+> 注 2026-09-25（ADR-0011 §2 · §3）：新增 kind `optimize` / `plan`，默认骨架取对应内置模板。新建记录可选模板（`POST /entries {templateId}`）：模板正文**只在创建时**写成初始 ydoc，此后 fragment 非空、不再注入本表骨架；`builtin:blank` 写一个空段落表示明确空白。内置 6 个模板在 `src/shared/editor/builtin-templates.ts`，用户模板在 `entry_templates`。斜杠 `/模板` 改为选择任意模板插入（首项「按类型默认」）。
+
 ---
 
 ## 7. liteKit（任务描述、评论）
@@ -151,6 +157,8 @@
 ---
 
 ## 8. 导入 / 导出
+
+> 注 2026-09-25（ADR-0011 §1）：**Markdown 源码对话框**（REQ-EDITOR-020）属「导入」：按块序列化 → CodeMirror 编辑 → 解析 → 与原块 LCS 合并（配上的沿用原节点）→ 一次 setContent；表达不了的块以 `⟦xz-keep:N:type⟧` 占位；保存前打「源码编辑前」快照；有协作者在线时禁用。markdown-it 管线与本节导出对称（`:::kind` / ```mermaid / `$$` / `xz://entry`）。
 
 | 方向 | 方法 | 契约 |
 |---|---|---|
@@ -236,6 +244,8 @@
 所有 inputRule 检查 `view.composing`（§12 IME 陷阱）。
 
 ### 11.3 粘贴规则
+
+> 注 2026-09-25（REQ-EDITOR-019 · 022）：HTML 只是纯文本包装（无结构标签，或 VS Code / CodeMirror 标记）时同样按 Markdown 识别；转换后 Toast「撤销为纯文本」；`Shift+Mod+V` 强制纯文本。`.md` 文件拖入 / 粘贴先问「插入内容 / 作为附件」。图片节点新增 `displayWidth`（25 / 50 / 75 / 100%）、`align`、`caption`（REQ-EDITOR-021）。
 
 | 来源（`clipboardData`） | 处理 |
 |---|---|

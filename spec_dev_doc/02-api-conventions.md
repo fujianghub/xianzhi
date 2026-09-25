@@ -253,7 +253,7 @@
 | GET | `/cycles/:id` | 详情（含任务列表与完成数） | REQ-CYCLE-006 · REQ-TASK-018 |
 | PATCH | `/cycles/:id` | `goals / status`（单向流转） | REQ-CYCLE-003 · 005 |
 | GET | `/entries` | 筛选 `spaceId kind authorId tag q pinned deleted`；sort 白名单 `updatedAt createdAt title`；不返回正文列 | REQ-ENTRY-002 |
-| POST | `/entries` | `{ kind, title, spaceId?, fields, visibility }` → `{ id }`；正文经 collab | REQ-ENTRY-001 |
+| POST | `/entries` | `{ kind, title, spaceId?, fields, visibility, templateId? }` → `{ id }`；正文经 collab；`templateId`（`builtin:<key>` / uuid / `builtin:blank`）→ 模板正文写成初始 ydoc（ADR-0011 §2） | REQ-ENTRY-001 · REQ-TPL-003 |
 | GET | `/entries/:id` | 元数据详情（无 `ydoc`；`pmJson` 仅 `?withBody=1`） | REQ-ENTRY-003 |
 | PATCH | `/entries/:id` | 标题、fields、可见性、`spaceId`（移动）、`pinned`；带 `ifUpdatedAt` | REQ-ENTRY-004 · 006 · 011 |
 | DELETE | `/entries/:id` | 软删；`?permanent=1` | REQ-ENTRY-007 |
@@ -271,6 +271,8 @@
 | GET | `/entries/:id/snapshots` | 快照列表 | REQ-COLLAB-007 |
 | POST | `/entries/:id/snapshots` | `{ label }` 手动标记版本 | REQ-COLLAB-007 |
 | GET | `/entries/:id/snapshots/:sid` | 单个快照二进制（历史面板） | REQ-COLLAB-008 |
+| GET | `/entries/:id/snapshots/:sid/content` | 快照时刻正文 `pmJson` + 当前 `currentPmJson`（服务端以 gc:false ydoc 重建；预览 / 对比） | REQ-COLLAB-008 |
+| POST | `/entries/:id/snapshots/:sid/restore` | 恢复：需 `entry.write`；审计 `entry.restored` 后经总线 `entry.restore` 请 collab 以一次修改写回在线文档；**202**（异步生效） | REQ-COLLAB-008 |
 | POST | `/entries/:id/export` | `format=md\|html` 单篇导出（同步返回文件） | REQ-EXPORT-003 · 006 |
 | GET | `/comments` | `targetType targetId`；含软删占位 | REQ-COMMENT-001 · 007 |
 | POST | `/comments` | `{ targetType, targetId, threadId?, parentId?, bodyPm }`；发 `*.commented` / `mention.created` | REQ-COMMENT-001 · 005 · 006 |
@@ -282,6 +284,11 @@
 | POST | `/tags` | `{ name, color }`；重名 409 | REQ-TAG-001 · 003 |
 | PATCH | `/tags/:id` | 改名 / 颜色 | REQ-TAG-001 |
 | DELETE | `/tags/:id` | 删除并解除关联 | REQ-TAG-001 |
+| GET | `/templates` | 内置 + 本人个人 + 工作区模板（`?kind=&spaceKind=`）；不返回正文 | REQ-TPL-001 · 004 |
+| POST | `/templates` | `{ name, scope, description?, spaceKind?, body+kind \| fromEntryId }`；workspace 范围需管理员；幂等 | REQ-TPL-004 |
+| GET | `/templates/:id` | 详情带 `body`（id 可为 `builtin:<key>`） | REQ-TPL-001 · 005 |
+| PATCH | `/templates/:id` | 改名 / 说明 / 范围 / 推荐空间类型；内置 403 | REQ-TPL-004 |
+| DELETE | `/templates/:id` | 删除；内置 403；已建记录不受影响 | REQ-TPL-004 |
 
 注（2026-09-24，T1-021 / T1-022）：
 - 标签：创建为非 guest（authz `tag.create`，供 TagPicker 输入即创建）；改名、改色、删除限 owner/admin（`tag.manage`，影响全工作区）。`GET /tags` 不分页，附 `usage { tasks, entries }` 计数。`?tag=a,b` 为逗号多值，任一命中，最多 20 个。

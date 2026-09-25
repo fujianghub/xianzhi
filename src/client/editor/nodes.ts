@@ -54,8 +54,11 @@ export const Mermaid = Node.create({
   name: 'mermaid',
   group: 'block',
   atom: true,
-  addAttributes: () => ({ code: { default: '' } }),
-  parseHTML: () => [{ tag: 'pre[data-mermaid]' }],
+  // 解析：渲染时 code 写成文本子节点，粘贴 / Markdown 导入时从 textContent 取回
+  addAttributes: () => ({
+    code: { default: '', parseHTML: (el: HTMLElement) => el.textContent ?? '' },
+  }),
+  parseHTML: () => [{ tag: 'pre[data-mermaid]', priority: 60 }], // 先于 codeBlock 的 pre 规则
   renderHTML: ({ node, HTMLAttributes }) => [
     'pre',
     mergeAttributes(HTMLAttributes, { 'data-mermaid': '', class: 'xz-atom' }),
@@ -67,7 +70,9 @@ export const MathBlock = Node.create({
   name: 'mathBlock',
   group: 'block',
   atom: true,
-  addAttributes: () => ({ latex: { default: '' } }),
+  addAttributes: () => ({
+    latex: { default: '', parseHTML: (el: HTMLElement) => el.textContent ?? '' },
+  }),
   parseHTML: () => [{ tag: 'div[data-math]' }],
   renderHTML: ({ node, HTMLAttributes }) => [
     'div',
@@ -94,6 +99,10 @@ export const AttachmentImage = Image.extend({
       width: { default: null },
       height: { default: null },
       blurhash: { default: null },
+      // 展示（REQ-EDITOR-021）：宽度百分比（null = 原始尺寸，不超过正文宽）、对齐、图注
+      displayWidth: { default: null },
+      align: { default: null },
+      caption: { default: '' },
     }
   },
   renderHTML({ HTMLAttributes }) {

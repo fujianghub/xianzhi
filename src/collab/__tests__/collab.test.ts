@@ -10,11 +10,19 @@ import * as Y from 'yjs'
 import { truncateAll } from '../../server/__tests__/db.ts'
 import { buildApp, jsonHeaders, OWNER, seedOwner, signIn } from '../../server/__tests__/helpers.ts'
 import { getDb } from '../../server/db/index.ts'
-import { entries, events, spaceMembers, spaces } from '../../server/db/schema/business.ts'
+import {
+  auditLog,
+  entries,
+  entrySnapshots,
+  events,
+  spaceMembers,
+  spaces,
+} from '../../server/db/schema/business.ts'
 import { signCollabToken } from '../../server/lib/collab-token.ts'
 import { getEventBus } from '../../server/lib/event-bus.ts'
 import { deriveFromYdoc, YDOC_FRAGMENT } from '../derive.ts'
 import { createCollabServer, docNameOf, LIMITS } from '../server.ts'
+import { RESTORE_BEFORE_LABEL } from '../snapshots.ts'
 
 const SECRET = process.env.COLLAB_TOKEN_SECRET as string
 const ORIGIN = 'http://localhost:3010'
@@ -590,6 +598,79 @@ describe('collab', () => {
       .from(entries)
       .where(eq(entries.id, id))
     expect(row?.v).toBe(EDITOR_SCHEMA_VERSION)
+  })
+
+  it('REQ-COLLAB-008 恢复历史版本：202 → 在线端实时回到快照内容；ydoc_version 前进、多一条「恢复前」快照、审计 entry.restored；viewer 403', async () => {
+    const created = await app.request('/api/v1/entries', {
+      method: 'POST',
+      headers: jsonHeaders({ cookie: ownerCookie }),
+      body: JSON.stringify({ kind: 'note', title: '历史恢复', spaceId, visibility: 'workspace' }),
+    })
+    const id = ((await created.json()) as { id: string }).id
+    const plainOf = async () =>
+      (await db().select({ p: entries.plain }).from(entries).where(eq(entries.id, id)))[0]?.p ?? ''
+    const c = open(id, signCollabToken(SECRET, ownerId, id).token)
+    await until(() => c.state.synced)
+    typeText(c.doc, '版本一 甲')
+    typeText(c.doc, '版本一 乙')
+    await until(async () => (await plainOf()).includes('乙'), 3000, 'v1 stored')
+    const marked = await app.request(`/api/v1/entries/${id}/snapshots`, {
+      method: 'POST',
+      headers: jsonHeaders({ cookie: ownerCookie }),
+      body: JSON.stringify({ label: 'v1' }),
+    })
+    const sid = ((await marked.json()) as { id: string }).id
+    const frag = c.doc.getXmlFragment(YDOC_FRAGMENT)
+    frag.delete(0, 1)
+    typeText(c.doc, '版本二 丙')
+    await until(async () => (await plainOf()).includes('丙'), 3000, 'v2 stored')
+
+    const content = await app.request(`/api/v1/entries/${id}/snapshots/${sid}/content`, {
+      headers: { cookie: ownerCookie },
+    })
+    expect(content.status).toBe(200)
+    const body = (await content.json()) as {
+      pmJson: { content: { content?: { text: string }[] }[] }
+      currentPmJson: { content: unknown[] }
+    }
+    expect(body.pmJson.content.map((n) => n.content?.[0]?.text)).toEqual(['版本一 甲', '版本一 乙'])
+    expect(body.currentPmJson.content).toHaveLength(2)
+
+    const [before] = await db()
+      .select({ v: entries.ydocVersion })
+      .from(entries)
+      .where(eq(entries.id, id))
+    const guestCookie = (await signIn(app, 'viewer@xz.local', 'viewer-password-1')).cookie
+    const denied = await app.request(`/api/v1/entries/${id}/snapshots/${sid}/restore`, {
+      method: 'POST',
+      headers: jsonHeaders({ cookie: guestCookie }),
+    })
+    expect(denied.status).toBe(403)
+    const res = await app.request(`/api/v1/entries/${id}/snapshots/${sid}/restore`, {
+      method: 'POST',
+      headers: jsonHeaders({ cookie: ownerCookie }),
+    })
+    expect(res.status).toBe(202)
+    // 在线端实时收到
+    const liveTexts = () =>
+      frag.toArray().map((n) => (n as Y.XmlElement).toArray().map(String).join(''))
+    await until(() => liveTexts().join('|') === '版本一 甲|版本一 乙', 3000, 'live restored')
+    await until(async () => !(await plainOf()).includes('丙'), 3000, 'restored stored')
+    const [after] = await db()
+      .select({ v: entries.ydocVersion })
+      .from(entries)
+      .where(eq(entries.id, id))
+    expect(after?.v).toBeGreaterThan(before?.v ?? 0)
+    const snaps = await db().select().from(entrySnapshots).where(eq(entrySnapshots.entryId, id))
+    expect(snaps.map((s) => s.label).sort()).toEqual(['v1', RESTORE_BEFORE_LABEL].sort())
+    const logs = await db()
+      .select()
+      .from(auditLog)
+      .where(and(eq(auditLog.action, 'entry.restored'), eq(auditLog.targetId, id)))
+    expect(logs).toHaveLength(1)
+    // 「恢复前」快照记下了恢复前的在线状态，可再恢复回去
+    const before2 = snaps.find((s) => s.label === RESTORE_BEFORE_LABEL)
+    expect(before2).toBeDefined()
   })
 
   it('/collab/health 公开只回 ok', async () => {

@@ -46,6 +46,9 @@ export default defineConfig({
       '@tiptap/pm',
       'react',
       'react-dom',
+      // CodeMirror：lang-* 懒加载时 dev 预构建可能各带一份 state/view（简斋「Unrecognized extension value」）
+      '@codemirror/state',
+      '@codemirror/view',
     ],
   },
   server: {

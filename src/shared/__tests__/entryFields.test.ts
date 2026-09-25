@@ -70,6 +70,25 @@ const cases: Record<
     ok: [{}],
     bad: [{ v: { anything: true }, path: 'anything' }],
   },
+  optimize: {
+    ok: [{ status: 'proposed' }, { status: 'doing', metric: '首屏 LCP', target: '≤ 1.5s' }],
+    bad: [
+      { v: {}, path: 'status' },
+      { v: { status: 'maybe' }, path: 'status' },
+      { v: { status: 'doing', metric: '' }, path: 'metric' },
+    ],
+  },
+  plan: {
+    ok: [
+      { status: 'active' },
+      { status: 'planning', startDate: '2026-10-01', endDate: '2026-12-31', progress: 40 },
+    ],
+    bad: [
+      { v: { status: 'active', progress: 120 }, path: 'progress' },
+      { v: { status: 'active', startDate: '2026-12-01', endDate: '2026-10-01' }, path: 'endDate' },
+      { v: { status: 'active', extra: 1 }, path: 'extra' },
+    ],
+  },
 }
 
 describe('entry fields by kind', () => {

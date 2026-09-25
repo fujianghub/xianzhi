@@ -57,6 +57,20 @@
       "when": 1790337926546,
       "tag": "0007_palette_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790351549211,
+      "tag": "0008_entry_restore",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790355079770,
+      "tag": "0009_entry_templates",
+      "breakpoints": true
     }
   ]
 }

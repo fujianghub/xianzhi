@@ -136,7 +136,7 @@
 | id | uuid | PK |
 | workspace_id | text | FK organization |
 | space_id | uuid | FK spaces，NOT NULL（个人记录落个人空间） |
-| kind | text | `decision` \| `iteration` \| `bug` \| `changelog` \| `journal` \| `note` \| `review` |
+| kind | text | `decision` \| `iteration` \| `bug` \| `changelog` \| `journal` \| `note` \| `review` \| `optimize` \| `plan`（后两者 ADR-0011 §3，2026-09-25） |
 | title | text | |
 | fields | jsonb | 按 kind 的**元数据**（见 §3.5）；叙述性内容在正文，不在此重复 |
 | visibility | text | `private`（仅作者）\| `space` \| `workspace` |
@@ -173,6 +173,28 @@
 | created_at | timestamptz | |
 
 - 索引：`(entry_id, created_at desc)`。保留策略见 03 §5。
+- 注 2026-09-25（REQ-COLLAB-008）：恢复前自动打的快照 `label = '恢复前自动保存'`，源码编辑前 `label = '源码编辑前'`（均永久保留）。
+
+**entry_templates**
+
+记录模板（ADR-0011 §2，2026-09-25）。
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| id | uuid | PK |
+| workspace_id | text | FK organization |
+| owner_id | text | FK user；创建者（删号时其 personal 模板随之删除） |
+| scope | text | `personal`（仅本人）\| `workspace`（全员可用，管理员创建） |
+| name | text | ≤ 60 |
+| description | text | ≤ 200，默认 '' |
+| kind | text | 同 entries.kind |
+| space_kind | text? | 推荐的空间类型 `project` \| `learning` \| `work` |
+| body | jsonb | PM JSON 正文种子（≤ 100KB）；只在新建记录时写成初始 ydoc，不是正文真源 |
+| fields | jsonb | 该 kind 的默认 fields |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
+
+- 索引：`(workspace_id, scope)`、`(owner_id)`。内置模板（`builtin:<key>`）是代码常量（`src/shared/editor/builtin-templates.ts`），不入表。
 
 ### 3.5 `fields` 按 kind 的 Zod schema（`src/shared/entryFields.ts`）
 
@@ -184,6 +206,8 @@ changelog: { version: string, releasedAt: date }
 review   : { cycleId: uuid }
 journal  : { mood?: 1|2|3|4|5 }
 note     : {}
+optimize : { status: 'proposed'|'planned'|'doing'|'shipped'|'dropped', metric?: string, target?: string }   // ADR-0011 §3
+plan     : { status: 'planning'|'active'|'paused'|'done', startDate?: date, endDate?: date, progress?: 0..100 }  // ADR-0011 §3
 ```
 叙述结构（背景/选项/决定/后果 等）由**正文模板**承载（03 §6），不进 `fields`。
 
@@ -392,7 +416,7 @@ note     : {}
 - `action` 枚举（Zod `AuditAction`，新增值先改本表）：
   注（2026-09-25，ADR-0008）：+ `member.registered`（自助注册，actor 为空）· `member.approved` · `member.rejected`（驳回即删号，`meta` 留邮箱 / 用户名）。
   注（2026-09-25，ADR-0010）：+ `auth.password_changed`（本人改密，`meta.otherSessionsRevoked`）· `user.created`（owner 直建）· `user.updated`（改显示名 / 用户名 / 邮箱，`meta.byAdmin` 区分本人与 owner，含新旧值）；owner 重置他人密码记 `auth.password_reset`（`meta.byAdmin`），删号记 `user.deleted`（`meta.byAdmin`）。迁移 0007 同步 `audit_log_action_ck`。
-  `auth.login` · `auth.logout` · `auth.login_failed` · `auth.locked` · `auth.password_reset` · `auth.2fa_enabled` · `auth.2fa_disabled` · `auth.2fa_reset_by_admin` · `member.invited` · `member.joined` · `member.registered` · `member.approved` · `member.rejected` · `member.role_changed` · `member.suspended` · `member.unsuspended` · `member.removed` · `member.content_transferred` · `user.deleted` · `workspace.owner_transferred` · `workspace.settings_changed` · `space.deleted` · `space.permanently_deleted` · `task.permanently_deleted` · `entry.permanently_deleted` · `export.requested` · `export.done` · `export.failed` · `api_key.created` · `api_key.revoked` · `gc.failed` · `backup.failed`
+  `auth.login` · `auth.logout` · `auth.login_failed` · `auth.locked` · `auth.password_reset` · `auth.2fa_enabled` · `auth.2fa_disabled` · `auth.2fa_reset_by_admin` · `member.invited` · `member.joined` · `member.registered` · `member.approved` · `member.rejected` · `member.role_changed` · `member.suspended` · `member.unsuspended` · `member.removed` · `member.content_transferred` · `user.deleted` · `workspace.owner_transferred` · `workspace.settings_changed` · `space.deleted` · `space.permanently_deleted` · `task.permanently_deleted` · `entry.permanently_deleted` · `entry.restored`（ADR-0011）· `export.requested` · `export.done` · `export.failed` · `api_key.created` · `api_key.revoked` · `gc.failed` · `backup.failed`
 
 ### 3.13 idempotency_keys
 
@@ -566,6 +590,9 @@ Workspace 角色 × Space 角色 → 有效角色取**较高者**，`guest` 只�
 | cycle.* | 仅 owner_id 本人（admin 可 read） | | |
 | calendar.read / calendar.write（日历与日程，ADR-0009） | 仅 owner_id 本人（admin 也不可见） | 仅本人 | 仅本人 |
 | member.approve（审批注册申请，ADR-0008） | ✓ | ✗ | ✗ |
+| template.read（记录模板，ADR-0011） | personal 仅本人；workspace 全员 | 同左 | 同左 |
+| template.create | personal：非 guest；workspace：仅 owner / admin | personal ✓ | ✗ |
+| template.manage（改名 / 范围 / 删除） | 本人的（非 guest）；workspace 模板管理员可管 | 本人的 | ✗ |
 | notification.* | 仅本人 | | |
 
 `entry.read`：`private` 仅作者；`space` 需 space.read；`workspace` 需 workspace 成员。**软删对象对所有人不可读**（作者可在回收站看到）。最后一名 owner 不可降级、移除、注销（409 `CONFLICT_LAST_OWNER`）；成员生命周期各转换的影响见 07 §4。

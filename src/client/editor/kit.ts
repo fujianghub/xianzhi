@@ -21,7 +21,7 @@ import { ReactNodeViewRenderer } from '@tiptap/react'
 import { StarterKit } from '@tiptap/starter-kit'
 import type * as Y from 'yjs'
 import { isAllowedLink } from '../../shared/editor/links.ts'
-import { createPastePlugin, GiKeymap, UnknownGuard } from './extensions.ts'
+import { createEntryLinkTrigger, createPastePlugin, GiKeymap, UnknownGuard } from './extensions.ts'
 import { lowlight } from './lowlight.ts'
 import {
   AttachmentImage,
@@ -113,6 +113,7 @@ export function fullKit(opts: {
     UploadPlaceholder,
     createPastePlugin({ onFiles: opts.onFiles }),
     createSlash(opts.slash),
+    createEntryLinkTrigger((at) => opts.slash().pickEntry('link', at)),
   ]
   if (opts.provider)
     exts.push(CollaborationCaret.configure({ provider: opts.provider, user: opts.user }))

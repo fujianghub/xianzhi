@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, api, unwrap } from '../../lib/api.ts'
 import { cn } from '../../lib/cn.ts'
+import { newId } from '../../lib/uuid.ts'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.tsx'
 import { PALETTE, PALETTE_CLASS, type PaletteName } from './SpaceIcon.tsx'
 
@@ -46,7 +47,7 @@ export function TagPicker({
       unwrap<Tag>(
         api.tags.$post(
           { json: { name, color: colorFor(name) } },
-          { headers: { 'idempotency-key': crypto.randomUUID() } },
+          { headers: { 'idempotency-key': newId() } },
         ),
       ),
     onSuccess: (tag) => {

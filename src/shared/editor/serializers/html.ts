@@ -82,7 +82,20 @@ function node(n: PmNode, o: HtmlOptions): string {
       const url = m
         ? (o.resolveImage?.(m[1] as string) ?? `/api/v1/attachments/${m[1]}/md`)
         : safeHref(src)
-      return `<img src="${esc(url)}" alt="${esc(String(n.attrs?.alt ?? ''))}">`
+      const img = `<img src="${esc(url)}" alt="${esc(String(n.attrs?.alt ?? ''))}">`
+      const caption = String(n.attrs?.caption ?? '')
+      // 图注 / 宽度 / 对齐（REQ-EDITOR-021）：有任一项才包 figure
+      if (!caption && !n.attrs?.displayWidth && !n.attrs?.align) return img
+      const pct = Number(n.attrs?.displayWidth) || 0
+      const style = [
+        pct ? `width:${Math.min(100, Math.max(10, pct))}%` : '',
+        n.attrs?.align === 'left' ? 'margin-right:auto' : '',
+        n.attrs?.align === 'right' ? 'margin-left:auto' : '',
+        n.attrs?.align === 'center' ? 'margin-inline:auto' : '',
+      ]
+        .filter(Boolean)
+        .join(';')
+      return `<figure${style ? ` style="${style}"` : ''}>${img}${caption ? `<figcaption>${esc(caption)}</figcaption>` : ''}</figure>`
     }
     case 'table':
       return `<table>${inner()}</table>`

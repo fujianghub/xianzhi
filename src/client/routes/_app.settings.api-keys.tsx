@@ -18,6 +18,7 @@ import { RelativeTime } from '../components/ui/relative-time.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
 import { isAdmin, type Me } from '../hooks/useMe.ts'
 import { api, unwrap } from '../lib/api.ts'
+import { copyText } from '../lib/clipboard.ts'
 
 export const Route = createFileRoute('/_app/settings/api-keys')({ component: ApiKeys })
 
@@ -165,9 +166,9 @@ function ApiKeys() {
               aria-label={t('ui.action.copy')}
               onClick={() => {
                 if (plain)
-                  void navigator.clipboard
-                    ?.writeText(plain)
-                    .then(() => toast.success(t('ui.action.copied')))
+                  void copyText(plain).then((ok) => {
+                    if (ok) toast.success(t('ui.action.copied'))
+                  })
               }}
             >
               <Copy className="size-4" />

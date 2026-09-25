@@ -17,6 +17,9 @@ export const SNAPSHOT_POLICY = {
   gcBatch: 1000,
 }
 
+/** 恢复历史版本前自动打的快照 label（带 label = 永久保留，可再恢复回去；REQ-COLLAB-008）。 */
+export const RESTORE_BEFORE_LABEL = '恢复前自动保存'
+
 export function encodeSnapshotOf(ydoc: Uint8Array): Buffer {
   const doc = loadYdoc(ydoc)
   try {

@@ -38,6 +38,7 @@ import { spaceRoutes } from './routes/spaces.ts'
 import { streamRoutes } from './routes/stream.ts'
 import { tagRoutes } from './routes/tags.ts'
 import { taskRoutes } from './routes/tasks.ts'
+import { templateRoutes } from './routes/templates.ts'
 import { workspaceRoutes } from './routes/workspace.ts'
 import { type CaptchaOptions, createCaptcha } from './services/captcha.ts'
 import { spaceReaders } from './services/realtime.ts'
@@ -206,6 +207,7 @@ export function createApp(deps: AppDeps) {
     .route('/api/v1/spaces', spaceRoutes({ db: deps.db, dataDir: deps.dataDir }))
     .route('/api/v1/tasks', taskRoutes({ db: deps.db, dataDir: deps.dataDir }))
     .route('/api/v1/tags', tagRoutes({ db: deps.db }))
+    .route('/api/v1/templates', templateRoutes({ db: deps.db }))
     .route('/api/v1/calendars', calendarRoutes({ db: deps.db }))
     .route('/api/v1/calendar-events', calendarEventRoutes({ db: deps.db }))
     .route('/api/v1/comments', commentRoutes({ db: deps.db }))

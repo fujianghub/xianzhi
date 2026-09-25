@@ -1,5 +1,5 @@
 /**
- * EventBus 跨进程桥（xz-app → xz-collab）：`user.revoked` / `entry.access_changed` 经 PG NOTIFY 频道 `xz_bus`。
+ * EventBus 跨进程桥（xz-app → xz-collab）：`user.revoked` / `entry.access_changed` / `entry.restore` 经 PG NOTIFY 频道 `xz_bus`。
  * 02 §6 / 07 §4 写「进程内 EventBus」，但生产 app 与 collab 是两个容器（05 §7），必须跨进程；单机 PG 即可，不引 Redis。
  * app：relayToPg(bus, pool)；collab：listenPg(bus, url)。只单向转发，不会回环。
  */
@@ -7,7 +7,7 @@ import pg from 'pg'
 import type { BusEvents, EventBus } from './event-bus.ts'
 
 export const BUS_CHANNEL = 'xz_bus'
-const RELAYED = ['user.revoked', 'entry.access_changed'] as const
+const RELAYED = ['user.revoked', 'entry.access_changed', 'entry.restore'] as const
 type Relayed = (typeof RELAYED)[number]
 
 export function relayToPg(

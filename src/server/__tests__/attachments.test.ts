@@ -131,6 +131,27 @@ describe('T1-020 attachments', () => {
     expect(sniffMime(b('{"a":1}'))).toBe('application/json')
   })
 
+  it('REQ-ATTACH-012 Office 按 zip 内部件识别（不信扩展名）；csv 按扩展名细分文本；代码文件为 text/plain', () => {
+    const zip = (...names: string[]) =>
+      new Uint8Array(
+        Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from(names.join('\0'))]),
+      )
+    expect(sniffMime(zip('[Content_Types].xml', 'word/document.xml'), 'a.zip')).toBe(
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    )
+    expect(sniffMime(zip('[Content_Types].xml', 'xl/workbook.xml'))).toBe(
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    expect(sniffMime(zip('[Content_Types].xml', 'ppt/presentation.xml'))).toBe(
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    )
+    // 改名成 .docx 的普通 zip 仍是 zip
+    expect(sniffMime(zip('a.txt'), 'fake.docx')).toBe('application/zip')
+    const b = (s: string) => new TextEncoder().encode(s)
+    expect(sniffMime(b('a,b\n1,2\n'), 'data.csv')).toBe('text/csv')
+    expect(sniffMime(b('fn main() {}\n'), 'main.rs')).toBe('text/plain')
+  })
+
   it('REQ-ATTACH-001 21MB PNG → 413；.exe 或伪装成 .png 的 HTML → 415 且磁盘无残留', async () => {
     const head = await png(4, 4)
     const big = Buffer.concat([head, Buffer.alloc(21 * 1024 * 1024)])

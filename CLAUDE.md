@@ -31,11 +31,12 @@ pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore 
 - 视觉基线：确认新视觉后 `pnpm exec playwright test e2e/design.spec.ts e2e/feedback.spec.ts --project=setup --project=desktop --update-snapshots`
 - **主 dev server 运行时勿在同目录再起共享 `.vite` 缓存的实例**（简斋教训：prosemirror/codemirror 多实例崩溃）；worktree 有自己的 `node_modules`，可在另一端口起预览
 - 改被 `inList()` 引用的枚举（`AUDIT_ACTIONS`、`PALETTE_COLORS` 等）必须 `pnpm db:generate` 重建 check 约束，否则插库 500（见 `debug/2026-09-25-audit-action-check-constraint`）
+- 客户端生成 id / `Idempotency-Key` 只用 `lib/uuid.ts` 的 `newId()`：按局域网 IP 走 HTTP 时没有 `crypto.randomUUID`（check-css 拦截；见 `debug/2026-09-25-randomuuid-insecure-context`）
 - 原生依赖只允许 npm 平台包分发（`@node-rs/*`、`sharp`）；禁止依赖 GitHub prebuild 的包；> 10 MB 的包先测镜像速度（npmmirror 大 tarball 会挂死，见 05 §2）
 
 ## 不可违背的不变量
 
-1. **`entries.ydoc` 是正文唯一可写真源**；entries 的 `pm_json/plain/tsv` 只由 collab `onStoreDocument` 派生，tasks / comments 的 `*_plain/tsv` 只由 service 同事务写入；都可 `xz rebuild-derived` 重建。正文永不经 Markdown 往返。
+1. **`entries.ydoc` 是正文唯一可写真源**；entries 的 `pm_json/plain/tsv` 只由 collab `onStoreDocument` 派生，tasks / comments 的 `*_plain/tsv` 只由 service 同事务写入；都可 `xz rebuild-derived` 重建。正文永不经 Markdown 往返（源码对话框 / 粘贴 / 模板正文都是一次性导入，ADR-0011）。
 2. **`src/server/authz.ts` 的 `can()` 是唯一授权入口**；API、Hocuspocus 钩子、SSE、附件、MCP、jobs 全走它；列表用 `visible*Where()`；业务代码禁止直接比较角色。
 3. **通知只来自 `events` 出箱**：service 内同事务 `emit()`，pg-boss 扇出到 in_app/SSE/WebPush/邮件；路由层与前端不直接发通知。
 4. **路由不含业务**：routes 只做校验 → service → 序列化；service 被 jobs/MCP/CLI 复用。
@@ -53,6 +54,7 @@ pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore 
 | `spec_dev_doc/adr/0002 · 0003 · 0004` | 视觉改 Apple 玻璃 · 工期基线 = 任务级估时 · 更名衔枝（gi → xz） |
 | `spec_dev_doc/adr/0005 · 0006 · 0007` | 翡翠主色 / 燕印 / 动效档位 · 登录拼图滑块 · 晨光白燕燕印 |
 | `spec_dev_doc/adr/0008 · 0009 · 0010` | 开放注册 + 审批 / 用户名 / 密码 8 位 · 日历日程（重复、提醒、节假日） · 鲜艳 9 色板 / 日历拖选 / owner 用户管理 / 个人资料 |
+| `spec_dev_doc/adr/0011` | 历史版本恢复 · Markdown 源码对话框 / 语雀式识别 · 附件类型（Office / csv）· 记录模板（`entry_templates`、kind `optimize` `plan`） |
 | `spec_dev_doc/01-domain-model.md` | 表结构、`fields` schema、事件种类、权限矩阵 |
 | `spec_dev_doc/02-api-conventions.md` | 路由/错误/分页/SSE/文件/MCP 约定、路由清单 |
 | `spec_dev_doc/03-editor-kernel.md` | Tiptap schema、Hocuspocus 钩子、快照、模板、交互规格、简斋陷阱 |

@@ -7,10 +7,11 @@ import * as Y from 'yjs'
 import { pmToHtmlDocument } from '../../shared/editor/serializers/html.ts'
 import { pmToMarkdown } from '../../shared/editor/serializers/markdown.ts'
 import { FULL_MARKS, FULL_NODES, type PmNode } from '../../shared/schemas/pm.ts'
-import { guardUnknownNodes } from '../editor/extensions.ts'
+import { guardUnknownNodes, MATH_INLINE_RULE } from '../editor/extensions.ts'
 import { schemaKit } from '../editor/kit.ts'
 import {
   externalImages,
+  htmlIsPlainWrapper,
   looksLikeMarkdown,
   markdownToHtml,
   sanitizePastedHtml,
@@ -205,5 +206,24 @@ describe('editor fullKit', () => {
     expect(filterSlash('table', label, () => [])[0]?.id).toBe('table')
     expect(filterSlash('', label).length).toBeLessThanOrEqual(8)
     expect(filterSlash('h', label).length).toBeLessThanOrEqual(8)
+  })
+
+  it('REQ-EDITOR-019 语雀式识别：VS Code / 纯包装 HTML 视为纯文本；带结构标签或本编辑器片段不是', () => {
+    const vscode =
+      '<meta charset="utf-8"><div style="font-family: Consolas"><div><span class="mtk1"># 标题</span></div><div><span>- 甲</span></div></div>'
+    expect(htmlIsPlainWrapper(vscode)).toBe(true)
+    expect(htmlIsPlainWrapper('<div>## a</div><div>- b</div><br>')).toBe(true)
+    expect(htmlIsPlainWrapper('<h2>a</h2><ul><li>b</li></ul>')).toBe(false)
+    expect(htmlIsPlainWrapper('<p data-pm-slice="1 1 []">x</p>')).toBe(false)
+    expect(htmlIsPlainWrapper('<p>see <a href="https://x.y">x</a></p>')).toBe(false)
+  })
+
+  it('REQ-EDITOR-008 行内公式输入规则：$x^2$ 命中；金额「$5 和 $10」与 $$ 不命中', () => {
+    const m = MATH_INLINE_RULE.exec('面积 $x^2$')
+    expect(m?.[2]).toBe('x^2')
+    expect(MATH_INLINE_RULE.exec('花了 $5 和 $')).toBeNull()
+    expect(MATH_INLINE_RULE.exec('$$')).toBeNull()
+    expect(MATH_INLINE_RULE.exec('$ a $')).toBeNull()
+    expect(MATH_INLINE_RULE.exec('$a$')?.[2]).toBe('a')
   })
 })

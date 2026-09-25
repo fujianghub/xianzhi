@@ -22,6 +22,7 @@ import { Skeleton } from '../components/ui/skeleton.tsx'
 import { Tooltip } from '../components/ui/tooltip.tsx'
 import { isOwner, type Me } from '../hooks/useMe.ts'
 import { ApiError, api, unwrap } from '../lib/api.ts'
+import { newId } from '../lib/uuid.ts'
 
 export const Route = createFileRoute('/_app/settings/workspace/users')({
   beforeLoad: ({ context }) => {
@@ -278,7 +279,7 @@ function CreateUserDialog({
           {
             json: { ...f, email: f.email.trim(), username: f.username.trim(), name: f.name.trim() },
           },
-          { headers: { 'idempotency-key': crypto.randomUUID() } },
+          { headers: { 'idempotency-key': newId() } },
         ),
       )
       toast.success(t('settings.users.created', { name: f.name.trim() }))

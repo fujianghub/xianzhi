@@ -15,6 +15,8 @@ export const ENTRY_KINDS = [
   'journal',
   'note',
   'review',
+  'optimize',
+  'plan',
 ] as const satisfies readonly EntryKind[]
 export const ENTRY_SORTS = ['-updatedAt', '-createdAt', 'title'] as const
 

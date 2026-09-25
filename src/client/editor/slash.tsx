@@ -10,9 +10,9 @@ import Suggestion, { type SuggestionProps } from '@tiptap/suggestion'
 import i18n from 'i18next'
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { entryTemplate } from '../../shared/editor/templates.ts'
 import type { EntryKind } from '../../shared/schemas/enums.ts'
 import { cn } from '../lib/cn.ts'
+import { SOURCE_EVENT, TEMPLATE_EVENT } from './extensions.ts'
 import { pickFiles, uploadFiles } from './upload.ts'
 
 export interface SlashCtx {
@@ -176,14 +176,23 @@ export const SLASH_ITEMS: SlashItem[] = [
     },
   },
   {
+    id: 'source',
+    group: 'code',
+    terms: ['markdown', 'md', 'source', 'yuanma'],
+    run: (e, r) => {
+      chainAt(e, r).run()
+      window.dispatchEvent(new CustomEvent(SOURCE_EVENT))
+    },
+  },
+  {
     id: 'template',
     group: 'template',
     terms: ['template', 'muban'],
-    // 插入本类型骨架，不替换已有内容（03 §11.1）
-    run: (e, r, ctx) =>
-      chainAt(e, r)
-        .insertContent(entryTemplate(ctx.kind).content ?? [])
-        .run(),
+    // 选模板后在此处插入正文，不替换已有内容（03 §11.1、REQ-TPL-005）
+    run: (e, r) => {
+      chainAt(e, r).run()
+      window.dispatchEvent(new CustomEvent(TEMPLATE_EVENT, { detail: { at: r.from } }))
+    },
   },
 ]
 

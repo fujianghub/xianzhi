@@ -5,7 +5,12 @@
  * 业务代码禁止直接比较角色；REQ-WS-007 矩阵测试覆盖全部 动作 × 角色 组合。
  */
 import { and, eq, exists, isNull, or, type SQL, sql } from 'drizzle-orm'
-import type { EntryVisibility, SpaceRole, WorkspaceRole } from '../shared/schemas/enums.ts'
+import type {
+  EntryVisibility,
+  SpaceRole,
+  TemplateScope,
+  WorkspaceRole,
+} from '../shared/schemas/enums.ts'
 import {
   calendarEvents,
   calendars,
@@ -87,6 +92,13 @@ export interface UserRef {
   id: string
 }
 
+/** 记录模板（ADR-0011 §2）：personal 仅 owner；workspace 全员可读，创建者或管理员可管理。 */
+export interface TemplateRef {
+  id: string
+  ownerId: string
+  scope: TemplateScope
+}
+
 /** 动作 → 资源类型（01 §5 矩阵）。 */
 export interface ActionMap {
   'workspace.manage': null
@@ -121,6 +133,10 @@ export interface ActionMap {
   'member.approve': null
   'notification.read': UserRef
   'notification.write': UserRef
+  'template.read': TemplateRef
+  /** 资源为待建模板（id 为空，ownerId = 本人） */
+  'template.create': TemplateRef
+  'template.manage': TemplateRef
 }
 export type Action = keyof ActionMap
 export const ACTIONS = [
@@ -155,6 +171,9 @@ export const ACTIONS = [
   'member.approve',
   'notification.read',
   'notification.write',
+  'template.read',
+  'template.create',
+  'template.manage',
 ] as const satisfies readonly Action[]
 
 // ---------- 规则 ----------
@@ -340,6 +359,19 @@ export function can<A extends Action>(
     case 'calendar.read':
     case 'calendar.write':
       return (resource as CalendarRef).ownerId === actor.id
+    case 'template.read': {
+      const t = resource as TemplateRef
+      return t.scope === 'workspace' || t.ownerId === actor.id
+    }
+    case 'template.create': {
+      const t = resource as TemplateRef
+      return t.scope === 'workspace' ? admin : actor.workspaceRole !== 'guest'
+    }
+    case 'template.manage': {
+      const t = resource as TemplateRef
+      if (t.scope === 'workspace' && admin) return true
+      return t.ownerId === actor.id && actor.workspaceRole !== 'guest'
+    }
   }
   return false
 }

@@ -131,6 +131,8 @@ function pmSchema(nodes: readonly string[], marks: readonly string[]) {
 }
 
 export const liteDocSchema = pmSchema(LITE_NODES, LITE_MARKS)
+/** 全量正文（模板正文等，ADR-0011 §2；≤ 100KB） */
+export const fullDocSchema = pmSchema(FULL_NODES, FULL_MARKS)
 export const commentDocSchema = pmSchema(COMMENT_NODES, LITE_MARKS)
 export type LiteDoc = z.infer<typeof liteDocSchema>
 

@@ -26,5 +26,10 @@ export const ALLOWED_MIME = [
   'text/markdown',
   'application/zip',
   'application/json',
+  // REQ-ATTACH-012（2026-09-25）：Office 文档与 csv；代码文件按 text/plain 存
+  'text/csv',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 ] as const
 export const attachmentVariantQuery = z.object({ download: z.enum(['0', '1']).optional() })
