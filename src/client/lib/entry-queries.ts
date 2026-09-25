@@ -24,6 +24,8 @@ export const ENTRY_SORTS = ['-updatedAt', '-createdAt', 'title'] as const
 export interface EntryListParams {
   spaceId?: string
   kind?: string
+  /** `status=open|fixed,severity=high`（ADR-0012） */
+  fields?: string
   authorId?: string
   tag?: string
   q?: string

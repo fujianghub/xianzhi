@@ -201,7 +201,8 @@
 | GET | `/workspace/audit-log` | 游标；`action / actorId / from / to / jobId` 筛选（admin） | REQ-WS-005 |
 | GET | `/spaces` | 筛选 `archived=1`、`deleted=1`；sort 白名单 `sortKey name createdAt` | REQ-SPACE-001 · 004 |
 | POST | `/spaces` | 创建，创建者为 space admin | REQ-SPACE-001 |
-| GET | `/spaces/:id` | 详情（不可见 → 404） | REQ-SPACE-002 |
+| GET | `/spaces/:id` | 详情（不可见 → 404）；含 `groupId` | REQ-SPACE-002 |
+| GET | `/spaces/:id/tree` | 目录树：目录内全部可见记录的 `{ id, title, kind, parentId, treeOrder }`（扁平，前端组树；读不到的父页连同子树不出现） | REQ-KB-005 |
 | PATCH | `/spaces/:id` | 改名、可见性、颜色、图标（space admin+） | REQ-SPACE-003 |
 | DELETE | `/spaces/:id` | 软删；`?permanent=1` 永久；仅工作区 owner/admin | REQ-SPACE-003 · 007 |
 | POST | `/spaces/:id/archive` | 归档（只读） | REQ-SPACE-004 |
@@ -211,7 +212,12 @@
 | POST | `/spaces/:id/members` | `{ userId, role }`；发 `space.invited`；个人空间 403 | REQ-SPACE-006 · 009 |
 | PATCH | `/spaces/:id/members/:userId` | 改空间角色 | REQ-SPACE-003 |
 | DELETE | `/spaces/:id/members/:userId` | 移出空间；广播 `entry.access_changed` | REQ-SPACE-003 |
-| PATCH | `/spaces/reorder` | `{ id, after }` 只改一行 `sortKey` | REQ-SPACE-005 |
+| PATCH | `/spaces/reorder` | `{ id, after, groupId? }` 只改一行 `sortKey`；带 `groupId` 同时移入该大类（ADR-0012） | REQ-SPACE-005 · REQ-KB-002 |
+| GET | `/space-groups` | 大类列表（全员可读） | REQ-KB-001 |
+| POST | `/space-groups` | `{ name, color?, icon?, description? }`；`group.manage`；同名 409 | REQ-KB-001 |
+| PATCH | `/space-groups/reorder` | `{ id, after }` | REQ-KB-001 |
+| PATCH | `/space-groups/:id` | 改名 / 色 / 图标 / 说明 | REQ-KB-001 |
+| DELETE | `/space-groups/:id` | 删除；其下分类变其他（未归入大类） | REQ-KB-001 |
 
 注（2026-09-24，T1-001）：
 - `/spaces/:id` 的 `:id` 兼收 slug：UUID 形态按 id 查，否则按 slug。前端路由是 `/spaces/$spaceSlug`，免去先列表再找 id。
@@ -252,7 +258,8 @@
 | GET | `/cycles/current` | `kind`；按用户时区与 `weekStartsOn` | REQ-CYCLE-002 |
 | GET | `/cycles/:id` | 详情（含任务列表与完成数） | REQ-CYCLE-006 · REQ-TASK-018 |
 | PATCH | `/cycles/:id` | `goals / status`（单向流转） | REQ-CYCLE-003 · 005 |
-| GET | `/entries` | 筛选 `spaceId kind authorId tag q pinned deleted`；sort 白名单 `updatedAt createdAt title`；不返回正文列 | REQ-ENTRY-002 |
+| GET | `/entries` | 筛选 `spaceId kind authorId tag q pinned deleted`；sort 白名单 `updatedAt createdAt title`；不返回正文列（注 2026-09-26 ADR-0012：`kind` 逗号多值；`fields=status=open\|fixed,severity=high` 按 fields 过滤；`inTree=1\|0`；每项带 `tagIds`） | REQ-ENTRY-002 · REQ-KB-004 |
+| PATCH | `/entries/:id/move` | `{ parentId, after }` 移到目录某处 / `{ detach: true }` 移出目录；需 entry.write；防环、after 须同级 | REQ-KB-005 |
 | POST | `/entries` | `{ kind, title, spaceId?, fields, visibility, templateId? }` → `{ id }`；正文经 collab；`templateId`（`builtin:<key>` / uuid / `builtin:blank`）→ 模板正文写成初始 ydoc（ADR-0011 §2） | REQ-ENTRY-001 · REQ-TPL-003 |
 | GET | `/entries/:id` | 元数据详情（无 `ydoc`；`pmJson` 仅 `?withBody=1`） | REQ-ENTRY-003 |
 | PATCH | `/entries/:id` | 标题、fields、可见性、`spaceId`（移动）、`pinned`；带 `ifUpdatedAt` | REQ-ENTRY-004 · 006 · 011 |

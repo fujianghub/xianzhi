@@ -1,10 +1,10 @@
-/** 空间记录列表（08 §2.8，`/spaces/$spaceSlug/entries`）：与任务页平级（不嵌套在任务视图里）。 */
+/** 分类记录（08 §2.8，`/spaces/$spaceSlug/entries`；ADR-0012 类型视图）：与任务页平级（不嵌套在任务视图里）。 */
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute, Link, notFound, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, notFound, useNavigate } from '@tanstack/react-router'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EntriesPage, type EntriesSearch } from '../components/domain/EntriesPage.tsx'
-import { SpaceIcon } from '../components/domain/SpaceIcon.tsx'
+import { KbHeader } from '../components/domain/KbHeader.tsx'
 import { ApiError } from '../lib/api.ts'
 import { validateEntriesSearch } from '../lib/search.ts'
 import { spaceQuery } from '../lib/space-queries.ts'
@@ -35,34 +35,17 @@ function SpaceEntries() {
   )
   if (!space) return null
   return (
-    <EntriesPage
-      search={search}
-      setSearch={setSearch}
-      spaceId={space.id}
-      title={space.isPersonal ? t('space.personal') : space.name}
-      header={
-        <>
-          <SpaceIcon
-            icon={space.icon}
-            kind={space.kind}
-            color={space.color}
-            isPersonal={space.isPersonal}
-            className="size-9 text-base"
-          />
-          <nav className="flex gap-1 text-sm" aria-label={t('ui.nav.views')}>
-            <Link
-              to="/spaces/$spaceSlug"
-              params={{ spaceSlug }}
-              className="rounded-full px-3 py-1 hover:bg-hover"
-            >
-              {t('task.tasks')}
-            </Link>
-            <span className="rounded-full bg-selected px-3 py-1 font-medium" aria-current="page">
-              {t('ui.page.entries')}
-            </span>
-          </nav>
-        </>
-      }
-    />
+    <div className="mx-auto max-w-[100rem]">
+      <KbHeader space={space} active="entries" />
+      <div className="mt-4">
+        <EntriesPage
+          search={search}
+          setSearch={setSearch}
+          spaceId={space.id}
+          title={space.isPersonal ? t('space.personal') : space.name}
+          hideTitle
+        />
+      </div>
+    </div>
   )
 }

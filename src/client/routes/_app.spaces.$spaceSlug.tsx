@@ -3,11 +3,12 @@
  * 筛选参数与 API 同名（08 §2 约定），全部可分享；详情 Sheet 为子路由（Outlet）。
  */
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import { createFileRoute, Link, notFound, Outlet, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, notFound, Outlet, useNavigate } from '@tanstack/react-router'
 import { Archive } from 'lucide-react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Board } from '../components/domain/Board.tsx'
+import { KbTabs } from '../components/domain/KbTabs.tsx'
 import { SpaceIcon } from '../components/domain/SpaceIcon.tsx'
 import { TaskList } from '../components/domain/TaskList.tsx'
 import { EmptyState } from '../components/ui/empty-state.tsx'
@@ -168,15 +169,7 @@ function SpacePage() {
             </button>
           ))}
         </div>
-        <Link
-          to="/spaces/$spaceSlug/entries"
-          params={{ spaceSlug }}
-          search={{}}
-          className="h-8 rounded-full border border-border px-3 text-sm leading-8 hover:bg-hover"
-          data-testid="space-entries-link"
-        >
-          {t('ui.page.entries')}
-        </Link>
+        <KbTabs slug={spaceSlug} active="tasks" />
       </header>
       <div className="my-4 flex flex-wrap items-center gap-2" data-testid="task-filters">
         <button

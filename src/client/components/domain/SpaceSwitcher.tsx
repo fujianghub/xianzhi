@@ -1,9 +1,11 @@
 /**
- * 侧栏空间树（06 §5 SpaceSwitcher、08 §2.5、REQ-SPACE-005 · REQ-UI-020）：
- * - 「我的空间」（显式成员）可拖动排序：只拖手柄（行本身是链接）；指针 6px 起拖，键盘空格拿起 / 方向键移动。
- *   每次放下只发一条 `PATCH /spaces/reorder`，且只对自己能管理（myRole=admin）的空间开放拖动。
- * - 「其他可见空间」只读列出；「已归档」折叠，展开时才请求。
- * - 当前项：selected-bg 胶囊 + 左侧 3px 主色条（与视图导航同款）。
+ * 侧栏分类树（06 §5 SpaceSwitcher、08 §2.5、REQ-SPACE-005 · REQ-KB-002 · REQ-UI-020）：
+ * - 个人空间置顶；其余按大类分区（ADR-0012，大类按其顺序，「其他」最后），分区可折叠——
+ *   折叠状态只在用户点击时写入 `localStorage: xz:kb-folds:v1`（不自动写默认值，简斋 localStorage 教训）；
+ *   当前所在分类的分区始终展开。
+ * - 拖动：只拖手柄（行本身是链接），6px 起拖，键盘空格拿起 / 方向键移动；可在区内排序或拖到另一大类
+ *   （落在分区头 = 放到该区最前）。每次放下只发一条 `PATCH /spaces/reorder`；只对 myRole=admin 的分类开放。
+ * - 「已归档」折叠，展开时才请求。
  */
 import {
   closestCenter,
@@ -11,6 +13,7 @@ import {
   type DragEndEvent,
   KeyboardSensor,
   PointerSensor,
+  useDroppable,
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
@@ -21,18 +24,44 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { useQuery } from '@tanstack/react-query'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { GripVertical, Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { Me } from '../../hooks/useMe.ts'
-import { moveAfter, type Space, useReorderSpace, useSpaces } from '../../hooks/useSpaces.ts'
+import {
+  groupSpaces,
+  planSpaceMove,
+  type Space,
+  type SpaceSection,
+  sectionDropId,
+  spaceGroupsQuery,
+  useReorderSpace,
+  useSpaces,
+} from '../../hooks/useSpaces.ts'
 import { cn } from '../../lib/cn.ts'
 import { useCreateSpaceDialog } from '../../lib/stores.ts'
 import { Disclosure } from '../ui/disclosure.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
-import { SpaceIcon } from './SpaceIcon.tsx'
+import { PALETTE_DOT, type PaletteName, SpaceIcon } from './SpaceIcon.tsx'
+
+const FOLDS_KEY = 'xz:kb-folds:v1'
+function readFolds(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem(FOLDS_KEY) ?? '{}') as Record<string, boolean>
+  } catch {
+    return {}
+  }
+}
+function writeFolds(v: Record<string, boolean>) {
+  try {
+    localStorage.setItem(FOLDS_KEY, JSON.stringify(v))
+  } catch {
+    // 隐私模式等：折叠只在本次会话生效
+  }
+}
 
 function SpaceRow({
   space,
@@ -64,7 +93,7 @@ function SpaceRow({
       data-space-id={space.id}
     >
       <Link
-        to="/spaces/$spaceSlug"
+        to="/spaces/$spaceSlug/home"
         params={{ spaceSlug: space.slug }}
         onClick={onNavigate}
         // 与主导航同一套样式（app.css .xz-nav-item；当前项 data-active = 翡翠胶囊，REQ-UI-020 · 032）
@@ -89,9 +118,7 @@ function SpaceRow({
           ref={setActivatorNodeRef}
           {...attributes}
           {...listeners}
-          aria-label={t('space.dragHandle', {
-            name: space.isPersonal ? t('space.personal') : space.name,
-          })}
+          aria-label={t('space.dragHandle', { name: space.name })}
           className="absolute top-1.5 right-1.5 inline-flex size-6 cursor-grab touch-none items-center justify-center rounded-md text-fg-muted opacity-0 hover:bg-hover hover:text-fg focus-visible:opacity-100 group-hover:opacity-100 active:cursor-grabbing"
           data-testid="space-drag-handle"
         >
@@ -102,33 +129,99 @@ function SpaceRow({
   )
 }
 
+function Section({
+  section,
+  open,
+  onToggle,
+  activeSlug,
+  onNavigate,
+}: {
+  section: SpaceSection
+  open: boolean
+  onToggle: () => void
+  activeSlug: string | undefined
+  onNavigate?: () => void
+}) {
+  const { t } = useTranslation()
+  const dropId = sectionDropId(section.group)
+  const { setNodeRef, isOver } = useDroppable({ id: dropId })
+  const name = section.group?.name ?? t('space.ungrouped')
+  const tone = (section.group?.color as PaletteName | null) ?? 'gray'
+  return (
+    <div
+      className="flex flex-col"
+      data-testid="space-section"
+      data-group-id={section.group?.id ?? 'none'}
+    >
+      <button
+        ref={setNodeRef}
+        type="button"
+        aria-expanded={open}
+        onClick={onToggle}
+        className={cn(
+          'flex h-7 items-center gap-1.5 rounded-md px-2 text-fg-muted text-xs hover:bg-hover hover:text-fg',
+          isOver && 'bg-selected text-fg',
+        )}
+        data-testid="space-section-toggle"
+      >
+        <Disclosure open={open} />
+        <span className={cn('size-2 shrink-0 rounded-full', PALETTE_DOT[tone])} aria-hidden />
+        <span className="truncate font-medium">{name}</span>
+        <span className="ms-auto tabular-nums">{section.items.length}</span>
+      </button>
+      {open ? (
+        <SortableContext
+          items={section.items.map((s) => s.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <ul className="flex flex-col gap-0.5 pb-1" aria-label={name}>
+            {section.items.map((s) => (
+              <SpaceRow
+                key={s.id}
+                space={s}
+                active={activeSlug === s.slug}
+                sortable={s.myRole === 'admin'}
+                onNavigate={onNavigate}
+              />
+            ))}
+          </ul>
+        </SortableContext>
+      ) : null}
+    </div>
+  )
+}
+
 export function SpaceSwitcher({ me, onNavigate }: { me: Me; onNavigate?: () => void }) {
   const { t } = useTranslation()
   const path = useRouterState({ select: (s) => s.location.pathname })
   const { data, isPending, isError, refetch } = useSpaces()
+  const groups = useQuery(spaceGroupsQuery)
   const [showArchived, setShowArchived] = useState(false)
   const archived = useSpaces(true, showArchived)
   const reorder = useReorderSpace()
   const openCreate = useCreateSpaceDialog((s) => s.setOpen)
+  const [folds, setFolds] = useState<Record<string, boolean>>(readFolds)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
-  const mine = useMemo(() => (data ?? []).filter((s) => s.isMember), [data])
-  const others = useMemo(() => (data ?? []).filter((s) => !s.isMember), [data])
-  const ids = useMemo(() => mine.map((s) => s.id), [mine])
-  const nameOf = (id: unknown) => {
-    const s = mine.find((x) => x.id === id)
-    return s ? (s.isPersonal ? t('space.personal') : s.name) : ''
-  }
+  const personal = useMemo(() => (data ?? []).filter((s) => s.isPersonal), [data])
+  const sections = useMemo(() => groupSpaces(data ?? [], groups.data ?? []), [data, groups.data])
+  const nameOf = (id: unknown) => (data ?? []).find((x) => x.id === id)?.name ?? ''
   const activeSlug = /^\/spaces\/([^/]+)/.exec(path)?.[1]
+
+  const toggle = (key: string) => {
+    const next = { ...folds, [key]: !folds[key] }
+    setFolds(next)
+    writeFolds(next)
+  }
 
   const onDragEnd = (e: DragEndEvent) => {
     if (!e.over) return
-    const m = moveAfter(ids, String(e.active.id), String(e.over.id))
+    const m = planSpaceMove(sections, String(e.active.id), String(e.over.id))
     if (!m) return
     reorder.mutate(
-      { id: String(e.active.id), after: m.after, order: m.order },
+      { id: String(e.active.id), ...m },
       { onError: () => toast.error(t('space.reorderFailed')) },
     )
   }
@@ -171,6 +264,21 @@ export function SpaceSwitcher({ me, onNavigate }: { me: Me; onNavigate?: () => v
         </button>
       ) : (
         <>
+          <ul
+            className="flex flex-col gap-0.5"
+            aria-label={t('space.personal')}
+            data-testid="my-spaces"
+          >
+            {personal.map((s) => (
+              <SpaceRow
+                key={s.id}
+                space={s}
+                active={activeSlug === s.slug}
+                sortable={false}
+                onNavigate={onNavigate}
+              />
+            ))}
+          </ul>
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -186,40 +294,23 @@ export function SpaceSwitcher({ me, onNavigate }: { me: Me; onNavigate?: () => v
               },
             }}
           >
-            <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-              <ul
-                className="flex flex-col gap-0.5"
-                aria-label={t('space.mine')}
-                data-testid="my-spaces"
-              >
-                {mine.map((s) => (
-                  <SpaceRow
-                    key={s.id}
-                    space={s}
-                    active={activeSlug === s.slug}
-                    sortable={s.myRole === 'admin'}
+            <div className="mt-1 flex flex-col gap-0.5">
+              {sections.map((sec) => {
+                const key = sec.group?.id ?? 'none'
+                const hasActive = sec.items.some((s) => s.slug === activeSlug)
+                return (
+                  <Section
+                    key={key}
+                    section={sec}
+                    open={hasActive || !folds[key]}
+                    onToggle={() => toggle(key)}
+                    activeSlug={activeSlug}
                     onNavigate={onNavigate}
                   />
-                ))}
-              </ul>
-            </SortableContext>
+                )
+              })}
+            </div>
           </DndContext>
-          {others.length ? (
-            <>
-              <div className="px-3 pt-3 pb-1 text-fg-muted text-xs">{t('space.others')}</div>
-              <ul className="flex flex-col gap-0.5" aria-label={t('space.others')}>
-                {others.map((s) => (
-                  <SpaceRow
-                    key={s.id}
-                    space={s}
-                    active={activeSlug === s.slug}
-                    sortable={false}
-                    onNavigate={onNavigate}
-                  />
-                ))}
-              </ul>
-            </>
-          ) : null}
           <button
             type="button"
             className="mt-2 flex h-8 items-center gap-1 rounded-full px-3 text-fg-muted text-xs hover:bg-hover hover:text-fg"

@@ -52,17 +52,26 @@ export const ENTRY_KIND_VALUES = [
   'journal',
   'note',
   'review',
+  'optimize',
+  'plan',
 ] as const
+/** 字段过滤 `status=open|fixed,severity=high`（ADR-0012；与 02 §9 `fields` 同名同格式）。 */
+const FIELDS_RE = /^[a-zA-Z]{1,40}=[^,=]{1,200}(,[a-zA-Z]{1,40}=[^,=]{1,200}){0,4}$/
 export function validateEntriesSearch(s: Record<string, unknown>): {
   kind?: string
+  fields?: string
+  view?: 'table'
   authorId?: string
   tag?: string
   q?: string
   pinned?: '1'
   sort?: string
 } {
+  const fields = optString(s.fields)
   return {
     kind: optCsvOf(ENTRY_KIND_VALUES)(s.kind),
+    fields: fields && FIELDS_RE.test(fields) ? fields : undefined,
+    view: s.view === 'table' ? ('table' as const) : undefined,
     authorId: s.authorId === 'me' ? ('me' as const) : optUuid(s.authorId),
     tag: optString(s.tag),
     q: optString(s.q)?.slice(0, 200),

@@ -19,6 +19,10 @@
 | 注册申请 | Join request / `joinRequest` | `join_requests` | 申请注册 · 待审批 | `auth.register` · `settings.members.tab.requests` | 自助注册后待 owner/admin 批准的账号；批准前无 `member` 行、不能登录（`REGISTRATION_PENDING`） | 01 §3.14 · ADR-0008 |
 | 用户名 | Username / `username` · `displayUsername` | `user.username`（小写唯一）· `user.display_username` | 用户名 | `auth.register.username` | 3–30 位字母 / 数字 / `_ . -`，可代替邮箱登录，大小写不敏感 | ADR-0008 |
 | 空间 | Space / `space` | `spaces` | 空间 | `space.space` | 任务与记录的容器；隐喻「巢」 | 01 §3.1 |
+| 分类 | Category（代码 `space`） | `spaces` | 分类 | `space.*` | ADR-0012 起界面对「空间」的称呼（大类之下一层，如简斋、衔枝）；代码 / API / 表名不变；不属于任何大类的归入「其他」 | ADR-0012 |
+| 大类 | Space group / `spaceGroup` | `space_groups` | 大类 | `space.groups.*` | 分类的归组（产品开发 / 技术学习规划 / 生活…） | ADR-0012 · 01 §3.0 |
+| 目录 | Tree / `tree` | `entries.parent_id` `tree_order` | 目录 | `kb.tree.*` | 分类内可嵌套的页面树；不在目录的记录叫「其余记录」 | ADR-0012 |
+| 概览 | Home / `home` | — | 概览 | `kb.tab.home` | 进入分类的默认页 | ADR-0012 |
 | 空间管理员 / 成员 / 查看者 | admin / member / viewer | `space_members.role` | 空间管理员 / 空间成员 / 查看者 | `space.role.admin` `.member` `.viewer` | 空间级角色 | 01 §3.1 |
 | 空间类型 | `space.kind` | `project` / `learning` / `work` | 项目 / 学习 / 工作 | `space.kind.project` 等 | 只影响图标与默认视图 | 01 §3.1 |
 | 空间可见性 | `space.visibility` | `workspace` / `members` | 全员可见 / 仅成员 | `space.visibility.workspace` `.members` | | 01 §3.1 |

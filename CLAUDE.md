@@ -55,6 +55,7 @@ pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore 
 | `spec_dev_doc/adr/0005 · 0006 · 0007` | 翡翠主色 / 燕印 / 动效档位 · 登录拼图滑块 · 晨光白燕燕印 |
 | `spec_dev_doc/adr/0008 · 0009 · 0010` | 开放注册 + 审批 / 用户名 / 密码 8 位 · 日历日程（重复、提醒、节假日） · 鲜艳 9 色板 / 日历拖选 / owner 用户管理 / 个人资料 |
 | `spec_dev_doc/adr/0011` | 历史版本恢复 · Markdown 源码对话框 / 语雀式识别 · 附件类型（Office / csv）· 记录模板（`entry_templates`、kind `optimize` `plan`） |
+| `spec_dev_doc/adr/0012` | 界面「空间」改称「分类」（大类 → 分类 → 记录，代码仍 space）· 大类 `space_groups` · 分类概览 / 类型视图 · 目录树 · `/links` 关联与反链 |
 | `spec_dev_doc/01-domain-model.md` | 表结构、`fields` schema、事件种类、权限矩阵 |
 | `spec_dev_doc/02-api-conventions.md` | 路由/错误/分页/SSE/文件/MCP 约定、路由清单 |
 | `spec_dev_doc/03-editor-kernel.md` | Tiptap schema、Hocuspocus 钩子、快照、模板、交互规格、简斋陷阱 |

@@ -91,6 +91,7 @@ export default function NewEntryDialog() {
         fields,
         spaceId: defaults.spaceId,
         ...(templateId ? { templateId } : {}),
+        ...(defaults.parentId !== undefined ? { parentId: defaults.parentId } : {}),
       })
       setTitle('')
       setOpen(false)

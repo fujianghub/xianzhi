@@ -27,6 +27,7 @@ import {
   links,
   mentions,
   notifications,
+  spaceGroups,
   spaceMembers,
   spaces,
   tags,
@@ -36,6 +37,7 @@ import {
 } from '../db/schema/business.ts'
 import { dataPath } from '../lib/files.ts'
 import { weightedTsv, writeEntryDerived } from './derived.ts'
+import { ensureDefaultGroups } from './space-groups.ts'
 
 export const sid = (n: number) => `01920000-0000-7000-8000-${String(n).padStart(12, '0')}`
 
@@ -187,7 +189,7 @@ export async function seed(deps: SeedDeps): Promise<Record<string, number>> {
     {
       id: S.A,
       workspaceId: W,
-      name: '产品开发',
+      name: '衔枝',
       slug: 'product',
       kind: 'project',
       visibility: 'workspace',
@@ -243,6 +245,18 @@ export async function seed(deps: SeedDeps): Promise<Record<string, number>> {
     },
   ]
   await db.insert(spaces).values(spaceRows).onConflictDoNothing()
+  // 大类（ADR-0012）：预置三类，A → 产品开发、B → 技术学习规划
+  await ensureDefaultGroups(db, W, U.owner.id)
+  const groups = await db.select().from(spaceGroups).where(eq(spaceGroups.workspaceId, W))
+  const groupOf = (name: string) => groups.find((g) => g.name === name)?.id ?? null
+  await db
+    .update(spaces)
+    .set({ groupId: groupOf('产品开发') })
+    .where(eq(spaces.id, S.A))
+  await db
+    .update(spaces)
+    .set({ groupId: groupOf('技术学习规划') })
+    .where(eq(spaces.id, S.B))
   await db
     .insert(spaceMembers)
     .values([

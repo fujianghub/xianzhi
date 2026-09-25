@@ -42,6 +42,8 @@ import { AppError } from '../lib/errors.ts'
 import { type EventBus, getEventBus } from '../lib/event-bus.ts'
 import { audit } from './audit.ts'
 import { weightedTsv } from './derived.ts'
+import { entryPath, liftChildren, placeNew } from './entry-tree.ts'
+import { purgeLinksOf } from './links.ts'
 import { publishChange } from './realtime.ts'
 import { resolveTemplateBody } from './templates.ts'
 
@@ -77,6 +79,11 @@ export interface EntryView {
   excerpt?: string
   pmJson?: unknown
   tagIds?: string[]
+  /** 目录树（ADR-0012） */
+  parentId: string | null
+  treeOrder: string | null
+  /** 仅详情：面包屑（根 → 父页） */
+  path?: { id: string; title: string }[]
 }
 
 const EXCERPT_LEN = 160
@@ -185,6 +192,8 @@ function toView(
     deletedAt: e.deletedAt?.toISOString() ?? null,
     createdAt: e.createdAt.toISOString(),
     updatedAt: e.updatedAt.toISOString(),
+    parentId: e.parentId,
+    treeOrder: e.treeOrder,
   }
   if (opts.excerpt) v.excerpt = (e.plain ?? '').slice(0, EXCERPT_LEN)
   if (opts.withBody) v.pmJson = e.pmJson ?? null
@@ -223,9 +232,18 @@ export async function listEntries(db: Db, ctx: EntryCtx, q: z.infer<typeof listE
     if (!sp || !can(ctx.actor, 'space.read', sp.ref)) throw AppError.notFound('空间不存在') // 02 §4：不可见筛选 → 404
     conds.push(eq(entries.spaceId, q.spaceId))
   }
-  if (q.kind) conds.push(eq(entries.kind, q.kind))
+  if (q.kind?.length) conds.push(inArray(entries.kind, q.kind))
+  for (const [name, vals] of Object.entries(q.fields ?? {}))
+    conds.push(
+      sql`${entries.fields} ->> ${name} in (${sql.join(
+        vals.map((v) => sql`${v}`),
+        sql`, `,
+      )})`,
+    )
   if (q.authorId) conds.push(eq(entries.authorId, q.authorId === 'me' ? ctx.actor.id : q.authorId))
   if (q.pinned !== undefined) conds.push(eq(entries.pinned, q.pinned))
+  if (q.inTree !== undefined)
+    conds.push(q.inTree ? isNotNull(entries.treeOrder) : isNull(entries.treeOrder))
   if (q.tag) {
     conds.push(
       sql`exists (select 1 from ${entryTags} et join ${tags} t on t.id = et.tag_id where et.entry_id = ${entries.id} and t.name in (${sql.join(
@@ -274,7 +292,24 @@ export async function listEntries(db: Db, ctx: EntryCtx, q: z.infer<typeof listE
           last.e.id,
         ])
       : null
-  const items = page.map((r) => toView(r.e, r.s, names.get(r.e.authorId), { excerpt: true }))
+  // 卡片 / 表格显示标签（ADR-0012）：一次查出本页全部 tagIds
+  const tagRows = page.length
+    ? await db
+        .select({ entryId: entryTags.entryId, tagId: entryTags.tagId })
+        .from(entryTags)
+        .where(
+          inArray(
+            entryTags.entryId,
+            page.map((r) => r.e.id),
+          ),
+        )
+    : []
+  const tagsOf = new Map<string, string[]>()
+  for (const r of tagRows) tagsOf.set(r.entryId, [...(tagsOf.get(r.entryId) ?? []), r.tagId])
+  const items = page.map((r) => ({
+    ...toView(r.e, r.s, names.get(r.e.authorId), { excerpt: true }),
+    tagIds: tagsOf.get(r.e.id) ?? [],
+  }))
   const total = q.withTotal
     ? ((
         await db
@@ -340,6 +375,7 @@ export async function createEntry(
         visibility,
         authorId: ctx.actor.id,
         ydoc: body ? ydocFromPm(body) : emptyYdoc(),
+        ...(input.parentId !== undefined ? await placeNew(tx, ctx, spaceId, input.parentId) : {}),
       })
       .returning({ id: entries.id })
     if (!row) throw new Error('insert entries failed')
@@ -369,6 +405,7 @@ export async function getEntry(
   return {
     ...toView(row, space.row, names.get(row.authorId), { withBody: opts.withBody }),
     tagIds: tagRows.map((t) => t.tagId),
+    path: row.treeOrder !== null ? await entryPath(db, ctx, row.parentId) : [],
   }
 }
 
@@ -421,6 +458,12 @@ export async function patchEntry(
     if (patch.visibility !== undefined) set.visibility = patch.visibility
     if (patch.pinned !== undefined) set.pinned = patch.pinned
     set.spaceId = targetSpaceId
+    if (targetSpaceId !== loaded.row.spaceId) {
+      // 移到别的分类：离开原目录，子页上移一级（ADR-0012）
+      await liftChildren(tx, loaded.row)
+      set.parentId = null
+      set.treeOrder = null
+    }
     await tx.update(entries).set(set).where(eq(entries.id, id))
     if (patch.tagIds) {
       await tx.delete(entryTags).where(eq(entryTags.entryId, id))
@@ -442,10 +485,13 @@ export async function patchEntry(
 export async function softDeleteEntry(db: Db, ctx: EntryCtx, id: string): Promise<void> {
   const loaded = await requireEntry(db, ctx, id)
   assertCan(ctx.actor, 'entry.delete', loaded.ref)
-  await db
-    .update(entries)
-    .set({ deletedAt: new Date(), updatedAt: new Date() })
-    .where(eq(entries.id, id))
+  await db.transaction(async (tx) => {
+    await liftChildren(tx, loaded.row) // 子页上移一级（ADR-0012）
+    await tx
+      .update(entries)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(eq(entries.id, id))
+  })
   ;(ctx.bus ?? getEventBus()).publish('entry.access_changed', { entryIds: [id] })
   entryChanged(ctx, [loaded.row.spaceId], id, loaded.row.visibility)
 }
@@ -455,6 +501,7 @@ export async function permanentlyDeleteEntry(db: Db, ctx: EntryCtx, id: string):
   const loaded = await loadEntry(db, ctx.actor, id)
   if (!loaded) throw AppError.notFound('记录不存在')
   await db.transaction(async (tx) => {
+    await purgeLinksOf(tx, 'entry', id)
     await tx.delete(entries).where(eq(entries.id, id))
     await audit(tx, {
       workspaceId: ctx.workspaceId,

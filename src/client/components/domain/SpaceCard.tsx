@@ -40,7 +40,7 @@ export function SpaceCard({ space, index = 0 }: { space: Space; index?: number }
         />
         <div className="min-w-0 flex-1">
           <Link
-            to="/spaces/$spaceSlug"
+            to="/spaces/$spaceSlug/home"
             params={{ spaceSlug: space.slug }}
             className="block truncate font-medium transition-colors duration-(--xz-dur-fast) after:absolute after:inset-0 after:rounded-lg group-hover:text-primary-text"
           >

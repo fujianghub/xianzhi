@@ -37,6 +37,8 @@ import { Route as AppSettingsWorkspaceAuditRouteImport } from './routes/_app.set
 import { Route as AppSettingsWorkspaceMembersRouteImport } from './routes/_app.settings.workspace.members'
 import { Route as AppSettingsWorkspaceUsersRouteImport } from './routes/_app.settings.workspace.users'
 import { Route as AppSpacesSpaceSlugEntriesRouteImport } from './routes/_app.spaces.$spaceSlug_.entries'
+import { Route as AppSpacesSpaceSlugHomeRouteImport } from './routes/_app.spaces.$spaceSlug_.home'
+import { Route as AppSpacesSpaceSlugTreeRouteImport } from './routes/_app.spaces.$spaceSlug_.tree'
 import { Route as AppSpacesSpaceSlugTasksTaskIdRouteImport } from './routes/_app.spaces.$spaceSlug.tasks.$taskId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -184,6 +186,16 @@ const AppSpacesSpaceSlugEntriesRoute =
     path: '/spaces/$spaceSlug/entries',
     getParentRoute: () => AppRoute,
   } as any)
+const AppSpacesSpaceSlugHomeRoute = AppSpacesSpaceSlugHomeRouteImport.update({
+  id: '/spaces/$spaceSlug_/home',
+  path: '/spaces/$spaceSlug/home',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSpacesSpaceSlugTreeRoute = AppSpacesSpaceSlugTreeRouteImport.update({
+  id: '/spaces/$spaceSlug_/tree',
+  path: '/spaces/$spaceSlug/tree',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSpacesSpaceSlugTasksTaskIdRoute =
   AppSpacesSpaceSlugTasksTaskIdRouteImport.update({
     id: '/tasks/$taskId',
@@ -218,6 +230,8 @@ export interface FileRoutesByFullPath {
   '/settings/workspace/members': typeof AppSettingsWorkspaceMembersRoute
   '/settings/workspace/users': typeof AppSettingsWorkspaceUsersRoute
   '/spaces/$spaceSlug/entries': typeof AppSpacesSpaceSlugEntriesRoute
+  '/spaces/$spaceSlug/home': typeof AppSpacesSpaceSlugHomeRoute
+  '/spaces/$spaceSlug/tree': typeof AppSpacesSpaceSlugTreeRoute
   '/settings/workspace/': typeof AppSettingsWorkspaceIndexRoute
   '/spaces/$spaceSlug/tasks/$taskId': typeof AppSpacesSpaceSlugTasksTaskIdRoute
 }
@@ -247,6 +261,8 @@ export interface FileRoutesByTo {
   '/settings/workspace/members': typeof AppSettingsWorkspaceMembersRoute
   '/settings/workspace/users': typeof AppSettingsWorkspaceUsersRoute
   '/spaces/$spaceSlug/entries': typeof AppSpacesSpaceSlugEntriesRoute
+  '/spaces/$spaceSlug/home': typeof AppSpacesSpaceSlugHomeRoute
+  '/spaces/$spaceSlug/tree': typeof AppSpacesSpaceSlugTreeRoute
   '/settings/workspace': typeof AppSettingsWorkspaceIndexRoute
   '/spaces/$spaceSlug/tasks/$taskId': typeof AppSpacesSpaceSlugTasksTaskIdRoute
 }
@@ -279,6 +295,8 @@ export interface FileRoutesById {
   '/_app/settings/workspace/members': typeof AppSettingsWorkspaceMembersRoute
   '/_app/settings/workspace/users': typeof AppSettingsWorkspaceUsersRoute
   '/_app/spaces/$spaceSlug_/entries': typeof AppSpacesSpaceSlugEntriesRoute
+  '/_app/spaces/$spaceSlug_/home': typeof AppSpacesSpaceSlugHomeRoute
+  '/_app/spaces/$spaceSlug_/tree': typeof AppSpacesSpaceSlugTreeRoute
   '/_app/settings/workspace/': typeof AppSettingsWorkspaceIndexRoute
   '/_app/spaces/$spaceSlug/tasks/$taskId': typeof AppSpacesSpaceSlugTasksTaskIdRoute
 }
@@ -311,6 +329,8 @@ export interface FileRouteTypes {
     | '/settings/workspace/members'
     | '/settings/workspace/users'
     | '/spaces/$spaceSlug/entries'
+    | '/spaces/$spaceSlug/home'
+    | '/spaces/$spaceSlug/tree'
     | '/settings/workspace/'
     | '/spaces/$spaceSlug/tasks/$taskId'
   fileRoutesByTo: FileRoutesByTo
@@ -340,6 +360,8 @@ export interface FileRouteTypes {
     | '/settings/workspace/members'
     | '/settings/workspace/users'
     | '/spaces/$spaceSlug/entries'
+    | '/spaces/$spaceSlug/home'
+    | '/spaces/$spaceSlug/tree'
     | '/settings/workspace'
     | '/spaces/$spaceSlug/tasks/$taskId'
   id:
@@ -371,6 +393,8 @@ export interface FileRouteTypes {
     | '/_app/settings/workspace/members'
     | '/_app/settings/workspace/users'
     | '/_app/spaces/$spaceSlug_/entries'
+    | '/_app/spaces/$spaceSlug_/home'
+    | '/_app/spaces/$spaceSlug_/tree'
     | '/_app/settings/workspace/'
     | '/_app/spaces/$spaceSlug/tasks/$taskId'
   fileRoutesById: FileRoutesById
@@ -582,6 +606,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSpacesSpaceSlugEntriesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/spaces/$spaceSlug_/home': {
+      id: '/_app/spaces/$spaceSlug_/home'
+      path: '/spaces/$spaceSlug/home'
+      fullPath: '/spaces/$spaceSlug/home'
+      preLoaderRoute: typeof AppSpacesSpaceSlugHomeRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/spaces/$spaceSlug_/tree': {
+      id: '/_app/spaces/$spaceSlug_/tree'
+      path: '/spaces/$spaceSlug/tree'
+      fullPath: '/spaces/$spaceSlug/tree'
+      preLoaderRoute: typeof AppSpacesSpaceSlugTreeRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/spaces/$spaceSlug/tasks/$taskId': {
       id: '/_app/spaces/$spaceSlug/tasks/$taskId'
       path: '/tasks/$taskId'
@@ -645,6 +683,8 @@ interface AppRouteChildren {
   AppEntriesIndexRoute: typeof AppEntriesIndexRoute
   AppSpacesIndexRoute: typeof AppSpacesIndexRoute
   AppSpacesSpaceSlugEntriesRoute: typeof AppSpacesSpaceSlugEntriesRoute
+  AppSpacesSpaceSlugHomeRoute: typeof AppSpacesSpaceSlugHomeRoute
+  AppSpacesSpaceSlugTreeRoute: typeof AppSpacesSpaceSlugTreeRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -661,6 +701,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppEntriesIndexRoute: AppEntriesIndexRoute,
   AppSpacesIndexRoute: AppSpacesIndexRoute,
   AppSpacesSpaceSlugEntriesRoute: AppSpacesSpaceSlugEntriesRoute,
+  AppSpacesSpaceSlugHomeRoute: AppSpacesSpaceSlugHomeRoute,
+  AppSpacesSpaceSlugTreeRoute: AppSpacesSpaceSlugTreeRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

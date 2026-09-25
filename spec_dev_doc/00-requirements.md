@@ -172,6 +172,16 @@
 | REQ-TPL-004 | P1 | 2 | 自定义模板：记录「属性」页「另存为模板」（取当前正文 + kind / fields）；个人模板仅本人可见可用；工作区模板全员可用、仅管理员可建；创建者或管理员可改名 / 改范围 / 删除；内置不可改删；设置 → 模板 页可预览与「用此模板新建」 | Given member 另存个人模板 When owner 列表 Then 不含；owner `GET` Then 404；When member 建 workspace 模板 Then 403；删内置 Then 403 | ADR-0011 §2 · 01 §5 | api · unit · e2e |
 | REQ-TPL-005 | P2 | 2 | 斜杠 `/模板` 打开模板选择（首项「按类型默认」），在光标处插入所选模板正文，不替换已有内容 | When 在正文输入 `/模板` 选「学习笔记」Then 光标处出现「核心概念」等标题，原有内容仍在 | 03 §11.1 | e2e |
 
+## 6c. KB —— 分类（2026-09-26 新增，ADR-0012）
+
+| ID | P | Phase | 需求（EARS） | 验收（GWT） | 规范 | 层 |
+|---|---|---|---|---|---|---|
+| REQ-KB-001 | P1 | 2 | 大类：工作区预置「产品开发 / 技术学习规划 / 生活」；owner / admin 可增 / 改名 / 改色 / 排序 / 删除（同名 409）；删除大类不删分类 | When 新工作区 `GET /space-groups` Then 三个预置大类有序；When member `POST /space-groups` Then 403 | ADR-0012 · 01 §3.0 · 02 §9 | api · unit |
+| REQ-KB-002 | P1 | 2 | 界面「空间」改称「分类」；分类可归入大类（新建时选择 / 编辑 / 侧栏拖到另一大类）；侧栏与列表按大类分区（其他（未归入大类）最后、空大类可「在此新建」、分区可折叠）；分类类型可改；个人空间不入大类 | When 在「生活」分区「在此新建」Then 新分类 `groupId` = 生活，侧栏出现在该分区；When 把分类拖到另一分区头 Then 一条 `PATCH /spaces/reorder {groupId}` | ADR-0012 · 08 §2.5 | api · unit · e2e |
+| REQ-KB-003 | P1 | 2 | 进入分类默认为概览：产品型显示未关闭 Bug（按严重度计数）· 最近迭代 · 最新版本 · 决策与优化 · 最近更新；学习型显示学习计划进度 · 最近笔记；快捷新建带好类型与内置模板 | When 分类有 critical 未关闭 Bug 与已修复 Bug Then Bug 面板只列未关闭的、critical 计数 1；点「Bug」快捷 Then 新建对话框预选「产品 Bug 修复与迭代」 | ADR-0012 · 08 §2.5b | e2e |
+| REQ-KB-004 | P1 | 2 | 记录列表：类型多选；按 fields 过滤（`fields=`）；卡片 / 表格视图；表格列为所选类型 fields 且可排序；卡片显示关键字段与标签；记录可编辑标签 | When `?kind=bug&view=table` 选严重度 high Then URL 带 `fields=severity=high` 且只剩 high；When `GET /entries?kind=bug,iteration` Then 两类都返回 | ADR-0012 · 02 §9 | api · e2e |
+| REQ-KB-005 | P1 | 2 | 目录树：记录可嵌套（同分类）、拖拽 / 按钮移动（上移 / 下移 / 缩进 / 取消缩进 / 移出目录）、防环；不在目录的记录列在「其余记录」可加入；软删父页或移到别的分类时子页上移一级；记录页面包屑显示完整路径 | When A 移到自己的孙页下 Then 422；When 软删父页 Then 子页上移到其父级；When 在目录「新建子页」Then 新记录面包屑含父页 | ADR-0012 · 01 §3.4 · 02 §9 | api · unit · e2e |
+
 ## 7. EDITOR —— 编辑器交互
 
 | ID | P | Phase | 需求（EARS） | 验收（GWT） | 依据 | 测试层 |
@@ -228,11 +238,11 @@
 
 | ID | P | Phase | 需求（EARS） | 验收（GWT） | 依据 | 测试层 |
 |---|---|---|---|---|---|---|
-| REQ-LINK-001 | P1 | 2 | 正文中的 entryLink 应在落库时同步为 `links(kind=mentions)`，删除节点则删行 | When 插入链接到 B 并落库 Then `links` 有 A→B；删除后行消失 | 01 §3.6 · 03 §4.2 | collab |
-| REQ-LINK-002 | P1 | 2 | 反链面板应只查 `links` 表且按 `can(read)` 过滤 | Given C 私有链接到 B When B 作者看反链 Then 不含 C | 01 §3.6 · 02 §9 | api |
-| REQ-LINK-003 | P1 | 2 | 手动链接应支持 5 种 kind，重复返回 409 | When `POST /links` 同五元组两次 Then 第二次 409 `CONFLICT_UNIQUE` | 01 §3.6 | api |
+| REQ-LINK-001 | P1 | 2 | 正文中的 entryLink 应在落库时同步为 `links(kind=mentions)`，删除节点则删行（注 2026-09-26 ADR-0012：已实现，同步在 writeEntryDerived，entryCard 同样计入） | When 插入链接到 B 并落库 Then `links` 有 A→B；删除后行消失 | 01 §3.6 · 03 §4.2 | collab |
+| REQ-LINK-002 | P1 | 2 | 反链面板应只查 `links` 表且按 `can(read)` 过滤（注 2026-09-26：已实现） | Given C 私有链接到 B When B 作者看反链 Then 不含 C | 01 §3.6 · 02 §9 | api |
+| REQ-LINK-003 | P1 | 2 | 手动链接应支持 5 种 kind，重复返回 409（注 2026-09-26：已实现；约定「迭代 / 变更 → Bug」`resolves` = 本期修复） | When `POST /links` 同五元组两次 Then 第二次 409 `CONFLICT_UNIQUE` | 01 §3.6 | api |
 | REQ-LINK-004 | P2 | 2 | 外链应仅存 URL 与用户填写标题，一期不抓取远端内容 | When `POST /links {toType:'external', externalUrl}` Then 无出站请求 | 01 §3.6 · ADR §5 · 07 §2.5（抓取属二期） | api |
-| REQ-LINK-005 | P1 | 2 | 任务与记录的互链应在 Aside 显示，点击可 Peek | When 任务链接记录 Then 任务详情 Aside 列出记录卡片 | 04 §4 | e2e |
+| REQ-LINK-005 | P1 | 2 | 任务与记录的互链应在 Aside 显示，点击可 Peek（注 2026-09-26：记录侧「关联」页签已实现；任务详情侧未做） | When 任务链接记录 Then 任务详情 Aside 列出记录卡片 | 04 §4 | e2e |
 
 ---
 

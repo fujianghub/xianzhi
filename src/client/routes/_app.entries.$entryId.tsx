@@ -3,8 +3,8 @@
  * 正文走协同（编辑器 chunk 懒加载）；Aside 由 `?aside=` 选页（T1-017）。
  */
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute, notFound, useNavigate } from '@tanstack/react-router'
-import { Pin } from 'lucide-react'
+import { createFileRoute, Link, notFound, useNavigate } from '@tanstack/react-router'
+import { ChevronRight, Pin } from 'lucide-react'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type AsideTab, EntryAside } from '../components/domain/EntryAside.tsx'
@@ -20,6 +20,7 @@ import { cn } from '../lib/cn.ts'
 import { type Entry, entryQuery } from '../lib/entry-queries.ts'
 import { pushRecent } from '../lib/recent.ts'
 import { optOneOf, optUuid } from '../lib/search.ts'
+import { spaceQuery } from '../lib/space-queries.ts'
 import { useAsideSlot, useCommandContext, useCommentDraft } from '../lib/stores.ts'
 
 const EntryEditor = lazy(() => import('../editor/EntryEditor.tsx'))
@@ -105,6 +106,7 @@ function EntryPage() {
     >
       {e ? (
         <>
+          <Breadcrumb entry={e} />
           <div className="mb-2 flex items-center gap-2 text-xs">
             <span className={cn('rounded-full px-2 py-0.5 font-medium', entryKindClass(e.kind))}>
               {t(`entry.kind.${e.kind}`)}
@@ -182,5 +184,39 @@ function EntryPage() {
         <Skeleton className="h-64 w-full" />
       )}
     </article>
+  )
+}
+
+/** 面包屑（ADR-0012、REQ-KB-005）：分类 › 目录祖先（读不到的祖先截断）。个人空间不显示。 */
+function Breadcrumb({ entry }: { entry: Entry }) {
+  const { t } = useTranslation()
+  const space = useQuery(spaceQuery(entry.spaceSlug))
+  if (!space.data || space.data.isPersonal) return null
+  return (
+    <nav
+      aria-label={t('kb.tree.breadcrumb')}
+      className="mb-3 flex flex-wrap items-center gap-1 text-fg-muted text-xs"
+      data-testid="entry-breadcrumb"
+    >
+      <Link
+        to={entry.treeOrder !== null ? '/spaces/$spaceSlug/tree' : '/spaces/$spaceSlug/home'}
+        params={{ spaceSlug: entry.spaceSlug }}
+        className="hover:text-fg"
+      >
+        {space.data.name}
+      </Link>
+      {(entry.path ?? []).map((p) => (
+        <span key={p.id} className="flex items-center gap-1">
+          <ChevronRight className="size-3" aria-hidden />
+          <Link
+            to="/entries/$entryId"
+            params={{ entryId: p.id }}
+            className="max-w-48 truncate hover:text-fg"
+          >
+            {p.title || t('entry.untitled')}
+          </Link>
+        </span>
+      ))}
+    </nav>
   )
 }

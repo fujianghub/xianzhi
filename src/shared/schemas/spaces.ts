@@ -31,10 +31,15 @@ export const createSpaceSchema = z.object({
   color: z.enum(PALETTE_COLORS).nullable().optional(),
   visibility: z.enum(SPACE_VISIBILITIES).default('workspace'),
   description: z.string().trim().max(500).nullable().optional(),
+  /** 所属大类（ADR-0012）；缺省 / null = 其他（未归入大类） */
+  groupId: uuidSchema.nullable().optional(),
 })
 export const patchSpaceSchema = z
   .object({
     name: z.string().trim().min(1).max(60).optional(),
+    /** ADR-0012：类型决定分类首页形态，建好后可改 */
+    kind: z.enum(SPACE_KINDS).optional(),
+    groupId: uuidSchema.nullable().optional(),
     icon: spaceIconSchema.nullable().optional(),
     color: z.enum(PALETTE_COLORS).nullable().optional(),
     visibility: z.enum(SPACE_VISIBILITIES).optional(),
@@ -49,8 +54,15 @@ export const listSpacesQuery = pageParams.extend({
   deleted: bool01,
   sort: sortParam(SPACE_SORT, { field: 'sortKey', dir: 'asc' }),
 })
-/** `after` = 放在哪个空间之后；null = 放到最前（REQ-SPACE-005，只改被拖项一行）。 */
-export const reorderSpaceSchema = z.object({ id: uuidSchema, after: uuidSchema.nullable() })
+/**
+ * `after` = 放在哪个空间之后；null = 放到最前（REQ-SPACE-005，只改被拖项一行）。
+ * `groupId`（ADR-0012）：同时移入该大类（null = 其他（未归入大类））；省略 = 不改大类。
+ */
+export const reorderSpaceSchema = z.object({
+  id: uuidSchema,
+  after: uuidSchema.nullable(),
+  groupId: uuidSchema.nullable().optional(),
+})
 export const addSpaceMemberSchema = z.object({
   userId: z.string().min(1),
   role: z.enum(SPACE_ROLES).default('member'),

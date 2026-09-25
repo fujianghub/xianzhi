@@ -17,6 +17,7 @@ import { validate } from '../lib/validate.ts'
 import { idempotency } from '../middleware/idempotency.ts'
 import { clientIp } from '../middleware/request-context.ts'
 import { requireAuth, requireScope } from '../middleware/session.ts'
+import { getSpaceTree } from '../services/entry-tree.ts'
 import * as svc from '../services/spaces.ts'
 import type { AppEnv } from '../types.ts'
 
@@ -53,6 +54,10 @@ export function spaceRoutes(deps: { db: Db; dataDir: string }) {
       )
       .get('/:id', validate('param', spaceKeyParam), async (c) =>
         c.json(await svc.getSpace(deps.db, ctxOf(c), c.req.valid('param').id)),
+      )
+      // 目录树（ADR-0012、REQ-KB-005）：只含标题等元数据
+      .get('/:id/tree', validate('param', spaceKeyParam), async (c) =>
+        c.json({ items: await getSpaceTree(deps.db, ctxOf(c), c.req.valid('param').id) }),
       )
       .patch(
         '/:id',
