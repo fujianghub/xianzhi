@@ -1,6 +1,6 @@
 # 01 领域模型
 
-> 状态：已采纳 · 版本：v2 · 更新：2026-09-23 · 最后对照代码：2026-09-24（Phase 1：`check-schema-drift` 零差异，21 表 / 197 列） · 依据 ADR-0001。本文是数据库 schema（`drizzle/`）与共享 Zod schema（`src/shared/`）的权威来源；两者与本文不一致时以本文为准并修代码。
+> 状态：已采纳 · 版本：v2 · 更新：2026-09-25 · 最后对照代码：2026-09-25（+join_requests / calendars / calendar_events：`check-schema-drift` 零差异，24 表 / 236 列） · 依据 ADR-0001。本文是数据库 schema（`drizzle/`）与共享 Zod schema（`src/shared/`）的权威来源；两者与本文不一致时以本文为准并修代码。
 
 ---
 

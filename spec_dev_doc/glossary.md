@@ -1,6 +1,6 @@
 # 术语表 Glossary
 
-> 状态：已采纳 · 版本：v2 · 更新：2026-09-24 · 最后对照代码：2026-09-24（燕印、枝线、动效档位、展开指示、拼图滑块） · 依据 ADR-0001、01–08。本表是 Ubiquitous Language：代码标识符、表名、UI 文案、i18n key 必须与本表一致；**新增术语先加表再写代码**。i18n key 约定 `<area>.<term>[.<value>]`，area 与 `00-requirements.md` 的 REQ AREA 同名小写。
+> 状态：已采纳 · 版本：v2 · 更新：2026-09-25 · 最后对照代码：2026-09-25（注册申请、用户名、日程、休 / 班、速览栏；此前：燕印、枝线、动效档位、展开指示、拼图滑块） · 依据 ADR-0001、01–08。本表是 Ubiquitous Language：代码标识符、表名、UI 文案、i18n key 必须与本表一致；**新增术语先加表再写代码**。i18n key 约定 `<area>.<term>[.<value>]`，area 与 `00-requirements.md` 的 REQ AREA 同名小写。
 
 ---
 
