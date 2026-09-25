@@ -76,6 +76,18 @@ export const PALETTE_CLASS: Record<PaletteName, string> = {
   pine: 'bg-pine-bg text-pine-fg',
 }
 
+/** 色板圆点：日历事件与空间标注共用。 */
+export const PALETTE_DOT: Record<PaletteName, string> = {
+  moss: 'bg-moss-fg',
+  amber: 'bg-amber-fg',
+  indigo: 'bg-indigo-fg',
+  ochre: 'bg-ochre-fg',
+  teal: 'bg-teal-fg',
+  plum: 'bg-plum-fg',
+  gray: 'bg-gray-fg',
+  pine: 'bg-pine-fg',
+}
+
 const isLucideName = (v: string) => /^[a-z][a-z0-9-]*$/.test(v)
 
 export function SpaceIcon({

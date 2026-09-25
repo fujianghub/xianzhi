@@ -15,6 +15,7 @@ import { Checkbox } from '../ui/checkbox.tsx'
 import { useUserTimeZone } from '../ui/relative-time.tsx'
 import { PriorityIcon } from './PriorityIcon.tsx'
 import { PALETTE_CLASS, type PaletteName } from './SpaceIcon.tsx'
+import { SpaceTag } from './SpaceTag.tsx'
 
 /** grid 模式下的单元格（04 §5：列表内可交互元素须在 gridcell 里，axe nested-interactive）。 */
 function Cell({
@@ -120,7 +121,10 @@ export const TaskRow = memo(function TaskRow({
         />
       </Cell>
       <Cell asRow={asRow} className="flex min-w-0 flex-1 items-center gap-3">
-        <PriorityIcon priority={task.priority} />
+        {/* 固定 16px 槽：有无优先级图标的行标题都对齐 */}
+        <span className="inline-flex w-4 shrink-0 justify-center">
+          <PriorityIcon priority={task.priority} />
+        </span>
         <button
           type="button"
           className={cn(
@@ -150,7 +154,7 @@ export const TaskRow = memo(function TaskRow({
               {tag.name}
             </span>
           ))}
-          {showSpace ? <span className="text-fg-muted text-xs">{task.spaceSlug}</span> : null}
+          {showSpace ? <SpaceTag slug={task.spaceSlug} /> : null}
         </div>
         {task.dueAt ? (
           <span

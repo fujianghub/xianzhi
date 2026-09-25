@@ -286,6 +286,7 @@
 | REQ-NOTIF-014 | P0 | 0 | 路由层与前端不得直接创建通知 | When 静态扫描 `src/server/routes` 与 `src/client` Then 无 `notifications` 表写入与邮件发送调用 | CLAUDE 不变量 3 | unit |
 | REQ-NOTIF-015 | P0 | 1 | 通知只能由本人读取与标记 | Given U1 的通知 N When U2 `POST /notifications/N/read` 或 `GET /notifications` Then 404 / 列表不含 N | 01 §5 | api |
 | REQ-NOTIF-016 | P0 | 0 | 扇出应幂等：同一 `(user_id, event_id)` 至多一条 notification | When `notify.fanout` 对同一事件重跑 3 次 Then `notifications` 行数不变，`notification_deliveries` 不重复发送 | 01 §3.11 · 07 §2.8 | api |
+| REQ-NOTIF-017 | P1 | 2 | 通知正文中的时间与大小应以人类可读格式呈现：时间 `M/D HH:mm`（Asia/Shanghai），大小 `B / KB / MB / GB`；不直出 ISO 字符串与字节数 | When 渲染 `system.export_done { sizeBytes: 382827, expiresAt: ISO }` Then 正文为「374 KB · 10/1 19:47 前可下载」；非法值原样返回 | 01 §4.1 | unit |
 
 ---
 
@@ -339,6 +340,7 @@
 | REQ-UI-030 | P1 | 2 | 展开 / 收起统一用圆角实心三角「展开指示」，展开时弹簧转 90°；纯方向仍用 Chevron | When 点击「今天完成的」Then 指示带 `data-open` 且旋转 90° | 04 §2.4 · 04 §5 | e2e |
 | REQ-UI-031 | P1 | 2 | 日历 `/calendar`（Apple 风格）：月视图 6×7（按 weekStartsOn）与周视图（全天行 + 24 小时时间轴 + 当前时间线）；事件 = 任务（dueAt 优先，本地 23:59 / 00:00 视为全天），色取空间色板，点击打开 Peek；`t` 今天、← / → 翻页、`m` / `w` 切换；侧栏与 ⌘K `g c` 可达 | When 区间内有任务 Then 月视图对应日期出现事件；点击 Then Peek；按 `w` Then 周视图且今天列有当前时间线 | 08 §2.17 · ADR-0005 | unit · e2e |
 | REQ-UI-032 | P1 | 2 | 侧栏（2026-09-24 改版，参照简斋后台）：整高实玻璃板 + 右侧 1px 分隔与柔阴影；品牌区燕印 42 + 文楷；导航项 42px、图标带专属色（`--xz-icon-*` ≥ 3:1）；当前项为翡翠渐变胶囊 + inset 描边，无左侧竖条；导航与空间树共用样式；内容区内衬圆角淡翡翠面板 | When 视口 1280 Then 侧栏高 = 视口、右边框 1px；当前项 `data-active` + `aria-current=page`、背景为渐变、无 `::before` 竖条 | 06 §4 · REQ-UI-020 | e2e · unit |
+| REQ-UI-033 | P1 | 2 | 一级页页头统一（`PageHeader`：2xl 标题 + 可选文楷题记 / 说明 / 右侧动作）；今日页题记为本地日期与星期、说明为各段计数；记录类型用 04 §2.1 色板分色（决策 indigo · 迭代 teal · Bug ochre · 变更 amber · 日志 pine · 随笔 moss · 复盘 plum），文字仍为类型名；跨空间列表以「空间色点 + 空间名」标注空间（取不到时回退 slug）；记录 / 空间卡片悬停抬升 2px + 翡翠边线，网格入场错峰 ≤ 8 格，时长走 token（减弱档无动画） | When 打开 `/today` Then 标题上方有日期题记；When 记录卡片类型为决策 Then 徽章为 indigo 色板类；When 减弱档 Then `.xz-rise` 无动画 | 04 §2.1 · 04 §2.4 · 06 §5.2 | unit · 手工 |
 | REQ-UI-027 | P1 | 2 | Topbar 滚动 > 8px 后应显示 `shadow-soft` 与翡翠枝线，回到顶部即消失；Dialog 打开时底板光晕下移 4px 并减弱，关闭复原 | When 页面滚动 100px Then topbar 带 `data-scrolled`；When 打开 Dialog Then `html[data-dialog-open]` 且 `body::before` transform 非 none | 06 §4 · ADR-0005 §2 | e2e |
 
 ---

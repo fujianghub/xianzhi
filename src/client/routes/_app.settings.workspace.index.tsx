@@ -45,7 +45,7 @@ function Workspace() {
   return (
     <section className="max-w-xl" data-testid="settings-workspace">
       <div className="mb-6 flex items-center gap-3">
-        <h1 className="font-semibold text-2xl">{t('settings.nav.workspace')}</h1>
+        <h1 className="font-semibold text-2xl tracking-tight">{t('settings.nav.workspace')}</h1>
         {saved ? (
           <span className="text-fg-muted text-xs" role="status">
             {t('task.savedJustNow')}

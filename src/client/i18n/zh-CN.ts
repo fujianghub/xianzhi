@@ -328,6 +328,13 @@ export const zhCN = {
       scheduledToday: '今日开始',
       done: '今天完成的',
     },
+    /** 今日页题记下的摘要（04 §3 页头） */
+    summary: {
+      overdue: '{{count}} 项逾期',
+      dueToday: '{{count}} 项今日到期',
+      scheduledToday: '{{count}} 项今日开始',
+      inbox: '先收下，再分拣：挑进空间，或定下状态',
+    },
     moveToSpace: '移到空间',
     loadMore: '加载更多',
     keyboardHint: 'j / k 移动 · 空格完成 · x 多选 · 回车打开',

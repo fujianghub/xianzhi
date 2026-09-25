@@ -8,6 +8,7 @@ import { Pin } from 'lucide-react'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type AsideTab, EntryAside } from '../components/domain/EntryAside.tsx'
+import { entryKindClass } from '../components/domain/EntryCard.tsx'
 import { Disclosure } from '../components/ui/disclosure.tsx'
 import { InlineEdit } from '../components/ui/inline-edit.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
@@ -105,7 +106,7 @@ function EntryPage() {
       {e ? (
         <>
           <div className="mb-2 flex items-center gap-2 text-xs">
-            <span className="rounded-full bg-primary-soft px-2 py-0.5 text-fg">
+            <span className={cn('rounded-full px-2 py-0.5 font-medium', entryKindClass(e.kind))}>
               {t(`entry.kind.${e.kind}`)}
             </span>
             <span className="text-fg-muted">{t(`entry.visibility.${e.visibility}`)}</span>
@@ -135,11 +136,14 @@ function EntryPage() {
                 onSave={(v) =>
                   v.trim() && v !== e.title ? actions.patch(e, { title: v.trim() }) : undefined
                 }
-                className="mb-4 font-semibold text-3xl leading-tight"
+                className="-mx-[5px] mb-4 w-[calc(100%+10px)] font-semibold text-3xl leading-tight tracking-tight"
                 testId="entry-title"
               />
             ) : (
-              <h1 className="mb-4 font-semibold text-3xl leading-tight" data-testid="entry-title">
+              <h1
+                className="mb-4 font-semibold text-3xl leading-tight tracking-tight"
+                data-testid="entry-title"
+              >
                 {e.title || t('entry.untitled')}
               </h1>
             )}

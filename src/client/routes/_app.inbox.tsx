@@ -8,6 +8,7 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TaskRow } from '../components/domain/TaskRow.tsx'
 import { EmptyState } from '../components/ui/empty-state.tsx'
+import { PageHeader } from '../components/ui/page-header.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
 import { useDelayedFlag } from '../hooks/useDelayedFlag.ts'
 import { useTaskActions } from '../hooks/useTasks.ts'
@@ -39,7 +40,10 @@ function Inbox() {
   const selectCls = 'h-7 rounded-md border border-border bg-surface px-1 text-xs'
   return (
     <section className="mx-auto max-w-3xl" data-testid="inbox">
-      <h1 className="mb-6 font-semibold text-xl">{t('ui.page.inbox')}</h1>
+      <PageHeader
+        title={t('ui.page.inbox')}
+        description={tasks.length ? t('task.summary.inbox') : undefined}
+      />
       {q.isPending ? (
         skeleton ? (
           <div className="flex flex-col gap-1" aria-busy="true">

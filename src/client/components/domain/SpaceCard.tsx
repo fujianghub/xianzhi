@@ -8,7 +8,7 @@ import { Button } from '../ui/button.tsx'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.tsx'
 import { SpaceIcon } from './SpaceIcon.tsx'
 
-export function SpaceCard({ space }: { space: Space }) {
+export function SpaceCard({ space, index = 0 }: { space: Space; index?: number }) {
   const { t } = useTranslation()
   const archive = useArchiveSpace()
   const name = space.isPersonal ? t('space.personal') : space.name
@@ -25,7 +25,8 @@ export function SpaceCard({ space }: { space: Space }) {
     )
   return (
     <li
-      className="paper relative flex flex-col gap-3 rounded-lg p-4"
+      style={{ '--i': index } as React.CSSProperties}
+      className="paper xz-lift xz-rise group relative flex flex-col gap-3 rounded-lg p-4"
       data-testid="space-card"
       data-space-id={space.id}
     >
@@ -35,13 +36,13 @@ export function SpaceCard({ space }: { space: Space }) {
           kind={space.kind}
           color={space.color}
           isPersonal={space.isPersonal}
-          className="size-9 text-base"
+          className="size-9 text-base transition-transform duration-(--xz-dur-base) ease-(--xz-ease-spring) group-hover:scale-105"
         />
         <div className="min-w-0 flex-1">
           <Link
             to="/spaces/$spaceSlug"
             params={{ spaceSlug: space.slug }}
-            className="block truncate font-medium after:absolute after:inset-0 after:rounded-lg"
+            className="block truncate font-medium transition-colors duration-(--xz-dur-fast) after:absolute after:inset-0 after:rounded-lg group-hover:text-primary-text"
           >
             {name}
           </Link>
@@ -89,7 +90,11 @@ export function SpaceCard({ space }: { space: Space }) {
           {t(`space.visibility.${space.visibility}`)}
         </span>
         <span>{t('space.members', { count: space.memberCount })}</span>
-        {space.myRole ? <span className="ml-auto">{t(`space.role.${space.myRole}`)}</span> : null}
+        {space.myRole ? (
+          <span className="ml-auto rounded-full bg-surface-2 px-2 py-0.5">
+            {t(`space.role.${space.myRole}`)}
+          </span>
+        ) : null}
       </div>
     </li>
   )

@@ -91,7 +91,7 @@ function Members() {
   return (
     <section className="max-w-4xl" data-testid="settings-members">
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h1 className="font-semibold text-2xl">{t('settings.nav.members')}</h1>
+        <h1 className="font-semibold text-2xl tracking-tight">{t('settings.nav.members')}</h1>
         <div
           role="tablist"
           aria-label={t('settings.nav.members')}

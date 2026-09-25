@@ -11,6 +11,7 @@ import { dayRange } from '../../shared/tz.ts'
 import { TaskList } from '../components/domain/TaskList.tsx'
 import { Disclosure } from '../components/ui/disclosure.tsx'
 import { EmptyState } from '../components/ui/empty-state.tsx'
+import { PageHeader } from '../components/ui/page-header.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
 import { useDelayedFlag } from '../hooks/useDelayedFlag.ts'
 import type { Me } from '../hooks/useMe.ts'
@@ -73,6 +74,17 @@ function Today() {
       ['scheduledToday', scheduled],
     ] as const
   }, [tasks, range])
+  // 题记：本地时区的「9月25日 · 星期五」；摘要：各段计数，空时一句话
+  const dateLine = useMemo(() => {
+    const now = new Date()
+    const fmt = (o: Intl.DateTimeFormatOptions) =>
+      new Intl.DateTimeFormat(me.locale || 'zh-CN', { ...o, timeZone: me.timezone }).format(now)
+    return `${fmt({ month: 'long', day: 'numeric' })} · ${fmt({ weekday: 'long' })}`
+  }, [me.locale, me.timezone])
+  const summary = sections
+    .filter(([, l]) => l.length)
+    .map(([key, l]) => t(`task.summary.${key}`, { count: l.length }))
+    .join(' · ')
   const open = (task: Task) =>
     nav({
       to: '/spaces/$spaceSlug/tasks/$taskId',
@@ -83,7 +95,11 @@ function Today() {
 
   return (
     <section className="mx-auto max-w-3xl" data-testid="today">
-      <h1 className="mb-6 font-semibold text-xl">{t('ui.page.today')}</h1>
+      <PageHeader
+        title={t('ui.page.today')}
+        eyebrow={dateLine}
+        description={summary || undefined}
+      />
       {q.isError ? (
         <div className="paper rounded-lg p-6 text-center" role="alert">
           <button type="button" className="text-sm underline" onClick={() => void q.refetch()}>

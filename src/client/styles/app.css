@@ -757,6 +757,100 @@ html:active-view-transition-type(route) :is([data-shared-source], [data-shared-t
 }
 
 /*
+ * ---- 原生表单控件（06 §5.1）：select 去掉系统外观，下拉箭头用两段渐变画 chevron（只取 token，不用 data URI 色值）；
+ * select 规则不进层：须压过组件上的 px-* 才能给箭头留位（background-color / 高度等仍由工具类决定）。日期控件的日历图标随主题反色。
+ */
+select:not([multiple], [size]) {
+  appearance: none;
+  padding-right: 1.75rem;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--xz-fg-muted) 50%),
+    linear-gradient(135deg, var(--xz-fg-muted) 50%, transparent 50%);
+  background-position:
+    right 0.875rem center,
+    right 0.625rem center;
+  background-size:
+    4px 4px,
+    4px 4px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+  transition:
+    border-color var(--xz-dur-fast) var(--xz-ease-out),
+    background-color var(--xz-dur-fast) var(--xz-ease-out),
+    box-shadow var(--xz-dur-fast) var(--xz-ease-out);
+}
+select:not([multiple], [size]):hover:not(:disabled) {
+  border-color: var(--xz-selected-border);
+}
+select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+@layer base {
+  ::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.55;
+    transition: opacity var(--xz-dur-fast) var(--xz-ease-out);
+  }
+  ::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+  }
+  [data-theme="dark"] ::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+  }
+}
+
+/* ---- 页头题记（04 §3 页头）：展示字小号日期 / 摘要，燕印同一字族；文楷只有 400 ---- */
+.xz-eyebrow {
+  font-family: var(--xz-font-display);
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  color: var(--xz-fg-muted);
+}
+
+/*
+ * ---- 列表 / 网格入场（04 §2.4 进入 ≤ 320ms）：卡片自下而上错峰浮现，--i 为序号，最多错 8 格；
+ * 时长走 token，减弱档为 0 即无动画。只在首次挂载时播放（动画不随重渲染重放）。
+ */
+@keyframes xz-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.xz-rise {
+  animation: xz-rise var(--xz-dur-slow) var(--xz-ease-out) backwards;
+  animation-delay: calc(min(var(--i, 0), 8) * 28ms);
+}
+:root[data-motion="reduce"] .xz-rise {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .xz-rise {
+    animation: none;
+  }
+}
+
+/* 卡片悬停（06 §5.2）：抬升 1px + 边线转翡翠 + 卡片阴影；按下回落 */
+.xz-lift {
+  transition:
+    transform var(--xz-dur-base) var(--xz-ease-spring),
+    box-shadow var(--xz-dur-base) var(--xz-ease-out),
+    border-color var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-lift:hover {
+  transform: translateY(-2px);
+  border-color: var(--xz-selected-border);
+  box-shadow:
+    inset 0 1px 0 var(--xz-edge),
+    var(--xz-shadow-card);
+}
+.xz-lift:active {
+  transform: translateY(0);
+  transition-duration: var(--xz-dur-fast);
+}
+
+/*
  * 06 §7、REQ-MOBILE-007：窄屏触控目标 ≥ 40×40。小控件保持视觉尺寸，用 ::after 向四周扩出点击区；
  * 放在 base 层：工具类（absolute / fixed / after:*）优先，不改变已有定位与伪元素用法。
  * 正文里的行内链接豁免（WCAG 2.5.8 inline 例外）。
