@@ -57,6 +57,8 @@ export const workspacePatchSchema = z
 export const memberRolePatchSchema = z.object({ role: invitableRoleSchema })
 export const ownerTransferSchema = z.object({ toUserId: z.string().min(1) })
 export const userIdParam = z.object({ userId: z.string().min(1).max(64) })
+/** `DELETE /members/:userId?purge=1` = 删号（REQ-WS-021，仅 owner）；不带 = 移除成员。 */
+export const memberDeleteQuery = z.object({ purge: z.enum(['1']).optional() })
 
 export const auditLogQuerySchema = z.object({
   action: z.string().max(64).optional(),
@@ -91,6 +93,54 @@ export const mePatchSchema = z
     weekStartsOn: z.number().int().min(0).max(6).optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: '至少一个字段', path: ['displayName'] })
+
+const nonEmpty = (v: object) => Object.values(v).some((x) => x !== undefined)
+
+/** owner 直建用户（REQ-WS-018）：立即成为成员，无需审批。 */
+export const adminCreateUserSchema = z.object({
+  email: z.email().max(254),
+  username: usernameSchema,
+  name: z.string().trim().min(1).max(80),
+  password: passwordSchema,
+  role: invitableRoleSchema.default('member'),
+})
+export type AdminCreateUserInput = z.infer<typeof adminCreateUserSchema>
+
+/** owner 改他人资料（REQ-WS-019）。 */
+export const adminUserPatchSchema = z
+  .object({
+    displayName: z.string().trim().min(1).max(80).optional(),
+    username: usernameSchema.optional(),
+    email: z.email().max(254).optional(),
+  })
+  .refine(nonEmpty, { message: '至少一个字段', path: ['displayName'] })
+export type AdminUserPatch = z.infer<typeof adminUserPatchSchema>
+
+/** owner 重置他人密码（REQ-WS-020）。 */
+export const adminResetPasswordSchema = z.object({ password: passwordSchema })
+
+/** 本人改用户名 / 邮箱（REQ-WS-022）：改邮箱须当前密码。 */
+export const meAccountPatchSchema = z
+  .object({
+    username: usernameSchema.optional(),
+    email: z.email().max(254).optional(),
+    currentPassword: z.string().max(128).optional(),
+  })
+  .refine((v) => v.username !== undefined || v.email !== undefined, {
+    message: '至少一个字段',
+    path: ['username'],
+  })
+  .refine((v) => v.email === undefined || !!v.currentPassword, {
+    message: '修改邮箱须输入当前密码',
+    path: ['currentPassword'],
+  })
+export type MeAccountPatch = z.infer<typeof meAccountPatchSchema>
+
+/** 本人改密码（REQ-AUTH-021）。 */
+export const mePasswordSchema = z.object({
+  currentPassword: z.string().min(1).max(128),
+  newPassword: passwordSchema,
+})
 
 export const createKeySchema = z.object({
   name: z.string().trim().min(1).max(80),

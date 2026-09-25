@@ -1,4 +1,4 @@
-/** 设置布局（08 §2.13、T1-033 · T1-043）：左侧二级导航（个人 / 通知 / 安全 / API Key；admin 多出工作区 / 成员 / 审计）。 */
+/** 设置布局（08 §2.13、T1-033 · T1-043）：左侧二级导航（个人 / 通知 / 安全 / API Key；admin 多出工作区 / 成员 / 审计；owner 再多用户管理，ADR-0010）。 */
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router'
 import {
   Bell,
@@ -7,12 +7,13 @@ import {
   type LucideIcon,
   ScrollText,
   ShieldCheck,
+  UserCog,
   UserRound,
   Users,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { isAdmin, type Me } from '../hooks/useMe.ts'
+import { isAdmin, isOwner, type Me } from '../hooks/useMe.ts'
 
 export const Route = createFileRoute('/_app/settings')({ component: SettingsLayout })
 
@@ -61,6 +62,11 @@ function SettingsLayout() {
             <Link to="/settings/workspace/members" className={link}>
               <Item icon={Users}>{t('settings.nav.members')}</Item>
             </Link>
+            {isOwner(me) ? (
+              <Link to="/settings/workspace/users" className={link} data-testid="nav-users">
+                <Item icon={UserCog}>{t('settings.nav.users')}</Item>
+              </Link>
+            ) : null}
             <Link to="/settings/workspace/audit" className={link}>
               <Item icon={ScrollText}>{t('settings.nav.audit')}</Item>
             </Link>

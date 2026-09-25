@@ -51,6 +51,8 @@ function toSessionUser(u: typeof userTable.$inferSelect): SessionUser {
     email: u.email,
     name: u.name,
     displayName: u.displayName ?? null,
+    username: u.displayUsername ?? u.username ?? null,
+    image: u.image ?? null,
     locale: u.locale ?? 'zh-CN',
     timezone: u.timezone ?? 'Asia/Shanghai',
     weekStartsOn: u.weekStartsOn ?? 1,

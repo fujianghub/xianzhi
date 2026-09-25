@@ -1,5 +1,5 @@
 /**
- * 标签（01 §3.7、02 §9、REQ-TAG-001 · 002）：工作区内名字唯一，颜色为 8 色 token 名。
+ * 标签（01 §3.7、02 §9、REQ-TAG-001 · 002）：工作区内名字唯一，颜色为 9 色 token 名（ADR-0010）。
  * 权限：创建 = 非 guest（tag.create，TagPicker 输入即创建）；改名 / 改色 / 删除 = owner/admin（tag.manage，影响全工作区）。
  */
 import { and, asc, eq, sql } from 'drizzle-orm'

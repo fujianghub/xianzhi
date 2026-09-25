@@ -29,6 +29,8 @@ export function meView(ctx: MeCtx) {
     email: u.email,
     name: u.name,
     displayName: u.displayName,
+    username: u.username,
+    image: u.image,
     locale: u.locale,
     timezone: u.timezone,
     weekStartsOn: u.weekStartsOn,
@@ -46,6 +48,11 @@ export async function updateMe(
     .update(user)
     .set({ ...patch, updatedAt: new Date() })
     .where(eq(user.id, ctx.actor.id))
+  return loadMe(db, ctx)
+}
+
+/** 读库里的最新资料（改账号 / 头像后回显用）。 */
+export async function loadMe(db: Db, ctx: MeCtx) {
   const [u] = await db.select().from(user).where(eq(user.id, ctx.actor.id)).limit(1)
   if (!u) throw AppError.notFound()
   return {
@@ -53,6 +60,8 @@ export async function updateMe(
     email: u.email,
     name: u.name,
     displayName: u.displayName ?? null,
+    username: u.displayUsername ?? u.username ?? null,
+    image: u.image ?? null,
     locale: u.locale ?? 'zh-CN',
     timezone: u.timezone ?? 'Asia/Shanghai',
     weekStartsOn: u.weekStartsOn ?? 1,

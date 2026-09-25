@@ -186,7 +186,12 @@ pg-boss worker（xz-app 进程内）──▶ SMTP(腾讯云 SES) / WebPush 端�
 | 恢复 | admin | `POST /workspace/members/:userId/unsuspend` | — | 需重新登录 | — | 恢复 | `member.unsuspended` |
 | 移除（退出工作区） | admin，或本人退出 | `DELETE /workspace/members/:userId`；本人退出 `DELETE /workspace/members/me` | 内容**保留**；作者名显示「已离开的成员」；其未完成任务的 `assignee_id` 置空并发 `task.unassigned`（接收者：该任务所在空间的 admin，01 §4.1）；admin 可批量转移作者（`POST /workspace/members/:userId/transfer-content { toUserId }`） | 同停用 | 同停用 | 删除其偏好、push 订阅 | `member.removed`；转移时 `member.content_transferred` |
 | 注销（删除账号） | 本人（需 2FA 或密码确认）或 owner | `DELETE /me`（本人）/ `DELETE /workspace/members/:userId?purge=1`（owner） | **匿名化**：`user` 行保留 id，`email/name/avatar` 清空为 `deleted-<短id>`；内容保留 | 全部删除 | 全部断开 | 删除通知与偏好 | `user.deleted` |
+| 直建（ADR-0010） | owner | `POST /workspace/users` | 建 `user` + credential + `member(role)` + 个人空间，立即可登录（跳过审批） | — | — | `member.joined` → admin in_app | `user.created` |
+| 改资料（ADR-0010） | owner（他人）/ 本人 | `PATCH /workspace/users/:userId` / `PATCH /me/account`（改邮箱须当前密码） | 显示名 / 用户名 / 邮箱（唯一性同注册，存小写） | 不变 | — | — | `user.updated` |
+| 改密 / 重置（ADR-0010） | 本人 / owner | `POST /me/password`（须当前密码）/ `POST /workspace/users/:userId/password` | — | 本人改：删除**其他**会话、保留当前（不广播，免得踢掉当前页）；owner 重置：全部会话删除 | owner 重置时 `user.revoked` 广播 | — | `auth.password_changed` / `auth.password_reset`（`byAdmin`） |
 | owner 转让 | 当前 owner | `POST /workspace/owner-transfer { toUserId }` | 双方角色互换 | — | — | `workspace.owner_transferred` → 双方 in_app + 邮件 | `workspace.owner_transferred` |
+
+注（2026-09-25，ADR-0010）：owner 删他人账号已实现（`?purge=1`，`can('user.manage')`）：移除 + 吊销 + 删凭据 / 2FA / Passkey / API Key + 匿名化（`email = deleted-<id>@deleted.invalid`、`name = 已删除的用户`、用户名与头像清空、`banned`），原邮箱与用户名随即可再注册；本人注销 `DELETE /me` 仍属 Phase 2。Better Auth 自带 `/update-user`、`/change-password`、`/change-email` 与 admin 插件 `/admin/*` 在路由层 404，账号变更只走上表带审计的端点。
 
 规则：最后一个 owner 不可移除 / 降级 / 注销（409 `CONFLICT_LAST_OWNER`），须先转让；停用与移除都必须在同一事务内完成会话删除，并在提交后向 collab 与 SSE 广播 `user.revoked(userId)`。审计 action 名一律取 01 §3.12 的枚举清单（唯一源，本文不复制）。
 

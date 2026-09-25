@@ -13,13 +13,13 @@ import { SpaceTag } from './SpaceTag.tsx'
 
 /** 记录类型色（04 §2.1 色板）：一眼分出决策 / 迭代 / Bug…；文字仍是类型名，不单靠颜色 */
 export const ENTRY_KIND_TONE: Record<string, PaletteName> = {
-  decision: 'indigo',
-  iteration: 'teal',
-  bug: 'ochre',
-  changelog: 'amber',
-  journal: 'pine',
-  note: 'moss',
-  review: 'plum',
+  decision: 'blue',
+  iteration: 'cyan',
+  bug: 'red',
+  changelog: 'orange',
+  journal: 'green',
+  note: 'yellow',
+  review: 'purple',
 }
 export const entryKindClass = (kind: string) => PALETTE_CLASS[ENTRY_KIND_TONE[kind] ?? 'gray']
 

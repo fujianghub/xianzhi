@@ -62,7 +62,7 @@ export function CalendarSidebar({
   }
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
-  const [newColor, setNewColor] = useState<PaletteColor>('teal')
+  const [newColor, setNewColor] = useState<PaletteColor>('cyan')
   const [confirmDel, setConfirmDel] = useState<CalendarView | null>(null)
   const refresh = () =>
     Promise.all([
@@ -342,7 +342,7 @@ function ColorPicker({
           type="button"
           role="radio"
           aria-checked={value === c}
-          aria-label={t(`palette.${c}`, { defaultValue: c })}
+          aria-label={t(`ui.palette.${c}`)}
           onClick={() => onChange(c)}
           className={cn(
             'size-5 rounded-full ring-offset-2 ring-offset-(--xz-surface-solid) transition-shadow',

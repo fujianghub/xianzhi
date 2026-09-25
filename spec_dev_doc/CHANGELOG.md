@@ -4,6 +4,13 @@
 
 ## 2026-09-25
 
+**鲜艳 9 色板、日历拖选、owner 用户管理与个人资料（ADR-0010）**
+- 新增 ADR-0010。
+- 00：新增 REQ-CAL-010（拖选新建）、REQ-UI-035（鲜艳 9 色板）、REQ-WS-018 ~ 023（用户管理 / 改资料 / 重置密码 / 删号 / 本人改用户名邮箱 / 头像）、REQ-AUTH-021（改密）；REQ-CAL-001 · TAG-001 · COLLAB-010 · UI-033 色板描述加注。
+- 01：§3.12 审计 +`auth.password_changed` / `user.created` / `user.updated`；§5 +`user.manage`；色列说明与默认日历色改新色名。
+- 02：§2 注「改资料 / 改密只走 /api/v1」（Better Auth `/update-user` `/change-password` `/change-email` `/admin/*` 404）；§9 +`GET/POST /workspace/users`、`PATCH /workspace/users/:userId`、`POST /workspace/users/:userId/password`、`PATCH /me/account`、`POST /me/password`、`DELETE /me/avatar`，`?purge=1` 行改为 REQ-WS-021 已实现。
+- 04 §2.1 色板改写（`-solid / -bg / -fg`、色块样式、旧名映射）；07 §4 生命周期 +直建 / 改资料 / 改密重置三行与注；08 §1 +`/settings/workspace/users`、§2.13 / §2.17 注；glossary 色板行。
+
 **开放注册 + 审批、用户名登录、密码 8 位（ADR-0008）**
 - 新增 ADR-0008；ADR-0001 §4.6 注册策略与 §8 决定 6 加注 / 删除线；ADR-0006 头部加注（用户名裁定被推翻）。
 - 00：非目标划掉「自助注册」；REQ-AUTH-002 修订为「拒绝绕过审批的注册」；新增 REQ-AUTH-017（注册）· 018（待审批不能登录 / 审批）· 019（驳回删号）· 020（用户名登录）。

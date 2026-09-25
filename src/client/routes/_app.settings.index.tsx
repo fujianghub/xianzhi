@@ -1,5 +1,5 @@
 /**
- * 个人设置（08 §2.13、T1-033、REQ-WS-010）：显示名、时区、周起始（服务端，影响「今日」「周期」）；
+ * 个人设置（08 §2.13、T1-033、REQ-WS-010 · 022 · 023）：头像、用户名、邮箱（须当前密码）、显示名、时区、周起始（服务端，影响「今日」「周期」）；
  * 主题、密度与动效档位为本机偏好。改动即保存，显示「已保存 · 刚刚」；时区改动后失效任务列表（今日边界变化）。
  */
 import { useQueryClient } from '@tanstack/react-query'
@@ -12,6 +12,7 @@ import { type Me, useMe } from '../hooks/useMe.ts'
 import { ApiError, api, unwrap } from '../lib/api.ts'
 import { useLayout } from '../lib/stores.ts'
 import { currentTheme, setTheme, storedChoice, type ThemeChoice } from '../lib/theme.ts'
+import { ProfileAccount } from './-components/profile-account.tsx'
 
 export const Route = createFileRoute('/_app/settings/')({ component: Profile })
 
@@ -77,10 +78,7 @@ function Profile() {
         ) : null}
       </div>
       <div className="flex flex-col gap-5">
-        <label className={row}>
-          <span className={label}>{t('settings.profile.email')}</span>
-          <Input value={me.email} disabled />
-        </label>
+        <ProfileAccount me={me} />
         <label className={row}>
           <span className={label}>{t('settings.profile.displayName')}</span>
           <Input

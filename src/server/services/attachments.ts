@@ -318,6 +318,17 @@ export async function uploadAvatar(
     squareCrop: 512,
   })
   const image = r.view.variants.md ?? r.view.url
-  await db.update(userTable).set({ image }).where(eq(userTable.id, ctx.actor.id))
+  await db
+    .update(userTable)
+    .set({ image, avatarAttachmentId: r.view.id, updatedAt: new Date() })
+    .where(eq(userTable.id, ctx.actor.id))
   return { ...r.view, image }
+}
+
+/** DELETE /me/avatar（REQ-WS-023）：清空头像，回到首字母；附件行留给孤儿清理。 */
+export async function removeAvatar(db: DbOrTx, ctx: { actor: Actor }): Promise<void> {
+  await db
+    .update(userTable)
+    .set({ image: null, avatarAttachmentId: null, updatedAt: new Date() })
+    .where(eq(userTable.id, ctx.actor.id))
 }

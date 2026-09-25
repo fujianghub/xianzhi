@@ -1,4 +1,4 @@
-/** TagPicker（04 §5、REQ-TAG-003）：输入过滤；不存在的名字回车即 POST /tags 并选中；8 色 token 按名字散列。 */
+/** TagPicker（04 §5、REQ-TAG-003）：输入过滤；不存在的名字回车即 POST /tags 并选中；9 色 token 按名字散列。 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, Plus, Tag as TagIcon } from 'lucide-react'
 import { type KeyboardEvent, useState } from 'react'

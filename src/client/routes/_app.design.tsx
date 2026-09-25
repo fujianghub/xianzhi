@@ -6,6 +6,7 @@ import { createFileRoute, notFound } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { PALETTE_COLORS } from '../../shared/schemas/enums.ts'
 import { Avatar } from '../components/ui/avatar.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { Checkbox } from '../components/ui/checkbox.tsx'
@@ -148,7 +149,7 @@ const COLORS = [
   'info',
   'border',
 ] as const
-const PALETTE = ['moss', 'amber', 'indigo', 'ochre', 'teal', 'plum', 'gray', 'pine'] as const
+const PALETTE = PALETTE_COLORS
 
 function TokensPage() {
   const { t } = useTranslation()
@@ -172,7 +173,7 @@ function TokensPage() {
               style={{
                 background: `var(--xz-palette-${p}-bg)`,
                 color: `var(--xz-palette-${p}-fg)`,
-                borderColor: `var(--xz-palette-${p}-fg)`,
+                borderColor: `var(--xz-palette-${p}-solid)`,
               }}
             >
               {p}

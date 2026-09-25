@@ -23,6 +23,7 @@
 - **会话**：Better Auth Cookie；中间件 `session()` 解析后写入 `c.var.user`、`c.var.workspaceRole`；未登录 401。
 - **API Key**：`Authorization: Bearer xz_<key>`（Better Auth apiKey 插件）；用于 MCP、脚本；scope 限定（`read`、`write`、`admin`）；**有效权限 = min(scope, 持有者当前工作区角色)**，持有者降级或移除即同步收窄；可选 `expiresAt`；单 Key 限流 300/min；创建、使用（每日首次）、吊销写入 `audit_log`（07 §2.7）。
 - **注册与用户名登录**（注 2026-09-25，ADR-0008）：Better Auth `/sign-up/email` 保持关闭；自助注册只走 `POST /workspace/join-requests`（公开，须 `x-captcha`，每 IP 5 次 / 小时），建号但不建 `member` → 待审批。`/sign-in/username` 与 `/sign-in/email` 共用 `loginGuard`（拼图、锁定、限流按解析出的邮箱计）；待审批账号密码正确时撤销刚建的会话、不下发 Cookie，返回 403 `REGISTRATION_PENDING`。
+- **改资料 / 改密只走 `/api/v1`**（注 2026-09-25，ADR-0010）：Better Auth `/update-user`、`/change-password`、`/change-email` 与 admin 插件 `/admin/*` 一律路由层 404——前者绕过审计与唯一性校验（且 `image` 可指向外链），后者绕过 `can()`；用户管理走 `/workspace/users*`，本人走 `/me/account`、`/me/password`、`/me/avatar`。
 - **会话吊销**：admin 吊销某用户全部会话走 `POST /workspace/members/:userId/revoke-sessions`（包装 Better Auth admin `revokeUserSessions`），同时广播 `user.revoked` 断其 WS / SSE（07 §4）。
 - **Better Auth 插件约束**：`magicLink({ disableSignUp: true })`，陌生邮箱请求魔法链接不建号、响应与已注册邮箱一致；admin 插件的 impersonation（模拟登录）**一期禁用**（`impersonationSessionDuration: 0` 且不暴露端点），二期若启用须写 `audit_log(admin.impersonated)` 且不得对 owner 使用（07 §2.1）。
 - **授权**：service 内 `assertCan(user, action, resource)`，失败抛 `ForbiddenError` → 403；**列表**用 `visible*Where(user)`（01 §5 不变量 3）。对不可见资源统一返回 404 而非 403（不泄露存在性）；**明确知道存在但无权的动作**（如空间成员修改归档空间）返回 403。
@@ -162,7 +163,10 @@
 |---|---|---|---|
 | GET | `/me` | 当前用户资料与工作区角色 | REQ-WS-010 |
 | PATCH | `/me` | `displayName / locale / timezone / weekStartsOn` | REQ-WS-010 |
-| POST | `/me/avatar` | multipart，复用附件管线 + 方形裁切 | REQ-ATTACH-007 |
+| POST | `/me/avatar` | multipart，复用附件管线 + 方形裁切；回写 `image` 与 `avatarAttachmentId` | REQ-ATTACH-007 · REQ-WS-023 |
+| DELETE | `/me/avatar` | 移除头像（回到首字母）；204 | REQ-WS-023 |
+| PATCH | `/me/account` | `{ username?, email?, currentPassword? }`；改邮箱须当前密码（错 422 `currentPassword`）；占用 409（字段级）；仅会话；返回新 `/me` | REQ-WS-022 |
+| POST | `/me/password` | `{ currentPassword, newPassword }`；删本人其他会话、保留当前；审计 `auth.password_changed`；仅会话；返回 `{ sessions }` | REQ-AUTH-021 |
 | GET | `/me/keys` | API Key 列表（只含前缀、scope、expiresAt、lastUsedAt） | REQ-AUTH-010 |
 | POST | `/me/keys` | `{ name, scope, expiresAt? }` → 明文只返回一次 | REQ-AUTH-010 |
 | DELETE | `/me/keys/:id` | 吊销 | REQ-AUTH-010 |
@@ -170,7 +174,7 @@
 | DELETE | `/me/sessions/:id` | 注销某会话 | REQ-AUTH-009 |
 | DELETE | `/me` | 注销账号（匿名化，需密码或 TOTP 确认；最后 owner 409） | REQ-WS-015 · 07 §4 |
 | DELETE | `/workspace/members/me` | 本人退出工作区（等价于被移除，同事务吊销与断连；最后 owner 409） | REQ-WS-004 · 012 · 013 |
-| DELETE | `/workspace/members/:userId?purge=1` | owner 注销他人账号（匿名化，同 `DELETE /me` 语义） | REQ-WS-015 · 07 §4 |
+| DELETE | `/workspace/members/:userId?purge=1` | owner 删除他人账号（`user.manage`）：移除 + 吊销 + 删凭据 / 2FA / Passkey / Key + 匿名化；owner 不可删 409；审计 `user.deleted` | REQ-WS-021 · 07 §4 |
 | GET | `/workspace` | 工作区信息 | REQ-WS-001 |
 | PATCH | `/workspace` | 名称、设置（owner/admin） | REQ-WS-001 |
 | GET | `/workspace/members` | 成员列表（含 `status: active|suspended`） | REQ-WS-002 |
@@ -186,6 +190,10 @@
 | DELETE | `/workspace/invitations/:id` | 撤回 | REQ-AUTH-003 |
 | GET | `/workspace/invitations/:id` | **公开**（受邀者尚无账号）：邀请页读取；返回脱敏邮箱、角色、工作区名、邀请人；已用 / 过期 / 撤回 → 410 `INVITATION_EXPIRED` | REQ-AUTH-003 · 004 |
 | POST | `/workspace/invitations/:id/accept` | **公开**：`{ email, name, password }`；邮箱须与邀请一致（否则 403）；建号 + `member(role)` + 个人空间 + `member.joined`；一次性，再次 → 410；201 响应含 `captchaPass`（60 s 一次性，供随后自动登录免拼图，ADR-0006） | REQ-AUTH-003 · 004 · REQ-SPACE-009 · REQ-AUTH-016 |
+| GET | `/workspace/users` | 用户管理列表（仅 owner，`user.manage`）：用户名、头像、角色、状态、2FA、最近活跃、会话数 | REQ-WS-018 |
+| POST | `/workspace/users` | 直建用户 `{ email, username, name, password, role? = member }` → 立即成为成员；占用 409（字段级）；成员数达 50 → 422；审计 `user.created` | REQ-WS-018 |
+| PATCH | `/workspace/users/:userId` | 改他人 `{ displayName?, username?, email? }`（不含本人）；审计 `user.updated`；204 | REQ-WS-019 |
+| POST | `/workspace/users/:userId/password` | 重置他人密码 `{ password }`；删其全部会话并广播 `user.revoked`；审计 `auth.password_reset`（`byAdmin`） | REQ-WS-020 |
 | POST | `/workspace/join-requests` | **公开**：`{ email, username, name, password }` + `x-captcha`；建待审批账号，发 `member.requested`；201 `{ status: 'pending' }`；拼图错 400、占用 409（字段级）、每 IP 5 次 / 小时与待审批 ≥ 200 → 429 | REQ-AUTH-017 |
 | GET | `/workspace/join-requests` | 待审批列表（owner/admin，`member.approve`） | REQ-AUTH-018 |
 | POST | `/workspace/join-requests/:id/approve` | `{ role? = member }`；写 `member` + 个人空间 + `member.joined`；已处理 409；成员数达 50 → 422 | REQ-AUTH-018 |

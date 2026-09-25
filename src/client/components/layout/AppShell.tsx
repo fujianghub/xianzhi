@@ -319,7 +319,7 @@ export function AppShell({
                 <LogOut />
               </Button>
             </Tooltip>
-            <Avatar id={me.id} name={name} />
+            <Avatar id={me.id} name={name} src={me.image} />
           </div>
         </header>
         <main

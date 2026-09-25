@@ -252,7 +252,7 @@ export function EventEditor({
             <form onSubmit={submit} className="flex flex-col" noValidate>
               <div className="flex items-center gap-3 border-divider border-b px-5 pt-5 pb-4">
                 <span
-                  className={cn('size-3 shrink-0 rounded-full', PALETTE_DOT[cal?.color ?? 'moss'])}
+                  className={cn('size-3 shrink-0 rounded-full', PALETTE_DOT[cal?.color ?? 'blue'])}
                   aria-hidden
                 />
                 <DialogTitle className="sr-only">

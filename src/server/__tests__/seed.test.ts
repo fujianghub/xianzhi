@@ -2,6 +2,7 @@
 import { rm } from 'node:fs/promises'
 import { and, count, eq, isNull, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { PALETTE_COLORS } from '../../shared/schemas/enums.ts'
 import { getAuth } from '../auth.ts'
 import { getDb } from '../db/index.ts'
 import { user } from '../db/schema/auth.ts'
@@ -48,7 +49,7 @@ describe('seed', () => {
       spaces: 5,
       tasks: 30,
       entries: 14,
-      tags: 8,
+      tags: 9,
     })
   })
 
@@ -103,7 +104,7 @@ describe('seed', () => {
     ).toEqual(['B:viewer', 'personal:admin'])
   })
 
-  it('08 §7 记录每 kind 2 篇、个人空间内 4 篇均 private / 2 space、派生列已生成；周期 active + reviewed；8 色标签；通知 owner 6（2 未读、1 提及）/ member 3；审计 3 类', async () => {
+  it('08 §7 记录每 kind 2 篇、个人空间内 4 篇均 private / 2 space、派生列已生成；周期 active + reviewed；9 色标签；通知 owner 6（2 未读、1 提及）/ member 3；审计 3 类', async () => {
     const e = await db().select().from(entries)
     const perKind = e.reduce<Record<string, number>>((m, x) => {
       m[x.kind] = (m[x.kind] ?? 0) + 1
@@ -126,16 +127,9 @@ describe('seed', () => {
     ).toBeDefined()
     const cs = await db().select().from(cycles)
     expect(cs.map((c) => c.status).sort()).toEqual(['active', 'reviewed'])
-    expect((await db().select({ c: tags.color }).from(tags)).map((t) => t.c).sort()).toEqual([
-      'amber',
-      'gray',
-      'indigo',
-      'moss',
-      'ochre',
-      'pine',
-      'plum',
-      'teal',
-    ])
+    expect((await db().select({ c: tags.color }).from(tags)).map((t) => t.c).sort()).toEqual(
+      [...PALETTE_COLORS].sort(),
+    )
     const own = await db()
       .select()
       .from(notifications)

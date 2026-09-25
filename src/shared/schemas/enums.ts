@@ -77,13 +77,14 @@ export const DELIVERY_CHANNELS = ['in_app', 'webpush', 'email'] as const
 export const DELIVERY_STATUSES = ['pending', 'sent', 'failed', 'skipped'] as const
 export const DIGESTS = ['instant', 'daily'] as const
 
-/** 01 §3.12 审计 action 枚举（32 项；+3 注册审批 ADR-0008）；写入非枚举值即抛错（REQ-WS-017）。 */
+/** 01 §3.12 审计 action 枚举（32 项；+3 注册审批 ADR-0008；+3 用户管理 / 个人资料 ADR-0010）；写入非枚举值即抛错（REQ-WS-017）。 */
 export const AUDIT_ACTIONS = [
   'auth.login',
   'auth.logout',
   'auth.login_failed',
   'auth.locked',
   'auth.password_reset',
+  'auth.password_changed',
   'auth.2fa_enabled',
   'auth.2fa_disabled',
   'auth.2fa_reset_by_admin',
@@ -97,6 +98,8 @@ export const AUDIT_ACTIONS = [
   'member.unsuspended',
   'member.removed',
   'member.content_transferred',
+  'user.created',
+  'user.updated',
   'user.deleted',
   'workspace.owner_transferred',
   'workspace.settings_changed',
@@ -117,16 +120,19 @@ export type AuditAction = (typeof AUDIT_ACTIONS)[number]
 export const API_KEY_SCOPES = ['read', 'write', 'admin'] as const
 export type ApiKeyScope = (typeof API_KEY_SCOPES)[number]
 
-/** 04 §2.1 空间 / 标签 8 色板（token `--xz-palette-<name>-bg/-fg`）；中英对照见 glossary。 */
+/**
+ * 04 §2.1 空间 / 标签 / 日历 9 色鲜艳色板（ADR-0010；token `--xz-palette-<name>-solid/-bg/-fg`）；中英对照见 glossary。
+ */
 export const PALETTE_COLORS = [
-  'moss',
-  'amber',
-  'indigo',
-  'ochre',
-  'teal',
-  'plum',
+  'blue',
+  'orange',
+  'yellow',
+  'red',
+  'green',
+  'purple',
+  'pink',
+  'cyan',
   'gray',
-  'pine',
 ] as const
 export type PaletteColor = (typeof PALETTE_COLORS)[number]
 

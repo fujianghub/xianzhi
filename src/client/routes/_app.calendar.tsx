@@ -242,11 +242,12 @@ function Calendar() {
       allDay: false,
       calendarId: firstVisibleCal,
     })
-  const createAllDay = (d: LocalDate) =>
+  /** 全天日程：单日点击或按住拖选 d..to（含，REQ-CAL-010）。 */
+  const createAllDay = (d: LocalDate, to: LocalDate = d) =>
     setEditor({
       mode: 'create',
       start: zonedMidnight(tz, d),
-      end: zonedMidnight(tz, addDays(d, 1)),
+      end: zonedMidnight(tz, addDays(to, 1)),
       allDay: true,
       calendarId: firstVisibleCal,
     })

@@ -8,7 +8,7 @@ describe('记录类型色', () => {
     const tones = ENTRY_KINDS.map((k) => ENTRY_KIND_TONE[k])
     for (const t of tones) expect(PALETTE).toContain(t)
     expect(new Set(tones).size).toBe(ENTRY_KINDS.length)
-    expect(entryKindClass('decision')).toBe('bg-indigo-bg text-indigo-fg')
+    expect(entryKindClass('decision')).toBe('bg-blue-bg text-blue-fg')
     expect(entryKindClass('unknown')).toBe('bg-gray-bg text-gray-fg')
   })
 })

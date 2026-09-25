@@ -1,12 +1,14 @@
-/** 安全设置（08 §2.13、REQ-AUTH-006 · 007 · 009）：2FA（TOTP + 10 个恢复码）、通行密钥、会话列表。 */
+/** 安全设置（08 §2.13、REQ-AUTH-006 · 007 · 009 · 021）：改密码、2FA（TOTP + 10 个恢复码）、通行密钥、会话列表。 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+import { type FormEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { PASSWORD_MIN } from '../../shared/schemas/workspace.ts'
 import { Button } from '../components/ui/button.tsx'
 import { Input } from '../components/ui/input.tsx'
 import { FieldError, Label } from '../components/ui/label.tsx'
-import { api, unwrap } from '../lib/api.ts'
+import { ApiError, api, unwrap } from '../lib/api.ts'
 import { authClient } from '../lib/auth-client.ts'
 
 export const Route = createFileRoute('/_app/settings/security')({ component: Security })
@@ -50,6 +52,8 @@ function Security() {
   return (
     <div className="flex max-w-3xl flex-col gap-6" data-testid="security">
       <h1 className="font-semibold text-2xl tracking-tight">{t('settings.security.title')}</h1>
+
+      <ChangePassword onDone={() => qc.invalidateQueries({ queryKey: ['me', 'sessions'] })} />
 
       <section className="paper rounded-xl p-5" data-testid="twofa">
         <h2 className="font-medium">
@@ -197,5 +201,95 @@ function Security() {
         </ul>
       </section>
     </div>
+  )
+}
+
+/** 改密码（REQ-AUTH-021）：当前密码 + 新密码两次；成功后其他会话被退出、当前会话保留。 */
+function ChangePassword({ onDone }: { onDone: () => void }) {
+  const { t } = useTranslation()
+  const [cur, setCur] = useState('')
+  const [next, setNext] = useState('')
+  const [again, setAgain] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [errs, setErrs] = useState<{ cur?: string | null; next?: string | null }>({})
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (next.length < PASSWORD_MIN)
+      return setErrs({ next: t('settings.security.passwordTooShort', { n: PASSWORD_MIN }) })
+    if (next !== again) return setErrs({ next: t('settings.security.passwordMismatch') })
+    setBusy(true)
+    setErrs({})
+    try {
+      const r = await unwrap<{ sessions: number }>(
+        api.me.password.$post({ json: { currentPassword: cur, newPassword: next } }),
+      )
+      setCur('')
+      setNext('')
+      setAgain('')
+      toast.success(t('settings.security.passwordChanged', { count: r.sessions }))
+      onDone()
+    } catch (err) {
+      const fe = err instanceof ApiError ? err.problem.errors : undefined
+      setErrs({
+        cur: fe?.find((x) => x.path === 'currentPassword')?.message ?? null,
+        next: fe?.find((x) => x.path === 'newPassword')?.message ?? null,
+      })
+      if (!fe?.length) toast.error(t('task.saveFailed'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <section className="paper rounded-xl p-5" data-testid="change-password">
+      <h2 className="font-medium">{t('settings.security.password')}</h2>
+      <p className="mt-1 text-fg-muted text-sm">{t('settings.security.passwordHint')}</p>
+      <form className="mt-4 grid gap-3 sm:grid-cols-3 sm:items-start" onSubmit={submit}>
+        {/* 隐藏的用户名字段：让密码管理器把新密码归到正确账号 */}
+        <input type="text" autoComplete="username" className="hidden" readOnly />
+        <div>
+          <Label htmlFor="cur-pw">{t('settings.security.currentPassword')}</Label>
+          <Input
+            id="cur-pw"
+            type="password"
+            className="mt-1"
+            value={cur}
+            onChange={(e) => setCur(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
+          <FieldError>{errs.cur}</FieldError>
+        </div>
+        <div>
+          <Label htmlFor="new-pw">{t('settings.security.newPassword', { n: PASSWORD_MIN })}</Label>
+          <Input
+            id="new-pw"
+            type="password"
+            className="mt-1"
+            value={next}
+            onChange={(e) => setNext(e.target.value)}
+            autoComplete="new-password"
+            required
+          />
+          <FieldError>{errs.next}</FieldError>
+        </div>
+        <div>
+          <Label htmlFor="new-pw2">{t('settings.security.confirmNewPassword')}</Label>
+          <Input
+            id="new-pw2"
+            type="password"
+            className="mt-1"
+            value={again}
+            onChange={(e) => setAgain(e.target.value)}
+            autoComplete="new-password"
+            required
+          />
+        </div>
+        <div className="sm:col-span-3">
+          <Button type="submit" variant="primary" loading={busy} data-testid="change-password-save">
+            {t('settings.security.changePassword')}
+          </Button>
+        </div>
+      </form>
+    </section>
   )
 }

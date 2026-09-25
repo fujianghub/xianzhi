@@ -169,7 +169,7 @@ export function GlanceRail({ tz, weekStartsOn }: { tz: string; weekStartsOn: num
                     <span
                       className={cn(
                         'mt-1.5 size-2 shrink-0 rounded-full',
-                        DOT[color.get(o.calendarId) ?? 'moss'],
+                        DOT[color.get(o.calendarId) ?? 'blue'],
                       )}
                       aria-hidden
                     />

@@ -87,12 +87,12 @@ describe('ADR-0009 日历 API', () => {
   })
 
   it('REQ-CAL-001 新建 / 改名改色 / 隐藏 / 删除（至少留一个）', async () => {
-    const c = await req('POST', '/calendars', { name: '健身', color: 'teal' })
+    const c = await req('POST', '/calendars', { name: '健身', color: 'cyan' })
     expect(c.status).toBe(201)
     const cal = (await c.json()) as CalendarView
     const p = await req('PATCH', `/calendars/${cal.id}`, { name: '运动', hidden: true })
     expect(((await p.json()) as CalendarView).hidden).toBe(true)
-    expect((await req('POST', '/calendars', { name: 'x', color: 'red' })).status).toBe(422)
+    expect((await req('POST', '/calendars', { name: 'x', color: 'teal' })).status).toBe(422)
     expect((await req('DELETE', `/calendars/${cal.id}`)).status).toBe(204)
   })
 

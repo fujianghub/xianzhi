@@ -125,6 +125,9 @@ expectMatrix('member.transfer_content', ADMIN_ONLY, (a) =>
 expectMatrix('workspace.owner_transfer', OWNER_ONLY, (a) =>
   can(a, 'workspace.owner_transfer', null),
 )
+expectMatrix('user.manage', OWNER_ONLY, (a) => can(a, 'user.manage', { id: OTHER }))
+expectMatrix('user.manage(list)', OWNER_ONLY, (a) => can(a, 'user.manage', null))
+expectMatrix('user.manage(self)', NEVER, (a) => can(a, 'user.manage', { id: ME }))
 expectMatrix('space.create', NOT_GUEST, (a) => can(a, 'space.create', null))
 expectMatrix('me.delete(self)', SELF_ONLY, (a) => can(a, 'me.delete', { id: ME }))
 expectMatrix('me.delete(other)', NEVER, (a) => can(a, 'me.delete', { id: OTHER }))
@@ -405,6 +408,7 @@ describe('archived / deleted / suspended', () => {
         'calendar.read': { id: 'k', ownerId: ME },
         'calendar.write': { id: 'k', ownerId: ME },
         'member.approve': null,
+        'user.manage': { id: OTHER },
       }
       const r = action in res ? res[action] : { id: ME }
       // biome-ignore lint/suspicious/noExplicitAny: 枚举遍历

@@ -172,3 +172,61 @@ test('REQ-CAL-005 重复日程删除「仅此日程」只去掉这一次', async
   await page.getByTestId('cal-scope-this').click()
   await expect(evs).toHaveCount(4)
 })
+
+test('REQ-CAL-010 月视图按住拖选 9/9 → 9/11 新建跨日全天日程；反向拖同样有效；单击仍为单日', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/calendar?view=month&date=2026-09-15')
+  const cell = (d: string) => page.locator(`[data-testid="cal-day"][data-date="${d}"]`)
+  // 按在格子下半部空白处（上半部有日期号按钮）
+  const spot = async (d: string) => {
+    const b = await cell(d).boundingBox()
+    if (!b) throw new Error(`no cell ${d}`)
+    return { x: b.x + b.width / 2, y: b.y + b.height - 8 }
+  }
+  const drag = async (from: string, to: string) => {
+    const a = await spot(from)
+    const b = await spot(to)
+    await page.mouse.move(a.x, a.y)
+    await page.mouse.down()
+    await page.mouse.move(b.x, b.y, { steps: 10 })
+    await expect(cell(from)).toHaveAttribute('data-selecting', 'true')
+    await page.mouse.up()
+  }
+  const editor = page.getByTestId('cal-editor')
+
+  await drag('2026-09-09', '2026-09-11')
+  await expect(editor).toBeVisible()
+  await expect(page.getByTestId('cal-editor-allday')).toBeChecked()
+  await expect(page.getByTestId('cal-editor-start-date')).toHaveValue('2026-09-09')
+  await expect(page.getByTestId('cal-editor-end-date')).toHaveValue('2026-09-11')
+  const title = `e2e 拖选 ${Date.now()}`
+  await page.getByTestId('cal-editor-title').fill(title)
+  await page.getByTestId('cal-editor-save').click()
+  await expect(editor).toBeHidden()
+  for (const d of ['2026-09-09', '2026-09-10', '2026-09-11'])
+    await expect(cell(d).getByTestId('cal-event').filter({ hasText: title })).toBeVisible()
+  await expect(cell('2026-09-12').getByTestId('cal-event').filter({ hasText: title })).toHaveCount(
+    0,
+  )
+
+  // 反向拖
+  await drag('2026-09-24', '2026-09-22')
+  await expect(page.getByTestId('cal-editor-start-date')).toHaveValue('2026-09-22')
+  await expect(page.getByTestId('cal-editor-end-date')).toHaveValue('2026-09-24')
+  await page.keyboard.press('Escape')
+  await expect(editor).toBeHidden()
+
+  // 单击 = 单日
+  const one = await spot('2026-09-16')
+  await page.mouse.click(one.x, one.y)
+  await expect(page.getByTestId('cal-editor-start-date')).toHaveValue('2026-09-16')
+  await expect(page.getByTestId('cal-editor-end-date')).toHaveValue('2026-09-16')
+  await page.keyboard.press('Escape')
+
+  // 清理
+  await cell('2026-09-10').getByTestId('cal-event').filter({ hasText: title }).click()
+  await page.getByTestId('cal-editor-delete').click()
+  await expect(editor).toBeHidden()
+})

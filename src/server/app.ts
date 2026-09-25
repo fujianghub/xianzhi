@@ -80,10 +80,16 @@ export const VERSION: string = (() => {
   }
 })()
 
-/** 一期禁用 impersonation（REQ-AUTH-015 / 07 §2.1）：路由层直接 404。 */
+/**
+ * 路由层直接 404：一期禁用 impersonation（REQ-AUTH-015 / 07 §2.1）；Better Auth admin 插件端点整体关闭
+ * （用户管理只走 can('user.manage') + 审计的 `/api/v1/workspace/users*`，ADR-0010）；
+ * 改资料 / 改密 / 改邮箱只走带审计与唯一性校验的 `/api/v1/me/*`（`image` 不得指向外链）。
+ */
+const DISABLED_AUTH_PREFIX = '/api/auth/admin/'
 const DISABLED_AUTH_PATHS = [
-  '/api/auth/admin/impersonate-user',
-  '/api/auth/admin/stop-impersonating',
+  '/api/auth/update-user',
+  '/api/auth/change-password',
+  '/api/auth/change-email',
 ]
 
 export function createApp(deps: AppDeps) {
@@ -133,7 +139,8 @@ export function createApp(deps: AppDeps) {
 
   // ---- Better Auth（/api/auth/*） ----
   app.use('/api/auth/*', async (c, next) => {
-    if (DISABLED_AUTH_PATHS.includes(c.req.path)) throw AppError.notFound()
+    if (c.req.path.startsWith(DISABLED_AUTH_PREFIX) || DISABLED_AUTH_PATHS.includes(c.req.path))
+      throw AppError.notFound()
     await next()
   })
   app.use('/api/auth/sign-in/email', loginGuard(guard, deps.db, captcha))

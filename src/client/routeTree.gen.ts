@@ -34,6 +34,7 @@ import { Route as AppSpacesSpaceSlugRouteImport } from './routes/_app.spaces.$sp
 import { Route as AppSettingsWorkspaceIndexRouteImport } from './routes/_app.settings.workspace.index'
 import { Route as AppSettingsWorkspaceAuditRouteImport } from './routes/_app.settings.workspace.audit'
 import { Route as AppSettingsWorkspaceMembersRouteImport } from './routes/_app.settings.workspace.members'
+import { Route as AppSettingsWorkspaceUsersRouteImport } from './routes/_app.settings.workspace.users'
 import { Route as AppSpacesSpaceSlugEntriesRouteImport } from './routes/_app.spaces.$spaceSlug_.entries'
 import { Route as AppSpacesSpaceSlugTasksTaskIdRouteImport } from './routes/_app.spaces.$spaceSlug.tasks.$taskId'
 
@@ -165,6 +166,12 @@ const AppSettingsWorkspaceMembersRoute =
     path: '/workspace/members',
     getParentRoute: () => AppSettingsRoute,
   } as any)
+const AppSettingsWorkspaceUsersRoute =
+  AppSettingsWorkspaceUsersRouteImport.update({
+    id: '/workspace/users',
+    path: '/workspace/users',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
 const AppSpacesSpaceSlugEntriesRoute =
   AppSpacesSpaceSlugEntriesRouteImport.update({
     id: '/spaces/$spaceSlug_/entries',
@@ -202,6 +209,7 @@ export interface FileRoutesByFullPath {
   '/spaces/': typeof AppSpacesIndexRoute
   '/settings/workspace/audit': typeof AppSettingsWorkspaceAuditRoute
   '/settings/workspace/members': typeof AppSettingsWorkspaceMembersRoute
+  '/settings/workspace/users': typeof AppSettingsWorkspaceUsersRoute
   '/spaces/$spaceSlug/entries': typeof AppSpacesSpaceSlugEntriesRoute
   '/settings/workspace/': typeof AppSettingsWorkspaceIndexRoute
   '/spaces/$spaceSlug/tasks/$taskId': typeof AppSpacesSpaceSlugTasksTaskIdRoute
@@ -229,6 +237,7 @@ export interface FileRoutesByTo {
   '/spaces': typeof AppSpacesIndexRoute
   '/settings/workspace/audit': typeof AppSettingsWorkspaceAuditRoute
   '/settings/workspace/members': typeof AppSettingsWorkspaceMembersRoute
+  '/settings/workspace/users': typeof AppSettingsWorkspaceUsersRoute
   '/spaces/$spaceSlug/entries': typeof AppSpacesSpaceSlugEntriesRoute
   '/settings/workspace': typeof AppSettingsWorkspaceIndexRoute
   '/spaces/$spaceSlug/tasks/$taskId': typeof AppSpacesSpaceSlugTasksTaskIdRoute
@@ -259,6 +268,7 @@ export interface FileRoutesById {
   '/_app/spaces/': typeof AppSpacesIndexRoute
   '/_app/settings/workspace/audit': typeof AppSettingsWorkspaceAuditRoute
   '/_app/settings/workspace/members': typeof AppSettingsWorkspaceMembersRoute
+  '/_app/settings/workspace/users': typeof AppSettingsWorkspaceUsersRoute
   '/_app/spaces/$spaceSlug_/entries': typeof AppSpacesSpaceSlugEntriesRoute
   '/_app/settings/workspace/': typeof AppSettingsWorkspaceIndexRoute
   '/_app/spaces/$spaceSlug/tasks/$taskId': typeof AppSpacesSpaceSlugTasksTaskIdRoute
@@ -289,6 +299,7 @@ export interface FileRouteTypes {
     | '/spaces/'
     | '/settings/workspace/audit'
     | '/settings/workspace/members'
+    | '/settings/workspace/users'
     | '/spaces/$spaceSlug/entries'
     | '/settings/workspace/'
     | '/spaces/$spaceSlug/tasks/$taskId'
@@ -316,6 +327,7 @@ export interface FileRouteTypes {
     | '/spaces'
     | '/settings/workspace/audit'
     | '/settings/workspace/members'
+    | '/settings/workspace/users'
     | '/spaces/$spaceSlug/entries'
     | '/settings/workspace'
     | '/spaces/$spaceSlug/tasks/$taskId'
@@ -345,6 +357,7 @@ export interface FileRouteTypes {
     | '/_app/spaces/'
     | '/_app/settings/workspace/audit'
     | '/_app/settings/workspace/members'
+    | '/_app/settings/workspace/users'
     | '/_app/spaces/$spaceSlug_/entries'
     | '/_app/settings/workspace/'
     | '/_app/spaces/$spaceSlug/tasks/$taskId'
@@ -536,6 +549,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsWorkspaceMembersRouteImport
       parentRoute: typeof AppSettingsRoute
     }
+    '/_app/settings/workspace/users': {
+      id: '/_app/settings/workspace/users'
+      path: '/workspace/users'
+      fullPath: '/settings/workspace/users'
+      preLoaderRoute: typeof AppSettingsWorkspaceUsersRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/_app/spaces/$spaceSlug_/entries': {
       id: '/_app/spaces/$spaceSlug_/entries'
       path: '/spaces/$spaceSlug/entries'
@@ -560,6 +580,7 @@ interface AppSettingsRouteChildren {
   AppSettingsIndexRoute: typeof AppSettingsIndexRoute
   AppSettingsWorkspaceAuditRoute: typeof AppSettingsWorkspaceAuditRoute
   AppSettingsWorkspaceMembersRoute: typeof AppSettingsWorkspaceMembersRoute
+  AppSettingsWorkspaceUsersRoute: typeof AppSettingsWorkspaceUsersRoute
   AppSettingsWorkspaceIndexRoute: typeof AppSettingsWorkspaceIndexRoute
 }
 
@@ -570,6 +591,7 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsIndexRoute: AppSettingsIndexRoute,
   AppSettingsWorkspaceAuditRoute: AppSettingsWorkspaceAuditRoute,
   AppSettingsWorkspaceMembersRoute: AppSettingsWorkspaceMembersRoute,
+  AppSettingsWorkspaceUsersRoute: AppSettingsWorkspaceUsersRoute,
   AppSettingsWorkspaceIndexRoute: AppSettingsWorkspaceIndexRoute,
 }
 

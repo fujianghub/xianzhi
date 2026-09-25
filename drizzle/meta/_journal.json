@@ -50,6 +50,13 @@
       "when": 1790320342170,
       "tag": "0006_signup_calendar",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790337926546,
+      "tag": "0007_palette_accounts",
+      "breakpoints": true
     }
   ]
 }

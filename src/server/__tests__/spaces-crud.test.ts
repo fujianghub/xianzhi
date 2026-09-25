@@ -125,7 +125,7 @@ describe('T1-001 spaces', () => {
     expect(twoEmoji.status).toBe(422)
     expect((await create(u.member, { name: 'E1', icon: '🚀' })).icon).toBe('🚀')
     expect((await create(u.member, { name: 'E2', icon: '👩‍💻' })).icon).toBe('👩‍💻')
-    expect((await create(u.member, { name: 'E3', icon: 'book-open', color: 'moss' })).icon).toBe(
+    expect((await create(u.member, { name: 'E3', icon: 'book-open', color: 'green' })).icon).toBe(
       'book-open',
     )
   })

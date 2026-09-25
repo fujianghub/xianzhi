@@ -1,23 +1,17 @@
-/** Avatar（06 §4）：full 圆角 + 1px border 环；无图时取首字母，底色按 userId 哈希 8 色板。 */
+/** Avatar（06 §4）：full 圆角 + 1px border 环；有头像显示图片，否则取首字母，底色按 userId 哈希色板（ADR-0010）。 */
+import { useQuery } from '@tanstack/react-query'
 import { Avatar as AvatarPrimitive } from 'radix-ui'
+import { PALETTE_COLORS, type PaletteColor } from '../../../shared/schemas/enums.ts'
+import { membersQuery } from '../../hooks/useMembers.ts'
 import { cn } from '../../lib/cn.ts'
+import { PALETTE_CLASS } from '../domain/SpaceIcon.tsx'
 
-const PALETTE = ['moss', 'amber', 'indigo', 'ochre', 'teal', 'plum', 'gray', 'pine'] as const
-export function paletteOf(id: string): (typeof PALETTE)[number] {
+export function paletteOf(id: string): PaletteColor {
   let h = 0
   for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0
-  return PALETTE[h % PALETTE.length] as (typeof PALETTE)[number]
+  return PALETTE_COLORS[h % PALETTE_COLORS.length] as PaletteColor
 }
-const BG: Record<(typeof PALETTE)[number], string> = {
-  moss: 'bg-moss-bg text-moss-fg',
-  amber: 'bg-amber-bg text-amber-fg',
-  indigo: 'bg-indigo-bg text-indigo-fg',
-  ochre: 'bg-ochre-bg text-ochre-fg',
-  teal: 'bg-teal-bg text-teal-fg',
-  plum: 'bg-plum-bg text-plum-fg',
-  gray: 'bg-gray-bg text-gray-fg',
-  pine: 'bg-pine-bg text-pine-fg',
-}
+const BG = PALETTE_CLASS
 
 export function Avatar({
   id,
@@ -32,6 +26,9 @@ export function Avatar({
   size?: number
   className?: string
 }) {
+  // 未显式给 src（任务指派人、评论作者等序列化里没有头像）→ 从成员列表缓存按 id 取（REQ-WS-023）
+  const { data: members } = useQuery({ ...membersQuery, enabled: src === undefined })
+  const url = src === undefined ? members?.find((m) => m.userId === id)?.image : src
   return (
     <AvatarPrimitive.Root
       className={cn(
@@ -40,8 +37,8 @@ export function Avatar({
       )}
       style={{ width: size, height: size }}
     >
-      {src ? (
-        <AvatarPrimitive.Image src={src} alt={name} className="size-full object-cover" />
+      {url ? (
+        <AvatarPrimitive.Image src={url} alt={name} className="size-full object-cover" />
       ) : null}
       <AvatarPrimitive.Fallback
         className={cn(

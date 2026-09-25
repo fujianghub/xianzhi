@@ -140,4 +140,9 @@ export function avatarRoutes(deps: { db: Db; dataDir: string }) {
         )
       },
     )
+    .delete('/avatar', requireScope('write'), async (c) => {
+      if (!c.var.actor) throw AppError.unauthenticated()
+      await svc.removeAvatar(deps.db, { actor: c.var.actor as Actor })
+      return c.body(null, 204)
+    })
 }

@@ -15,6 +15,7 @@ import {
   covers,
   dayKey,
   hhmm,
+  keyToDate,
   layoutLanes,
   MIN_PER_DAY,
   SNAP,
@@ -30,6 +31,7 @@ import {
   isOffDay,
   LunarCaption,
 } from './parts.tsx'
+import { useRangeSelect } from './useRangeSelect.ts'
 
 export const HOUR = 48
 const HOUR_MARKS = Array.from({ length: 23 }, (_, i) => i + 1)
@@ -72,7 +74,7 @@ export function TimeGrid({
   display: DisplayOpts
   onPickDay?: (d: LocalDate) => void
   onCreate: (d: LocalDate, from: number, to: number) => void
-  onCreateAllDay: (d: LocalDate) => void
+  onCreateAllDay: (d: LocalDate, to?: LocalDate) => void
   onOpen: (it: CalItem) => void
   /** 改期：dayDelta 天 + 新的当日开始分钟 */
   onMove: (it: CalItem, dayDelta: number, minuteDelta: number) => void
@@ -90,6 +92,7 @@ export function TimeGrid({
     return () => clearInterval(id)
   }, [tz])
   const keys = days.map(dayKey)
+  const range = useRangeSelect((a, b) => onCreateAllDay(keyToDate(a), keyToDate(b)))
   const sorted = [...items].sort(sortItems)
   // 初始滚到 08:00；本段有更早的定时日程时上移到其前半小时（每换一段只调整一次）
   const scrolledFor = useRef('')
@@ -229,15 +232,22 @@ export function TimeGrid({
           {t('calendar.allDay')}
         </div>
         {allDay.map((list, i) => (
-          // 全天行空白处单击新建全天日程（鼠标快捷方式，键盘用「新建日程」/ n）
+          // 全天行空白处单击新建全天日程、按住横拖多日新建跨日全天日程（鼠标快捷方式，键盘用「新建日程」/ n）
           // biome-ignore lint/a11y/noStaticElementInteractions: 同上
           // biome-ignore lint/a11y/useKeyWithClickEvents: 同上
           <div
             key={keys[i]}
-            onClick={() => onCreateAllDay(days[i] as LocalDate)}
-            className="flex min-h-9 min-w-0 flex-col gap-0.5 border-divider border-l p-1"
+            onPointerDown={(e) => range.start(e, keys[i] as string)}
+            onClick={() => {
+              if (!range.consumeClick()) onCreateAllDay(days[i] as LocalDate)
+            }}
+            className={cn(
+              'flex min-h-9 min-w-0 select-none flex-col gap-0.5 border-divider border-l p-1',
+              range.covers(keys[i] as string) && 'bg-primary-soft',
+            )}
             data-testid="cal-allday"
             data-date={keys[i]}
+            data-range-key={keys[i]}
           >
             {list.map((it) => (
               <ItemChip key={it.key} item={it} tz={tz} onOpen={onOpen} />
@@ -423,7 +433,7 @@ function Ghost({
   from,
   to,
   label,
-  color = 'moss',
+  color = 'blue',
 }: {
   from: number
   to: number

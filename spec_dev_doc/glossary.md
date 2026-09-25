@@ -98,7 +98,7 @@
 | 审计 | Audit / `auditLog` | `audit_log` | 审计日志 | `ws.audit` | 只增不改 | 01 §3.12 |
 | 导出 | Export | `POST /exports` | 导出 | `export.export` | Markdown zip / JSON | 02 §8 |
 | 一期 / 二期 | Phase 0–2 / Phase 3 | — | — | — | 见 05 头部 | 05 |
-| 色板 | Palette / `PALETTE_COLORS` | `spaces.color` `tags.color`；token `--xz-palette-<name>-bg/-fg` | 苔 / 琥珀 / 靛 / 赭 / 青 / 梅 / 灰 / 松 | `ui.palette.moss` `.amber` `.indigo` `.ochre` `.teal` `.plum` `.gray` `.pine` | 04 §2.1 的 8 色（用户可选），代码标识符 `moss amber indigo ochre teal plum gray pine`（2026-09-23 T0-012 定） | 04 §2.1 |
+| 色板 | Palette / `PALETTE_COLORS` | `spaces.color` `tags.color` `calendars.color`；token `--xz-palette-<name>-solid/-bg/-fg` | 蓝 / 橙 / 黄 / 红 / 绿 / 紫 / 粉 / 青 / 灰 | `ui.palette.blue` `.orange` `.yellow` `.red` `.green` `.purple` `.pink` `.cyan` `.gray` | 04 §2.1 的鲜艳 9 色（用户可选），代码标识符 `blue orange yellow red green purple pink cyan gray`（ADR-0010，2026-09-25；~~旧 8 色 `moss amber indigo ochre teal plum gray pine`~~） | 04 §2.1 · ADR-0010 |
 | 原文已删除（孤立线程） | orphaned / `comments.orphaned` | `comments` | 原文已删除，讨论保留 | `comment.orphaned` | 锚定线程的 comment 标记从正文消失；线程保留在侧栏（注 2026-09-24：锚定 = 根评论 `thread_id ≠ id`） | 01 §3.9 · 03 §3.2 |
 | 锚定评论 | anchored thread / `comment(threadId)` 标记 | `comments` | 评论（浮动工具条） | `editor.bubble.comment` | 选中正文发起的评论，正文里以 comment 标记关联线程 | 03 §3.2 |
 | 停用 | suspend / `suspended` | Better Auth `user.banned` | 停用 / 恢复 | `settings.members.suspend` `.unsuspend` | 保留成员行但立即登出、不可登录；可恢复 | 07 §4 · REQ-WS-014 |
