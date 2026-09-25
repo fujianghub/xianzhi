@@ -15,7 +15,7 @@ import {
 import { cn } from '../../lib/cn.ts'
 import { usePeek } from '../../lib/stores.ts'
 import type { Task } from '../../lib/task-queries.ts'
-import type { PaletteName } from './SpaceIcon.tsx'
+import { PALETTE_DOT, type PaletteName } from './SpaceIcon.tsx'
 
 export interface CalEvent {
   task: Task
@@ -49,16 +49,7 @@ export function toEvents(tasks: Task[], tz: string): CalEvent[] {
 }
 
 /** Tailwind 静态类名（app.css 的 --color-<palette>-bg / -fg） */
-const DOT: Record<PaletteName, string> = {
-  moss: 'bg-moss-fg',
-  amber: 'bg-amber-fg',
-  indigo: 'bg-indigo-fg',
-  ochre: 'bg-ochre-fg',
-  teal: 'bg-teal-fg',
-  plum: 'bg-plum-fg',
-  gray: 'bg-gray-fg',
-  pine: 'bg-pine-fg',
-}
+const DOT = PALETTE_DOT
 const BLOCK: Record<PaletteName, string> = {
   moss: 'bg-moss-bg text-moss-fg border-moss-fg',
   amber: 'bg-amber-bg text-amber-fg border-amber-fg',
@@ -181,6 +172,8 @@ export function MonthView({
                 i % 7 !== 6 && 'border-r',
                 i < 35 && 'border-b',
                 !inMonth && 'bg-surface-2/60',
+                inMonth && weekend && !isToday && 'bg-surface-2/25',
+                isToday && 'bg-selected/60',
               )}
             >
               <button

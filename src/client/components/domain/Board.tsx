@@ -56,12 +56,22 @@ import { PriorityIcon } from './PriorityIcon.tsx'
 
 type Override = { status: TaskStatus; sortKey: string }
 
+/** 列头状态色点（04 §2.1 语义色）：进行中用主色，阻塞用危险色，完成用成功色 */
+const STATUS_DOT: Record<TaskStatus, string> = {
+  inbox: 'bg-fg-faint',
+  todo: 'bg-info',
+  doing: 'bg-primary',
+  blocked: 'bg-danger',
+  done: 'bg-success',
+  cancelled: 'bg-fg-faint',
+}
+
 function Card({ task, dragging, shaking }: { task: Task; dragging?: boolean; shaking?: boolean }) {
   const { tz, locale } = useUserTimeZone()
   return (
     <div
       className={cn(
-        'paper flex cursor-grab flex-col gap-2 rounded-lg p-3 text-sm shadow-(--xz-shadow-soft) active:cursor-grabbing',
+        'paper flex cursor-grab flex-col gap-2 rounded-lg p-3 text-sm shadow-(--xz-shadow-soft) transition-[box-shadow,border-color] duration-(--xz-dur-base) ease-(--xz-ease-out) hover:border-selected-border hover:shadow-card active:cursor-grabbing',
         dragging && 'rotate-[1.5deg] scale-[1.03] shadow-(--xz-shadow-float)',
         shaking && 'animate-[xz-shake_var(--xz-dur-slow)_var(--xz-ease-out)]',
       )}
@@ -198,6 +208,7 @@ function Column({
         aria-expanded={!collapsed}
       >
         <Disclosure open={!collapsed} />
+        <span className={cn('size-2 shrink-0 rounded-full', STATUS_DOT[status])} aria-hidden />
         {collapsed ? null : <span className="flex-1">{t(`task.status.${status}`)}</span>}
         <AnimatedCount value={tasks.length} className="text-fg-muted text-xs" />
       </button>
@@ -209,7 +220,7 @@ function Column({
               onChange={(e) => setText(e.target.value)}
               placeholder={t('task.newTaskPlaceholder')}
               aria-label={`${t('task.newTask')} · ${t(`task.status.${status}`)}`}
-              className="h-8 w-full rounded-md border border-transparent bg-transparent px-2 text-sm outline-none placeholder:text-fg-muted focus:border-selected-border focus:bg-surface"
+              className="h-8 w-full rounded-md border border-transparent bg-transparent px-2 text-sm outline-none transition-colors duration-(--xz-dur-fast) placeholder:text-fg-faint hover:bg-hover focus:border-selected-border focus:bg-surface"
               data-testid="column-add"
             />
           </form>

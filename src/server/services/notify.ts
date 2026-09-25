@@ -59,6 +59,37 @@ const MERGE_WINDOW_MS = 5 * 60 * 1000
 
 const s = (p: Payload, k: string) => String(p[k] ?? '')
 
+/**
+ * 正文里的时间 / 大小给人看，不直出 ISO 与字节数。渲染发生在扇出时、与收件人无关，
+ * 时区取产品默认 Asia/Shanghai（与 users.timezone 默认值一致）；前端另有相对时间。
+ */
+const DISPLAY_TZ = 'Asia/Shanghai'
+export function fmtWhen(v: unknown): string {
+  const d = new Date(String(v ?? ''))
+  if (Number.isNaN(d.getTime())) return String(v ?? '')
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: DISPLAY_TZ,
+  }).format(d)
+}
+export function fmtBytes(v: unknown): string {
+  const n = Number(v)
+  if (!Number.isFinite(n) || n < 0) return String(v ?? '')
+  if (n < 1024) return `${n} B`
+  const units = ['KB', 'MB', 'GB']
+  let x = n / 1024
+  let i = 0
+  while (x >= 1024 && i < units.length - 1) {
+    x /= 1024
+    i++
+  }
+  return `${x < 10 ? x.toFixed(1) : Math.round(x)} ${units[i]}`
+}
+
 /** 01 §4.1 模板（zh-CN）。返回 null = 该种类不进 notifications。 */
 export function renderNotification(
   kind: EventKind,
@@ -70,7 +101,7 @@ export function renderNotification(
     case 'task.assigned':
       return {
         title: `${s(p, 'actorName')} 把任务 ${s(p, 'title')} 指派给你`,
-        body: p.dueAt ? `截止 ${s(p, 'dueAt')}` : '无截止',
+        body: p.dueAt ? `截止 ${fmtWhen(p.dueAt)}` : '无截止',
         url: taskUrl,
       }
     case 'task.unassigned':
@@ -88,7 +119,7 @@ export function renderNotification(
     case 'task.due_soon':
       return {
         title: `任务 ${s(p, 'title')} 将在 ${s(p, 'hoursLeft')} 小时后截止`,
-        body: `截止 ${s(p, 'dueAt')}`,
+        body: `截止 ${fmtWhen(p.dueAt)}`,
         url: taskUrl,
       }
     case 'task.completed':
@@ -146,7 +177,7 @@ export function renderNotification(
     case 'system.export_done':
       return {
         title: `导出已完成：${s(p, 'fileName')}`,
-        body: `${s(p, 'sizeBytes')} · ${s(p, 'expiresAt')} 前可下载`,
+        body: `${fmtBytes(p.sizeBytes)} · ${fmtWhen(p.expiresAt)} 前可下载`,
         url: `/jobs/${s(p, 'jobId')}`,
       }
     case 'system.backup_failed':
@@ -158,7 +189,7 @@ export function renderNotification(
     case 'system.outbox_stalled':
       return {
         title: `通知队列积压：${s(p, 'pendingCount')} 条超过 1 小时未处理`,
-        body: `最早事件 ${s(p, 'oldestCreatedAt')}`,
+        body: `最早事件 ${fmtWhen(p.oldestCreatedAt)}`,
         url: '/settings/workspace/audit',
       }
     default:

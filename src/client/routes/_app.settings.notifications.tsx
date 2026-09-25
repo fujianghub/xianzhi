@@ -64,7 +64,7 @@ function NotificationPrefs() {
   return (
     <section className="mx-auto max-w-3xl" data-testid="notif-prefs">
       <div className="mb-4 flex items-center gap-3">
-        <h1 className="font-semibold text-2xl">{t('notif.prefs.title')}</h1>
+        <h1 className="font-semibold text-2xl tracking-tight">{t('notif.prefs.title')}</h1>
         {saved && !save.isPending ? (
           <span className="text-fg-muted text-xs" role="status">
             {t('task.savedJustNow')}

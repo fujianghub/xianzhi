@@ -91,7 +91,7 @@ export function EntriesPage({
   return (
     <section className="mx-auto max-w-[100rem]" data-testid="entries-page">
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h1 className="font-semibold text-2xl">{title}</h1>
+        <h1 className="font-semibold text-2xl tracking-tight">{title}</h1>
         {header}
         <Button
           className="ml-auto"
@@ -180,8 +180,8 @@ export function EntriesPage({
             className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
             data-testid="entry-grid"
           >
-            {items.map((e) => (
-              <EntryCard key={e.id} entry={e} showSpace={!spaceId} />
+            {items.map((e, i) => (
+              <EntryCard key={e.id} entry={e} showSpace={!spaceId} index={i} />
             ))}
           </div>
           {rest.hasNextPage ? (

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { SpaceCard } from '../components/domain/SpaceCard.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { Disclosure } from '../components/ui/disclosure.tsx'
+import { PageHeader } from '../components/ui/page-header.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
 import type { Me } from '../hooks/useMe.ts'
 import { type Space, useSpaces } from '../hooks/useSpaces.ts'
@@ -25,8 +26,8 @@ function Grid({ items, label, testId }: { items: Space[]; label: string; testId:
       aria-label={label}
       data-testid={testId}
     >
-      {items.map((s) => (
-        <SpaceCard key={s.id} space={s} />
+      {items.map((s, i) => (
+        <SpaceCard key={s.id} space={s} index={i} />
       ))}
     </ul>
   )
@@ -46,15 +47,22 @@ function SpacesPage() {
 
   return (
     <section className="mx-auto max-w-5xl" data-testid="spaces-page">
-      <header className="mb-6 flex items-center justify-between gap-3">
-        <h1 className="font-semibold text-xl">{t('ui.page.spaces')}</h1>
-        {canCreate ? (
-          <Button variant="primary" onClick={() => openCreate(true)} data-testid="spaces-new">
-            <Plus />
-            {t('space.newSpace')}
-          </Button>
-        ) : null}
-      </header>
+      <PageHeader
+        title={t('ui.page.spaces')}
+        actions={
+          canCreate ? (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => openCreate(true)}
+              data-testid="spaces-new"
+            >
+              <Plus className="size-4" />
+              {t('space.newSpace')}
+            </Button>
+          ) : null
+        }
+      />
 
       {isPending ? (
         <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true">

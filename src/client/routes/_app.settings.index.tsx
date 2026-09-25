@@ -69,7 +69,7 @@ function Profile() {
   return (
     <section className="max-w-xl" data-testid="settings-profile">
       <div className="mb-6 flex items-center gap-3">
-        <h1 className="font-semibold text-2xl">{t('settings.nav.profile')}</h1>
+        <h1 className="font-semibold text-2xl tracking-tight">{t('settings.nav.profile')}</h1>
         {saved ? (
           <span className="text-fg-muted text-xs" role="status" data-testid="saved">
             {t('task.savedJustNow')}

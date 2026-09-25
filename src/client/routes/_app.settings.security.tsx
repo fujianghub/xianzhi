@@ -49,7 +49,7 @@ function Security() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6" data-testid="security">
-      <h1 className="font-semibold text-2xl">{t('settings.security.title')}</h1>
+      <h1 className="font-semibold text-2xl tracking-tight">{t('settings.security.title')}</h1>
 
       <section className="paper rounded-xl p-5" data-testid="twofa">
         <h2 className="font-medium">

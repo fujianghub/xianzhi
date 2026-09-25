@@ -9,6 +9,12 @@
 - 品牌副标：侧栏与登录页「Xianzhi」及登录页口号统一为「日衔寸枝，岁成一巢」（`app.tagline`，原 `auth.tagline` 移除）；燕子占比 .82 → .9。06 §5.6 加注。
 - ADR-0005 §2 加「注」指向 ADR-0007；00 REQ-UI-024 描述与验收按新燕印更新；04 §9 Logo 行、glossary 燕印行加注。
 
+**前端 UI 打磨（页头 / 配色 / 交互 / 动效）**
+- 00：新增 REQ-NOTIF-017（通知正文时间 / 大小可读化，unit）、REQ-UI-033（统一页头、记录类型分色、跨空间「色点 + 空间名」标注、卡片悬停抬升与网格入场错峰）。
+- 01 §4.1 模板占位符不变，渲染时 `{dueAt}` / `{expiresAt}` / `{oldestCreatedAt}` 格式化为 `M/D HH:mm`（Asia/Shanghai），`{sizeBytes}` 格式化为 `KB / MB`；旧通知行不回写。
+- 04 §5 组件：新增 `ui/page-header.tsx`、`domain/SpaceTag.tsx`；`SpaceIcon.tsx` 导出 `PALETTE_DOT`（日历与空间标注共用）。
+- app.css：原生 `select` 统一外观（token 渐变画箭头，规则不进层以压过组件 `px-*`）、日期控件图标随主题；`.xz-eyebrow` 页头题记、`.xz-lift` 卡片悬停、`.xz-rise` 入场错峰（减弱档无动画）。
+
 ## 2026-09-24
 
 **测试产物不入库（用户要求根治）**

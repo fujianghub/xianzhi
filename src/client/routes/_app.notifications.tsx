@@ -49,8 +49,8 @@ function NotificationsPage() {
   const skeleton = useDelayedFlag(q.isPending)
   return (
     <section className="mx-auto max-w-3xl" data-testid="notifications-page">
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h1 className="font-semibold text-2xl">{t('ui.page.notifications')}</h1>
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <h1 className="font-semibold text-2xl tracking-tight">{t('ui.page.notifications')}</h1>
         <div
           role="tablist"
           aria-label={t('ui.page.notifications')}
