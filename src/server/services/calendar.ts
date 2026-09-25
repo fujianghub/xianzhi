@@ -38,10 +38,10 @@ export interface CalCtx {
 }
 
 export const DEFAULT_CALENDARS: ReadonlyArray<{ name: string; color: PaletteColor }> = [
-  { name: '个人', color: 'moss' },
-  { name: '工作', color: 'indigo' },
-  { name: '学习', color: 'amber' },
-  { name: '生活', color: 'plum' },
+  { name: '个人', color: 'green' },
+  { name: '工作', color: 'blue' },
+  { name: '学习', color: 'orange' },
+  { name: '生活', color: 'purple' },
 ]
 export const CALENDAR_LIMIT = 30
 

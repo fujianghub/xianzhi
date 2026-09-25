@@ -79,7 +79,7 @@ test('REQ-SPACE-008 新建空间 Dialog：选色板 token 与图标 → 创建�
   await dlg.getByTestId('space-name').fill(name)
   await dlg.getByText('学习', { exact: true }).click()
   await dlg.getByText('仅成员', { exact: true }).click()
-  await dlg.getByText('苔', { exact: true }).click()
+  await dlg.getByText('绿', { exact: true }).click()
   await dlg.locator('label', { hasText: 'rocket' }).click()
   await dlg.getByTestId('create-space-submit').click()
   await expect(page).toHaveURL(/\/spaces\/[a-z0-9-]+$/)
@@ -90,7 +90,7 @@ test('REQ-SPACE-008 新建空间 Dialog：选色板 token 与图标 → 创建�
   expect(s).toMatchObject({
     kind: 'learning',
     visibility: 'members',
-    color: 'moss',
+    color: 'green',
     icon: 'rocket',
     myRole: 'admin',
   })

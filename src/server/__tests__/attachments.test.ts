@@ -254,16 +254,17 @@ describe('T1-020 attachments', () => {
     expect(existsSync(dataPath(DATA, ar?.storageKey ?? ''))).toBe(false)
   })
 
-  it('REQ-ATTACH-007 头像：3:2 图 → 1:1，user.image 指向 md 变体', async () => {
+  it('REQ-ATTACH-007 REQ-WS-023 头像：3:2 图 → 1:1，user.image 指向 md 变体、avatarAttachmentId 回写', async () => {
     const r = await up(u.member, await png(600, 400), 'me.png', {}, '/me/avatar')
     expect(r.status, await r.clone().text()).toBe(201)
     const a = (await r.json()) as A
     expect(a.width).toBe(a.height)
     const [usr] = await db()
-      .select({ image: userTable.image })
+      .select({ image: userTable.image, att: userTable.avatarAttachmentId })
       .from(userTable)
       .where(eq(userTable.id, u.member.id))
     expect(usr?.image).toBe(a.variants.md)
+    expect(usr?.att).toBe(a.id) // REQ-WS-023 头像附件 id 回写
     expect((await get(u.member2, a.variants.md ?? '')).status).toBe(200) // 头像工作区内可见
     expect(
       (await up(u.member, new TextEncoder().encode('%PDF-1.4'), 'x.pdf', {}, '/me/avatar')).status,

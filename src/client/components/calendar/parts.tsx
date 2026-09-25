@@ -7,26 +7,29 @@ import { cn } from '../../lib/cn.ts'
 import { PALETTE_DOT } from '../domain/SpaceIcon.tsx'
 import { type CalItem, hhmm, type PaletteName } from './model.ts'
 
+/** 色块 = 浅底 + 同色深字 + 鲜艳色条（边框色；色条宽度由使用处 `border-l-[3px]` 决定，ADR-0010）。 */
 export const BLOCK: Record<PaletteName, string> = {
-  moss: 'bg-moss-bg text-moss-fg border-moss-fg',
-  amber: 'bg-amber-bg text-amber-fg border-amber-fg',
-  indigo: 'bg-indigo-bg text-indigo-fg border-indigo-fg',
-  ochre: 'bg-ochre-bg text-ochre-fg border-ochre-fg',
-  teal: 'bg-teal-bg text-teal-fg border-teal-fg',
-  plum: 'bg-plum-bg text-plum-fg border-plum-fg',
-  gray: 'bg-gray-bg text-gray-fg border-gray-fg',
-  pine: 'bg-pine-bg text-pine-fg border-pine-fg',
+  blue: 'bg-blue-bg text-blue-fg border-blue-solid',
+  orange: 'bg-orange-bg text-orange-fg border-orange-solid',
+  yellow: 'bg-yellow-bg text-yellow-fg border-yellow-solid',
+  red: 'bg-red-bg text-red-fg border-red-solid',
+  green: 'bg-green-bg text-green-fg border-green-solid',
+  purple: 'bg-purple-bg text-purple-fg border-purple-solid',
+  pink: 'bg-pink-bg text-pink-fg border-pink-solid',
+  cyan: 'bg-cyan-bg text-cyan-fg border-cyan-solid',
+  gray: 'bg-gray-bg text-gray-fg border-gray-solid',
 }
 export const DOT = PALETTE_DOT
 export const TEXT: Record<PaletteName, string> = {
-  moss: 'text-moss-fg',
-  amber: 'text-amber-fg',
-  indigo: 'text-indigo-fg',
-  ochre: 'text-ochre-fg',
-  teal: 'text-teal-fg',
-  plum: 'text-plum-fg',
-  gray: 'text-gray-fg',
-  pine: 'text-pine-fg',
+  blue: 'text-blue-solid',
+  orange: 'text-orange-solid',
+  yellow: 'text-yellow-solid',
+  red: 'text-red-solid',
+  green: 'text-green-solid',
+  purple: 'text-purple-solid',
+  pink: 'text-pink-solid',
+  cyan: 'text-cyan-solid',
+  gray: 'text-gray-solid',
 }
 
 export interface DisplayOpts {
@@ -78,8 +81,10 @@ export function ItemChip({
       data-event-id={item.occ?.id}
       className={cn(
         'flex min-h-6 w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 text-left text-xs leading-5 transition-[filter,background-color] duration-(--xz-dur-fast)',
-        block ? cn(BLOCK[item.color], 'font-medium hover:brightness-95') : 'hover:bg-hover',
-        item.source === 'task' && block && 'border border-current/25 border-dashed bg-transparent',
+        block
+          ? cn(BLOCK[item.color], 'rounded-l-sm border-l-[3px] font-medium hover:brightness-95')
+          : 'hover:bg-hover',
+        item.source === 'task' && block && 'border border-dashed bg-transparent',
         item.done && 'line-through opacity-60',
         className,
       )}

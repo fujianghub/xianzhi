@@ -29,6 +29,7 @@ import {
   Target,
   User,
 } from 'lucide-react'
+import { PALETTE_COLORS, type PaletteColor } from '../../../shared/schemas/enums.ts'
 import { cn } from '../../lib/cn.ts'
 
 export const SPACE_ICONS: Record<string, LucideIcon> = {
@@ -62,30 +63,32 @@ const KIND_ICON: Record<string, LucideIcon> = {
   work: Briefcase,
 }
 
-export const PALETTE = ['moss', 'amber', 'indigo', 'ochre', 'teal', 'plum', 'gray', 'pine'] as const
-export type PaletteName = (typeof PALETTE)[number]
-/** Tailwind 需要静态类名（app.css 的 --color-<name>-bg/-fg）。 */
+export const PALETTE = PALETTE_COLORS
+export type PaletteName = PaletteColor
+/** Tailwind 需要静态类名（app.css 的 --color-<name>-solid/-bg/-fg；ADR-0010）。 */
 export const PALETTE_CLASS: Record<PaletteName, string> = {
-  moss: 'bg-moss-bg text-moss-fg',
-  amber: 'bg-amber-bg text-amber-fg',
-  indigo: 'bg-indigo-bg text-indigo-fg',
-  ochre: 'bg-ochre-bg text-ochre-fg',
-  teal: 'bg-teal-bg text-teal-fg',
-  plum: 'bg-plum-bg text-plum-fg',
+  blue: 'bg-blue-bg text-blue-fg',
+  orange: 'bg-orange-bg text-orange-fg',
+  yellow: 'bg-yellow-bg text-yellow-fg',
+  red: 'bg-red-bg text-red-fg',
+  green: 'bg-green-bg text-green-fg',
+  purple: 'bg-purple-bg text-purple-fg',
+  pink: 'bg-pink-bg text-pink-fg',
+  cyan: 'bg-cyan-bg text-cyan-fg',
   gray: 'bg-gray-bg text-gray-fg',
-  pine: 'bg-pine-bg text-pine-fg',
 }
 
-/** 色板圆点：日历事件与空间标注共用。 */
+/** 色板圆点（鲜艳实色）：日历事件与空间标注共用。 */
 export const PALETTE_DOT: Record<PaletteName, string> = {
-  moss: 'bg-moss-fg',
-  amber: 'bg-amber-fg',
-  indigo: 'bg-indigo-fg',
-  ochre: 'bg-ochre-fg',
-  teal: 'bg-teal-fg',
-  plum: 'bg-plum-fg',
-  gray: 'bg-gray-fg',
-  pine: 'bg-pine-fg',
+  blue: 'bg-blue-solid',
+  orange: 'bg-orange-solid',
+  yellow: 'bg-yellow-solid',
+  red: 'bg-red-solid',
+  green: 'bg-green-solid',
+  purple: 'bg-purple-solid',
+  pink: 'bg-pink-solid',
+  cyan: 'bg-cyan-solid',
+  gray: 'bg-gray-solid',
 }
 
 const isLucideName = (v: string) => /^[a-z][a-z0-9-]*$/.test(v)

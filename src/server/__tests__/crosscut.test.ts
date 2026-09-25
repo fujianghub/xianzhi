@@ -86,7 +86,7 @@ describe('T1-040 crosscut', () => {
       name: 'tags',
       path: '/tags',
       table: tags,
-      body: () => ({ name: `幂等标签${Date.now() % 1000}`, color: 'moss' }),
+      body: () => ({ name: `幂等标签${Date.now() % 1000}`, color: 'green' }),
     },
     {
       name: 'invitations',

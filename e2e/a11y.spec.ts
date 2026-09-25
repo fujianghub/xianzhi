@@ -53,6 +53,7 @@ test.describe('owner', () => {
         '/settings/api-keys',
         '/settings/workspace',
         '/settings/workspace/members',
+        '/settings/workspace/users',
         '/settings/workspace/audit',
         '/entries',
         '/spaces/product/entries',

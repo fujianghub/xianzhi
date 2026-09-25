@@ -8,6 +8,10 @@ export interface SessionUser {
   email: string
   name: string
   displayName: string | null
+  /** 用户名原样（displayUsername）；旧账号可能为空 */
+  username: string | null
+  /** 头像 URL（附件 md 变体） */
+  image: string | null
   locale: string
   timezone: string
   weekStartsOn: number

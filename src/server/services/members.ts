@@ -27,6 +27,8 @@ export interface MemberView {
   email: string
   name: string
   displayName: string | null
+  /** 头像 URL（REQ-WS-023；无则前端画首字母） */
+  image: string | null
   role: WorkspaceRole
   status: 'active' | 'suspended'
   joinedAt: string
@@ -47,6 +49,7 @@ export async function listMembers(db: Db, ctx: MemberCtx): Promise<MemberView[]>
     email: u.email,
     name: u.name,
     displayName: u.displayName ?? null,
+    image: u.image ?? null,
     role: m.role as WorkspaceRole,
     status: u.banned ? 'suspended' : 'active',
     joinedAt: m.createdAt.toISOString(),
@@ -132,6 +135,7 @@ export async function changeRole(
     email: fresh.u.email,
     name: fresh.u.name,
     displayName: fresh.u.displayName ?? null,
+    image: fresh.u.image ?? null,
     role: fresh.m.role as WorkspaceRole,
     status: fresh.u.banned ? 'suspended' : 'active',
     joinedAt: fresh.m.createdAt.toISOString(),
@@ -139,7 +143,7 @@ export async function changeRole(
 }
 
 /** 未完成任务指派置空并发 task.unassigned（REQ-WS-013）。 */
-async function unassignTasks(
+export async function unassignTasks(
   tx: DbOrTx,
   workspaceId: string,
   u: typeof user.$inferSelect,

@@ -46,7 +46,7 @@
 | slug | text | 在 workspace 内唯一 |
 | kind | text | `project` \| `learning` \| `work` |
 | icon | text? | emoji 或 Lucide 名 |
-| color | text? | 04 §2.1 的 8 色 token 名 |
+| color | text? | 04 §2.1 的色板 token 名（ADR-0010 起 9 色） |
 | visibility | text | `workspace`（全员可见）\| `members`（仅 space_members） |
 | is_personal | bool | 个人空间，默认 false；见下 |
 | description | text? | |
@@ -213,7 +213,7 @@ note     : {}
 | id | uuid | PK |
 | workspace_id | text | FK organization |
 | name | text | |
-| color | text | 04 §2.1 的 8 色 token 名 |
+| color | text | 04 §2.1 的色板 token 名（ADR-0010 起 9 色） |
 | created_at | timestamptz | |
 
 - 唯一：`(workspace_id, name)`。
@@ -391,6 +391,7 @@ note     : {}
 - 只增不改，无软删，无 UPDATE/DELETE 端点。
 - `action` 枚举（Zod `AuditAction`，新增值先改本表）：
   注（2026-09-25，ADR-0008）：+ `member.registered`（自助注册，actor 为空）· `member.approved` · `member.rejected`（驳回即删号，`meta` 留邮箱 / 用户名）。
+  注（2026-09-25，ADR-0010）：+ `auth.password_changed`（本人改密，`meta.otherSessionsRevoked`）· `user.created`（owner 直建）· `user.updated`（改显示名 / 用户名 / 邮箱，`meta.byAdmin` 区分本人与 owner，含新旧值）；owner 重置他人密码记 `auth.password_reset`（`meta.byAdmin`），删号记 `user.deleted`（`meta.byAdmin`）。迁移 0007 同步 `audit_log_action_ck`。
   `auth.login` · `auth.logout` · `auth.login_failed` · `auth.locked` · `auth.password_reset` · `auth.2fa_enabled` · `auth.2fa_disabled` · `auth.2fa_reset_by_admin` · `member.invited` · `member.joined` · `member.registered` · `member.approved` · `member.rejected` · `member.role_changed` · `member.suspended` · `member.unsuspended` · `member.removed` · `member.content_transferred` · `user.deleted` · `workspace.owner_transferred` · `workspace.settings_changed` · `space.deleted` · `space.permanently_deleted` · `task.permanently_deleted` · `entry.permanently_deleted` · `export.requested` · `export.done` · `export.failed` · `api_key.created` · `api_key.revoked` · `gc.failed` · `backup.failed`
 
 ### 3.13 idempotency_keys
@@ -431,14 +432,14 @@ note     : {}
 | workspace_id | text | FK organization |
 | owner_id | text | FK user，级联删除；**个人私有**，仅本人可读写（§5） |
 | name | text | ≤ 40 字 |
-| color | text | 04 §2.1 的 8 色 token 名 |
+| color | text | 04 §2.1 的色板 token 名（ADR-0010 起 9 色） |
 | hidden | bool | 在日历页是否显示（macOS 勾选框） |
 | is_default | bool | 新建日程的默认日历；每人恰一个 |
 | position | int | 列表顺序 |
 | created_at | timestamptz | |
 | updated_at | timestamptz | |
 
-- 首次读取自动建 4 个：个人（moss，默认）· 工作（indigo）· 学习（amber）· 生活（plum）；每人上限 30；至少保留 1 个。删除日历级联删除其日程。
+- 首次读取自动建 4 个：个人（green，默认）· 工作（blue）· 学习（orange）· 生活（purple）（ADR-0010 前为 moss / indigo / amber / plum）；每人上限 30；至少保留 1 个。删除日历级联删除其日程。
 
 **calendar_events**
 
@@ -549,6 +550,7 @@ Workspace 角色 × Space 角色 → 有效角色取**较高者**，`guest` 只�
 | member.revoke_sessions | ✓ | ✗ | ✗ |
 | member.transfer_content（批量转移作者） | ✓ | ✗ | ✗ |
 | workspace.owner_transfer | 仅 owner | ✗ | ✗ |
+| user.manage（用户管理：直建 / 改资料 / 重置密码 / 删号，ADR-0010；资源为 `null` = 列表与直建，为 UserRef 时不含本人） | 仅 owner | ✗ | ✗ |
 | me.delete（注销，07 §4 匿名化） | 本人（owner 须先转让） | 本人 | 本人 |
 | space.create | ✓ | ✓ | ✗ |
 | space.manage（改名、成员、归档） | ✓ | space admin | ✗ |

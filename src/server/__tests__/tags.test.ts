@@ -48,21 +48,24 @@ describe('T1-021 tags', () => {
   })
 
   it('REQ-TAG-001 创建 201；重名 409 CONFLICT_UNIQUE；非 token 色 422；guest 不能建；改名 / 删除仅 owner/admin', async () => {
-    const r = await req(u.member, 'POST', '/tags', { name: '前端', color: 'teal' })
+    const r = await req(u.member, 'POST', '/tags', { name: '前端', color: 'cyan' })
     expect(r.status).toBe(201)
     const tag = (await r.json()) as Tag
-    const dup = await req(u.owner, 'POST', '/tags', { name: '前端', color: 'moss' })
+    const dup = await req(u.owner, 'POST', '/tags', { name: '前端', color: 'green' })
     expect(dup.status).toBe(409)
     expect((await problemOf(dup)).code).toBe('CONFLICT_UNIQUE')
     const bad = await req(u.member, 'POST', '/tags', { name: '颜色', color: '#abc' })
     expect(bad.status).toBe(422)
     expect((await problemOf(bad)).errors?.[0]?.path).toBe('color')
-    expect((await req(u.guest, 'POST', '/tags', { name: 'g', color: 'moss' })).status).toBe(403)
+    expect((await req(u.guest, 'POST', '/tags', { name: 'g', color: 'green' })).status).toBe(403)
     expect((await req(u.member, 'PATCH', `/tags/${tag.id}`, { name: 'x' })).status).toBe(403)
-    const ren = await req(u.owner, 'PATCH', `/tags/${tag.id}`, { name: '前端开发', color: 'plum' })
+    const ren = await req(u.owner, 'PATCH', `/tags/${tag.id}`, {
+      name: '前端开发',
+      color: 'purple',
+    })
     expect(ren.status).toBe(200)
-    expect((await ren.json()) as Tag).toMatchObject({ name: '前端开发', color: 'plum' })
-    await req(u.owner, 'POST', '/tags', { name: '后端', color: 'moss' })
+    expect((await ren.json()) as Tag).toMatchObject({ name: '前端开发', color: 'purple' })
+    await req(u.owner, 'POST', '/tags', { name: '后端', color: 'green' })
     const clash = await req(u.owner, 'PATCH', `/tags/${tag.id}`, { name: '后端' })
     expect(clash.status).toBe(409)
     expect((await req(u.member, 'DELETE', `/tags/${tag.id}`)).status).toBe(403)
@@ -73,7 +76,7 @@ describe('T1-021 tags', () => {
 
   it('REQ-TAG-002 ?tag=a,b 只含带 a 或 b 的任务 / 记录；删除标签解除关联', async () => {
     const mk = async (name: string) =>
-      ((await (await req(u.owner, 'POST', '/tags', { name, color: 'amber' })).json()) as Tag).id
+      ((await (await req(u.owner, 'POST', '/tags', { name, color: 'orange' })).json()) as Tag).id
     const a = await mk('甲')
     const b = await mk('乙')
     const c = await mk('丙')

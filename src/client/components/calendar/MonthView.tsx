@@ -1,6 +1,7 @@
 /**
  * 月视图（REQ-CAL-002 · 003 · 007、REQ-UI-031）：6×7；日期号右上 + 农历小字 + 休 / 班角标；
- * 点格子空白处 = 在该日新建全天日程；点日期号 = 切到日视图；日程可拖到别的日期（任务不可拖）。
+ * 点格子空白处 = 在该日新建全天日程；按住拖过多日 = 新建跨这些日的全天日程（REQ-CAL-010）；
+ * 点日期号 = 切到日视图；日程可拖到别的日期（任务不可拖）。
  */
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -8,6 +9,7 @@ import { dayOfWeek, type LocalDate, sameLocalDate } from '../../../shared/tz.ts'
 import { cn } from '../../lib/cn.ts'
 import { type CalItem, covers, dayKey, keyToDate, sortItems } from './model.ts'
 import { type DisplayOpts, HolidayBadge, ItemChip, isOffDay, LunarCaption } from './parts.tsx'
+import { useRangeSelect } from './useRangeSelect.ts'
 
 const weekdayFmt = new Intl.DateTimeFormat('zh-CN', { weekday: 'short', timeZone: 'UTC' })
 export const weekdayName = (d: LocalDate) =>
@@ -38,7 +40,7 @@ export function MonthView({
   tz: string
   display: DisplayOpts
   onPickDay: (d: LocalDate) => void
-  onCreateDay: (d: LocalDate) => void
+  onCreateDay: (d: LocalDate, to?: LocalDate) => void
   onOpen: (it: CalItem) => void
   onMoveDays: (it: CalItem, days: number) => void
 }) {
@@ -46,6 +48,7 @@ export function MonthView({
   const MAX = 3
   const drag = useRef<{ item: CalItem; from: string } | null>(null)
   const [over, setOver] = useState<string | null>(null)
+  const range = useRangeSelect((a, b) => onCreateDay(keyToDate(a), keyToDate(b)))
   const sorted = [...items].sort(sortItems)
   return (
     <div
@@ -62,7 +65,7 @@ export function MonthView({
           </div>
         ))}
       </div>
-      <div className="grid flex-1 auto-rows-fr grid-cols-7">
+      <div className="grid flex-1 select-none auto-rows-fr grid-cols-7">
         {days.map((d, i) => {
           const key = dayKey(d)
           const list = sorted.filter((it) => covers(it, key))
@@ -78,7 +81,12 @@ export function MonthView({
               key={key}
               data-testid="cal-day"
               data-date={key}
-              onClick={() => onCreateDay(d)}
+              data-range-key={key}
+              data-selecting={range.covers(key) || undefined}
+              onPointerDown={(e) => range.start(e, key)}
+              onClick={() => {
+                if (!range.consumeClick()) onCreateDay(d)
+              }}
               onDragOver={(e) => {
                 if (!drag.current) return
                 e.preventDefault()
@@ -103,6 +111,7 @@ export function MonthView({
                 inMonth && (weekend || off) && !isToday && 'bg-surface-2/25',
                 isToday && 'bg-selected/60',
                 over === key && 'bg-primary-soft/70 ring-2 ring-primary/40 ring-inset',
+                range.covers(key) && 'bg-primary-soft',
               )}
             >
               <div className="flex items-center gap-1">

@@ -61,7 +61,7 @@ export function eventToItem(
     key: o.key,
     source: 'event',
     title: o.title,
-    color: (cals.get(o.calendarId)?.color ?? 'moss') as PaletteName,
+    color: (cals.get(o.calendarId)?.color ?? 'blue') as PaletteName,
     allDay: o.allDay,
     start,
     end,

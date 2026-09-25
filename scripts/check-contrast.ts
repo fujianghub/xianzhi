@@ -3,11 +3,12 @@
  * - 日场最坏底：glass-thin 叠在 glow-2 峰值上（再叠 bg）；夜场：glass-thick 叠 glow-3 峰值
  * - 另算纸面 surface-solid
  * 门槛：燕印 seal-bird / seal-to ≥ 3、/ seal-from ≥ 2、seal-leaf / seal-to ≥ 3（ADR-0007）；fg ≥ 7、fg-muted ≥ 4.5、fg-faint ≥ 3；primary-fg on primary / primary-bright ≥ 4.5；语义色图标 on 纸面 ≥ 3；
- * 危险文字 on danger-soft ≥ 4.5；8 色板 fg on bg ≥ 4.5（AA）。
+ * 危险文字 on danger-soft ≥ 4.5；9 色板 fg on bg ≥ 4.5（AA，ADR-0010）。
  * ADR-0005：primary 只作填充，主色当文字 / 图标由 primary-text 承担（两底 ≥ 4.5）；danger-fg on danger ≥ 4.5；
  * 代码高亮 token on code-bg ≥ 4.5。
  */
 import { readFileSync } from 'node:fs'
+import { PALETTE_COLORS } from '../src/shared/schemas/enums.ts'
 
 type RGBA = [number, number, number, number]
 const FILE = new URL('../src/client/styles/tokens.css', import.meta.url)
@@ -119,7 +120,7 @@ for (const [name, t, worstGlass, worstGlow] of [
     'builtin',
   ])
     check(`code-${c} / code-bg`, get(`--xz-code-${c}`), get('--xz-code-bg'), 4.5)
-  for (const c of ['moss', 'amber', 'indigo', 'ochre', 'teal', 'plum', 'gray', 'pine'])
+  for (const c of PALETTE_COLORS)
     check(`palette ${c} fg / bg`, get(`--xz-palette-${c}-fg`), get(`--xz-palette-${c}-bg`), 4.5)
 }
 

@@ -191,7 +191,7 @@ export async function seed(deps: SeedDeps): Promise<Record<string, number>> {
       slug: 'product',
       kind: 'project',
       visibility: 'workspace',
-      color: 'moss',
+      color: 'green',
       icon: 'rocket',
       sortKey: 'a1',
       createdBy: U.owner.id,
@@ -256,8 +256,8 @@ export async function seed(deps: SeedDeps): Promise<Record<string, number>> {
     ])
     .onConflictDoNothing()
 
-  // ---- 标签（8 色） ----
-  const TAG_NAMES = ['前端', '后端', '设计', '性能', '安全', '文档', '阅读', '复盘']
+  // ---- 标签（9 色，ADR-0010） ----
+  const TAG_NAMES = ['前端', '后端', '设计', '性能', '安全', '文档', '阅读', '复盘', '灵感']
   await db
     .insert(tags)
     .values(

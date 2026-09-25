@@ -95,6 +95,8 @@ export interface ActionMap {
   'member.unsuspend': UserRef
   'member.revoke_sessions': UserRef
   'member.transfer_content': UserRef
+  /** owner 用户管理（直建 / 改资料 / 重置密码 / 删号，REQ-WS-018 ~ 021） */
+  'user.manage': UserRef | null
   'me.delete': UserRef
   'space.create': null
   'tag.create': null
@@ -128,6 +130,7 @@ export const ACTIONS = [
   'member.unsuspend',
   'member.revoke_sessions',
   'member.transfer_content',
+  'user.manage',
   'me.delete',
   'space.create',
   'tag.create',
@@ -255,6 +258,12 @@ export function can<A extends Action>(
       return admin
     case 'workspace.owner_transfer':
       return actor.workspaceRole === 'owner'
+    case 'user.manage':
+      // null = 列表 / 直建；对具体用户时不含本人（本人走 /me）
+      return (
+        actor.workspaceRole === 'owner' &&
+        (resource === null || (resource as UserRef).id !== actor.id)
+      )
     case 'me.delete':
     case 'notification.read':
     case 'notification.write':

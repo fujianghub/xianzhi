@@ -141,3 +141,74 @@ test('REQ-WS-002 成员页邀请出现在邀请列表；改角色即时生效', 
     })
     .toBe('member')
 })
+
+test('REQ-WS-018 · 019 · 021 owner 用户管理：新建 → 编辑显示名 → 删除；member 访问 404', async ({
+  page,
+  browser,
+}) => {
+  const s = stamp()
+  await page.goto('/settings/workspace/users')
+  await expect(page.getByTestId('nav-users')).toBeVisible()
+  await page.getByTestId('user-create').click()
+  const dlg = page.getByTestId('user-create-dialog')
+  await dlg.getByLabel('显示名').fill(`用户${s}`)
+  await dlg.getByLabel('用户名').fill(`u${s}`)
+  await dlg.getByLabel('邮箱').fill(`u${s}@demo.local`)
+  await dlg.getByRole('button', { name: '随机生成' }).click()
+  await page.getByTestId('user-create-ok').click()
+  await expect(dlg).toBeHidden()
+  const row = page.getByTestId('user-row').filter({ hasText: `@u${s}` })
+  await expect(row).toContainText(`用户${s}`)
+
+  await row.getByTestId('user-edit').click()
+  const edit = page.getByTestId('user-edit-dialog')
+  await edit.getByLabel('显示名').fill(`改名${s}`)
+  await page.getByTestId('user-edit-ok').click()
+  await expect(edit).toBeHidden()
+  await expect(row).toContainText(`改名${s}`)
+
+  await row.getByTestId('user-delete').click()
+  await page.getByTestId('confirm-ok').click()
+  await expect(page.getByTestId('user-row').filter({ hasText: `@u${s}` })).toHaveCount(0)
+
+  const ctx = await browser.newContext({ storageState: STATE.member })
+  const p = await ctx.newPage()
+  await p.goto('/settings/workspace/users')
+  await expect(p.getByTestId('not-found')).toBeVisible()
+  await ctx.close()
+})
+
+test('REQ-WS-022 · 023 个人资料：改用户名、上传并移除头像', async ({ page, request }) => {
+  const me0 = (await (await request.get('/api/v1/me')).json()) as { username: string | null }
+  const s = stamp()
+  try {
+    await page.goto('/settings')
+    await page.getByTestId('profile-username').fill(`owner_${s}`)
+    await page.getByTestId('profile-username-save').click()
+    await expect(page.getByTestId('profile-username-save')).toBeHidden()
+    const me1 = (await (await request.get('/api/v1/me')).json()) as { username: string }
+    expect(me1.username).toBe(`owner_${s}`)
+
+    // 1×1 PNG
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      'base64',
+    )
+    await page.getByTestId('avatar-file').setInputFiles({
+      name: 'me.png',
+      mimeType: 'image/png',
+      buffer: png,
+    })
+    await expect(page.getByTestId('avatar-remove')).toBeVisible()
+    await expect(page.getByTestId('profile-account').locator('img')).toBeVisible()
+    await page.getByTestId('avatar-remove').click()
+    await expect(page.getByTestId('avatar-remove')).toBeHidden()
+    await expect(page.getByTestId('profile-account').locator('img')).toHaveCount(0)
+  } finally {
+    if (me0.username)
+      await request.patch('/api/v1/me/account', {
+        data: { username: me0.username },
+        headers: sameSite,
+      })
+  }
+})

@@ -119,7 +119,7 @@ describe('T1-025 search', () => {
     expect(r.groups.entries?.items.map((x) => x.id)).toContain(e)
     expect(r.groups.tasks?.items.map((x) => x.id)).toContain(tid)
     // 标签名子串
-    const tag = await req(u.owner, 'POST', '/tags', { name: '性能优化', color: 'moss' })
+    const tag = await req(u.owner, 'POST', '/tags', { name: '性能优化', color: 'green' })
     const tagId = ((await tag.json()) as { id: string }).id
     const tt = await req(u.member, 'POST', '/tasks', {
       title: '无关标题',

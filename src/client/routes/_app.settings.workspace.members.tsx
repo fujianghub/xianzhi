@@ -174,7 +174,7 @@ function Members() {
                   data-testid="member-row"
                   data-user={m.userId}
                 >
-                  <Avatar id={m.userId} name={memberName(m)} size={28} />
+                  <Avatar id={m.userId} name={memberName(m)} src={m.image} size={28} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">
                       {memberName(m)}
@@ -287,7 +287,7 @@ function Members() {
                   className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm"
                   data-testid="join-request-row"
                 >
-                  <Avatar id={r.userId} name={r.name} size={28} />
+                  <Avatar id={r.userId} name={r.name} src={null} size={28} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">
                       {r.name}
@@ -422,7 +422,10 @@ function Members() {
           const id = confirm.m.userId
           if (confirm.kind === 'remove')
             return act(
-              () => unwrap(api.workspace.members[':userId'].$delete({ param: { userId: id } })),
+              () =>
+                unwrap(
+                  api.workspace.members[':userId'].$delete({ param: { userId: id }, query: {} }),
+                ),
               t('settings.members.removed'),
             )
           if (confirm.kind === 'suspend')

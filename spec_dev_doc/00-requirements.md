@@ -1,6 +1,6 @@
 # 00 需求规范
 
-> 状态：已采纳 · 版本：v2 · 更新：2026-09-25 · 最后对照代码：2026-09-25（注册审批 / 用户名 / 日程 / 宽屏：REQ-AUTH-017 ~ 020、REQ-CAL-001 ~ 009、REQ-UI-034；此前 2026-09-24：REQ-AUTH-016、REQ-TASK-024、REQ-UI-024 ~ 032） · 依据 ADR-0001 §1、§7、§9、ADR-0003。
+> 状态：已采纳 · 版本：v2 · 更新：2026-09-25 · 最后对照代码：2026-09-25（鲜艳色板 / 用户管理 / 个人资料，ADR-0010：REQ-CAL-010、REQ-UI-035、REQ-WS-018 ~ 023、REQ-AUTH-021；注册审批 / 用户名 / 日程 / 宽屏：REQ-AUTH-017 ~ 020、REQ-CAL-001 ~ 009、REQ-UI-034；此前 2026-09-24：REQ-AUTH-016、REQ-TASK-024、REQ-UI-024 ~ 032） · 依据 ADR-0001 §1、§7、§9、ADR-0003。
 > 本文是**所有测试与任务的追溯源头**：每条需求有唯一 `REQ-<AREA>-<NNN>` 编号；`05` §5 的测试、`tasks/` 的任务、PR 描述都引用这里的编号。设计如何实现在 01–06；本文只写「做什么、验收什么」。
 > 分期：一期 = Phase 0–2（本文编号范围）；二期 = Phase 3（文末只列标题，不编号、不验收）。
 
@@ -48,6 +48,7 @@
 | REQ-AUTH-018 | P0 | 2 | 待审批账号密码正确登录时，系统应返回 403 `REGISTRATION_PENDING`、不下发 Cookie、不留会话，且不发魔法链接；owner/admin 在成员页「待审批」批准（可选角色）后其成为成员并获个人空间，可正常登录；member 不可查看或审批 | Given 待审批 When 正确密码登录 Then 403 `REGISTRATION_PENDING`，无 `session` 行；错密码 Then 401<br>When 请求魔法链接 Then 不发信<br>When owner 批准 Then `member.role` = 所选角色，发 `member.joined`，再登录 200<br>When 再批准同一申请 Then 409<br>Given member When `GET /workspace/join-requests` Then 403 | ADR-0008 · 01 §3.14 · 08 §2.13 | api · e2e |
 | REQ-AUTH-019 | P1 | 2 | owner/admin 驳回注册申请时，系统应删除该申请账号（级联 account / session / join_requests），写审计 `member.rejected`，对方可用同一邮箱重新申请 | When `POST /workspace/join-requests/:id/reject` Then 204，`user` 无该邮箱；再注册同邮箱 Then 201 | ADR-0008 | api |
 | REQ-AUTH-020 | P0 | 2 | 用户应能用「邮箱或用户名」+ 密码登录：输入不含 `@` 时走 `/sign-in/username`（大小写不敏感），与邮箱登录同样经过拼图、IP / 账号限流与锁定、待审批判定 | When 用户名大写 + 正确密码 + 拼图 Then 200；缺拼图 Then 400；错密码 Then 401<br>Given 待审批 When 用户名登录 Then 403 `REGISTRATION_PENDING` | ADR-0008 · 02 §2 | api · e2e |
+| REQ-AUTH-021 | P1 | 2 | 用户应能在「设置 · 安全」修改自己的密码：须当前密码，新密码 ≥ 8 位且不同于旧密码；成功后退出本人其他设备的会话、当前会话保留；Better Auth 自带 `/change-password` 关闭（ADR-0010） | When 当前密码错 Then 422 `currentPassword`；新旧相同 Then 422<br>When 正确 Then 200 `{ sessions: 其他会话数 }`、当前会话仍可用、另一会话 401、新密码可登录；`audit auth.password_changed` | ADR-0010 · 02 §9 | api |
 
 ---
 
@@ -72,6 +73,12 @@
 | REQ-WS-015 | P1 | 2 | 用户应能注销账号（需密码或 TOTP 二次确认）：`user` 行匿名化、会话与 Key 全部删除、内容保留 | When `DELETE /me {password}` Then 204；`user.email/name/avatar` 变为 `deleted-<短id>`；其记录仍在且作者显示「已注销用户」；`audit user.deleted`<br>Given owner When `DELETE /workspace/members/U?purge=1` Then 对 U 同样匿名化<br>Given 唯一 owner Then 409 `CONFLICT_LAST_OWNER` | 07 §4 · 02 §9 | api |
 | REQ-WS-016 | P2 | 2 | owner/admin 应能把已离开或已注销成员的内容批量转移给另一成员 | When `POST /workspace/members/:userId/transfer-content {toUserId}` Then 其全部 entries/tasks 的作者 / 创建者改为目标成员，`audit member.content_transferred` 含数量 | 07 §4 · 02 §9 | api |
 | REQ-WS-017 | P0 | 0 | `audit_log.action` 的取值应只来自 01 §3.12 的枚举清单 | When 单测遍历代码中所有 `audit()` 调用 Then action 均属枚举；写入非枚举值 Then 抛错 | 01 §3.12 | unit |
+| REQ-WS-018 | P1 | 2 | owner 应有「用户管理」页（`/settings/workspace/users`，仅 owner 可见）：列出全部成员的头像、用户名、邮箱、角色、状态、2FA、最近活跃与会话数；可直接创建用户（邮箱 + 用户名 + 显示名 + 初始密码 + 角色），创建即成为成员、无需审批（ADR-0010） | When owner `POST /workspace/users` Then 201，新用户可用初始密码登录、角色正确、`audit user.created`<br>When 邮箱 / 用户名被占用 Then 409 字段级<br>When admin 调 `GET/POST /workspace/users` Then 403；非 owner 打开页面 Then 404 | ADR-0010 · 01 §5 · 08 §2.13 | api · 手工 |
+| REQ-WS-019 | P1 | 2 | owner 应能修改他人的显示名 / 用户名 / 邮箱（唯一性同注册；不能对自己用此接口，本人走个人资料） | When `PATCH /workspace/users/U` Then 204 且字段更新（邮箱 / 用户名存小写）、`audit user.updated`；When 目标为本人 Then 403 | ADR-0010 | api |
+| REQ-WS-020 | P1 | 2 | owner 应能重置他人密码：新密码立即生效，该用户全部会话删除并广播 `user.revoked`；也可单独「强制下线」（复用 `revoke-sessions`） | When `POST /workspace/users/U/password` Then 200、旧密码 401、新密码 200、U 会话数 0、`audit auth.password_reset(byAdmin)`；密码 < 8 位 Then 422 | ADR-0010 · 07 §4 | api |
+| REQ-WS-021 | P1 | 2 | owner 应能删除他人账号（`DELETE /workspace/members/U?purge=1`）：移除成员并吊销、删凭据 / 2FA / Passkey / API Key、`user` 行匿名化（`deleted-<id>`，用户名 / 头像清空），内容保留；邮箱与用户名随即释放；owner 不可删 | When purge Then 204、无 member / account 行、email 为 `deleted-<id>@deleted.invalid`、原邮箱不能登录、可用原邮箱与用户名再建号、`audit user.deleted`<br>When 目标为本人 Then 403 | ADR-0010 · 07 §4 | api |
+| REQ-WS-022 | P1 | 2 | 用户应能在个人资料里修改自己的用户名（免密）与邮箱（须当前密码）；`/me` 返回 `username`、`image`；Better Auth 自带 `/update-user`、`/change-email` 与 `/admin/*` 关闭 | When `PATCH /me/account {username}` Then 200 回显；占用 Then 409<br>When 改邮箱不带 / 带错当前密码 Then 422；正确 Then 200 且新邮箱可登录<br>When `POST /api/auth/update-user` 或 `/api/auth/admin/*` Then 404 | ADR-0010 · 02 §9 | api |
+| REQ-WS-023 | P1 | 2 | 用户应能上传 / 更换 / 移除自己的头像；头像在顶栏、成员、指派人、评论、提及处显示（无头像回退首字母色块） | When 上传图片 Then `user.image` 指向 md 变体、`avatarAttachmentId` 回写<br>When `DELETE /me/avatar` Then 204 且 `/me.image` 为 null | ADR-0010 · REQ-ATTACH-007 | api · 手工 |
 
 ---
 
@@ -193,7 +200,7 @@
 | REQ-COLLAB-007 | P0 | 0 | 快照应在每 50 次落库、距上次 ≥ 30 分钟或手动标记时生成；保留最近 100 个 + 每日最后一个 90 天，标记的永久 | When 触发 60 次落库 Then `entry_snapshots` 1 行；`POST /entries/:id/snapshots {label}` Then 新行带 label | 03 §5 · 02 §9 | collab · api |
 | REQ-COLLAB-008 | P1 | 2 | 历史面板应可选两个快照显示 diff，「恢复」为在当前文档应用反向变更 | When 恢复到快照 A Then 内容等于 A 且 `ydoc_version` 递增、快照数不减 | 03 §5 | e2e |
 | REQ-COLLAB-009 | P0 | 0 | 派生失败不得阻塞 `ydoc` 落库；失败写 `derived_error` 并入队重试 | Given 派生函数抛错 When 落库 Then `ydoc` 已更新，`derived_error` 非空且 `derived_at` 为空，队列有 `derive.retry` 作业<br>When 重试成功 Then `derived_error` 清空、`derived_at` 更新 | 03 §4.2 · 01 §3.4 | collab |
-| REQ-COLLAB-010 | P1 | 0 | 远端光标应显示用户名与颜色，颜色按 userId 哈希取 8 色板 | When 两端在线 Then 各自看到对方光标 | 03 §4.3 · 04 §2.1 | e2e |
+| REQ-COLLAB-010 | P1 | 0 | 远端光标应显示用户名与颜色，颜色按 userId 哈希取色板（ADR-0010 起 9 色） | When 两端在线 Then 各自看到对方光标 | 03 §4.3 · 04 §2.1 | e2e |
 | REQ-COLLAB-011 | P1 | 1 | Hocuspocus 重启期间客户端应指数退避重连，本地编辑不丢，重连后合并 | When 重启 collab 进程时输入 100 字 Then 重连后服务端含全部 | 03 §4 | e2e |
 | REQ-COLLAB-012 | P1 | 1 | 当 IndexedDB 不可用或配额满时，系统应降级为仅内存并提示「离线保存不可用」 | Given 隐私模式 When 打开 Then 提示出现，编辑仍可同步 | 03 §4.3 · 08 §4 | e2e |
 | REQ-COLLAB-013 | P1 | 1 | 同一浏览器多标签页打开同一记录应共享 IndexedDB 并合并，不出现重复内容 | When 两标签各输入 Then 两标签内容一致且无重复段 | 03 §4.1 | e2e |
@@ -219,7 +226,7 @@
 
 | ID | P | Phase | 需求（EARS） | 验收（GWT） | 依据 | 测试层 |
 |---|---|---|---|---|---|---|
-| REQ-TAG-001 | P1 | 1 | 标签名在工作区内唯一，颜色为 8 色 token 名 | When 重名 Then 409；`color:'#abc'` Then 422 | 01 §3.7 · 04 §2.1 | api |
+| REQ-TAG-001 | P1 | 1 | 标签名在工作区内唯一，颜色为色板 token 名（ADR-0010 起 9 色） | When 重名 Then 409；`color:'#abc'` Then 422 | 01 §3.7 · 04 §2.1 | api |
 | REQ-TAG-002 | P1 | 1 | 任务与记录列表应支持 `?tag=` 筛选（多值逗号） | When `GET /tasks?tag=a,b` Then 只含带 a 或 b 的任务 | 02 §4 | api |
 | REQ-TAG-003 | P1 | 1 | TagPicker 应支持输入即创建 | When 输入不存在的名并 Enter Then `POST /tags` 并选中 | 04 §5 | e2e |
 
@@ -344,8 +351,9 @@
 | REQ-UI-030 | P1 | 2 | 展开 / 收起统一用圆角实心三角「展开指示」，展开时弹簧转 90°；纯方向仍用 Chevron | When 点击「今天完成的」Then 指示带 `data-open` 且旋转 90° | 04 §2.4 · 04 §5 | e2e |
 | REQ-UI-031 | P1 | 2 | 日历 `/calendar`（Apple 风格）：月视图 6×7（按 weekStartsOn）与周视图（全天行 + 24 小时时间轴 + 当前时间线）；（注 2026-09-25，ADR-0009：另有日 / 年视图与独立「日程」，见 REQ-CAL-*；任务改为可关闭的叠加层）事件 = 任务（dueAt 优先，本地 23:59 / 00:00 视为全天），色取空间色板，点击打开 Peek；`t` 今天、← / → 翻页、`m` / `w` 切换；侧栏与 ⌘K `g c` 可达 | When 区间内有任务 Then 月视图对应日期出现事件；点击 Then Peek；按 `w` Then 周视图且今天列有当前时间线 | 08 §2.17 · ADR-0005 | unit · e2e |
 | REQ-UI-032 | P1 | 2 | 侧栏（2026-09-24 改版，参照简斋后台）：整高实玻璃板 + 右侧 1px 分隔与柔阴影；品牌区燕印 42 + 文楷；导航项 42px、图标带专属色（`--xz-icon-*` ≥ 3:1）；当前项为翡翠渐变胶囊 + inset 描边，无左侧竖条；导航与空间树共用样式；内容区内衬圆角淡翡翠面板 | When 视口 1280 Then 侧栏高 = 视口、右边框 1px；当前项 `data-active` + `aria-current=page`、背景为渐变、无 `::before` 竖条 | 06 §4 · REQ-UI-020 | e2e · unit |
-| REQ-UI-033 | P1 | 2 | 一级页页头统一（`PageHeader`：2xl 标题 + 可选文楷题记 / 说明 / 右侧动作）；今日页题记为本地日期与星期、说明为各段计数；记录类型用 04 §2.1 色板分色（决策 indigo · 迭代 teal · Bug ochre · 变更 amber · 日志 pine · 随笔 moss · 复盘 plum），文字仍为类型名；跨空间列表以「空间色点 + 空间名」标注空间（取不到时回退 slug）；记录 / 空间卡片悬停抬升 2px + 翡翠边线，网格入场错峰 ≤ 8 格，时长走 token（减弱档无动画） | When 打开 `/today` Then 标题上方有日期题记；When 记录卡片类型为决策 Then 徽章为 indigo 色板类；When 减弱档 Then `.xz-rise` 无动画 | 04 §2.1 · 04 §2.4 · 06 §5.2 | unit · 手工 |
+| REQ-UI-033 | P1 | 2 | 一级页页头统一（`PageHeader`：2xl 标题 + 可选文楷题记 / 说明 / 右侧动作）；今日页题记为本地日期与星期、说明为各段计数；记录类型用 04 §2.1 色板分色（决策 blue · 迭代 cyan · Bug red · 变更 orange · 日志 green · 随笔 yellow · 复盘 purple；ADR-0010 前为 indigo / teal / ochre / amber / pine / moss / plum），文字仍为类型名；跨空间列表以「空间色点 + 空间名」标注空间（取不到时回退 slug）；记录 / 空间卡片悬停抬升 2px + 翡翠边线，网格入场错峰 ≤ 8 格，时长走 token（减弱档无动画） | When 打开 `/today` Then 标题上方有日期题记；When 记录卡片类型为决策 Then 徽章为 blue 色板类；When 减弱档 Then `.xz-rise` 无动画 | 04 §2.1 · 04 §2.4 · 06 §5.2 | unit · 手工 |
 | REQ-UI-034 | P1 | 2 | 宽屏不留大片空白（2026-09-25）：今日 / 收件箱 / 通知在 ≥ xl 为「主列 + 20rem 右侧速览栏」（今天：日期 / 农历 / 节假日 · 今日日程 · 小月历 · 7 天内到期），主列最宽 96rem；今日页顶部四枚计数卡（逾期 / 今日到期 / 今日开始 / 今日日程）；回收站 / 搜索加宽到 5xl；空间卡片 2xl 四列；设置子页统一左对齐 | When 视口 1728 打开 `/today` Then `glance-rail` 可见、`today-stats` 4 格；When 视口 1280 Then 无速览栏 | 04 §4 · 08 §2.3 | e2e · 手工 |
+| REQ-UI-035 | P1 | 2 | 色板改为鲜艳 9 色（ADR-0010）：蓝 / 橙 / 黄 / 红 / 绿 / 紫 / 粉 / 青 / 灰，每色 `-solid`（色条 / 圆点）· `-bg`（浅底）· `-fg`（字，对 `-bg` ≥ 4.5，两主题）；空间 / 标签 / 日历共用；日历色块为「浅底 + 同色深字 + 3px 鲜艳左色条」；旧色名经迁移 0007 映射（moss / pine→green、amber→orange、indigo→blue、ochre→red、teal→cyan、plum→purple） | When `check-contrast` Then 9 色两主题全部达标<br>When 日历新建颜色为 `teal` Then 422 | ADR-0010 · 04 §2.1 | unit · api · 手工 |
 | REQ-UI-027 | P1 | 2 | Topbar 滚动 > 8px 后应显示 `shadow-soft` 与翡翠枝线，回到顶部即消失；Dialog 打开时底板光晕下移 4px 并减弱，关闭复原 | When 页面滚动 100px Then topbar 带 `data-scrolled`；When 打开 Dialog Then `html[data-dialog-open]` 且 `body::before` transform 非 none | 06 §4 · ADR-0005 §2 | e2e |
 
 ---
@@ -389,7 +397,7 @@
 
 | ID | P | Phase | 需求（EARS） | 验收（GWT） | 依据 | 测试层 |
 |---|---|---|---|---|---|---|
-| REQ-CAL-001 | P1 | 2 | 每个用户应有自己的日历列表（颜色分类）：首次访问自动建「个人 / 工作 / 学习 / 生活」4 个，可新建（≤ 30）、改名、改色（8 色板）、隐藏 / 显示、删除（至少留 1 个，连同其日程） | When 首次 `GET /calendars` Then 4 个且恰一个 `isDefault`；再取仍 4 个<br>When 新建 / 改名 / 隐藏 / 删除 Then 201 / 200 / 200 / 204；颜色非法 422 | 01 §3.15 · 08 §2.17 | api |
+| REQ-CAL-001 | P1 | 2 | 每个用户应有自己的日历列表（颜色分类）：首次访问自动建「个人 / 工作 / 学习 / 生活」4 个，可新建（≤ 30）、改名、改色（9 色鲜艳色板，ADR-0010）、隐藏 / 显示、删除（至少留 1 个，连同其日程） | When 首次 `GET /calendars` Then 4 个且恰一个 `isDefault`；再取仍 4 个<br>When 新建 / 改名 / 隐藏 / 删除 Then 201 / 200 / 200 / 204；颜色非法 422 | 01 §3.15 · 08 §2.17 | api |
 | REQ-CAL-002 | P1 | 2 | 用户应能新建定时 / 全天 / 跨天日程（标题、日历、地点、链接、备注、提醒），并按区间读取；结束须晚于开始，区间跨度 ≤ 400 天 | When `POST /calendar-events` Then 201，区间内 `GET` 可见、区间外不可见<br>When 结束早于开始 / 区间 401 天 Then 422<br>When 周视图点击空白 10:05 Then 编辑器开始时间 10:00，保存后出现 10:00–11:00 的日程 | 01 §3.15 · 02 §9 | api · e2e |
 | REQ-CAL-003 | P1 | 2 | 用户应能拖动日程改期（周 / 日视图可跨日，月视图拖到别的日期）、拖底边改时长；写入带 `ifUpdatedAt`，过期 409 | When 周视图把 10:00 日程向下拖 1 小时 Then 变 11:00–12:00<br>When 旧 `ifUpdatedAt` PATCH Then 409 `CONFLICT_STALE` | 02 §5 · 08 §2.17 | api · e2e |
 | REQ-CAL-004 | P1 | 2 | 日程应支持重复（每天 / 工作日 / 每周选星期 / 每两周 / 每月 / 每年 / 自定义间隔；结束于永不 / 某日 / N 次），按日程时区的本地时刻展开（跨 DST 不漂移） | When 每周一三重复 Then 两周区间返回 4 次<br>When `FREQ=HOURLY` Then 422<br>When 纽约每天 09:00 跨 3/8 Then UTC 由 14:00 变 13:00 | 01 §3.15 · ADR-0009 | api |
@@ -398,6 +406,7 @@
 | REQ-CAL-007 | P1 | 2 | 日历应标注中国法定节假日「休」、调休上班「班」，并显示农历日期、主要传统节日与二十四节气（可在侧栏关闭） | When 月视图 2026-10 Then 10/1 有「休」、10/10 有「班」，格内有农历小字 | ADR-0009 §3 | e2e |
 | REQ-CAL-008 | P1 | 2 | 日程提醒：到「开始 − 提前量」时刻给 owner 发 `calendar.reminder`（站内 + SSE + WebPush），每（日程, 发生时刻, 提前量）只发一次，停机错过 5 分钟窗口不补发 | When 作业在触发后 1 分钟运行 Then emit 1 条；再跑 Then 0；触发前运行 Then 0 | 01 §4 · ADR-0009 | api |
 | REQ-CAL-009 | P1 | 2 | 日历页应提供日 / 周 / 月 / 年四种视图与左栏（小月历、我的日历、叠加项、接下来 7 天）；快捷键 t / ← / → / d / w / m / y / n；日视图宽屏带当日详情栏 | When 按 y Then 年视图 12 个月；点日期 Then 日视图 | 08 §2.17 | e2e · 手工 |
+| REQ-CAL-010 | P1 | 2 | 月视图与周 / 日视图的全天行应支持鼠标按住拖选日期范围：拖过的日期高亮，松开即以 [起, 止] 打开新建全天日程（如 9/9 → 9/11）；反向拖同样有效；单击仍为单日；按在日程条 / 日期号上不起选；Esc 取消；触屏不拖选（留给滚动） | When 月视图从 9/9 按住拖到 9/11 松开 Then 编辑器为全天、起 9/9、止 9/11；When 单击 9/9 Then 单日 | ADR-0010 · 08 §2.17 | e2e · 手工 |
 
 ---
 

@@ -2,15 +2,20 @@
  * /api/v1/workspace/*（02 §9）：校验 → service → 序列化。
  * T0-010 邀请五端点；T0-011 工作区信息、成员管理、owner 转让、审计日志；
  * ADR-0008 开放注册 + 待审批（join-requests）。
- * 未实现（Phase 1/2）：`DELETE /members/:userId?purge=1`（REQ-WS-015）、`transfer-content`（REQ-WS-016）。
+ * ADR-0010 owner 用户管理：`/users*`（直建 / 改资料 / 重置密码）与 `DELETE /members/:userId?purge=1` 删号（REQ-WS-018 ~ 021）。
+ * 未实现（Phase 2）：本人注销 `DELETE /me`（REQ-WS-015）、`transfer-content`（REQ-WS-016）。
  */
 import { Hono } from 'hono'
 import {
   acceptInvitationSchema,
+  adminCreateUserSchema,
+  adminResetPasswordSchema,
+  adminUserPatchSchema,
   approveJoinRequestSchema,
   auditLogQuerySchema,
   createInvitationSchema,
   invitationIdParam,
+  memberDeleteQuery,
   memberRolePatchSchema,
   ownerTransferSchema,
   registerSchema,
@@ -31,6 +36,7 @@ import { type CaptchaOptions, issueCaptchaPass, verifyCaptcha } from '../service
 import * as inv from '../services/invitations.ts'
 import * as join from '../services/join-requests.ts'
 import * as members from '../services/members.ts'
+import * as users from '../services/users.ts'
 import { getWorkspace, updateWorkspace } from '../services/workspace.ts'
 import type { AppEnv } from '../types.ts'
 
@@ -194,11 +200,13 @@ export function workspaceRoutes(deps: {
         requireAuth,
         requireScope('admin'),
         validate('param', userIdParam),
+        validate('query', memberDeleteQuery),
         async (c) => {
-          if (c.req.query('purge') === '1')
-            throw AppError.validation([
-              { path: 'purge', message: '注销账号（REQ-WS-015）在 Phase 2 实现' },
-            ])
+          if (c.req.valid('query').purge === '1') {
+            // 删号（REQ-WS-021）：仅 owner，can('user.manage') 在 service 内
+            await users.purgeUser(deps.db, base(c), c.req.valid('param').userId)
+            return c.body(null, 204)
+          }
           await members.removeMember(deps.db, base(c), c.req.valid('param').userId)
           return c.body(null, 204)
         },
@@ -230,6 +238,47 @@ export function workspaceRoutes(deps: {
         validate('param', userIdParam),
         async (c) =>
           c.json(await members.revokeSessions(deps.db, base(c), c.req.valid('param').userId)),
+      )
+      // ---- owner 用户管理（ADR-0010、REQ-WS-018 ~ 020） ----
+      .get('/users', requireAuth, requireScope('admin'), async (c) =>
+        c.json({ items: await users.listUsers(deps.db, base(c)), nextCursor: null }),
+      )
+      .post(
+        '/users',
+        requireAuth,
+        requireScope('admin'),
+        idempotency(deps.db),
+        validate('json', adminCreateUserSchema),
+        async (c) =>
+          c.json(await users.createUser(deps.db, deps.auth, base(c), c.req.valid('json')), 201),
+      )
+      .patch(
+        '/users/:userId',
+        requireAuth,
+        requireScope('admin'),
+        validate('param', userIdParam),
+        validate('json', adminUserPatchSchema),
+        async (c) => {
+          await users.updateUser(deps.db, base(c), c.req.valid('param').userId, c.req.valid('json'))
+          return c.body(null, 204)
+        },
+      )
+      .post(
+        '/users/:userId/password',
+        requireAuth,
+        requireScope('admin'),
+        validate('param', userIdParam),
+        validate('json', adminResetPasswordSchema),
+        async (c) =>
+          c.json(
+            await users.resetUserPassword(
+              deps.db,
+              deps.auth,
+              base(c),
+              c.req.valid('param').userId,
+              c.req.valid('json').password,
+            ),
+          ),
       )
       .post(
         '/owner-transfer',

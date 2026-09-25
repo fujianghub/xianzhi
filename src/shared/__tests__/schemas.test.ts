@@ -113,10 +113,10 @@ describe('others', () => {
     if (!r.success) expect(r.error.issues.map((i) => i.path.join('.'))).toContain('fields.severity')
     expect(listEntriesQuery.safeParse({ sort: 'ydoc' }).success).toBe(false)
   })
-  it('REQ-SPACE-001 listSpaces sort 白名单；REQ-TAG-001 颜色只能是 8 色', () => {
+  it('REQ-SPACE-001 listSpaces sort 白名单；REQ-TAG-001 颜色只能是 9 色', () => {
     expect(listSpacesQuery.parse({ sort: 'name' }).sort).toEqual([{ field: 'name', dir: 'asc' }])
     expect(listSpacesQuery.safeParse({ sort: 'slug' }).success).toBe(false)
-    expect(createTagSchema.safeParse({ name: '重要', color: 'moss' }).success).toBe(true)
+    expect(createTagSchema.safeParse({ name: '重要', color: 'green' }).success).toBe(true)
     expect(createTagSchema.safeParse({ name: '重要', color: '#ff0000' }).success).toBe(false)
   })
   it('REQ-LINK-003 external 需 URL 无 toId；mentions 不可手建', () => {
