@@ -42,6 +42,7 @@
 
 ### 2. 装饰语言：燕印 + 枝线
 
+- （注 2026-09-25：燕印配色与造型已由 ADR-0007 取代——~~翡翠渐变底、深墨色衔枝燕剪影~~ → 翡翠深渐变 + 右上晨光 + 暖白春燕衔嫩芽，走 `--xz-seal-*`；形制、尺寸、投影、hover 不变。）
 - **燕印** `.xz-seal`：借简斋方印形制——翡翠渐变底、深墨色衔枝燕剪影、`--xz-shadow-seal` 翡翠投影与 1px 内高光；尺寸 28 / 42 / 56；hover `rotate(-6deg) scale(1.05)` 走 `ease-spring`，减弱档静止。用于 Sidebar 品牌位、登录页、favicon。
 - **枝线**：顶栏滚动 > 8px 后下沿出现一条 1px 翡翠细线 + `shadow-soft`（取代简斋「书口」金线）。
 - **展示字**：品牌位、登录标题、页头题记用 `--xz-font-display`（LXGW WenKai Screen，只有 400，禁伪加粗）；英文品牌字 `--xz-font-brand-en`（Cormorant Garamond italic）。

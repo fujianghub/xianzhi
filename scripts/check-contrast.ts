@@ -2,7 +2,7 @@
  * REQ-UI-003 对比度矩阵（06 §7、04 §2.1）：解析 src/client/styles/tokens.css 两主题，在「最坏合成底」上计算 WCAG 对比度。
  * - 日场最坏底：glass-thin 叠在 glow-2 峰值上（再叠 bg）；夜场：glass-thick 叠 glow-3 峰值
  * - 另算纸面 surface-solid
- * 门槛：fg ≥ 7、fg-muted ≥ 4.5、fg-faint ≥ 3；primary-fg on primary / primary-bright ≥ 4.5；语义色图标 on 纸面 ≥ 3；
+ * 门槛：燕印 seal-bird / seal-to ≥ 3、/ seal-from ≥ 2、seal-leaf / seal-to ≥ 3（ADR-0007）；fg ≥ 7、fg-muted ≥ 4.5、fg-faint ≥ 3；primary-fg on primary / primary-bright ≥ 4.5；语义色图标 on 纸面 ≥ 3；
  * 危险文字 on danger-soft ≥ 4.5；8 色板 fg on bg ≥ 4.5（AA）。
  * ADR-0005：primary 只作填充，主色当文字 / 图标由 primary-text 承担（两底 ≥ 4.5）；danger-fg on danger ≥ 4.5；
  * 代码高亮 token on code-bg ≥ 4.5。
@@ -96,6 +96,10 @@ for (const [name, t, worstGlass, worstGlow] of [
   check('primary-fg / primary-bright', get('--xz-primary-fg'), get('--xz-primary-bright'), 4.5)
   for (const s of ['primary-text', 'accent', 'success', 'warning', 'danger', 'info'])
     check(`${s} 图标 / 纸面`, get(`--xz-${s}`), paperBg, 3)
+  // ADR-0007 燕印：暖白燕 / 嫩叶压在翡翠深渐变上（Logo 豁免 WCAG 1.4.11，此处防回归：深端 ≥ 3、浅端 ≥ 2）
+  check('seal-bird / seal-to', get('--xz-seal-bird'), get('--xz-seal-to'), 3)
+  check('seal-bird / seal-from', get('--xz-seal-bird'), get('--xz-seal-from'), 2)
+  check('seal-leaf / seal-to', get('--xz-seal-leaf'), get('--xz-seal-to'), 3)
   check('danger / danger-soft', get('--xz-danger'), get('--xz-danger-soft'), 4.5)
   check('danger-fg / danger', get('--xz-danger-fg'), get('--xz-danger'), 4.5)
   // 逾期标题、错误说明等 danger 文字直接压在底板上（REQ-UI-013 axe）

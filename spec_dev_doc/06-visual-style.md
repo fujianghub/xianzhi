@@ -248,7 +248,7 @@ Tailwind v4 的 `backdrop-blur-*` 会同时输出 `-webkit-backdrop-filter`；�
 
 ### 5.6 品牌位
 
-- （注 2026-09-24：Logo 为燕印 `Seal size=sm`；「衔枝」改用 `--xz-font-display` 17px，副标 `Xianzhi` 改用 `--xz-font-brand-en` italic 12px；登录页燕印 `lg` + 展示字 26px，ADR-0005）
+- （注 2026-09-24：Logo 为燕印 `Seal size=sm`；「衔枝」改用 `--xz-font-display` 17px，副标 `Xianzhi` 改用 `--xz-font-brand-en` italic 12px；登录页燕印 `lg` + 展示字 26px，ADR-0005；注 2026-09-25：副标 ~~`Xianzhi`~~ 与登录页口号统一为「日衔寸枝，岁成一巢」（`app.tagline`），文楷 12px（侧栏）/ 14px（登录页），ADR-0007）
 - Sidebar 顶部：Logo（衔枝燕）+ 「衔枝」用 `--xz-font-serif`（`04` §2.2，LXGW WenKai Screen，与简斋品牌位同一字体）`font-weight 400 · letter-spacing .06em`；副标 `Xianzhi` 用 `--xz-font-sans · fg-faint · 11px · letter-spacing .18em`。
 - 登录页：底板光晕放大 1.4 倍 + 一张 `glass-thick` 卡片居中，卡片顶缘棱线加亮到 `rgba(255,255,255,.9)`（日场）。这是唯一允许调高棱线的地方。
 

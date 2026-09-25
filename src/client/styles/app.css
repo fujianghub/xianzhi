@@ -334,15 +334,21 @@ html[data-dialog-open] body::before {
   }
 }
 
-/* ---- ADR-0005 §2 燕印（REQ-UI-024）：翡翠渐变方印 + 深墨燕；宿主 hover 轻转，减弱档静止 ---- */
+/* ---- ADR-0007 燕印（REQ-UI-024）：翡翠深渐变 + 右上晨光（md / lg）+ 暖白春燕衔嫩芽；宿主 hover 轻转，减弱档静止 ---- */
 .xz-seal {
   display: inline-grid;
   flex-shrink: 0;
   place-items: center;
-  color: var(--xz-primary-fg);
-  background: var(--xz-primary-gradient);
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--xz-seal-from), var(--xz-seal-to));
   box-shadow: var(--xz-shadow-seal);
   transition: transform var(--xz-dur-base) var(--xz-ease-spring);
+}
+.xz-seal-md,
+.xz-seal-lg {
+  background:
+    radial-gradient(circle at 85% 10%, var(--xz-seal-sun), transparent 60%),
+    linear-gradient(135deg, var(--xz-seal-from), var(--xz-seal-to));
 }
 .xz-seal-sm {
   width: 28px;
@@ -360,8 +366,22 @@ html[data-dialog-open] body::before {
   border-radius: 14px;
 }
 .xz-seal-mark {
-  width: 78%;
-  height: 78%;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0.5px 0.6px var(--xz-seal-bird-shadow));
+}
+.xz-seal-bird {
+  fill: var(--xz-seal-bird);
+}
+.xz-seal-twig {
+  fill: none;
+  stroke: var(--xz-seal-twig);
+}
+.xz-seal-leaf {
+  fill: var(--xz-seal-leaf);
+}
+.xz-seal-leaf-2 {
+  fill: var(--xz-seal-leaf-2);
 }
 :root:not([data-motion="reduce"]) .xz-seal-host:hover .xz-seal {
   transform: rotate(-6deg) scale(1.05);

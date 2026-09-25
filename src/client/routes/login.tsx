@@ -87,16 +87,10 @@ function Login() {
       >
         <div className="xz-seal-host mb-7 flex flex-col items-center gap-3">
           <Seal size="lg" />
-          <h1 className="font-display text-[28px] leading-none tracking-[.16em]">
-            {t('app.name')}
-            <span className="mx-2 text-accent" aria-hidden>
-              ·
-            </span>
-            <span className="font-brand-en text-[24px] text-fg-muted italic tracking-[.08em]">
-              {t('app.subtitle')}
-            </span>
-          </h1>
-          <p className="text-fg-muted text-xs tracking-[.4em]">{t('auth.tagline')}</p>
+          <h1 className="font-display text-[30px] leading-none tracking-[.2em]">{t('app.name')}</h1>
+          <p className="font-display text-[14px] text-fg-muted tracking-[.4em]">
+            {t('app.tagline')}
+          </p>
         </div>
         <div className="flex flex-col gap-3.5">
           <IconField

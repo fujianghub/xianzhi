@@ -61,8 +61,8 @@ function Brand() {
       <Seal size="md" />
       <div className="leading-tight">
         <div className="font-display text-[22px] tracking-[.14em]">{t('app.name')}</div>
-        <div className="mt-1 font-brand-en text-[12px] text-fg-muted italic tracking-[.22em]">
-          {t('app.subtitle')}
+        <div className="mt-1.5 font-display text-[12px] text-fg-muted tracking-[.2em]">
+          {t('app.tagline')}
         </div>
       </div>
     </Link>
