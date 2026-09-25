@@ -8,7 +8,7 @@
 - 单 package TypeScript：`src/client`（Vite 8 + React 19 + TanStack + Tailwind v4 + shadcn）· `src/server`（Hono + Drizzle + pg-boss）· `src/collab`（Hocuspocus）· `src/shared`（Zod schema、编辑器模板、`tz.ts`）
 - 数据：PostgreSQL 16（pgvector 镜像，独立容器）；正文 = Yjs 二进制 `entries.ydoc`
 - 认证：Better Auth（organization/admin/2FA/passkey/magicLink/apiKey/username）；Better Auth 自助注册关闭，注册只走 `POST /workspace/join-requests`，审批前无 `member` 行 = 不能登录；邮箱或用户名 + 密码（≥ 8 位）登录，前置服务端拼图滑块（ADR-0006 / 0008）；collab WebSocket 用 `POST /collab/token` 按文档签发的 5 分钟票据，不用 Cookie
-- 视觉：Apple 玻璃（ADR-0002）+ 翡翠主色、燕印、动效档位（ADR-0005）；日场 / 夜场，默认跟随系统；字体 npm 自托管、异步加载
+- 视觉：Apple 玻璃（ADR-0002）+ 翡翠主色、燕印、动效档位（ADR-0005）+ 空间 / 标签 / 日历共用鲜艳 9 色板（ADR-0010）；日场 / 夜场，默认跟随系统；字体 npm 自托管、异步加载
 - 分期：一期 = Phase 0–2（可用版本）· 二期 = Phase 3（MCP / 导入 / AI / pgvector）；规范里不出现「三期」
 - 端口：3010 Vite · 8010 API · 8011 collab · 5433 PG · 8025 Mailpit（简斋占 3001/8002/5432/6379，勿撞）
 - 部署：腾讯云与简斋同机，Compose 三服务，复用其 Caddy；`infra/`；远端 `github.com/fujianghub/xianzhi`
@@ -30,6 +30,7 @@ pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore 
 - 验证实例设 `XZ_CAPTCHA_DEBUG=1`（拼图答案回显，e2e `solveCaptcha()` 真实拖拽）；production 由服务端强制忽略
 - 视觉基线：确认新视觉后 `pnpm exec playwright test e2e/design.spec.ts e2e/feedback.spec.ts --project=setup --project=desktop --update-snapshots`
 - **主 dev server 运行时勿在同目录再起共享 `.vite` 缓存的实例**（简斋教训：prosemirror/codemirror 多实例崩溃）；worktree 有自己的 `node_modules`，可在另一端口起预览
+- 改被 `inList()` 引用的枚举（`AUDIT_ACTIONS`、`PALETTE_COLORS` 等）必须 `pnpm db:generate` 重建 check 约束，否则插库 500（见 `debug/2026-09-25-audit-action-check-constraint`）
 - 原生依赖只允许 npm 平台包分发（`@node-rs/*`、`sharp`）；禁止依赖 GitHub prebuild 的包；> 10 MB 的包先测镜像速度（npmmirror 大 tarball 会挂死，见 05 §2）
 
 ## 不可违背的不变量
@@ -42,7 +43,7 @@ pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore 
 6. **列表接口不返回正文列**；分页一律游标；写操作带 `ifUpdatedAt` 或 `Idempotency-Key`。
 7. **Y.Doc `gc:false`**（前后端一致），否则快照失效。
 8. 改任何 ADR 决定 → 新开 `spec_dev_doc/adr/NNNN-*.md`，不改旧文（只允许加「注」与删除线标注）。
-9. **安全收口**（规则在 `07`）：通知深链永不带 token；正文 `image.src` 只接受 `xz:attachment/`；日志脱敏 `authorization / cookie / ydoc`；上传按魔数判 mime；WebSocket 只认 `POST /collab/token` 按文档签发的票据；邮箱密码登录须过服务端拼图（`x-captcha`，失败不计入锁定，ADR-0006）。
+9. **安全收口**（规则在 `07`）：通知深链永不带 token；正文 `image.src` 只接受 `xz:attachment/`；日志脱敏 `authorization / cookie / ydoc`；上传按魔数判 mime；WebSocket 只认 `POST /collab/token` 按文档签发的票据；邮箱密码登录须过服务端拼图（`x-captcha`，失败不计入锁定，ADR-0006）；账号变更只走带审计的 `/me/account` `/me/password` `/me/avatar` 与 owner 的 `/workspace/users*`（`can('user.manage')`），Better Auth `/update-user` `/change-password` `/change-email` `/admin/*` 一律 404（ADR-0010）。
 
 ## 规范索引（按需 Read，勿全量内联）
 
@@ -51,7 +52,7 @@ pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore 
 | `spec_dev_doc/adr/0001-tech-stack.md` | 选型与 8 项决定、分期、各技术介绍 / 作用 / 语言（§10） |
 | `spec_dev_doc/adr/0002 · 0003 · 0004` | 视觉改 Apple 玻璃 · 工期基线 = 任务级估时 · 更名衔枝（gi → xz） |
 | `spec_dev_doc/adr/0005 · 0006 · 0007` | 翡翠主色 / 燕印 / 动效档位 · 登录拼图滑块 · 晨光白燕燕印 |
-| `spec_dev_doc/adr/0008 · 0009` | 开放注册 + 审批 / 用户名 / 密码 8 位 · 日历日程（重复、提醒、节假日） |
+| `spec_dev_doc/adr/0008 · 0009 · 0010` | 开放注册 + 审批 / 用户名 / 密码 8 位 · 日历日程（重复、提醒、节假日） · 鲜艳 9 色板 / 日历拖选 / owner 用户管理 / 个人资料 |
 | `spec_dev_doc/01-domain-model.md` | 表结构、`fields` schema、事件种类、权限矩阵 |
 | `spec_dev_doc/02-api-conventions.md` | 路由/错误/分页/SSE/文件/MCP 约定、路由清单 |
 | `spec_dev_doc/03-editor-kernel.md` | Tiptap schema、Hocuspocus 钩子、快照、模板、交互规格、简斋陷阱 |
