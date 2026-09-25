@@ -4,6 +4,14 @@
 
 ## 2026-09-25
 
+**历史版本恢复、Markdown 源码编辑与识别、附件类型、记录模板（ADR-0011）**
+- 新增 ADR-0011。
+- 00：REQ-COLLAB-008 改写（「两快照互比」→「快照 ↔ 当前」，恢复细节）；新增 REQ-UI-036（非安全上下文）、REQ-EDITOR-019 ~ 022（语雀式识别 / 源码对话框 / 图片展示 / .md 文件）、REQ-ATTACH-012 · 013（Office / csv / 代码文件、应用内预览）、§6b TPL（REQ-TPL-001 ~ 005）；REQ-EDITOR-008 · 011 加注。
+- 01：entries.kind +`optimize` `plan`；§3.5 fields +2；新表 `entry_templates`；entry_snapshots 注；§3.12 审计 +`entry.restored`；§5 +`template.read / create / manage`。
+- 02 §9：+`GET …/snapshots/:sid/content`、`POST …/snapshots/:sid/restore`、`/templates` 5 条；`POST /entries` +`templateId`。
+- 03：§5 恢复实现注；§6 模板注；§8 源码对话框注；§11.3 识别 / `.md` 文件 / 图片属性注。07 §2.4 +Office / 预览注入行。08 §1 +`/settings/templates`；§3.2 注。glossary：记录类型 +2，+模板、历史版本、源码编辑。tasks/phase-2：T1-017 历史页签、`[[` 选择器划线加注。
+- debug：+2026-09-25-randomuuid-insecure-context、+2026-09-26-jsonb-key-order-diff。
+
 **鲜艳 9 色板、日历拖选、owner 用户管理与个人资料（ADR-0010）**
 - 新增 ADR-0010。
 - 00：新增 REQ-CAL-010（拖选新建）、REQ-UI-035（鲜艳 9 色板）、REQ-WS-018 ~ 023（用户管理 / 改资料 / 重置密码 / 删号 / 本人改用户名邮箱 / 头像）、REQ-AUTH-021（改密）；REQ-CAL-001 · TAG-001 · COLLAB-010 · UI-033 色板描述加注。

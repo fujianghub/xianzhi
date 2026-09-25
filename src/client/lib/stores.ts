@@ -1,5 +1,6 @@
 /** 本地 UI 状态（Zustand，ADR §3：仅主题、布局）：侧栏 / Aside 折叠、密度、动效档位、StatusPill 状态。 */
 import { create } from 'zustand'
+import type { EntryKind } from '../../shared/schemas/enums.ts'
 import { type MotionLevel, setMotion as persistMotion, storedMotion } from './motion.ts'
 
 export type PillStatus = 'idle' | 'synced' | 'connecting' | 'offline' | 'readOnly'
@@ -119,7 +120,9 @@ export const useNewTask = create<{
 /** 全局新记录（08 §2.8：`e`）：页面登记默认空间 / kind（空间记录页 → 该空间）。 */
 export interface NewEntryDefaults {
   spaceId?: string
-  kind?: 'decision' | 'iteration' | 'bug' | 'changelog' | 'journal' | 'note' | 'review'
+  kind?: EntryKind
+  /** 预选模板（ADR-0011 §2）：内置 `builtin:<key>` 或用户模板 uuid */
+  templateId?: string
 }
 export const useNewEntry = create<{
   open: boolean

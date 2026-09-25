@@ -22,6 +22,7 @@ import type { AppEnv } from '../types.ts'
 
 /** 记录 id 必须是 UUID：非法 id 422，而不是让 PG 类型转换报 500。 */
 const idParam = z.object({ id: uuidSchema })
+const snapParam = z.object({ id: uuidSchema, sid: uuidSchema })
 
 export function entryRoutes(deps: { db: Db }) {
   const ctxOf = (c: {
@@ -105,16 +106,25 @@ export function entryRoutes(deps: { db: Db }) {
           201,
         ),
     )
-    .get(
-      '/:id/snapshots/:sid',
-      validate('param', z.object({ id: uuidSchema, sid: uuidSchema })),
+    .get('/:id/snapshots/:sid/content', validate('param', snapParam), async (c) => {
+      const { id, sid } = c.req.valid('param')
+      return c.json(await snap.getSnapshotContent(deps.db, ctxOf(c), id, sid))
+    })
+    .post(
+      '/:id/snapshots/:sid/restore',
+      requireScope('write'),
+      validate('param', snapParam),
       async (c) => {
         const { id, sid } = c.req.valid('param')
-        const bin = await snap.getSnapshotBinary(deps.db, ctxOf(c), id, sid)
-        return c.body(new Uint8Array(bin), 200, {
-          'Content-Type': 'application/octet-stream',
-          'Cache-Control': 'private, max-age=86400',
-        })
+        return c.json(await snap.restoreSnapshot(deps.db, ctxOf(c), id, sid), 202)
       },
     )
+    .get('/:id/snapshots/:sid', validate('param', snapParam), async (c) => {
+      const { id, sid } = c.req.valid('param')
+      const bin = await snap.getSnapshotBinary(deps.db, ctxOf(c), id, sid)
+      return c.body(new Uint8Array(bin), 200, {
+        'Content-Type': 'application/octet-stream',
+        'Cache-Control': 'private, max-age=86400',
+      })
+    })
 }

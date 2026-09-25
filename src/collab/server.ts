@@ -14,7 +14,7 @@ import { type Actor, can } from '../server/authz.ts'
 import type { Db, DbOrTx } from '../server/db/index.ts'
 import { entries, events, spaces } from '../server/db/schema/business.ts'
 import { JtiCache, verifyCollabToken } from '../server/lib/collab-token.ts'
-import type { EventBus } from '../server/lib/event-bus.ts'
+import type { BusEvents, EventBus } from '../server/lib/event-bus.ts'
 import { loadActor } from '../server/services/actors.ts'
 import { writeEntryDerived } from '../server/services/derived.ts'
 import { loadEntry } from '../server/services/entries.ts'
@@ -22,7 +22,13 @@ import { emit } from '../server/services/events.ts'
 import { entryTemplate } from '../shared/editor/templates.ts'
 import type { EntryKind } from '../shared/schemas/enums.ts'
 import { EDITOR_SCHEMA_VERSION, YDOC_FRAGMENT } from './derive.ts'
-import { maybeAutoSnapshot } from './snapshots.ts'
+import { restoreFragment } from './history.ts'
+import {
+  getSnapshotRow,
+  insertSnapshot,
+  maybeAutoSnapshot,
+  RESTORE_BEFORE_LABEL,
+} from './snapshots.ts'
 import { appendPmJson } from './ydoc-json.ts'
 
 export const CLOSE = {
@@ -139,6 +145,46 @@ export function createCollabServer(deps: CollabDeps) {
         !!spaceId,
     )
     for (const c of targets) recheck(c).catch((err) => log.error({ err }, 'collab recheck failed'))
+  })
+
+  /**
+   * 恢复历史版本（REQ-COLLAB-008）：API 已鉴权并审计；此处以直连打开在线文档（无人在线时即加载），
+   * 先按当前在线状态打「恢复前」快照，再把快照状态作为一次修改写回；disconnect 立即落库（带操作者上下文）。
+   */
+  async function restoreSnapshot(p: BusEvents['entry.restore']): Promise<void> {
+    const snap = await getSnapshotRow(deps.db, p.entryId, p.snapshotId)
+    const a = await loadActor(deps.db, p.actorId)
+    if (!snap || !a) return
+    const conn = await server.hocuspocus.openDirectConnection(docNameOf(p.entryId), {
+      userId: a.actor.id,
+      entryId: p.entryId,
+      workspaceId: a.workspaceId,
+      name: a.name,
+      locale: a.locale,
+    })
+    try {
+      const doc = conn.document
+      if (!doc) return
+      const [row] = await deps.db
+        .select({ v: entries.ydocVersion })
+        .from(entries)
+        .where(eq(entries.id, p.entryId))
+      if (!row) return
+      await insertSnapshot(deps.db, p.entryId, Y.encodeStateAsUpdate(doc), row.v, {
+        label: RESTORE_BEFORE_LABEL,
+        createdBy: a.actor.id,
+      })
+      let stats: ReturnType<typeof restoreFragment> | undefined
+      await conn.transact((d) => {
+        stats = restoreFragment(d, snap.snapshot)
+      })
+      log.info({ entryId: p.entryId, snapshotId: p.snapshotId, ...stats }, 'snapshot restored')
+    } finally {
+      await conn.disconnect()
+    }
+  }
+  const offRestore = deps.bus.subscribe('entry.restore', (p) => {
+    restoreSnapshot(p).catch((err) => log.error({ err, ...p }, 'snapshot restore failed'))
   })
 
   async function storeDocument(
@@ -351,6 +397,7 @@ export function createCollabServer(deps: CollabDeps) {
     async destroy() {
       offRevoked()
       offAccess()
+      offRestore()
       await server.destroy()
     },
   }

@@ -6,6 +6,7 @@ import type {
   CalendarView,
 } from '../../shared/schemas/calendar.ts'
 import { api, unwrap } from './api.ts'
+import { newId } from './uuid.ts'
 
 export type { CalEditScope, CalendarOccurrence, CalendarView }
 
@@ -41,10 +42,7 @@ export interface EventDraft {
 
 export const createEvent = (d: EventDraft) =>
   unwrap<CalendarOccurrence>(
-    api['calendar-events'].$post(
-      { json: d },
-      { headers: { 'Idempotency-Key': crypto.randomUUID() } },
-    ),
+    api['calendar-events'].$post({ json: d }, { headers: { 'Idempotency-Key': newId() } }),
   )
 
 export const patchEvent = (

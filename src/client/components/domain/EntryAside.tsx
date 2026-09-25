@@ -1,10 +1,10 @@
 /**
  * 记录 Aside（04 §4、08 §2.9、T1-017）：`?aside=outline|backlinks|comments|props|history`。
  * 大纲：实时标题，点击跳转；属性：可见性、所在空间（移动，REQ-ENTRY-011）、标记版本（REQ-COLLAB-007）、作者与时间。
- * 反链 / 历史属 Phase 2（REQ-COLLAB-008 等），评论随 T1-023 接入。
+ * 历史：快照列表 → 预览 / 对比 / 恢复（REQ-COLLAB-008）；反链属 Phase 2，评论随 T1-023 接入。
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, lazy, Suspense, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useEntryActions } from '../../hooks/useEntries.ts'
@@ -13,10 +13,15 @@ import { cn } from '../../lib/cn.ts'
 import type { Entry } from '../../lib/entry-queries.ts'
 import { spacesQuery } from '../../lib/space-queries.ts'
 import { useCommentDraft, useOutline } from '../../lib/stores.ts'
+import { newId } from '../../lib/uuid.ts'
 import { Button } from '../ui/button.tsx'
 import { Input } from '../ui/input.tsx'
 import { RelativeTime } from '../ui/relative-time.tsx'
+import { Skeleton } from '../ui/skeleton.tsx'
 import { Comments } from './Comments.tsx'
+
+type SnapshotMeta = import('../../editor/SnapshotPreview.tsx').SnapshotMeta
+const SnapshotPreview = lazy(() => import('../../editor/SnapshotPreview.tsx'))
 
 export const ASIDE_TABS = ['outline', 'props', 'backlinks', 'comments', 'history'] as const
 export type AsideTab = (typeof ASIDE_TABS)[number]
@@ -63,9 +68,10 @@ export function EntryAside({
       </div>
       <div role="tabpanel">
         {tab === 'outline' ? <Outline /> : null}
-        {tab === 'props' ? <Props entry={entry} canWrite={canWrite} /> : null}
+        {tab === 'props' ? <Props entry={entry} canWrite={canWrite} me={me} /> : null}
         {tab === 'comments' ? <EntryComments entry={entry} me={me} /> : null}
-        {tab === 'backlinks' || tab === 'history' ? (
+        {tab === 'history' ? <History entry={entry} canWrite={canWrite} /> : null}
+        {tab === 'backlinks' ? (
           <p className="text-fg-muted text-sm">{t('entry.aside.comingSoon')}</p>
         ) : null}
       </div>
@@ -95,7 +101,15 @@ function Outline() {
   )
 }
 
-function Props({ entry, canWrite }: { entry: Entry; canWrite: boolean }) {
+function Props({
+  entry,
+  canWrite,
+  me,
+}: {
+  entry: Entry
+  canWrite: boolean
+  me: { id: string; workspaceRole: string }
+}) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const actions = useEntryActions()
@@ -231,6 +245,179 @@ function Props({ entry, canWrite }: { entry: Entry; canWrite: boolean }) {
               </li>
             ))}
         </ul>
+      ) : null}
+      {me.workspaceRole !== 'guest' ? (
+        <SaveAsTemplate
+          entry={entry}
+          admin={me.workspaceRole === 'owner' || me.workspaceRole === 'admin'}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+/** 另存为模板（ADR-0011 §2、REQ-TPL-004）：取本篇当前正文 + kind / fields；工作区范围仅管理员（服务端判定）。 */
+function SaveAsTemplate({ entry, admin }: { entry: Entry; admin: boolean }) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState(entry.title)
+  const [scope, setScope] = useState<'personal' | 'workspace'>('personal')
+  const save = useMutation({
+    mutationFn: () =>
+      unwrap<{ id: string; name: string }>(
+        api.templates.$post(
+          { json: { name: name.trim(), scope, fromEntryId: entry.id, description: '' } },
+          { headers: { 'idempotency-key': newId() } },
+        ),
+      ),
+    onSuccess: (r) => {
+      toast.success(t('template.saved', { name: r.name }))
+      setOpen(false)
+      void qc.invalidateQueries({ queryKey: ['templates'] })
+    },
+    onError: () => toast.error(t('task.saveFailed')),
+  })
+  if (!open)
+    return (
+      <Button
+        size="sm"
+        variant="ghost"
+        className="self-start"
+        onClick={() => setOpen(true)}
+        data-testid="save-as-template"
+      >
+        {t('template.saveAs')}
+      </Button>
+    )
+  return (
+    <form
+      className="flex flex-col gap-2 rounded-md border border-border p-3"
+      data-testid="save-as-template-form"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (name.trim()) save.mutate()
+      }}
+    >
+      <span className="text-fg-muted text-xs">{t('template.saveAs')}</span>
+      <Input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        aria-label={t('template.saveAsName')}
+        maxLength={60}
+        autoFocus
+        data-testid="save-as-template-name"
+      />
+      {admin ? (
+        <select
+          value={scope}
+          onChange={(e) => setScope(e.target.value as 'personal' | 'workspace')}
+          aria-label={t('template.saveAsScope')}
+          className="h-8 rounded-md border border-border bg-surface px-2 text-sm"
+        >
+          <option value="personal">{t('template.scope.personal')}</option>
+          <option value="workspace">{t('template.scope.workspace')}</option>
+        </select>
+      ) : null}
+      <div className="flex justify-end gap-2">
+        <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
+          {t('ui.action.cancel')}
+        </Button>
+        <Button
+          type="submit"
+          size="sm"
+          variant="primary"
+          loading={save.isPending}
+          disabled={!name.trim()}
+          data-testid="save-as-template-submit"
+        >
+          {t('template.saveAs')}
+        </Button>
+      </div>
+    </form>
+  )
+}
+
+/**
+ * 历史（REQ-COLLAB-008）：全部快照按天分组（新 → 旧）；标记版本显示 label，自动快照显示「自动保存 · v…」。
+ * 点开 → 只读预览 / 对比当前 / 恢复（SnapshotPreview，随编辑器 chunk 懒加载）。
+ */
+function History({ entry, canWrite }: { entry: Entry; canWrite: boolean }) {
+  const { t, i18n } = useTranslation()
+  const qc = useQueryClient()
+  const [open, setOpen] = useState<SnapshotMeta | null>(null)
+  const snaps = useQuery({
+    queryKey: ['entry', entry.id, 'snapshots'],
+    queryFn: () =>
+      unwrap<{ items: SnapshotMeta[] }>(
+        api.entries[':id'].snapshots.$get({ param: { id: entry.id } }),
+      ),
+  })
+  const groups = useMemo(() => {
+    const fmt = new Intl.DateTimeFormat(i18n.language, {
+      month: 'long',
+      day: 'numeric',
+      weekday: 'short',
+    })
+    const out: { day: string; items: SnapshotMeta[] }[] = []
+    for (const s of snaps.data?.items ?? []) {
+      const day = fmt.format(new Date(s.createdAt))
+      const last = out[out.length - 1]
+      if (last?.day === day) last.items.push(s)
+      else out.push({ day, items: [s] })
+    }
+    return out
+  }, [snaps.data, i18n.language])
+  if (snaps.isPending) return <Skeleton className="h-24 w-full" />
+  if (!groups.length)
+    return (
+      <p className="text-fg-muted text-sm" data-testid="history-empty">
+        {t('entry.history.empty')}
+      </p>
+    )
+  return (
+    <div className="flex flex-col gap-3" data-testid="history">
+      <p className="text-fg-muted text-xs">{t('entry.history.hint')}</p>
+      {groups.map((g) => (
+        <section key={g.day} className="flex flex-col gap-1">
+          <h3 className="text-fg-muted text-xs">{g.day}</h3>
+          <ul className="flex flex-col">
+            {g.items.map((s) => (
+              <li key={s.id}>
+                <button
+                  type="button"
+                  data-testid="history-item"
+                  data-snapshot-id={s.id}
+                  onClick={() => setOpen(s)}
+                  className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-hover"
+                >
+                  <span className={cn('truncate', s.label ? 'font-medium' : 'text-fg-muted')}>
+                    {s.label ?? t('entry.history.auto', { version: s.ydocVersion })}
+                  </span>
+                  <RelativeTime date={s.createdAt} className="shrink-0 text-fg-muted text-xs" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+      {open ? (
+        <Suspense fallback={null}>
+          <SnapshotPreview
+            entryId={entry.id}
+            snap={open}
+            canWrite={canWrite}
+            onOpenChange={(v) => {
+              if (!v) setOpen(null)
+            }}
+            onRestored={() => {
+              // 恢复在 collab 异步完成：稍后刷新列表（多出「恢复前自动保存」）与记录元信息
+              setTimeout(() => {
+                void qc.invalidateQueries({ queryKey: ['entry', entry.id] })
+              }, 1500)
+            }}
+          />
+        </Suspense>
       ) : null}
     </div>
   )

@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { api, unwrap } from '../lib/api.ts'
 import { optimisticPatch } from '../lib/optimistic.ts'
 import type { Task, TaskPages } from '../lib/task-queries.ts'
+import { newId } from '../lib/uuid.ts'
 
 export type TaskPatch = Partial<
   Pick<
@@ -102,10 +103,7 @@ export function useTaskActions() {
     assigneeId?: string
   }) => {
     const r = await unwrap<Task>(
-      api.tasks.$post(
-        { json: input as never },
-        { headers: { 'idempotency-key': crypto.randomUUID() } },
-      ),
+      api.tasks.$post({ json: input as never }, { headers: { 'idempotency-key': newId() } }),
     )
     await invalidateLists()
     return r

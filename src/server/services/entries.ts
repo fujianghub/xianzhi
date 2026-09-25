@@ -1,6 +1,6 @@
 /**
  * 记录 service（T0-013；01 §3.4、02 §9、REQ-ENTRY-001 · 003 · 004 · 007、REQ-WS-008）。
- * 正文永不经此写入（Yjs 唯一真源）；这里只管元数据 + 空 ydoc 初始化。列表不返回正文列（02 §4）。
+ * 正文永不经此写入（Yjs 唯一真源）；这里只管元数据 + 初始 ydoc（空 / 所选模板，ADR-0011 §2）。列表不返回正文列（02 §4）。
  */
 import {
   and,
@@ -18,6 +18,7 @@ import {
 } from 'drizzle-orm'
 import type { z } from 'zod'
 import { emptyYdoc } from '../../collab/derive.ts'
+import { ydocFromPm } from '../../collab/ydoc-json.ts'
 import type {
   createEntrySchema,
   listEntriesQuery,
@@ -42,6 +43,7 @@ import { type EventBus, getEventBus } from '../lib/event-bus.ts'
 import { audit } from './audit.ts'
 import { weightedTsv } from './derived.ts'
 import { publishChange } from './realtime.ts'
+import { resolveTemplateBody } from './templates.ts'
 
 export interface EntryCtx {
   actor: Actor
@@ -322,6 +324,10 @@ export async function createEntry(
   assertCan(ctx.actor, 'entry.create', sp.ref)
   const visibility = input.visibility ?? (sp.row.isPersonal ? 'private' : 'space')
   assertPersonalPrivate(sp.row.isPersonal, visibility)
+  // 套模板（ADR-0011 §2）：模板正文一次性写成初始 ydoc；未选模板则首次打开按 kind 注入（03 §6）
+  const body = await resolveTemplateBody(db, ctx, input.templateId, {
+    space: sp.row.isPersonal ? '' : sp.row.name,
+  })
   const created = await db.transaction(async (tx) => {
     const [row] = await tx
       .insert(entries)
@@ -333,7 +339,7 @@ export async function createEntry(
         fields: input.fields,
         visibility,
         authorId: ctx.actor.id,
-        ydoc: emptyYdoc(),
+        ydoc: body ? ydocFromPm(body) : emptyYdoc(),
       })
       .returning({ id: entries.id })
     if (!row) throw new Error('insert entries failed')
@@ -512,6 +518,8 @@ const SUMMARY_KEYS: Record<EntryKind, string[]> = {
   journal: ['mood'],
   note: [],
   review: [],
+  optimize: ['status', 'metric'],
+  plan: ['status', 'progress', 'endDate'],
 }
 
 /** GET /entries/:id/preview：受 entry.read 约束（不可见 → 404）。 */

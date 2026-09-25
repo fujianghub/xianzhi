@@ -40,6 +40,7 @@ import {
   SPACE_ROLES,
   SPACE_VISIBILITIES,
   TASK_STATUSES,
+  TEMPLATE_SCOPES,
 } from '../../../shared/schemas/enums.ts'
 import { createdAt, inList, pk, timestamptz, updatedAt } from './_helpers.ts'
 import { bytea, tsvector, vector } from './_types.ts'
@@ -230,6 +231,38 @@ export const entrySnapshots = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index('entry_snapshots_entry_created_idx').on(t.entryId, sql`${t.createdAt} desc`)],
+)
+
+// ---------- 3.5b entry_templates（ADR-0011 §2）----------
+/** 用户模板：个人（仅自己）/ 工作区（全员可用）；内置模板在代码（shared/editor/builtin-templates.ts），不入表。 */
+export const entryTemplates = pgTable(
+  'entry_templates',
+  {
+    id: pk(),
+    workspaceId: orgRef(),
+    ownerId: text()
+      .notNull()
+      .references(() => user.id),
+    scope: text().notNull(),
+    name: text().notNull(),
+    description: text().notNull().default(''),
+    kind: text().notNull(),
+    spaceKind: text(),
+    body: jsonb().notNull(),
+    fields: jsonb().notNull().default({}),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index('entry_templates_workspace_scope_idx').on(t.workspaceId, t.scope),
+    index('entry_templates_owner_idx').on(t.ownerId),
+    check('entry_templates_scope_ck', inList(t.scope, TEMPLATE_SCOPES)),
+    check('entry_templates_kind_ck', inList(t.kind, ENTRY_KINDS)),
+    check(
+      'entry_templates_space_kind_ck',
+      sql`${t.spaceKind} is null or ${inList(t.spaceKind, SPACE_KINDS)}`,
+    ),
+  ],
 )
 
 // ---------- 3.6 links ----------

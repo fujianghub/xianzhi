@@ -162,6 +162,16 @@
 
 ---
 
+## 6b. TPL —— 记录模板（2026-09-25 新增，ADR-0011）
+
+| ID | P | Phase | 需求（EARS） | 验收（GWT） | 规范 | 层 |
+|---|---|---|---|---|---|---|
+| REQ-TPL-001 | P1 | 2 | 系统应提供 6 个内置模板：开发「产品 Bug 修复与迭代」（bug）、「产品优化」（optimize）；学习「学习计划」（plan）、「学习笔记」（note）、「学习周复盘」（journal）、「读书笔记」（note）；`GET /templates` 列出内置 + 本人个人 + 工作区模板，可按 `kind` / `spaceKind` 过滤，列表不含正文 | When `GET /templates` Then 含 6 个 `builtin:*`（dev 2 / learning 4）且无 `body`；`?spaceKind=learning` 不含 `builtin:bug-fix` | ADR-0011 §2 · 02 §9 | api |
+| REQ-TPL-002 | P1 | 2 | 新增记录类型 `optimize`（优化）与 `plan`（学习计划），fields 严格校验（01 §3.5）；首次打开的默认骨架取对应内置模板 | When `POST /entries {kind:'optimize', fields:{status:'maybe'}}` Then 422；`plan` 合法 fields Then 201 | ADR-0011 §3 · 01 §3.5 | unit · api |
+| REQ-TPL-003 | P1 | 2 | 新建记录可带 `templateId`：模板正文（占位符 `{{date}}` `{{user}}` `{{space}}` 已替换）一次性写成初始 ydoc；`builtin:blank` 为明确空白（不注入 kind 骨架）；不可见 / 不存在的模板 422。新建对话框提供模板选择，按当前空间类型推荐 | When 用 `builtin:bug-fix` 新建 Then 正文含「复现步骤」「迭代跟进」且无 `{{date}}`；When 在「学习」空间按 `e` Then 学习模板带「推荐」 | ADR-0011 §2 · 08 §3.2 | api · e2e |
+| REQ-TPL-004 | P1 | 2 | 自定义模板：记录「属性」页「另存为模板」（取当前正文 + kind / fields）；个人模板仅本人可见可用；工作区模板全员可用、仅管理员可建；创建者或管理员可改名 / 改范围 / 删除；内置不可改删；设置 → 模板 页可预览与「用此模板新建」 | Given member 另存个人模板 When owner 列表 Then 不含；owner `GET` Then 404；When member 建 workspace 模板 Then 403；删内置 Then 403 | ADR-0011 §2 · 01 §5 | api · unit · e2e |
+| REQ-TPL-005 | P2 | 2 | 斜杠 `/模板` 打开模板选择（首项「按类型默认」），在光标处插入所选模板正文，不替换已有内容 | When 在正文输入 `/模板` 选「学习笔记」Then 光标处出现「核心概念」等标题，原有内容仍在 | 03 §11.1 | e2e |
+
 ## 7. EDITOR —— 编辑器交互
 
 | ID | P | Phase | 需求（EARS） | 验收（GWT） | 依据 | 测试层 |
@@ -173,10 +183,10 @@
 | REQ-EDITOR-005 | P1 | 1 | 粘贴 Markdown 文本应转为节点；粘贴 HTML 只保留 schema 内节点；粘贴纯文本保持段落 | When 粘贴 `## 标题\n- a` Then heading + bulletList<br>When 粘贴含 `<font color>` HTML Then 无颜色标记 | 03 §1.3 · 03 §8 | unit · e2e |
 | REQ-EDITOR-006 | P0 | 1 | IME 组合输入期间 inputRule 不得触发 | When CDP `Input.imeSetComposition` 输入「1.」Then 不转为有序列表，直到 commit | 03 §12 | e2e |
 | REQ-EDITOR-007 | P1 | 2 | mermaid 节点应显示只读预览，点击进入 CM6 源码编辑；渲染失败显示错误；`securityLevel: 'strict'`；note 列表用 U+2060 规避 | When 源码含错误 Then 显示错误框非空白<br>When note 内 3 条列表 Then 图正常渲染 | 03 §3.2 · 03 §12 | e2e |
-| REQ-EDITOR-008 | P1 | 2 | 行内与块级公式应用 KaTeX 渲染，渲染在 idle 回调 | When 输入 `$E=mc^2$` Then 渲染为公式 | 03 §3.1 · 03 §9 | e2e |
+| REQ-EDITOR-008 | P1 | 2 | 行内与块级公式应用 KaTeX 渲染，渲染在 idle 回调（注 2026-09-25：`$x$` / `$$ ` 输入规则已实现，KaTeX 渲染未做） | When 输入 `$E=mc^2$` Then 渲染为公式 | 03 §3.1 · 03 §9 | e2e |
 | REQ-EDITOR-009 | P1 | 2 | callout 应支持 `info/tip/warn/danger`，`:::warn` 快捷转换 | When 行首输入 `:::warn ` Then 变为 warn callout | 03 §3.2 | e2e |
 | REQ-EDITOR-010 | P1 | 2 | 输入 `@` 应弹出当前空间可见成员候选；落库后写 `mentions` 并发 `mention.created` | When 选中成员 Then 节点 `mention(userId)`；2s 落库后 `mentions` 有行、`events` 有 kind | 03 §3.2 · 01 §3.9 | e2e · collab |
-| REQ-EDITOR-011 | P1 | 2 | 输入 `[[` 应弹出记录候选，插入 entryLink，支持行内 / 标题 / 卡片三形态切换 | When 选中记录 Then `entryLink(entryId, mode:'inline')`；切卡片 Then `entryCard` 并请求 preview | 03 §3.2 | e2e |
+| REQ-EDITOR-011 | P1 | 2 | 输入 `[[` 应弹出记录候选，插入 entryLink，支持行内 / 标题 / 卡片三形态切换（注 2026-09-25：`[[` 触发候选已实现，三形态切换未做） | When 选中记录 Then `entryLink(entryId, mode:'inline')`；切卡片 Then `entryCard` 并请求 preview | 03 §3.2 | e2e |
 | REQ-EDITOR-012 | P1 | 2 | 目录节点与 Aside 大纲应随标题实时更新，点击跳转 | When 新增 H2 Then 大纲 ≤ 200ms 出现 | 03 §3.2 · 04 §4 | e2e |
 | REQ-EDITOR-013 | P0 | 1 | 编辑器快捷键应按 03 §11.2 表生效（Mod+B/I/U/E/K、Mod+Shift+1..4 标题、Mod+Shift+7/8/9 列表、Mod+Alt+C 代码块、Mod+Z 走 Yjs 撤销栈），且编辑器聚焦时全局快捷键禁用 | When 编辑器内按 `c` Then 输入字符 c，不新建任务<br>When Mod+Shift+2 Then 当前块变 H2 | 03 §11.2 · 04 §6 | e2e |
 | REQ-EDITOR-014 | P0 | 1 | 编辑器 chunk 应独立懒加载，gzip ≤ 400KB；打开 3k 词记录到可编辑 ≤ 800ms | When `pnpm build` Then `check-budget` 通过；Playwright `performance.measure` ≤ 800ms | 03 §9 · 05 §5 | e2e |
@@ -184,6 +194,10 @@
 | REQ-EDITOR-016 | P1 | 1 | 未知节点应渲染为 `unknownBlock` 保留原 JSON，不得静默丢弃 | Given pm_json 含 `type:'future'` When 打开 Then 显示占位块；保存后 JSON 仍含该节点 | 03 §3.3 | unit |
 | REQ-EDITOR-017 | P1 | 1 | 单篇 `ydoc` 软限 10MB：提示并拒绝再插入附件节点；硬限 20MB：collab 拒绝 update，编辑器只读 | When 达 10MB Then 顶栏提示「文档过大，建议拆分」，插入图片被拒<br>When 达 20MB Then awareness 收到 `docTooLarge`，编辑器只读 | 03 §11.5 · 07 §5 | collab |
 | REQ-EDITOR-018 | P1 | 1 | 链接协议白名单应为 `http https mailto xz:`，其他协议剥离 | When 粘贴 `javascript:alert(1)` 链接 Then 无 link 标记 | 03 §3.1 · 03 §12 | unit |
+| REQ-EDITOR-019 | P1 | 2 | 语雀式 Markdown 识别（2026-09-25）：剪贴板 HTML 只是纯文本包装（无结构标签，或 VS Code / CodeMirror 标记）且文本像 Markdown 时，按 Markdown 转换；转换后 Toast「撤销为纯文本」；`Shift+Mod+V` 强制纯文本 | When 粘贴 VS Code 复制的 `### 标题` Then 生成 h3 且 Toast 可撤销；点撤销 Then 正文为原文 | 03 §11.3 · ADR-0011 | unit · e2e |
+| REQ-EDITOR-020 | P1 | 2 | Markdown 源码编辑（2026-09-25，ADR-0011 §1）：CodeMirror 编辑正文源码，保存为一次性导入——逐块序列化、LCS 合并（未改块沿用原节点）、表达不了的块以 `⟦xz-keep⟧` 占位；保存前自动存「源码编辑前」标记快照；有其他协作者在线时禁用；正文含 Markdown 不能表达的格式时提示 | When 源码末尾加 `## 标题` 并保存 Then 正文出现 h2，未改段落的下划线仍在，快照多一条「源码编辑前」 | 03 §8 · ADR-0011 | unit · e2e |
+| REQ-EDITOR-021 | P1 | 2 | 图片展示（2026-09-25）：选中图片浮出宽度 25/50/75/100% 与左 / 中 / 右对齐；图下可写图注（≤ 200 字，参与检索）；HTML 导出为 `figure` + `figcaption` | When 选中图片点 50% 与靠左并写图注 Then 节点 `displayWidth=50, align=left, caption` 落库 | 03 §3.2 | e2e |
+| REQ-EDITOR-022 | P2 | 2 | 拖入 / 粘贴 `.md` 文件时询问「插入内容」或「作为附件」；插入走与粘贴同一 Markdown 管线 | When 粘贴 `note.md` 选「插入内容」Then 正文出现其标题与任务项 | 03 §11.3 | e2e |
 
 ---
 
@@ -198,7 +212,7 @@
 | REQ-COLLAB-005 | P0 | 0 | 打开记录应先从 IndexedDB 渲染再等待 `synced` | Given 本地有缓存 When 打开（网络限速 3G）Then 首次内容出现 ≤ 300ms | 03 §4.3 | e2e |
 | REQ-COLLAB-006 | P0 | 0 | Y.Doc 前后端均 `gc: false` | When 单测构造 doc Then `doc.gc === false`；服务端同 | CLAUDE 不变量 7 · 03 §5 | unit |
 | REQ-COLLAB-007 | P0 | 0 | 快照应在每 50 次落库、距上次 ≥ 30 分钟或手动标记时生成；保留最近 100 个 + 每日最后一个 90 天，标记的永久 | When 触发 60 次落库 Then `entry_snapshots` 1 行；`POST /entries/:id/snapshots {label}` Then 新行带 label | 03 §5 · 02 §9 | collab · api |
-| REQ-COLLAB-008 | P1 | 2 | 历史面板应可选两个快照显示 diff，「恢复」为在当前文档应用反向变更 | When 恢复到快照 A Then 内容等于 A 且 `ydoc_version` 递增、快照数不减 | 03 §5 | e2e |
+| REQ-COLLAB-008 | P1 | 2 | 历史面板应~~可选两个快照显示 diff~~列出全部快照（按天分组），点开只读预览，可「对比当前」（顶层块 LCS：绿 = 恢复后出现、红删除线 = 恢复后消失）（注 2026-09-25：两快照互比改为「快照 ↔ 当前」，恢复前真正关心的是这一对）；「恢复」为在当前文档应用反向变更（collab 直连在线文档，未变块保留 CRDT 身份；恢复前自动存「恢复前自动保存」标记快照；审计 `entry.restored`；需 `entry.write`） | When 恢复到快照 A Then 内容等于 A 且 `ydoc_version` 递增、快照数不减、在线端实时同步<br>Given viewer When 恢复 Then 403 | 03 §5 · 02 §9 | unit · collab · e2e |
 | REQ-COLLAB-009 | P0 | 0 | 派生失败不得阻塞 `ydoc` 落库；失败写 `derived_error` 并入队重试 | Given 派生函数抛错 When 落库 Then `ydoc` 已更新，`derived_error` 非空且 `derived_at` 为空，队列有 `derive.retry` 作业<br>When 重试成功 Then `derived_error` 清空、`derived_at` 更新 | 03 §4.2 · 01 §3.4 | collab |
 | REQ-COLLAB-010 | P1 | 0 | 远端光标应显示用户名与颜色，颜色按 userId 哈希取色板（ADR-0010 起 9 色） | When 两端在线 Then 各自看到对方光标 | 03 §4.3 · 04 §2.1 | e2e |
 | REQ-COLLAB-011 | P1 | 1 | Hocuspocus 重启期间客户端应指数退避重连，本地编辑不丢，重连后合并 | When 重启 collab 进程时输入 100 字 Then 重连后服务端含全部 | 03 §4 | e2e |
@@ -247,6 +261,8 @@
 | REQ-ATTACH-009 | P1 | 1 | 上传限流 30/min | When 第 31 次 Then 429 | 02 §2 | api |
 | REQ-ATTACH-010 | P0 | 1 | `data/` 目录不得被 Caddy 或静态服务直出 | When 请求 `/data/uploads/...` 与 `/uploads/...` Then 404 | 05 §7 | e2e（infra） |
 | REQ-ATTACH-011 | P1 | 1 | 无 target 的附件应仅 `owner_id` 本人可读 | Given U1 上传未插入正文的附件 When U2 `GET /attachments/:id` Then 404；U1 Then 200 | 07 §2.2 · 01 §5 | api |
+| REQ-ATTACH-012 | P1 | 2 | 附件类型扩展（2026-09-25）：docx / xlsx / pptx 按 zip 内 `[Content_Types].xml` + 主部件识别（改名的普通 zip 仍为 zip）；`.csv` 为 `text/csv`；代码 / 日志等 UTF-8 文本为 `text/plain`；音视频不支持 | When 上传真实 docx Then mime 为 wordprocessingml；When 把 zip 改名 .docx Then `application/zip` | 07 §2.4 · ADR-0011 | unit |
+| REQ-ATTACH-013 | P1 | 2 | 附件卡片按类别显示图标；文本 / 代码 / JSON / csv（表格，前 200 行）/ Markdown / docx（mammoth → 白名单净化）可在应用内预览，PDF 在新标签页打开；只读前 1 MB 文本 | When 插入 csv 点预览 Then 表格表头与行数正确 | 03 §3.2 · 07 §2.5 | e2e |
 
 ---
 
@@ -354,6 +370,7 @@
 | REQ-UI-033 | P1 | 2 | 一级页页头统一（`PageHeader`：2xl 标题 + 可选文楷题记 / 说明 / 右侧动作）；今日页题记为本地日期与星期、说明为各段计数；记录类型用 04 §2.1 色板分色（决策 blue · 迭代 cyan · Bug red · 变更 orange · 日志 green · 随笔 yellow · 复盘 purple；ADR-0010 前为 indigo / teal / ochre / amber / pine / moss / plum），文字仍为类型名；跨空间列表以「空间色点 + 空间名」标注空间（取不到时回退 slug）；记录 / 空间卡片悬停抬升 2px + 翡翠边线，网格入场错峰 ≤ 8 格，时长走 token（减弱档无动画） | When 打开 `/today` Then 标题上方有日期题记；When 记录卡片类型为决策 Then 徽章为 blue 色板类；When 减弱档 Then `.xz-rise` 无动画 | 04 §2.1 · 04 §2.4 · 06 §5.2 | unit · 手工 |
 | REQ-UI-034 | P1 | 2 | 宽屏不留大片空白（2026-09-25）：今日 / 收件箱 / 通知在 ≥ xl 为「主列 + 20rem 右侧速览栏」（今天：日期 / 农历 / 节假日 · 今日日程 · 小月历 · 7 天内到期），主列最宽 96rem；今日页顶部四枚计数卡（逾期 / 今日到期 / 今日开始 / 今日日程）；回收站 / 搜索加宽到 5xl；空间卡片 2xl 四列；设置子页统一左对齐 | When 视口 1728 打开 `/today` Then `glance-rail` 可见、`today-stats` 4 格；When 视口 1280 Then 无速览栏 | 04 §4 · 08 §2.3 | e2e · 手工 |
 | REQ-UI-035 | P1 | 2 | 色板改为鲜艳 9 色（ADR-0010）：蓝 / 橙 / 黄 / 红 / 绿 / 紫 / 粉 / 青 / 灰，每色 `-solid`（色条 / 圆点）· `-bg`（浅底）· `-fg`（字，对 `-bg` ≥ 4.5，两主题）；空间 / 标签 / 日历共用；日历色块为「浅底 + 同色深字 + 3px 鲜艳左色条」；旧色名经迁移 0007 映射（moss / pine→green、amber→orange、indigo→blue、ochre→red、teal→cyan、plum→purple） | When `check-contrast` Then 9 色两主题全部达标<br>When 日历新建颜色为 `teal` Then 422 | ADR-0010 · 04 §2.1 | unit · api · 手工 |
+| REQ-UI-036 | P0 | 2 | 非安全上下文（按局域网 IP 走 HTTP）下所有写操作应可用（2026-09-25）：客户端 id / `Idempotency-Key` 只经 `lib/uuid.ts` 的 `newId()` 生成，禁止 `crypto.randomUUID`；复制走 `lib/clipboard.ts` 降级；创建失败且非 `ApiError` 时 `console.error` 留痕 | Given `crypto.randomUUID` 不存在 When 新建记录 / 任务 Then 创建成功<br>When `pnpm lint` Then `check-css` 对 `src/client` 中 `crypto.randomUUID` 报违规 | debug/2026-09-25-randomuuid-insecure-context | e2e · unit |
 | REQ-UI-027 | P1 | 2 | Topbar 滚动 > 8px 后应显示 `shadow-soft` 与翡翠枝线，回到顶部即消失；Dialog 打开时底板光晕下移 4px 并减弱，关闭复原 | When 页面滚动 100px Then topbar 带 `data-scrolled`；When 打开 Dialog Then `html[data-dialog-open]` 且 `body::before` transform 非 none | 06 §4 · ADR-0005 §2 | e2e |
 
 ---

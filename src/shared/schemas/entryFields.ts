@@ -36,6 +36,24 @@ export const journalFields = z.strictObject({
   mood: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).optional(),
 })
 export const noteFields = z.strictObject({})
+/** 产品优化（ADR-0011 §3）：状态 + 衡量指标与目标值。 */
+export const optimizeFields = z.strictObject({
+  status: z.enum(['proposed', 'planned', 'doing', 'shipped', 'dropped']),
+  metric: z.string().trim().min(1).max(120).optional(),
+  target: z.string().trim().min(1).max(120).optional(),
+})
+/** 学习计划（ADR-0011 §3）：状态、起止与进度百分比。 */
+export const planFields = z
+  .strictObject({
+    status: z.enum(['planning', 'active', 'paused', 'done']),
+    startDate: isoDate.optional(),
+    endDate: isoDate.optional(),
+    progress: z.number().int().min(0).max(100).optional(),
+  })
+  .refine((v) => !v.startDate || !v.endDate || v.startDate <= v.endDate, {
+    message: 'endDate 不能早于 startDate',
+    path: ['endDate'],
+  })
 
 export const entryFieldsByKind = {
   decision: decisionFields,
@@ -45,6 +63,8 @@ export const entryFieldsByKind = {
   review: reviewFields,
   journal: journalFields,
   note: noteFields,
+  optimize: optimizeFields,
+  plan: planFields,
 } as const satisfies Record<EntryKind, z.ZodType>
 
 export type EntryFields<K extends EntryKind = EntryKind> = z.infer<(typeof entryFieldsByKind)[K]>
@@ -82,4 +102,6 @@ export const defaultEntryFields: Record<EntryKind, Record<string, unknown>> = {
   review: {},
   journal: {},
   note: {},
+  optimize: { status: 'proposed' },
+  plan: { status: 'active' },
 }

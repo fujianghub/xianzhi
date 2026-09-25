@@ -32,6 +32,7 @@
 | `/settings/notifications` | `routes/settings.notifications.tsx` | 通知偏好 | guest+ | 1 | REQ-NOTIF-006 |
 | `/settings/security` | `routes/settings.security.tsx` | 密码 / 2FA / Passkey / 会话 | guest+ | 0 | REQ-AUTH-006 · 007 · 009 |
 | `/settings/api-keys` | `routes/settings.api-keys.tsx` | API Key | member+ | ~~0~~ 1 | REQ-AUTH-010 |
+| `/settings/templates` | `routes/_app.settings.templates.tsx` | 模板：内置 / 我的 / 工作区，预览、用此模板新建、改名 / 范围 / 删除（ADR-0011） | guest+（管理需 member+） | 2 | REQ-TPL-001 · 004 |
 | `/settings/workspace` | `routes/settings.workspace.index.tsx` | 工作区设置 | admin+ | ~~0~~ 1 | REQ-WS-001 |
 | `/settings/workspace/members` | `routes/settings.workspace.members.tsx` | 成员与邀请 | admin+ | ~~0~~ 1 | REQ-AUTH-003 · REQ-WS-002 · 004 |
 | `/settings/workspace/users` | `routes/_app.settings.workspace.users.tsx` | 用户管理（ADR-0010） | **仅 owner** | 2 | REQ-WS-018 ~ 021 |
@@ -237,6 +238,8 @@ sequenceDiagram
 再次打开链接 → 「邀请已使用」；7 天后 → 「已过期」。
 
 ### 3.2 创建记录 → 编辑 → 离线 → 恢复 → 标记版本（REQ-ENTRY-001 · REQ-COLLAB-002 · 004 · 005 · 007 · 011）
+
+> 注 2026-09-25（ADR-0011）：新建对话框顶部为模板选择（首项「按类型默认」，当前空间类型推荐的带「推荐」），选模板带出 kind / fields；记录 Aside「历史」页列出全部快照 → 预览 / 对比当前 / 恢复（REQ-COLLAB-008）；「属性」页「另存为模板」；编辑器上方「Markdown」按钮打开源码对话框。
 1. `e` → Dialog 选 kind、填标题 → `POST /entries` 201 → 跳 `/entries/:id`。
 2. 前端 `POST /collab/token` → 建 `HocuspocusProvider(token)` + `y-indexeddb`。
 3. `onLoadDocument` 发现空文档 → 注入 kind 模板（i18n）。

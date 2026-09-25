@@ -36,7 +36,10 @@
 | 复盘 | Review / `review` | `entries.kind = review` | 复盘 | `entry.kind.review` | 周期的复盘正文；隐喻「回望」 | 01 §3.3 |
 | 周期状态 | `cycle.status` | `planning` / `active` / `reviewed` | 规划中 / 进行中 / 已复盘 | `cycle.status.<value>` | | 01 §3.3 |
 | 记录 | Entry / `entry` | `entries` | 记录 | `entry.entry` | 富文本主体；**不叫笔记 / 文档 / note** | 01 §3.4 |
-| 记录类型 | `entry.kind` | `decision` `iteration` `bug` `changelog` `journal` `note` `review` | 决策 / 迭代 / Bug / 变更 / 日志 / 随笔 / 复盘 | `entry.kind.<value>` | `note` 的中文是「随笔」 | 01 §3.4 |
+| 记录类型 | `entry.kind` | `decision` `iteration` `bug` `changelog` `journal` `note` `review` `optimize` `plan` | 决策 / 迭代 / Bug / 变更 / 日志 / 随笔 / 复盘 / 优化 / 学习计划 | `entry.kind.<value>` | `note` 的中文是「随笔」；`optimize` `plan` 为 ADR-0011 新增 | 01 §3.4 |
+| 模板 | Template / `template` | `entry_templates`；内置 `builtin:<key>` | 模板 | `template.*` | 新建记录的正文种子；个人 / 工作区 / 内置三类；**不是**正文真源 | ADR-0011 §2 · 01 §3.4 |
+| 历史版本 | Snapshot / `snapshot` | `entry_snapshots` | 历史 / 版本 | `entry.history.*` | 自动快照 + 标记版本；「恢复」= 以一次修改写回，不覆盖 ydoc | 03 §5 |
+| 源码编辑 | Source / `source` | — | Markdown 源码 | `editor.source.*` | 一次性导入，不是 Markdown 往返真源 | ADR-0011 §1 |
 | 元数据字段 | Fields / `fields` | jsonb | 属性 | `entry.fields` | 按 kind 的结构化元数据 | 01 §3.5 |
 | 记录可见性 | `entry.visibility` | `private` / `space` / `workspace` | 仅自己 / 空间可见 / 全员可见 | `entry.visibility.<value>` | | 01 §3.4 |
 | 正文 | Body / `ydoc` | `entries.ydoc` bytea | 正文 | `entry.body` | Yjs 二进制，唯一真源 | 01 §3.4 |

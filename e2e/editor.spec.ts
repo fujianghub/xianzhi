@@ -316,3 +316,160 @@ test('REQ-EDITOR-014 打开 3000 词记录到可编辑（挂载 → 首次同步
   expect(median).toBeGreaterThan(0)
   expect(median).toBeLessThanOrEqual(800)
 })
+
+test('REQ-COLLAB-008 历史：标记版本 → 继续编辑 → 预览 / 对比当前 → 恢复后正文回到该版本', async ({
+  page,
+  request,
+}) => {
+  const id = await open(page, request, '历史恢复用例')
+  await page.keyboard.type('第一版正文')
+  await expect.poll(() => serverBody(request, id), { timeout: 15_000 }).toContain('第一版正文')
+  const mark = await request.post(`/api/v1/entries/${id}/snapshots`, {
+    data: { label: '第一版' },
+    headers: sameSite,
+  })
+  expect(mark.status()).toBe(201)
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('第二版追加')
+  await expect.poll(() => serverBody(request, id), { timeout: 15_000 }).toContain('第二版追加')
+
+  await page.getByTestId('aside-tab-history').click()
+  await expect(page).toHaveURL(/aside=history/)
+  const item = page.getByTestId('history-item').filter({ hasText: '第一版' })
+  await item.click()
+  const dlg = page.getByTestId('snapshot-preview')
+  await expect(dlg.getByTestId('snapshot-doc')).toContainText('第一版正文')
+  await expect(dlg.getByTestId('snapshot-doc')).not.toContainText('第二版追加')
+  await dlg.getByTestId('snapshot-compare').click()
+  await expect(dlg.locator('[data-diff="del"]')).toContainText('第二版追加')
+  await dlg.getByTestId('snapshot-restore').click()
+  await page.getByTestId('confirm-ok').click()
+  await expect(dlg).toBeHidden()
+  // 在线编辑器经协同实时回到第一版
+  await expect(editor(page)).not.toContainText('第二版追加', { timeout: 10_000 })
+  await expect(editor(page)).toContainText('第一版正文')
+  await expect.poll(() => serverBody(request, id), { timeout: 15_000 }).not.toContain('第二版追加')
+  // 恢复前内容存为标记版本，可再恢复回去
+  await expect(page.getByTestId('history-item').filter({ hasText: '恢复前自动保存' })).toBeVisible({
+    timeout: 10_000,
+  })
+})
+
+const pasteFile = (p: Page, name: string, type: string, body: string) =>
+  editor(p).evaluate(
+    (el, a) => {
+      const dt = new DataTransfer()
+      dt.items.add(new File([a.body], a.name, { type: a.type }))
+      el.dispatchEvent(
+        new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }),
+      )
+    },
+    { name, type, body },
+  )
+
+test('REQ-EDITOR-019 VS Code 复制（带纯包装 HTML）的 Markdown 也被识别，提示可撤销为纯文本', async ({
+  page,
+  request,
+}) => {
+  await open(page, request)
+  await editor(page).evaluate((el) => {
+    const dt = new DataTransfer()
+    dt.setData('text/plain', '### 源自编辑器\n\n- 一\n- 二')
+    dt.setData(
+      'text/html',
+      '<meta charset="utf-8"><div class="vscode-light"><div><span>### 源自编辑器</span></div><br><div><span>- 一</span></div><div><span>- 二</span></div></div>',
+    )
+    el.dispatchEvent(
+      new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }),
+    )
+  })
+  await expect(editor(page).locator('h3', { hasText: '源自编辑器' })).toBeVisible()
+  await expect(page.getByText('已识别为 Markdown 并转换')).toBeVisible()
+  await page.getByRole('button', { name: '撤销为纯文本' }).click()
+  await expect(editor(page).locator('h3', { hasText: '源自编辑器' })).toHaveCount(0)
+  await expect(editor(page)).toContainText('### 源自编辑器')
+})
+
+test('REQ-EDITOR-011 输入 [[ 打开记录选择器', async ({ page, request }) => {
+  await open(page, request)
+  await page.keyboard.type('见 [[')
+  await expect(page.getByTestId('entry-picker-input')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(editor(page)).not.toContainText('[[')
+})
+
+test('REQ-EDITOR-020 Markdown 源码：改写后保存，正文更新、未改段落保留格式，历史多一版「源码编辑前」', async ({
+  page,
+  request,
+}) => {
+  const id = await open(page, request, '源码编辑用例')
+  await page.keyboard.type('保留的段落 ')
+  await page.keyboard.press('ControlOrMeta+u')
+  await page.keyboard.type('下划线')
+  await expect.poll(() => serverBody(request, id), { timeout: 15_000 }).toContain('underline')
+  await page.getByTestId('source-open').click()
+  const dlg = page.getByTestId('source-dialog')
+  await expect(dlg).toBeVisible()
+  await expect(dlg.getByText('下划线', { exact: false }).first()).toBeVisible()
+  const cm = dlg.locator('.cm-content')
+  await cm.click()
+  await page.keyboard.press('ControlOrMeta+End')
+  await page.keyboard.type('\n\n## 源码加的标题\n\n- 甲\n- 乙')
+  await dlg.getByTestId('source-save').click()
+  await expect(dlg).toBeHidden()
+  await expect(editor(page).locator('h2', { hasText: '源码加的标题' })).toBeVisible()
+  await expect(editor(page).locator('u', { hasText: '下划线' })).toBeVisible()
+  await expect.poll(() => serverBody(request, id), { timeout: 15_000 }).toContain('源码加的标题')
+  const snaps = (await (
+    await request.get(`/api/v1/entries/${id}/snapshots`, { headers: sameSite })
+  ).json()) as { items: { label: string | null }[] }
+  expect(snaps.items.some((s) => s.label === '源码编辑前')).toBe(true)
+})
+
+test('REQ-EDITOR-021 图片：选中后设 50% 宽、靠左，并写图注', async ({ page, request }) => {
+  const id = await open(page, request)
+  await editor(page).evaluate((el, b64) => {
+    const bin = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+    const dt = new DataTransfer()
+    dt.items.add(new File([bin], 'dot.png', { type: 'image/png' }))
+    el.dispatchEvent(
+      new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }),
+    )
+  }, PNG_1x1)
+  const img = editor(page).locator('img[data-src^="xz:attachment/"]')
+  await expect(img).toHaveCount(1)
+  await img.click()
+  await page.getByTestId('image-width-50').click()
+  await page.getByTestId('image-align-left').click()
+  const fig = editor(page).locator('figure[data-align="left"][data-width="50"]')
+  await expect(fig).toHaveCount(1)
+  await fig.getByTestId('image-caption').fill('一个像素')
+  await expect
+    .poll(() => serverBody(request, id), { timeout: 15_000 })
+    .toMatch(/"caption":"一个像素"[\s\S]*|"displayWidth":50/)
+  const body = await serverBody(request, id)
+  expect(body).toContain('"displayWidth":50')
+  expect(body).toContain('"align":"left"')
+})
+
+test('REQ-ATTACH-013 csv 附件：卡片识别为表格类，预览显示表格', async ({ page, request }) => {
+  await open(page, request)
+  await pasteFile(page, 'data.csv', 'text/csv', '名称,数量\n苹果,3\n"梨, 雪花",5\n')
+  const card = editor(page).getByTestId('attachment-card')
+  await expect(card).toHaveAttribute('data-kind', 'csv')
+  await card.getByTestId('attachment-preview-open').click()
+  const table = page.getByTestId('attachment-preview-csv')
+  await expect(table.locator('th')).toHaveText(['名称', '数量'])
+  await expect(table.locator('tbody tr')).toHaveCount(2)
+  await expect(table).toContainText('梨, 雪花')
+})
+
+test('REQ-EDITOR-022 粘贴 .md 文件：选择「插入内容」转为正文', async ({ page, request }) => {
+  await open(page, request)
+  await pasteFile(page, 'note.md', 'text/markdown', '## 文件里的标题\n\n- [ ] 待办')
+  const choice = page.getByTestId('md-file-choice')
+  await expect(choice).toBeVisible()
+  await choice.getByTestId('md-file-insert').click()
+  await expect(editor(page).locator('h2', { hasText: '文件里的标题' })).toBeVisible()
+  await expect(editor(page).locator('ul[data-type="taskList"] li')).toHaveCount(1)
+})

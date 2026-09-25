@@ -3,6 +3,7 @@ import { isoDateTime, uuidSchema } from './common.ts'
 import { entryFieldsIssues } from './entryFields.ts'
 import { ENTRY_EXPORT_FORMATS, ENTRY_KINDS, ENTRY_VISIBILITIES } from './enums.ts'
 import { bool01, csvText, idOrMe, pageParams, sortParam } from './query.ts'
+import { templateIdSchema } from './templates.ts'
 
 export const createEntrySchema = z
   .object({
@@ -13,6 +14,8 @@ export const createEntrySchema = z
     // 缺省：个人空间 → private，其余 → space（REQ-ENTRY-003；service 按目标空间决定）
     visibility: z.enum(ENTRY_VISIBILITIES).optional(),
     tagIds: z.array(uuidSchema).max(50).optional(),
+    // 初始正文模板（ADR-0011 §2）：`builtin:<key>` / 用户模板 uuid；`builtin:blank` = 明确空白
+    templateId: templateIdSchema.optional(),
   })
   .superRefine((v, ctx) => entryFieldsIssues(v.kind, v.fields, ctx))
 

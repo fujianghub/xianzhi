@@ -1,6 +1,6 @@
 /**
  * kind 元数据表单（08 §2.9、T1-013）：由 `entryFieldsByKind[kind]` 的 Zod shape 生成——
- * enum / 字面量联合 → 下拉；日期 → date 输入；其余 → 文本。前端不重复校验，422 的 `fields.x` 错误就地显示（REQ-ENTRY-001）。
+ * enum / 字面量联合 → 下拉；日期 → date 输入；数字 → number 输入；其余 → 文本。前端不重复校验，422 的 `fields.x` 错误就地显示（REQ-ENTRY-001）。
  */
 import { useTranslation } from 'react-i18next'
 import type { z } from 'zod'
@@ -10,7 +10,7 @@ import { Input } from '../ui/input.tsx'
 
 type Spec =
   | { name: string; kind: 'select'; options: (string | number)[]; required: boolean }
-  | { name: string; kind: 'date' | 'text'; required: boolean }
+  | { name: string; kind: 'date' | 'text' | 'number'; required: boolean }
 
 interface Def {
   type: string
@@ -42,7 +42,8 @@ export function fieldSpecs(kind: EntryKind): Spec[] {
         options: d.options.flatMap((o) => (defOf(o).values ?? []) as (string | number)[]),
         required,
       }
-    const isDate = d.format === 'date' || /date$|At$|Start$|End$/.test(name)
+    if (d.type === 'number') return { name, kind: 'number', required }
+    const isDate = d.format === 'date' || /date$|Date$|At$|Start$|End$/.test(name)
     return { name, kind: isDate ? 'date' : 'text', required }
   })
 }
@@ -104,10 +105,17 @@ export function EntryFieldsForm({
             ) : (
               <Input
                 id={id}
-                type={f.kind === 'date' ? 'date' : 'text'}
+                type={f.kind === 'text' ? 'text' : f.kind}
                 disabled={disabled}
                 value={cur === undefined ? '' : String(cur)}
-                onChange={(e) => set(f.name, e.target.value)}
+                onChange={(e) =>
+                  set(
+                    f.name,
+                    f.kind === 'number' && e.target.value !== ''
+                      ? Number(e.target.value)
+                      : e.target.value,
+                  )
+                }
                 aria-invalid={!!err}
               />
             )}

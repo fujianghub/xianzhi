@@ -14,6 +14,11 @@ import { XzMotionConfig } from '../ui/motion-config.tsx'
 
 const SPRING = { type: 'spring', stiffness: 260, damping: 26 } as const
 
+/** toast(…, { action: { label, onClick } })：Toast 内渲染为一个文字按钮，点后收起。 */
+type ToastAction = { label: string; onClick: (e: React.MouseEvent<HTMLButtonElement>) => void }
+const isAction = (a: unknown): a is ToastAction =>
+  !!a && typeof a === 'object' && 'label' in a && 'onClick' in a
+
 export function StatusPill() {
   const { t } = useTranslation()
   const status = useStatus((s) => s.status)
@@ -61,6 +66,20 @@ export function StatusPill() {
                   <CircleCheck className="size-4 shrink-0 text-success" />
                 )}
                 <span className="truncate">{String(active.title ?? '')}</span>
+                {isAction(active.action) ? (
+                  <button
+                    type="button"
+                    data-testid="toast-action"
+                    className="ms-1 shrink-0 rounded px-1.5 py-0.5 font-medium text-primary-text hover:bg-hover"
+                    onClick={(e) => {
+                      const a = active.action as ToastAction
+                      a.onClick(e)
+                      toast.dismiss(active.id)
+                    }}
+                  >
+                    {(active.action as ToastAction).label}
+                  </button>
+                ) : null}
               </motion.div>
             ) : (
               <motion.div

@@ -9,6 +9,7 @@ export const SPACE_ROLES = ['admin', 'member', 'viewer'] as const
 export type SpaceRole = (typeof SPACE_ROLES)[number]
 
 export const SPACE_KINDS = ['project', 'learning', 'work'] as const
+export type SpaceKind = (typeof SPACE_KINDS)[number]
 export const SPACE_VISIBILITIES = ['workspace', 'members'] as const
 
 export const TASK_STATUSES = ['inbox', 'todo', 'doing', 'blocked', 'done', 'cancelled'] as const
@@ -25,8 +26,14 @@ export const ENTRY_KINDS = [
   'journal',
   'note',
   'review',
+  // ADR-0011 §3（2026-09-25）：产品优化 / 学习计划
+  'optimize',
+  'plan',
 ] as const
 export type EntryKind = (typeof ENTRY_KINDS)[number]
+/** 用户模板范围（ADR-0011 §2）：个人 / 工作区；内置模板不入表。 */
+export const TEMPLATE_SCOPES = ['personal', 'workspace'] as const
+export type TemplateScope = (typeof TEMPLATE_SCOPES)[number]
 export const ENTRY_VISIBILITIES = ['private', 'space', 'workspace'] as const
 export type EntryVisibility = (typeof ENTRY_VISIBILITIES)[number]
 
@@ -107,6 +114,7 @@ export const AUDIT_ACTIONS = [
   'space.permanently_deleted',
   'task.permanently_deleted',
   'entry.permanently_deleted',
+  'entry.restored',
   'export.requested',
   'export.done',
   'export.failed',

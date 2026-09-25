@@ -27,3 +27,12 @@ export function appendPmJson(fragment: Y.XmlFragment, doc: PmNode): void {
   const children = (doc.content ?? []).map(toY)
   if (children.length) fragment.insert(fragment.length, children)
 }
+
+/** 以 PM JSON 为初始正文构造 ydoc（gc:false；新建记录套模板，ADR-0011 §2）。 */
+export function ydocFromPm(doc: PmNode, fragment = 'default'): Buffer {
+  const y = new Y.Doc({ gc: false })
+  appendPmJson(y.getXmlFragment(fragment), doc)
+  const bytes = Buffer.from(Y.encodeStateAsUpdate(y))
+  y.destroy()
+  return bytes
+}

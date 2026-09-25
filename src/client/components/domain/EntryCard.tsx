@@ -20,6 +20,8 @@ export const ENTRY_KIND_TONE: Record<string, PaletteName> = {
   journal: 'green',
   note: 'yellow',
   review: 'purple',
+  optimize: 'pink',
+  plan: 'gray',
 }
 export const entryKindClass = (kind: string) => PALETTE_CLASS[ENTRY_KIND_TONE[kind] ?? 'gray']
 

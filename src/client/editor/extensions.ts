@@ -15,11 +15,42 @@ import { UNKNOWN_BLOCK } from '../../shared/editor/unknown.ts'
 import { CALLOUT_KINDS } from './nodes.ts'
 import {
   externalImages,
+  htmlIsPlainWrapper,
   looksLikeMarkdown,
   markdownToHtml,
   PASTE_MAX_CHARS,
+  plainParagraphs,
   sanitizePastedHtml,
 } from './paste.ts'
+
+/** `[[` → 打开记录选择器，选中后插入 entryLink（03 §11.2、REQ-EDITOR-011）。 */
+export function createEntryLinkTrigger(pick: (at: number) => void) {
+  return Extension.create({
+    name: 'xzEntryLinkTrigger',
+    addInputRules() {
+      return [
+        new InputRule({
+          find: /\[\[$/,
+          handler: ({ range, chain }) => {
+            chain().deleteRange(range).run()
+            pick(range.from)
+          },
+        }),
+      ]
+    },
+  })
+}
+
+/**
+ * 行内公式输入规则：`$…$` 闭合时触发；内容首尾非空格、前一字符非 `$` / 数字（避开 `$$`、「$5 和 $10」这类金额）。
+ * 捕获组 1 = 前导字符（保留），2 = latex。
+ */
+export const MATH_INLINE_RULE = /(^|[^$\d\\])\$([^\s$](?:[^$]*[^\s$])?)\$$/
+
+/** 斜杠 `/源码` 与编辑器上方按钮共享：打开 Markdown 源码对话框（REQ-EDITOR-020）。 */
+export const SOURCE_EVENT = 'xz:editor-source'
+/** 斜杠 `/模板`：打开模板选择，detail.at = 插入位置（REQ-TPL-005）。 */
+export const TEMPLATE_EVENT = 'xz:editor-template'
 
 /** Mod+K 与浮动工具条共享：打开链接输入框。 */
 export const LINK_EVENT = 'xz:editor-link'
@@ -91,6 +122,26 @@ export const GiKeymap = Extension.create({
         find: new RegExp(`^:::(${CALLOUT_KINDS.join('|')})\\s$`),
         handler: ({ range, match, chain }) => {
           chain().deleteRange(range).wrapIn('callout', { kind: match[1] }).run()
+        },
+      }),
+      // `$$ ` 行首 → 公式块；`$x^2$` → 行内公式（03 §11.2）
+      new InputRule({
+        find: /^\$\$\s$/,
+        handler: ({ range, chain }) => {
+          chain()
+            .deleteRange(range)
+            .insertContent({ type: 'mathBlock', attrs: { latex: '' } })
+            .run()
+        },
+      }),
+      new InputRule({
+        find: MATH_INLINE_RULE,
+        handler: ({ range, match, chain }) => {
+          const latex = match[2] ?? ''
+          chain()
+            .deleteRange({ from: range.from + (match[1]?.length ?? 0), to: range.to })
+            .insertContent({ type: 'mathInline', attrs: { latex } })
+            .run()
         },
       }),
     ]
@@ -175,20 +226,29 @@ export function createPastePlugin(opts: { onFiles: (files: File[], at: number) =
                 text = text.slice(0, PASTE_MAX_CHARS)
                 toast(i18n.t('editor.pasteTruncated'))
                 if (!html) {
-                  editor.commands.insertContent(
-                    text.split(/\n{2,}/).map((p) => ({
-                      type: 'paragraph',
-                      content: p ? [{ type: 'text', text: p }] : [],
-                    })),
-                  )
+                  editor.commands.insertContent(plainParagraphs(text))
                   return true
                 }
               }
-              // 在代码块内原样粘贴
+              // 在代码块内原样粘贴；Shift+Mod+V 强制纯文本（ProseMirror 按 text/plain 处理）
               if (view.state.selection.$from.parent.type.spec.code) return false
-              if (!html && looksLikeMarkdown(text)) {
+              if ((view as unknown as { input?: { shiftKey?: boolean } }).input?.shiftKey)
+                return false
+              // 语雀式识别：无 HTML，或 HTML 只是纯文本包装（VS Code 等），且文本像 Markdown
+              if ((!html || htmlIsPlainWrapper(html)) && looksLikeMarkdown(text)) {
                 editor.commands.insertContent(markdownToHtml(text), {
                   parseOptions: { preserveWhitespace: false },
+                })
+                toast(i18n.t('editor.pastedMarkdown'), {
+                  action: {
+                    label: i18n.t('editor.pasteAsPlain'),
+                    onClick: () => {
+                      if (editor.isDestroyed) return
+                      // yUndo 经 Y 文档生效，不能与后续插入放在同一 chain（否则插入基于过期的 tr）
+                      editor.commands.undo()
+                      editor.chain().focus().insertContent(plainParagraphs(text)).run()
+                    },
+                  },
                 })
                 return true
               }

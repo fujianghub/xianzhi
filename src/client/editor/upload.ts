@@ -12,6 +12,7 @@ import i18n from 'i18next'
 import { toast } from 'sonner'
 import * as Y from 'yjs'
 import { ATTACHMENT_LIMITS } from '../../shared/schemas/attachments.ts'
+import { newId } from '../lib/uuid.ts'
 
 export const DOC_SOFT_LIMIT = 10 * 1024 * 1024
 export const MAX_IMAGES = 200
@@ -88,7 +89,7 @@ async function post(file: File, entryId: string): Promise<Uploaded> {
     method: 'POST',
     body: fd,
     credentials: 'same-origin',
-    headers: { 'idempotency-key': crypto.randomUUID() },
+    headers: { 'idempotency-key': newId() },
   })
   if (!r.ok) throw new Error(String(r.status))
   return (await r.json()) as Uploaded
@@ -146,7 +147,7 @@ export function uploadFiles(
   const images = valid.filter((f) => f.type.startsWith('image/')).length
   if (!valid.length || !canInsertAttachment(editor, ctx.ydoc, images)) return
   for (const file of valid) {
-    const id = crypto.randomUUID()
+    const id = newId()
     editor.view.dispatch(
       editor.state.tr.setMeta(key, {
         add: {

@@ -13,6 +13,7 @@ import type { Me } from '../../hooks/useMe.ts'
 import { memberName, useSpaceCandidates } from '../../hooks/useMembers.ts'
 import { api, unwrap } from '../../lib/api.ts'
 import { cn } from '../../lib/cn.ts'
+import { newId } from '../../lib/uuid.ts'
 import { Avatar } from '../ui/avatar.tsx'
 import { Button } from '../ui/button.tsx'
 import { RelativeTime } from '../ui/relative-time.tsx'
@@ -68,7 +69,7 @@ export function Comments({
       await unwrap(
         api.comments.$post(
           { json: { targetType, targetId, bodyPm, ...extra } as never },
-          { headers: { 'idempotency-key': crypto.randomUUID() } },
+          { headers: { 'idempotency-key': newId() } },
         ),
       )
       await refresh()
