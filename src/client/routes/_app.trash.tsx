@@ -98,7 +98,7 @@ function TrashPage() {
 
   const items = q.data?.items ?? []
   return (
-    <section className="mx-auto max-w-3xl" data-testid="trash-page">
+    <section className="mx-auto max-w-5xl" data-testid="trash-page">
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <h1 className="font-semibold text-2xl tracking-tight">{t('ui.page.trash')}</h1>
         <div

@@ -1,6 +1,6 @@
 # 术语表 Glossary
 
-> 状态：已采纳 · 版本：v2 · 更新：2026-09-24 · 最后对照代码：2026-09-24（燕印、枝线、动效档位、展开指示、拼图滑块） · 依据 ADR-0001、01–08。本表是 Ubiquitous Language：代码标识符、表名、UI 文案、i18n key 必须与本表一致；**新增术语先加表再写代码**。i18n key 约定 `<area>.<term>[.<value>]`，area 与 `00-requirements.md` 的 REQ AREA 同名小写。
+> 状态：已采纳 · 版本：v2 · 更新：2026-09-25 · 最后对照代码：2026-09-25（注册申请、用户名、日程、休 / 班、速览栏；此前：燕印、枝线、动效档位、展开指示、拼图滑块） · 依据 ADR-0001、01–08。本表是 Ubiquitous Language：代码标识符、表名、UI 文案、i18n key 必须与本表一致；**新增术语先加表再写代码**。i18n key 约定 `<area>.<term>[.<value>]`，area 与 `00-requirements.md` 的 REQ AREA 同名小写。
 
 ---
 
@@ -15,7 +15,9 @@
 | 普通成员 | member | `member.role` | 成员 | `ws.role.member` | 可建空间、读写所在空间 | 01 §5 |
 | 访客 | guest | `member.role` | 访客 | `ws.role.guest` | 只能拿到显式加入空间的 viewer | 01 §5 |
 | 匿名 | anon | 无 | — | — | 未登录；一切 401 | 01 §5 |
-| 邀请 | Invitation / `invitation` | `invitation` | 邀请 | `auth.invitation` | 邀请制注册的唯一入口 | 01 §2 |
+| 邀请 | Invitation / `invitation` | `invitation` | 邀请 | `auth.invitation` | ~~邀请制注册的唯一入口~~ 加入工作区的两条途径之一（另一条为注册申请，ADR-0008） | 01 §2 |
+| 注册申请 | Join request / `joinRequest` | `join_requests` | 申请注册 · 待审批 | `auth.register` · `settings.members.tab.requests` | 自助注册后待 owner/admin 批准的账号；批准前无 `member` 行、不能登录（`REGISTRATION_PENDING`） | 01 §3.14 · ADR-0008 |
+| 用户名 | Username / `username` · `displayUsername` | `user.username`（小写唯一）· `user.display_username` | 用户名 | `auth.register.username` | 3–30 位字母 / 数字 / `_ . -`，可代替邮箱登录，大小写不敏感 | ADR-0008 |
 | 空间 | Space / `space` | `spaces` | 空间 | `space.space` | 任务与记录的容器；隐喻「巢」 | 01 §3.1 |
 | 空间管理员 / 成员 / 查看者 | admin / member / viewer | `space_members.role` | 空间管理员 / 空间成员 / 查看者 | `space.role.admin` `.member` `.viewer` | 空间级角色 | 01 §3.1 |
 | 空间类型 | `space.kind` | `project` / `learning` / `work` | 项目 / 学习 / 工作 | `space.kind.project` 等 | 只影响图标与默认视图 | 01 §3.1 |
@@ -66,7 +68,13 @@
 | 收件箱 | Inbox | `task.status = inbox` + 路由 `/inbox` | 收件箱 | `ui.page.inbox` | `status=inbox` 且创建者或指派人为我 | 08 §2.4 |
 | 看板 | Kanban / board | 路由 `/spaces/$spaceSlug?view=board` | 看板 | `ui.page.board` | 按状态分列；`view=list` 为列表 | 08 §1 |
 | 列 | Column | `task.status` | 列 | `task.column` | 看板一列 = 一个状态 | 04 §1 |
-| 日历 | Calendar | 路由 `/calendar` | 日历 | `ui.page.calendar` | 按 dueAt / scheduledAt 视图（Phase 2） | 08 §1 |
+| 日历 | Calendar | 路由 `/calendar` | 日历 | `ui.page.calendar` | ~~按 dueAt / scheduledAt 视图（Phase 2）~~ 日 / 周 / 月 / 年视图的日程页，任务为叠加层（ADR-0009） | 08 §1 · 08 §2.17 |
+| 我的日历 | Calendar / `calendar` | `calendars` | 我的日历 · 日历 | `calendar.myCalendars` · `calendar.calendar` | 个人的日程分类（颜色 + 显示开关），默认 个人 / 工作 / 学习 / 生活 | 01 §3.15 |
+| 日程 | Calendar event / `calendarEvent` · occurrence | `calendar_events` | 日程 | `calendar.newEvent` 等 | 占用时段的个人安排（定时 / 全天 / 跨天），区别于有状态的「任务」；重复日程的每一次叫「发生」（occurrence） | 01 §3.15 · ADR-0009 |
+| 重复 | Repeat / `rrule` | `calendar_events.rrule` | 重复 | `calendar.repeat.*` | RFC 5545 RRULE 子集；改删范围：仅此日程 / 将来所有日程 / 所有日程 | ADR-0009 |
+| 提醒 | Alarm / `alarms` · 事件 `calendar.reminder` | `calendar_events.alarms` | 提醒 | `calendar.alarm.*` | 开始前 N 分钟通知（全天事件相对当天 00:00） | 01 §4 · ADR-0009 |
+| 休 / 班 | Holiday off / make-up workday | 无（`chinese-days`） | 休 · 班 | `calendar.off` · `calendar.work` | 法定节假日放假日 / 调休上班日角标 | ADR-0009 §3 |
+| 速览栏 | Glance rail / `GlanceRail` · `WithRail` | 组件 | — | `glance.*` | 宽屏列表页右侧：今天 · 今日日程 · 小月历 · 7 天内到期 | 00 REQ-UI-034 |
 | Peek 预览 | Peek / `PeekPanel` | 组件 | 预览 | `ui.peek` | 悬停 600ms 或焦点行按 `p` 打开的只读侧栏（非 modal） | 04 §6 |
 | 命令面板 | Command palette / `cmdk` | 组件 | 命令 | `ui.command` | ⌘K；上下文命令优先 | 04 §6 |
 | 状态胶囊 | StatusPill | 组件 | — | `ui.statusPill` | Topbar 常驻，Toast 从此形变 | 04 §5 |

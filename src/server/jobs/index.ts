@@ -20,6 +20,7 @@ import { OUTBOX_JOBS } from './outbox.ts'
 
 export type { JobCtx, JobDef } from './types.ts'
 
+import { runCalendarReminders } from './calendarReminders.ts'
 import { runDueSoon } from './dueSoon.ts'
 import { EXPORT_JOBS } from './export.ts'
 
@@ -80,6 +81,13 @@ export const JOBS: JobDef[] = [
     policy: 'singleton',
     retryLimit: 1,
     handler: (c) => runDueSoon(c.db, c.now),
+  },
+  {
+    name: 'calendar.reminders',
+    cron: '* * * * *',
+    policy: 'singleton',
+    retryLimit: 0, // 下一分钟会再扫，失败不重试
+    handler: (c) => runCalendarReminders(c.db, c.now),
   },
   ...OUTBOX_JOBS,
   ...EXPORT_JOBS,

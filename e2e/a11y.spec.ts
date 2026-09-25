@@ -19,7 +19,12 @@ const scan = async (page: import('@playwright/test').Page) => {
 }
 
 test.describe('anon', () => {
-  for (const path of ['/login', '/login/2fa', '/invite/01920000-0000-7000-8000-000000000999']) {
+  for (const path of [
+    '/login',
+    '/login/2fa',
+    '/register',
+    '/invite/01920000-0000-7000-8000-000000000999',
+  ]) {
     test(`REQ-UI-013 axe ${path}`, async ({ page }) => {
       await page.goto(path)
       await page.waitForLoadState('networkidle')
@@ -32,6 +37,7 @@ test.describe('owner', () => {
   test.use({ storageState: STATE.owner })
   for (const theme of ['light', 'dark'] as const) {
     test(`REQ-UI-013 axe 已登录路由（${theme}）`, async ({ page, request }) => {
+      test.setTimeout(150_000) // 30 条路由逐个扫描，60 s 默认上限会偶发超时
       await page.addInitScript((t) => localStorage.setItem('xz:theme', t), theme)
       const id = await createEntry(request, {
         kind: 'decision',
@@ -60,6 +66,8 @@ test.describe('owner', () => {
         '/spaces/product',
         '/calendar',
         '/calendar?view=week',
+        '/calendar?view=day',
+        '/calendar?view=year',
         '/design?page=tokens',
         '/design?page=materials',
         '/design?page=depth',

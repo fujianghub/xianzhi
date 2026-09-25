@@ -1,7 +1,8 @@
 import { createHmac } from 'node:crypto'
 import { type APIRequestContext, expect, type Page } from '@playwright/test'
 
-export const BASE = 'http://localhost:3011'
+/** 可用 XZ_E2E_BASE 指向其它验证实例（如 worktree 自己的 3021）；默认 3011 */
+export const BASE = process.env.XZ_E2E_BASE ?? 'http://localhost:3011'
 export const MAILPIT = 'http://localhost:8025'
 export const OWNER = { email: 'owner@demo.local', password: 'demo-owner' }
 export const MEMBER = { email: 'member@demo.local', password: 'demo-member' }

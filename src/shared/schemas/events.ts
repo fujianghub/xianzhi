@@ -112,6 +112,14 @@ export const eventPayloads = {
     inviterId: id,
     inviterName: z.string(),
   }),
+  /** ADR-0008：自助注册待审批 → 通知 owner/admin */
+  'member.requested': z.object({
+    requestId: uuid,
+    userId: id,
+    displayName: z.string(),
+    username: z.string(),
+    email: z.string(),
+  }),
   'workspace.owner_transferred': z.object({
     fromUserId: id,
     fromName: z.string(),
@@ -127,6 +135,18 @@ export const eventPayloads = {
     endDate: z.string(),
     doneCount: z.number().int(),
     totalCount: z.number().int(),
+  }),
+  /** ADR-0009：日程提醒；每 (日程, 发生时刻, 提前量) 只发一次 */
+  'calendar.reminder': z.object({
+    eventId: uuid,
+    ownerId: id,
+    title: z.string(),
+    location: z.string().optional(),
+    allDay: z.boolean(),
+    occurrenceStart: z.string(),
+    alarm: z.number().int(),
+    /** 本地日期 YYYY-MM-DD，用于深链 /calendar?view=day&date= */
+    date: z.string(),
   }),
   'system.export_done': z.object({
     jobId: z.string(),

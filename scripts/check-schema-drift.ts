@@ -63,6 +63,11 @@ function normalize(t: string): string {
     smallint: 'smallint',
     int2: 'smallint',
     'text[]': 'text[]',
+    // 数组列（ADR-0009 calendar_events.exdates / alarms）
+    'timestamptz[]': 'timestamptz[]',
+    'timestamp (3) with time zone[]': 'timestamptz[]',
+    'int[]': 'int[]',
+    'integer[]': 'int[]',
   }
   return map[s] ?? s
 }

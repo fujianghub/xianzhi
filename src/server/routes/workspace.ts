@@ -1,16 +1,19 @@
 /**
  * /api/v1/workspace/*（02 §9）：校验 → service → 序列化。
- * T0-010 邀请五端点；T0-011 工作区信息、成员管理、owner 转让、审计日志。
+ * T0-010 邀请五端点；T0-011 工作区信息、成员管理、owner 转让、审计日志；
+ * ADR-0008 开放注册 + 待审批（join-requests）。
  * 未实现（Phase 1/2）：`DELETE /members/:userId?purge=1`（REQ-WS-015）、`transfer-content`（REQ-WS-016）。
  */
 import { Hono } from 'hono'
 import {
   acceptInvitationSchema,
+  approveJoinRequestSchema,
   auditLogQuerySchema,
   createInvitationSchema,
   invitationIdParam,
   memberRolePatchSchema,
   ownerTransferSchema,
+  registerSchema,
   userIdParam,
   workspacePatchSchema,
 } from '../../shared/schemas/workspace.ts'
@@ -20,11 +23,13 @@ import type { Db } from '../db/index.ts'
 import { AppError } from '../lib/errors.ts'
 import { validate } from '../lib/validate.ts'
 import { idempotency } from '../middleware/idempotency.ts'
+import { FixedWindowLimiter, rateLimit } from '../middleware/rate-limit.ts'
 import { clientIp } from '../middleware/request-context.ts'
 import { requireAuth, requireScope } from '../middleware/session.ts'
 import { listAuditLog } from '../services/audit.ts'
-import { issueCaptchaPass } from '../services/captcha.ts'
+import { type CaptchaOptions, issueCaptchaPass, verifyCaptcha } from '../services/captcha.ts'
 import * as inv from '../services/invitations.ts'
+import * as join from '../services/join-requests.ts'
 import * as members from '../services/members.ts'
 import { getWorkspace, updateWorkspace } from '../services/workspace.ts'
 import type { AppEnv } from '../types.ts'
@@ -34,7 +39,15 @@ type Ctx = {
   req: { raw: Request; header: (n: string) => string | undefined }
 }
 
-export function workspaceRoutes(deps: { db: Db; auth: Auth; appUrl: string }) {
+export function workspaceRoutes(deps: {
+  db: Db
+  auth: Auth
+  appUrl: string
+  captcha?: CaptchaOptions
+  /** 注册限流（07 §5：每 IP 5 次 / 小时）；测试可注入 */
+  registerLimiter?: FixedWindowLimiter
+}) {
+  const registerLimiter = deps.registerLimiter ?? new FixedWindowLimiter(5, 3_600_000)
   const base = (c: Ctx) => {
     if (!c.var.actor || !c.var.workspaceId) throw AppError.unauthenticated()
     return {
@@ -81,6 +94,51 @@ export function workspaceRoutes(deps: { db: Db; auth: Auth; appUrl: string }) {
             { userId: r.userId, role: r.role, captchaPass: await issueCaptchaPass(deps.db) },
             201,
           )
+        },
+      )
+      // ---- 公开：自助注册（ADR-0008、REQ-AUTH-017）：拼图 + IP 限流，提交后待审批 ----
+      .post(
+        '/join-requests',
+        rateLimit(registerLimiter, (c) => `ip:${clientIp(c.req.raw.headers)}`),
+        validate('json', registerSchema),
+        async (c) => {
+          if (!(await verifyCaptcha(deps.db, c.req.header('x-captcha'), deps.captcha)))
+            throw new AppError(400, 'CAPTCHA_INVALID', '滑块验证未通过，请重试')
+          const r = await join.register(deps.db, deps.auth, c.req.valid('json'), {
+            ip: clientIp(c.req.raw.headers),
+            userAgent: c.req.header('user-agent') ?? null,
+          })
+          return c.json(r, 201)
+        },
+      )
+      // ---- 注册审批（owner/admin，REQ-AUTH-018） ----
+      .get('/join-requests', requireAuth, async (c) =>
+        c.json({ items: await join.listJoinRequests(deps.db, base(c)), nextCursor: null }),
+      )
+      .post(
+        '/join-requests/:id/approve',
+        requireAuth,
+        requireScope('admin'),
+        validate('param', invitationIdParam),
+        validate('json', approveJoinRequestSchema),
+        async (c) =>
+          c.json(
+            await join.approveJoinRequest(
+              deps.db,
+              base(c),
+              c.req.valid('param').id,
+              c.req.valid('json').role,
+            ),
+          ),
+      )
+      .post(
+        '/join-requests/:id/reject',
+        requireAuth,
+        requireScope('admin'),
+        validate('param', invitationIdParam),
+        async (c) => {
+          await join.rejectJoinRequest(deps.db, base(c), c.req.valid('param').id)
+          return c.body(null, 204)
         },
       )
       // ---- 邀请（admin） ----

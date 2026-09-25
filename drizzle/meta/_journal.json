@@ -43,6 +43,13 @@
       "when": 1790214621737,
       "tag": "0005_search_trgm",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790320342170,
+      "tag": "0006_signup_calendar",
+      "breakpoints": true
     }
   ]
 }

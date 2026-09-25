@@ -1,6 +1,7 @@
 /**
- * 成员（08 §2.13、T1-043 · T1-039、REQ-WS-002 · 003 · 004 · 014）：`?tab=members|invitations`；
- * 改角色（owner 只能转让）、停用 / 恢复、移除（确认）；邀请（邮箱 + 角色）与撤销；owner 可转让所有权。
+ * 成员（08 §2.13、T1-043 · T1-039、REQ-WS-002 · 003 · 004 · 014、REQ-AUTH-018 · 019）：`?tab=members|requests|invitations`；
+ * 改角色（owner 只能转让）、停用 / 恢复、移除（确认）；注册审批（选角色批准 / 驳回删号，ADR-0008）；
+ * 邀请（邮箱 + 角色）与撤销；owner 可转让所有权。
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
@@ -8,6 +9,7 @@ import { type FormEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { InvitationView } from '../../server/services/invitations.ts'
+import type { JoinRequestView } from '../../server/services/join-requests.ts'
 import { Avatar } from '../components/ui/avatar.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { ConfirmDialog } from '../components/ui/confirm-dialog.tsx'
@@ -21,7 +23,7 @@ import { cn } from '../lib/cn.ts'
 import { optOneOf } from '../lib/search.ts'
 import { requireAdmin } from './-components/admin-gate.ts'
 
-const TABS = ['members', 'invitations'] as const
+const TABS = ['members', 'requests', 'invitations'] as const
 type Tab = (typeof TABS)[number]
 
 export const Route = createFileRoute('/_app/settings/workspace/members')({
@@ -30,7 +32,10 @@ export const Route = createFileRoute('/_app/settings/workspace/members')({
   component: Members,
 })
 
-type Confirm = { kind: 'remove' | 'suspend' | 'transfer'; m: Member } | null
+type Confirm =
+  | { kind: 'remove' | 'suspend' | 'transfer'; m: Member }
+  | { kind: 'reject'; r: JoinRequestView }
+  | null
 
 function Members() {
   const { t } = useTranslation()
@@ -45,6 +50,15 @@ function Members() {
       unwrap<{ items: InvitationView[] }>(api.workspace.invitations.$get()).then((r) => r.items),
     enabled: tab === 'invitations',
   })
+  // 待审批数常驻（tab 徽标）
+  const requests = useQuery({
+    queryKey: ['workspace', 'join-requests'],
+    queryFn: () =>
+      unwrap<{ items: JoinRequestView[] }>(api.workspace['join-requests'].$get()).then(
+        (r) => r.items,
+      ),
+  })
+  const [approveRole, setApproveRole] = useState<Record<string, 'member' | 'admin' | 'guest'>>({})
   const [confirm, setConfirm] = useState<Confirm>(null)
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<'member' | 'admin' | 'guest'>('member')
@@ -85,11 +99,19 @@ function Members() {
       )}
     >
       {t(`settings.members.tab.${k}`)}
+      {k === 'requests' && requests.data?.length ? (
+        <span
+          className="ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 font-medium text-[11px] text-primary-fg"
+          data-testid="requests-badge"
+        >
+          {requests.data.length}
+        </span>
+      ) : null}
     </button>
   )
   const owner = me.workspaceRole === 'owner'
   return (
-    <section className="max-w-4xl" data-testid="settings-members">
+    <section className="max-w-5xl" data-testid="settings-members">
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="font-semibold text-2xl tracking-tight">{t('settings.nav.members')}</h1>
         <div
@@ -250,6 +272,84 @@ function Members() {
             })}
           </ul>
         )
+      ) : tab === 'requests' ? (
+        requests.isPending ? (
+          <Skeleton className="h-32 w-full" />
+        ) : (
+          <ul
+            className="paper divide-y divide-divider overflow-hidden rounded-lg border border-divider"
+            data-testid="join-requests"
+          >
+            {(requests.data ?? []).length ? (
+              (requests.data ?? []).map((r) => (
+                <li
+                  key={r.id}
+                  className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm"
+                  data-testid="join-request-row"
+                >
+                  <Avatar id={r.userId} name={r.name} size={28} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">
+                      {r.name}
+                      {r.username ? (
+                        <span className="ml-2 font-normal text-fg-muted">@{r.username}</span>
+                      ) : null}
+                    </span>
+                    <span className="block truncate text-fg-muted text-xs">
+                      {r.email} · {t('settings.members.requestedAt')}{' '}
+                      <RelativeTime date={r.createdAt} />
+                    </span>
+                  </span>
+                  <select
+                    value={approveRole[r.id] ?? 'member'}
+                    aria-label={t('settings.members.role')}
+                    onChange={(e) =>
+                      setApproveRole((m) => ({ ...m, [r.id]: e.target.value as 'member' }))
+                    }
+                    className="h-8 rounded-md border border-border bg-surface px-2 text-sm"
+                  >
+                    {(['member', 'admin', 'guest'] as const).map((x) => (
+                      <option key={x} value={x}>
+                        {t(`settings.members.roles.${x}`)}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    data-testid="join-approve"
+                    onClick={() =>
+                      void act(
+                        () =>
+                          unwrap(
+                            api.workspace['join-requests'][':id'].approve.$post({
+                              param: { id: r.id },
+                              json: { role: approveRole[r.id] ?? 'member' },
+                            }),
+                          ),
+                        t('settings.members.approved', { name: r.name }),
+                      )
+                    }
+                  >
+                    {t('settings.members.approve')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    data-testid="join-reject"
+                    onClick={() => setConfirm({ kind: 'reject', r })}
+                  >
+                    {t('settings.members.reject')}
+                  </Button>
+                </li>
+              ))
+            ) : (
+              <li className="px-4 py-6 text-center text-fg-muted text-sm">
+                {t('settings.members.noRequests')}
+              </li>
+            )}
+          </ul>
+        )
       ) : invitations.isPending ? (
         <Skeleton className="h-32 w-full" />
       ) : (
@@ -303,12 +403,22 @@ function Members() {
         title={confirm ? t(`settings.members.confirm.${confirm.kind}.title`) : ''}
         description={
           confirm
-            ? t(`settings.members.confirm.${confirm.kind}.body`, { name: memberName(confirm.m) })
+            ? t(`settings.members.confirm.${confirm.kind}.body`, {
+                name: confirm.kind === 'reject' ? confirm.r.name : memberName(confirm.m),
+              })
             : ''
         }
         confirmLabel={confirm ? t(`settings.members.${confirm.kind}`) : ''}
         onConfirm={() => {
           if (!confirm) return
+          if (confirm.kind === 'reject') {
+            const rid = confirm.r.id
+            return act(
+              () =>
+                unwrap(api.workspace['join-requests'][':id'].reject.$post({ param: { id: rid } })),
+              t('settings.members.rejected'),
+            )
+          }
           const id = confirm.m.userId
           if (confirm.kind === 'remove')
             return act(

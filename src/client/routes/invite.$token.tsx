@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { PASSWORD_MIN } from '../../shared/schemas/workspace.ts'
 import { ThemeMenu } from '../components/layout/ThemeMenu.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { Input } from '../components/ui/input.tsx'
@@ -120,7 +121,7 @@ function Invite() {
                 id="inv-password"
                 type="password"
                 autoComplete="new-password"
-                minLength={10}
+                minLength={PASSWORD_MIN}
                 className="mt-1"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}

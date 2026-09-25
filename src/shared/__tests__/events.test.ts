@@ -102,6 +102,22 @@ const samples: { [K in EventKind]: Extract<EventInput, { kind: K }>['payload'] }
     inviterId: 'u1',
     inviterName: 'A',
   },
+  'member.requested': {
+    requestId: U,
+    userId: 'u9',
+    displayName: 'P',
+    username: 'p',
+    email: 'p@xz.local',
+  },
+  'calendar.reminder': {
+    eventId: U,
+    ownerId: 'u1',
+    title: '周会',
+    allDay: false,
+    occurrenceStart: '2026-09-28T06:00:00Z',
+    alarm: 10,
+    date: '2026-09-28',
+  },
   'workspace.owner_transferred': { fromUserId: 'u1', fromName: 'A', toUserId: 'u2', toName: 'B' },
   'cycle.review_due': {
     cycleId: U,

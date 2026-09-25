@@ -25,6 +25,7 @@ import { FixedWindowLimiter, rateLimit } from './middleware/rate-limit.ts'
 import { clientIp, requestContext } from './middleware/request-context.ts'
 import { session } from './middleware/session.ts'
 import { attachmentRoutes, avatarRoutes } from './routes/attachments.ts'
+import { calendarEventRoutes, calendarRoutes } from './routes/calendar.ts'
 import { collabRoutes } from './routes/collab.ts'
 import { commentRoutes } from './routes/comments.ts'
 import { entryRoutes } from './routes/entries.ts'
@@ -59,6 +60,8 @@ export interface AppDeps {
   bus?: EventBus
   sseHub?: SseHub
   loginGuard?: LoginGuard
+  /** 注册限流（ADR-0008，缺省 5/h/IP）；测试可注入 */
+  registerLimiter?: FixedWindowLimiter
   /** 登录拼图滑块（ADR-0006）；production 下 debug 强制关闭 */
   captcha?: CaptchaOptions
   /** 生产托管的前端构建目录（dist/client）；dev 下由 Vite 提供 */
@@ -134,6 +137,7 @@ export function createApp(deps: AppDeps) {
     await next()
   })
   app.use('/api/auth/sign-in/email', loginGuard(guard, deps.db, captcha))
+  app.use('/api/auth/sign-in/username', loginGuard(guard, deps.db, captcha))
   app.use('/api/auth/sign-out', logoutAudit(deps.auth, deps.db))
   app.on(['GET', 'POST'], '/api/auth/*', (c) => deps.auth.handler(c.req.raw))
 
@@ -179,7 +183,13 @@ export function createApp(deps: AppDeps) {
         return b
       })),
   })
-  const workspace = workspaceRoutes({ db: deps.db, auth: deps.auth, appUrl: deps.appUrl })
+  const workspace = workspaceRoutes({
+    db: deps.db,
+    auth: deps.auth,
+    appUrl: deps.appUrl,
+    captcha,
+    registerLimiter: deps.registerLimiter,
+  })
   const routes = app
     .route('/api/health', health)
     .route('/api/v1', v1)
@@ -189,6 +199,8 @@ export function createApp(deps: AppDeps) {
     .route('/api/v1/spaces', spaceRoutes({ db: deps.db, dataDir: deps.dataDir }))
     .route('/api/v1/tasks', taskRoutes({ db: deps.db, dataDir: deps.dataDir }))
     .route('/api/v1/tags', tagRoutes({ db: deps.db }))
+    .route('/api/v1/calendars', calendarRoutes({ db: deps.db }))
+    .route('/api/v1/calendar-events', calendarEventRoutes({ db: deps.db }))
     .route('/api/v1/comments', commentRoutes({ db: deps.db }))
     .route('/api/v1/search', searchRoutes({ db: deps.db }))
     .route('/api/v1/exports', exp.exportsApp)

@@ -136,6 +136,21 @@ expectMatrix('cycle.read(other)', ADMIN_ONLY, (a) =>
 )
 expectMatrix('cycle.write(own)', SELF_ONLY, (a) => can(a, 'cycle.write', { id: 'c', ownerId: ME }))
 expectMatrix('cycle.write(other)', NEVER, (a) => can(a, 'cycle.write', { id: 'c', ownerId: OTHER }))
+// ADR-0009：个人日历仅本人，admin 也不可见
+expectMatrix('calendar.read(own)', SELF_ONLY, (a) =>
+  can(a, 'calendar.read', { id: 'k', ownerId: ME }),
+)
+expectMatrix('calendar.read(other)', NEVER, (a) =>
+  can(a, 'calendar.read', { id: 'k', ownerId: OTHER }),
+)
+expectMatrix('calendar.write(own)', SELF_ONLY, (a) =>
+  can(a, 'calendar.write', { id: 'k', ownerId: ME }),
+)
+expectMatrix('calendar.write(other)', NEVER, (a) =>
+  can(a, 'calendar.write', { id: 'k', ownerId: OTHER }),
+)
+// ADR-0008：审批注册申请 = owner/admin
+expectMatrix('member.approve', ADMIN_ONLY, (a) => can(a, 'member.approve', null))
 
 // ---------- 空间：visibility=members ----------
 // member 需显式行；guest 只在显式行时（且为 viewer 视角）；owner/admin 恒真
@@ -387,6 +402,9 @@ describe('archived / deleted / suspended', () => {
         'attachment.read': { id: 'a', ownerId: ME, target: null },
         'cycle.read': { id: 'c', ownerId: ME },
         'cycle.write': { id: 'c', ownerId: ME },
+        'calendar.read': { id: 'k', ownerId: ME },
+        'calendar.write': { id: 'k', ownerId: ME },
+        'member.approve': null,
       }
       const r = action in res ? res[action] : { id: ME }
       // biome-ignore lint/suspicious/noExplicitAny: 枚举遍历

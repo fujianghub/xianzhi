@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as RegisterRouteImport } from './routes/register'
 import { Route as AppCalendarRouteImport } from './routes/_app.calendar'
 import { Route as AppDesignRouteImport } from './routes/_app.design'
 import { Route as AppInboxRouteImport } from './routes/_app.inbox'
@@ -48,6 +49,11 @@ const AppRoute = AppRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppCalendarRoute = AppCalendarRouteImport.update({
@@ -175,6 +181,7 @@ const AppSpacesSpaceSlugTasksTaskIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
   '/calendar': typeof AppCalendarRoute
   '/design': typeof AppDesignRoute
   '/inbox': typeof AppInboxRoute
@@ -202,6 +209,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
   '/calendar': typeof AppCalendarRoute
   '/design': typeof AppDesignRoute
   '/inbox': typeof AppInboxRoute
@@ -230,6 +238,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
   '/_app/calendar': typeof AppCalendarRoute
   '/_app/design': typeof AppDesignRoute
   '/_app/inbox': typeof AppInboxRoute
@@ -259,6 +268,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/register'
     | '/calendar'
     | '/design'
     | '/inbox'
@@ -286,6 +296,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/register'
     | '/calendar'
     | '/design'
     | '/inbox'
@@ -313,6 +324,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_app'
     | '/login'
+    | '/register'
     | '/_app/calendar'
     | '/_app/design'
     | '/_app/inbox'
@@ -342,6 +354,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
   LoginRoute: typeof LoginRoute
+  RegisterRoute: typeof RegisterRoute
   InviteTokenRoute: typeof InviteTokenRoute
   Login2faRoute: typeof Login2faRoute
 }
@@ -367,6 +380,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/calendar': {
@@ -606,6 +626,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   LoginRoute: LoginRoute,
+  RegisterRoute: RegisterRoute,
   InviteTokenRoute: InviteTokenRoute,
   Login2faRoute: Login2faRoute,
 }

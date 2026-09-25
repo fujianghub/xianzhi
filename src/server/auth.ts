@@ -1,7 +1,8 @@
 /**
  * Better Auth 接入（T0-006；ADR-0001 §4.6、01 §2、02 §2、07 §2.1）。
- * - 不开放注册：emailAndPassword.disableSignUp + magicLink.disableSignUp
- * - 插件：organization / admin / twoFactor / magicLink / passkey / apiKey
+ * - 不走 Better Auth 自助注册：emailAndPassword.disableSignUp + magicLink.disableSignUp；
+ *   开放注册 + 待审批经 `POST /workspace/join-requests`（ADR-0008，services/join-requests.ts）
+ * - 插件：organization / admin / twoFactor / magicLink / passkey / apiKey / username（ADR-0008）
  * - impersonation 一期禁用：impersonationSessionDuration = 0，且路由层对 /admin/impersonate-user 返回 404（index.ts）
  * - 表由 `pnpm auth:generate` 生成到 db/schema/auth.ts
  */
@@ -9,9 +10,10 @@ import { apiKey } from '@better-auth/api-key'
 import { passkey } from '@better-auth/passkey'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { admin, magicLink, organization, twoFactor } from 'better-auth/plugins'
-import { eq } from 'drizzle-orm'
+import { admin, magicLink, organization, twoFactor, username } from 'better-auth/plugins'
+import { and, eq } from 'drizzle-orm'
 import { v7 } from 'uuid'
+import { USERNAME_RE } from '../shared/schemas/workspace.ts'
 import { type Db, getDb } from './db/index.ts'
 import * as authSchema from './db/schema/auth.ts'
 import { getEnv } from './env.ts'
@@ -42,8 +44,8 @@ export function createAuth(db: Db, opts: { baseURL: string; secret: string; appU
     },
     emailAndPassword: {
       enabled: true,
-      disableSignUp: true, // REQ-AUTH-002
-      minPasswordLength: 10,
+      disableSignUp: true, // REQ-AUTH-002：自助注册只走 join-requests（ADR-0008）
+      minPasswordLength: 8, // ADR-0008：10 → 8
       resetPasswordTokenExpiresIn: 15 * 60, // 07 §5：15 分钟一次性
       revokeSessionsOnPasswordReset: true,
       sendResetPassword: async ({ user, url }) => {
@@ -69,6 +71,7 @@ export function createAuth(db: Db, opts: { baseURL: string; secret: string; appU
       max: 100,
       customRules: {
         '/sign-in/email': { window: 60, max: 10 }, // REQ-AUTH-012 IP 维度；邮箱维度在 middleware/loginGuard
+        '/sign-in/username': { window: 60, max: 10 }, // ADR-0008：用户名登录同一门槛
         '/magic-link': { window: 60, max: 10 },
         '/request-password-reset': { window: 60, max: 10 },
       },
@@ -104,11 +107,13 @@ export function createAuth(db: Db, opts: { baseURL: string; secret: string; appU
         disableSignUp: true, // REQ-AUTH-002 / 07 §2.1：陌生邮箱不建号
         expiresIn: 15 * 60,
         sendMagicLink: async ({ email, url }) => {
-          // 07 §2.1：陌生邮箱不发信、不建号，响应与已注册一致（不泄露存在性）
+          // 07 §2.1：陌生邮箱不发信、不建号，响应与已注册一致（不泄露存在性）；
+          // 待审批账号（无 member 行，ADR-0008）同样不发信
           const known = await db
             .select({ id: authSchema.user.id })
             .from(authSchema.user)
-            .where(eq(authSchema.user.email, email.toLowerCase()))
+            .innerJoin(authSchema.member, eq(authSchema.member.userId, authSchema.user.id))
+            .where(and(eq(authSchema.user.email, email.toLowerCase())))
             .limit(1)
           if (!known[0]) return
           await sendMail({
@@ -122,6 +127,12 @@ export function createAuth(db: Db, opts: { baseURL: string; secret: string; appU
         rpID: appHost,
         rpName: 'Xianzhi',
         origin: opts.appURL,
+      }),
+      username({
+        // ADR-0008：3–30 位小写字母 / 数字 / _ . -，以字母或数字开头；存小写，displayUsername 保留原样
+        minUsernameLength: 3,
+        maxUsernameLength: 30,
+        usernameValidator: (u) => USERNAME_RE.test(u.toLowerCase()),
       }),
       apiKey({
         defaultPrefix: 'xz_',

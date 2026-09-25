@@ -7,6 +7,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { createInterface } from 'node:readline/promises'
 import { eq } from 'drizzle-orm'
 import { insertSnapshot } from '../collab/snapshots.ts'
+import { PASSWORD_MIN, USERNAME_RE } from '../shared/schemas/workspace.ts'
 import { getAuth } from './auth.ts'
 import { closeDb, getDb } from './db/index.ts'
 import { entries } from './db/schema/business.ts'
@@ -21,7 +22,7 @@ import { seed } from './services/seed.ts'
 import { createOwner, OwnerExistsError } from './services/workspace.ts'
 
 const USAGE = `用法：pnpm xz <cmd>
-  create-owner [--email <e>] [--name <n>] [--password <p>] [--workspace <name>]   创建首个 owner + 默认工作区
+  create-owner [--email <e>] [--username <u>] [--name <n>] [--password <p>] [--workspace <name>]   创建首个 owner + 默认工作区
   rebuild-derived [--entries] [--tasks] [--comments]                              重建派生列（缺省全部）
   snapshot <entryId> [--label <l>]                                                为已落库正文生成快照
   job <name>                                                                       手动触发一个 pg-boss 作业（同步执行）
@@ -68,15 +69,21 @@ async function main(): Promise<number> {
   switch (cmd) {
     case 'create-owner': {
       const email = arg('email') ?? (await ask('owner 邮箱：'))
+      const username = arg('username') ?? (await ask('用户名（可留空）：'))
       const name = arg('name') ?? (await ask('显示名：'))
-      const password = arg('password') ?? (await ask('密码（≥ 10 位）：', true))
-      if (!email || !name || password.length < 10) {
-        console.error('邮箱 / 显示名不能为空，密码至少 10 位')
+      const password = arg('password') ?? (await ask(`密码（≥ ${PASSWORD_MIN} 位）：`, true))
+      if (!email || !name || password.length < PASSWORD_MIN) {
+        console.error(`邮箱 / 显示名不能为空，密码至少 ${PASSWORD_MIN} 位`)
+        return 1
+      }
+      if (username && !USERNAME_RE.test(username.toLowerCase())) {
+        console.error('用户名为 3–30 位小写字母、数字或 _ . -，以字母或数字开头')
         return 1
       }
       try {
         const r = await createOwner(getDb(), getAuth(), {
           email,
+          username: username || undefined,
           name,
           password,
           workspaceName: arg('workspace'),

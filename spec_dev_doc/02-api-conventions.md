@@ -1,6 +1,6 @@
 # 02 API 约定
 
-> 状态：已采纳 · 版本：v3 · 更新：2026-09-24 · 最后对照代码：2026-09-24（`/api/captcha`、`/tasks?from&to`；`check-openapi-drift` 零差异） · 依据 ADR-0001 §4。Hono 路由、错误、分页、鉴权、实时、文件、MCP 的权威约定。新路由不符合本文即为 bug。§9 路由表是 `scripts/check-openapi-drift.ts` 的机器契约（05 §6）。
+> 状态：已采纳 · 版本：v3 · 更新：2026-09-25 · 最后对照代码：2026-09-25（`/workspace/join-requests*`、`/calendars`、`/calendar-events`、`/sign-in/username`；`check-openapi-drift` 零差异） · 依据 ADR-0001 §4。Hono 路由、错误、分页、鉴权、实时、文件、MCP 的权威约定。新路由不符合本文即为 bug。§9 路由表是 `scripts/check-openapi-drift.ts` 的机器契约（05 §6）。
 
 ---
 
@@ -22,6 +22,7 @@
 
 - **会话**：Better Auth Cookie；中间件 `session()` 解析后写入 `c.var.user`、`c.var.workspaceRole`；未登录 401。
 - **API Key**：`Authorization: Bearer xz_<key>`（Better Auth apiKey 插件）；用于 MCP、脚本；scope 限定（`read`、`write`、`admin`）；**有效权限 = min(scope, 持有者当前工作区角色)**，持有者降级或移除即同步收窄；可选 `expiresAt`；单 Key 限流 300/min；创建、使用（每日首次）、吊销写入 `audit_log`（07 §2.7）。
+- **注册与用户名登录**（注 2026-09-25，ADR-0008）：Better Auth `/sign-up/email` 保持关闭；自助注册只走 `POST /workspace/join-requests`（公开，须 `x-captcha`，每 IP 5 次 / 小时），建号但不建 `member` → 待审批。`/sign-in/username` 与 `/sign-in/email` 共用 `loginGuard`（拼图、锁定、限流按解析出的邮箱计）；待审批账号密码正确时撤销刚建的会话、不下发 Cookie，返回 403 `REGISTRATION_PENDING`。
 - **会话吊销**：admin 吊销某用户全部会话走 `POST /workspace/members/:userId/revoke-sessions`（包装 Better Auth admin `revokeUserSessions`），同时广播 `user.revoked` 断其 WS / SSE（07 §4）。
 - **Better Auth 插件约束**：`magicLink({ disableSignUp: true })`，陌生邮箱请求魔法链接不建号、响应与已注册邮箱一致；admin 插件的 impersonation（模拟登录）**一期禁用**（`impersonationSessionDuration: 0` 且不暴露端点），二期若启用须写 `audit_log(admin.impersonated)` 且不得对 owner 使用（07 §2.1）。
 - **授权**：service 内 `assertCan(user, action, resource)`，失败抛 `ForbiddenError` → 403；**列表**用 `visible*Where(user)`（01 §5 不变量 3）。对不可见资源统一返回 404 而非 403（不泄露存在性）；**明确知道存在但无权的动作**（如空间成员修改归档空间）返回 403。
@@ -47,7 +48,7 @@
 | 400 | `BAD_REQUEST` | 语法/参数不可解析 |
 | 400 | `CAPTCHA_INVALID` | 登录拼图缺失 / 错位 / 过期 / 已用（ADR-0006） |
 | 401 | `UNAUTHENTICATED` | 无会话 |
-| 403 | `FORBIDDEN` / `CSRF` / `SCOPE` / `ACCOUNT_LOCKED` | 权限、跨站、API Key scope、登录连续失败锁定（07 §5） |
+| 403 | `FORBIDDEN` / `CSRF` / `SCOPE` / `ACCOUNT_LOCKED` / `REGISTRATION_PENDING` | 权限、跨站、API Key scope、登录连续失败锁定（07 §5）、注册申请待审批（ADR-0008） |
 | 404 | `NOT_FOUND` | 不存在或不可见 |
 | 409 | `CONFLICT_STALE`（带 `current`）/ `CONFLICT_UNIQUE` / `CONFLICT_LAST_OWNER` / `CONFLICT_IN_FLIGHT` | 乐观锁 / 唯一约束 / 最后一名 owner 不可降级、移除、注销（07 §4）/ 同一 `Idempotency-Key` 的请求仍在处理中（注 2026-09-24） |
 | 410 | `INVITATION_EXPIRED` / `LINK_EXPIRED` | 邀请或重置链接过期、已使用（07 §5） |
@@ -185,6 +186,10 @@
 | DELETE | `/workspace/invitations/:id` | 撤回 | REQ-AUTH-003 |
 | GET | `/workspace/invitations/:id` | **公开**（受邀者尚无账号）：邀请页读取；返回脱敏邮箱、角色、工作区名、邀请人；已用 / 过期 / 撤回 → 410 `INVITATION_EXPIRED` | REQ-AUTH-003 · 004 |
 | POST | `/workspace/invitations/:id/accept` | **公开**：`{ email, name, password }`；邮箱须与邀请一致（否则 403）；建号 + `member(role)` + 个人空间 + `member.joined`；一次性，再次 → 410；201 响应含 `captchaPass`（60 s 一次性，供随后自动登录免拼图，ADR-0006） | REQ-AUTH-003 · 004 · REQ-SPACE-009 · REQ-AUTH-016 |
+| POST | `/workspace/join-requests` | **公开**：`{ email, username, name, password }` + `x-captcha`；建待审批账号，发 `member.requested`；201 `{ status: 'pending' }`；拼图错 400、占用 409（字段级）、每 IP 5 次 / 小时与待审批 ≥ 200 → 429 | REQ-AUTH-017 |
+| GET | `/workspace/join-requests` | 待审批列表（owner/admin，`member.approve`） | REQ-AUTH-018 |
+| POST | `/workspace/join-requests/:id/approve` | `{ role? = member }`；写 `member` + 个人空间 + `member.joined`；已处理 409；成员数达 50 → 422 | REQ-AUTH-018 |
+| POST | `/workspace/join-requests/:id/reject` | 驳回并删号（级联），审计 `member.rejected`；204 | REQ-AUTH-019 |
 | GET | `/workspace/audit-log` | 游标；`action / actorId / from / to / jobId` 筛选（admin） | REQ-WS-005 |
 | GET | `/spaces` | 筛选 `archived=1`、`deleted=1`；sort 白名单 `sortKey name createdAt` | REQ-SPACE-001 · 004 |
 | POST | `/spaces` | 创建，创建者为 space admin | REQ-SPACE-001 |
@@ -274,6 +279,20 @@
 - 标签：创建为非 guest（authz `tag.create`，供 TagPicker 输入即创建）；改名、改色、删除限 owner/admin（`tag.manage`，影响全工作区）。`GET /tags` 不分页，附 `usage { tasks, entries }` 计数。`?tag=a,b` 为逗号多值，任一命中，最多 20 个。
 - 评论：未带 `threadId` / `parentId` 时首条评论 id 即 threadId；回复继承父评论的线程。空正文 422。编辑只限作者且带 `ifUpdatedAt`，只对新增的提及发通知。删除限作者或 owner/admin，列表保留占位（`deleted: true, bodyPm: null`）。resolve / unresolve 对整条线程生效，按线程首条评论判 `comment.resolve`。
 - 评论里的提及发 `mention.created`（`targetType: 'comment'`），扇出前按评论所在目标的读权限过滤。
+| GET | `/calendars` | 本人日历列表（首次自动建 4 个默认）；不分页 | REQ-CAL-001 |
+| POST | `/calendars` | `{ name, color }`；`Idempotency-Key`；每人 ≤ 30 | REQ-CAL-001 |
+| PATCH | `/calendars/:id` | `{ name?, color?, hidden?, position? }` | REQ-CAL-001 |
+| DELETE | `/calendars/:id` | 连同日程删除；至少保留 1 个（否则 422） | REQ-CAL-001 |
+| GET | `/calendar-events` | `from to`（必填，跨度 ≤ 400 天）；返回区间内的**发生**（重复已展开，`key` 唯一），不分页 | REQ-CAL-002 · 004 · 006 |
+| POST | `/calendar-events` | `{ calendarId, title, allDay, startAt, endAt, timezone, rrule?, alarms?, location?, url?, notes? }`；`Idempotency-Key` | REQ-CAL-002 · 004 |
+| PATCH | `/calendar-events/:id` | 带 `ifUpdatedAt`；重复日程带 `scope=this\|future\|all` 与 `occurrenceStart` | REQ-CAL-003 · 005 |
+| DELETE | `/calendar-events/:id` | `?scope=this\|future\|all&occurrenceStart=`；软删 | REQ-CAL-005 |
+
+注（2026-09-25，ADR-0009）：
+- 日历与日程个人私有（`calendar.read / calendar.write` 仅本人，列表 `visibleCalendarEventsWhere`）；他人资源按 404 处理。
+- `GET /calendar-events` 是区间查询而非游标分页（与 `GET /tasks?from&to` 同类，结果集由区间天然有界；单次最多展开 2000 次发生）。
+- 全天事件的 `startAt / endAt` 为 `timezone` 下本地零点；前端按事件自身时区取日期。
+
 | GET | `/links` | `fromType fromId` | REQ-LINK-003 · 005 |
 | POST | `/links` | 五元组唯一，重复 409 | REQ-LINK-003 · 004 |
 | DELETE | `/links/:id` | 删除（`kind=mentions` 的由 collab 维护，手删 403） | REQ-LINK-001 · 003 |

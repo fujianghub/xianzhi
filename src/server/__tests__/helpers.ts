@@ -56,6 +56,7 @@ export function buildApp(
     jobQueue?: JobQueue
     captcha?: CaptchaOptions
     nodeEnv?: 'test' | 'production'
+    registerLimit?: number
   } = {},
 ) {
   ipSeq++
@@ -74,6 +75,7 @@ export function buildApp(
     generalLimiter: new FixedWindowLimiter(opts.generalLimit ?? 600, 60_000, opts.now),
     loginGuard: guard,
     captcha: opts.captcha ?? { debug: true, minSolveMs: 0 },
+    registerLimiter: new FixedWindowLimiter(opts.registerLimit ?? 1000, 3_600_000, opts.now),
     bus: opts.bus,
     sseHub: opts.sseHub,
     jobQueue: opts.jobQueue,

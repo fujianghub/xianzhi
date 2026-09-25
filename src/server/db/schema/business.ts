@@ -31,9 +31,11 @@ import {
   ENTRY_VISIBILITIES,
   EVENT_KINDS,
   EVENT_TARGET_TYPES,
+  JOIN_REQUEST_STATUSES,
   LINK_FROM_TYPES,
   LINK_KINDS,
   LINK_TO_TYPES,
+  PALETTE_COLORS,
   SPACE_KINDS,
   SPACE_ROLES,
   SPACE_VISIBILITIES,
@@ -508,4 +510,101 @@ export const idempotencyKeys = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index('idempotency_keys_created_idx').on(t.createdAt)],
+)
+
+// ---------- 3.14 join_requests（ADR-0008 开放注册 + 待审批） ----------
+export const joinRequests = pgTable(
+  'join_requests',
+  {
+    id: pk(),
+    workspaceId: orgRef(),
+    userId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    status: text().notNull().default('pending'),
+    ip: text(),
+    decidedBy: userRef(),
+    decidedAt: timestamptz(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique('join_requests_user_uq').on(t.userId),
+    index('join_requests_status_created_idx').on(t.status, t.createdAt),
+    check('join_requests_status_ck', inList(t.status, JOIN_REQUEST_STATUSES)),
+  ],
+)
+
+// ---------- 3.15 calendars / calendar_events（ADR-0009 日程） ----------
+/** 个人日历（macOS「日历」列表）：分类 + 颜色 + 是否显示；仅 owner 可见。 */
+export const calendars = pgTable(
+  'calendars',
+  {
+    id: pk(),
+    workspaceId: orgRef(),
+    ownerId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    name: text().notNull(),
+    color: text().notNull(),
+    hidden: boolean().notNull().default(false),
+    isDefault: boolean().notNull().default(false),
+    position: integer().notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index('calendars_owner_idx').on(t.ownerId, t.position),
+    check('calendars_color_ck', inList(t.color, PALETTE_COLORS)),
+  ],
+)
+
+/**
+ * 日程（ADR-0009）：
+ * - 定时事件：[startAt, endAt)；全天事件：startAt / endAt = `timezone` 下的本地零点（endAt 为次日零点，独占）
+ * - 重复：`rrule` = RFC 5545 RRULE（不含 DTSTART），按 `timezone` 本地时刻展开；`exdates` = 被排除的发生时刻
+ * - 单次改写：独立行 `recurrenceId` → 母事件 + `originalStartAt`（同时写入母事件 exdates）
+ * - 提醒：`alarms` = 开始前分钟数（全天事件相对当天零点，可为负：-540 = 当天 09:00）
+ */
+export const calendarEvents = pgTable(
+  'calendar_events',
+  {
+    id: pk(),
+    workspaceId: orgRef(),
+    calendarId: uuid()
+      .notNull()
+      .references(() => calendars.id, { onDelete: 'cascade' }),
+    ownerId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    title: text().notNull(),
+    location: text(),
+    notes: text(),
+    url: text(),
+    allDay: boolean().notNull().default(false),
+    startAt: timestamptz().notNull(),
+    endAt: timestamptz().notNull(),
+    timezone: text().notNull(),
+    rrule: text(),
+    /** 重复截止（由 rrule UNTIL/COUNT 推得；null = 无限），用于区间查询剪枝 */
+    repeatUntil: timestamptz(),
+    exdates: timestamptz().array().notNull().default(sql`'{}'::timestamptz[]`),
+    recurrenceId: uuid(),
+    originalStartAt: timestamptz(),
+    alarms: integer().array().notNull().default(sql`'{}'::integer[]`),
+    deletedAt: timestamptz(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index('calendar_events_owner_range_idx').on(t.ownerId, t.startAt, t.endAt),
+    index('calendar_events_recurrence_idx').on(t.recurrenceId),
+    index('calendar_events_alarm_idx')
+      .on(t.startAt)
+      .where(sql`cardinality(${t.alarms}) > 0 and ${t.deletedAt} is null`),
+    check('calendar_events_range_ck', sql`${t.endAt} > ${t.startAt}`),
+    check(
+      'calendar_events_override_ck',
+      sql`(${t.recurrenceId} is null) = (${t.originalStartAt} is null)`,
+    ),
+  ],
 )

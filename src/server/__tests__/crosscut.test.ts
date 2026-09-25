@@ -152,7 +152,11 @@ describe('T1-040 crosscut', () => {
       )
       .map((r) => ({ method: r.method, path: r.path }))
     const uniq = [...new Map(routes.map((r) => [`${r.method} ${r.path}`, r])).values()]
-    const PUBLIC = [/^\/api\/v1\/health/, /^\/api\/v1\/workspace\/invitations\/:id(\/accept)?$/]
+    const PUBLIC = [
+      /^\/api\/v1\/health/,
+      /^\/api\/v1\/workspace\/invitations\/:id(\/accept)?$/,
+      /^POST \/api\/v1\/workspace\/join-requests$/, // ADR-0008 自助注册
+    ]
     const fill = (p: string) => p.replace(/:[A-Za-z]+/g, 'not-a-uuid').replace(/\*$/, '')
     let errors = 0
     const bad: string[] = []
@@ -181,7 +185,7 @@ describe('T1-040 crosscut', () => {
         headers: jsonHeaders(),
         body: r.method === 'GET' || r.method === 'HEAD' ? undefined : '{}',
       })
-      if (!PUBLIC.some((re) => re.test(r.path))) {
+      if (!PUBLIC.some((re) => re.test(r.path) || re.test(`${r.method} ${r.path}`))) {
         if (anon.status !== 401) bad.push(`${r.method} ${r.path} 未登录 → ${anon.status}`)
       }
       await check(anon, `anon ${r.method} ${r.path}`)

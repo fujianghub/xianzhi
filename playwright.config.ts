@@ -16,7 +16,7 @@ export default defineConfig({
   snapshotPathTemplate: '{testDir}/__screenshots__/{projectName}/{arg}{ext}',
   reporter: [['list'], ['./e2e/req-reporter.ts']],
   use: {
-    baseURL: 'http://localhost:3011',
+    baseURL: process.env.XZ_E2E_BASE ?? 'http://localhost:3011',
     channel: 'chrome',
     trace: 'retain-on-failure',
     locale: 'zh-CN',
@@ -24,7 +24,7 @@ export default defineConfig({
   },
   webServer: {
     command: 'pnpm dev:verify',
-    url: 'http://localhost:3011/api/health',
+    url: `${process.env.XZ_E2E_BASE ?? 'http://localhost:3011'}/api/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     stdout: 'ignore',

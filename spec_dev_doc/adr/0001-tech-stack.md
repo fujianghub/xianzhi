@@ -143,6 +143,7 @@ v1 选 SQLite 的理由是「单文件、单容器」。改 PG 的理由：
 ### 4.6 认证与授权（v3 改：多用户）
 - **Better Auth**：TypeScript 原生，Drizzle 适配器，Hono 中间件；启用插件 `organization`（Workspace/Space 成员与角色）、`admin`（管理员后台：用户、封禁、模拟登录）、`twoFactor`、`passkey`、`magicLink`；OAuth 提供方按需（GitHub/Google）。会话 Cookie `HttpOnly/SameSite=Lax/Secure`。
 - **注册策略：邀请制，不开放自助注册**（`disableSignUp` + 邀请链接）。这是控制滥用、邮件送达与配额复杂度的关键边界。
+  - 注（2026-09-25）：被 ADR-0008 部分替代——改为「邀请 或 自助注册 + 管理员审批」，Better Auth 自助注册端点仍关闭。
 - **授权唯一收口点**：`src/server/authz.ts` 导出 `can(user, action, resource)`；API 中间件、Hocuspocus `onAuthenticate`/`onLoadDocument`、文件下载、SSE 订阅、MCP 工具**全部**经它判定；禁止在业务代码里散写 `if (user.role === ...)`。测试按角色矩阵覆盖（owner / admin / member / guest / anon）。
 - API Token（给 MCP、脚本）：Better Auth `apiKey` 插件，可吊销、可限 scope。
 - 审计日志：`audit_log` 表记录登录、权限变更、删除、导出；一期就建表，后台二期展示。
@@ -215,7 +216,7 @@ GrowingInterlude/
 | 3 | 数据库 PostgreSQL（推荐）还是坚持 SQLite 单文件 | PG，独立容器 5433 |
 | 4 | UI 库 shadcn/ui + Tailwind（推荐）还是 AntD 5 | shadcn |
 | 5 | 部署与简斋同机、复用 Caddy | 是 |
-| 6 | 多用户范围：邀请制、单 Workspace 数十人内、不开放注册 | 是（超出此范围架构需重估：Redis、多实例 Hocuspocus、对象存储） |
+| 6 | 多用户范围：~~邀请制~~、单 Workspace 数十人内、~~不开放注册~~（注 2026-09-25，ADR-0008：开放注册 + 审批；数十人 / 50 上限不变） | 是（超出此范围架构需重估：Redis、多实例 Hocuspocus、对象存储） |
 | 7 | 邮件服务商：腾讯云 SES 还是 Resend | 腾讯云 SES（与部署同云、国内送达） |
 | 8 | 动效库：Motion（原 Framer Motion）还是仅 CSS + View Transitions | Motion，布局动画与手势非 CSS 可及 |
 

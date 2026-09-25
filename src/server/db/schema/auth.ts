@@ -25,6 +25,8 @@ export const user = pgTable("user", {
   banReason: text("ban_reason"),
   banExpires: timestamp("ban_expires"),
   twoFactorEnabled: boolean("two_factor_enabled").default(false),
+  username: text("username").unique(),
+  displayUsername: text("display_username"),
   displayName: text("display_name"),
   avatarAttachmentId: text("avatar_attachment_id"),
   locale: text("locale").default("zh-CN"),
