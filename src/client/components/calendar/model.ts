@@ -128,10 +128,15 @@ export function segmentOf(it: CalItem, k: string, tz: string): { from: number; t
   return { from, to: Math.min(MIN_PER_DAY, Math.max(to, from + SNAP)) }
 }
 
+export interface LaneSlot {
+  lane: number
+  lanes: number
+  /** 所属重叠簇序号 */
+  cluster: number
+}
+
 /** 时间轴分栏：重叠成簇，簇内平分列宽。 */
-export function layoutLanes(
-  segs: { from: number; to: number }[],
-): { lane: number; lanes: number }[] {
+export function layoutLanes(segs: { from: number; to: number }[]): LaneSlot[] {
   const order = segs
     .map((_, i) => i)
     .sort((a, b) => {
@@ -139,12 +144,18 @@ export function layoutLanes(
       const sb = segs[b] as { from: number; to: number }
       return sa.from - sb.from || sb.to - sa.to
     })
-  const out = segs.map(() => ({ lane: 0, lanes: 1 }))
+  const out: LaneSlot[] = segs.map(() => ({ lane: 0, lanes: 1, cluster: 0 }))
   let cluster: number[] = []
   let laneEnds: number[] = []
   let clusterEnd = -1
+  let clusterNo = -1
   const flush = () => {
-    for (const i of cluster) (out[i] as { lanes: number }).lanes = laneEnds.length
+    if (cluster.length) clusterNo++
+    for (const i of cluster) {
+      const o = out[i] as LaneSlot
+      o.lanes = laneEnds.length
+      o.cluster = clusterNo
+    }
     cluster = []
     laneEnds = []
   }
@@ -160,6 +171,44 @@ export function layoutLanes(
   }
   flush()
   return out
+}
+
+export interface LaneMore {
+  cluster: number
+  /** 被收起的日程下标（对应 segs） */
+  hidden: number[]
+  /** 按钮起点：被收起日程中最早的开始分钟 */
+  from: number
+  lane: number
+  lanes: number
+}
+
+/**
+ * 分栏上限（REQ-CAL-011）：某簇列数 > `max` 时只保留前 `max - 1` 列，其余收进占第 `max` 列的「+N」按钮，
+ * 避免窄列把日程挤到可点区域 < 24px（axe target-size）。`max = Infinity` 不收起（日视图列宽足够）。
+ */
+export function capLanes(
+  segs: { from: number; to: number }[],
+  slots: LaneSlot[],
+  max: number,
+): { shown: (LaneSlot | null)[]; more: LaneMore[] } {
+  const more = new Map<number, LaneMore>()
+  const shown = slots.map((s, i) => {
+    if (s.lanes <= max) return s
+    if (s.lane < max - 1) return { ...s, lanes: max }
+    const m = more.get(s.cluster) ?? {
+      cluster: s.cluster,
+      hidden: [],
+      from: Number.POSITIVE_INFINITY,
+      lane: max - 1,
+      lanes: max,
+    }
+    m.hidden.push(i)
+    m.from = Math.min(m.from, (segs[i] as { from: number }).from)
+    more.set(s.cluster, m)
+    return null
+  })
+  return { shown, more: [...more.values()] }
 }
 
 export const hhmm = (minutes: number) =>

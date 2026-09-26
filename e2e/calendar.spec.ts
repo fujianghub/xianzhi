@@ -230,3 +230,46 @@ test('REQ-CAL-010 月视图按住拖选 9/9 → 9/11 新建跨日全天日程；
   await page.getByTestId('cal-editor-delete').click()
   await expect(editor).toBeHidden()
 })
+
+test('REQ-CAL-011 周视图同一时段 3 个日程：只并排 1 个 + 「+N」按钮（≥ 24px），点「+N」进当天日视图全部可见', async ({
+  page,
+  request,
+}) => {
+  const cals = (await (await request.get('/api/v1/calendars')).json()) as {
+    items: { id: string }[]
+  }
+  const stamp = Date.now().toString(36)
+  const titles = ['甲', '乙', '丙'].map((x) => `e2e 并排${x} ${stamp}`)
+  for (const title of titles) {
+    const r = await request.post('/api/v1/calendar-events', {
+      data: {
+        calendarId: cals.items[0]?.id,
+        title,
+        startAt: '2026-12-07T15:00:00+08:00',
+        endAt: '2026-12-07T15:30:00+08:00',
+        timezone: 'Asia/Shanghai',
+      },
+      headers: { ...sameSite, 'idempotency-key': crypto.randomUUID() },
+    })
+    expect(r.status()).toBe(201)
+  }
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/calendar?view=week&date=2026-12-07')
+  const col = page.locator('[data-testid="cal-col"][data-date="2026-12-07"]')
+  const more = col.getByTestId('cal-more')
+  await expect(more).toHaveCount(1)
+  await expect(more).toHaveText(/^\+\d+$/)
+  const box = await more.boundingBox()
+  expect(box && box.width >= 24 && box.height >= 24).toBe(true)
+  // 并排的日程同样不窄于 24px
+  for (const ev of await col.getByTestId('cal-event').all()) {
+    const b = await ev.boundingBox()
+    expect(b && b.width >= 24).toBe(true)
+  }
+  await more.click()
+  await expect(page).toHaveURL(/view=day/)
+  await expect(page).toHaveURL(/date=2026-12-07/)
+  for (const title of titles)
+    await expect(page.getByTestId('cal-event').filter({ hasText: title })).toBeVisible()
+  await expect(page.getByTestId('cal-more')).toHaveCount(0)
+})

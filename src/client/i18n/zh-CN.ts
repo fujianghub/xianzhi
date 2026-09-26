@@ -107,6 +107,7 @@ export const zhCN = {
     start: '开始',
     end: '结束',
     more: '还有 {{count}} 项',
+    moreInSlot: '同一时段还有 {{count}} 项，查看当天',
     monthDay: '{{m}}月{{d}}日',
     monthName: '{{m}}月',
     yearName: '{{y}}年',
