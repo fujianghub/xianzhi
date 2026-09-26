@@ -27,7 +27,7 @@ pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore 
 ```
 
 - 后端 API 测试用 `app.request()`，不起端口；`signIn()` 辅助自动取拼图答案。E2E 用独立端口 3011/8012/8013 与独立 `.vite-verify` 缓存；`pnpm e2e` 会重建 `xz_e2e`，且只认 `localhost:3011`（跑前停掉按 IP 起的验证实例）；对其它实例跑指定用例：`XZ_E2E_BASE=http://localhost:<port> pnpm exec playwright test <spec> --project=setup --project=desktop`
-- 验证实例设 `XZ_CAPTCHA_DEBUG=1`（拼图答案回显，e2e `solveCaptcha()` 真实拖拽）；production 由服务端强制忽略
+- 验证实例设 `XZ_CAPTCHA_DEBUG=1`（拼图答案回显，e2e `solveCaptcha()` 真实拖拽）；production 由服务端强制忽略。`xz_e2e` 各 worktree 共用，附件目录固定为主仓 `data/e2e`；不重建库也要能过，用例勿依赖累积数据（自建大类 / 空间，遮罩未读数等易变区域；见 `debug/2026-09-26-e2e-shared-db-data-drift`）
 - 视觉基线：确认新视觉后 `pnpm exec playwright test e2e/design.spec.ts e2e/feedback.spec.ts --project=setup --project=desktop --update-snapshots`
 - **主 dev server 运行时勿在同目录再起共享 `.vite` 缓存的实例**（简斋教训：prosemirror/codemirror 多实例崩溃）；worktree 有自己的 `node_modules`，可在另一端口起预览
 - 改被 `inList()` 引用的枚举（`AUDIT_ACTIONS`、`PALETTE_COLORS` 等）必须 `pnpm db:generate` 重建 check 约束，否则插库 500（见 `debug/2026-09-25-audit-action-check-constraint`）

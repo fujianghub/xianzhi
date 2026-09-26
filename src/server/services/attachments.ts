@@ -157,6 +157,48 @@ async function imageDerivatives(buf: Buffer, basePath: string) {
   }
 }
 
+const exists = (p: string) =>
+  stat(p).then(
+    () => true,
+    () => false,
+  )
+
+/**
+ * 去重命中但磁盘上缺原件或变体（只恢复了库、数据目录换了位置）：按原 key 用这次的字节重新落盘，
+ * id 与各处引用（`xz:attachment/<id>`、头像 URL）不变。字节 sha256 相同，内容即原件。
+ */
+async function rematerialize(
+  db: DbOrTx,
+  ctx: AttachmentCtx,
+  row: typeof attachments.$inferSelect,
+  bytes: Buffer,
+): Promise<typeof attachments.$inferSelect> {
+  const file = dataPath(ctx.dataDir, row.storageKey)
+  const keys = Object.values((row.variants ?? {}) as Record<string, string>)
+  const present = await Promise.all(
+    [file, ...keys.map((k) => dataPath(ctx.dataDir, k))].map(exists),
+  )
+  if (present.every(Boolean)) return row
+  await mkdir(dirname(file), { recursive: true })
+  await writeFile(file, bytes)
+  if (!RASTER.has(row.mime)) return row
+  const derived = await imageDerivatives(bytes, file.replace(/\.[^./]+$/, ''))
+  const rootLen = dataPath(ctx.dataDir).length + 1
+  const [upd] = await db
+    .update(attachments)
+    .set({
+      width: derived.width,
+      height: derived.height,
+      blurhash: derived.blurhash,
+      variants: Object.fromEntries(
+        Object.entries(derived.variants).map(([k, p]) => [k, (p as string).slice(rootLen)]),
+      ),
+    })
+    .where(eq(attachments.id, row.id))
+    .returning()
+  return upd ?? row
+}
+
 export interface UploadInput {
   filename: string
   bytes: Uint8Array
@@ -217,16 +259,17 @@ export async function uploadAttachment(
     )
     .limit(1)
   if (dup) {
-    // 同人同文件：幂等返回；原先是孤儿而这次带了 target → 认领
-    if (!dup.targetType && input.targetType && input.targetId) {
+    // 同人同文件：幂等返回；原先是孤儿而这次带了 target → 认领；文件丢了先补回
+    const found = await rematerialize(db, ctx, dup, bytes)
+    if (!found.targetType && input.targetType && input.targetId) {
       const [upd] = await db
         .update(attachments)
         .set({ targetType: input.targetType, targetId: input.targetId })
-        .where(eq(attachments.id, dup.id))
+        .where(eq(attachments.id, found.id))
         .returning()
-      return { view: toView(upd ?? dup), created: false }
+      return { view: toView(upd ?? found), created: false }
     }
-    return { view: toView(dup), created: false }
+    return { view: toView(found), created: false }
   }
   if ((await usedBytes(db, ctx)) + bytes.length > ATTACHMENT_LIMITS.quotaPerUser)
     throw new AppError(413, 'QUOTA_EXCEEDED', '附件总量已达 5 GB 上限')
