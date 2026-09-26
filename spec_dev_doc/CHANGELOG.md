@@ -4,6 +4,12 @@
 
 ## 2026-09-27
 
+**日历就地编辑、自定义记录类型、记录默认列表与批量编辑、侧栏「空间」可点（ADR-0016）**
+- 新增 ADR-0016。00：+REQ-CAL-012 · 013、REQ-ENTRY-016 ~ 019、REQ-UI-038；REQ-UI-031、REQ-ENTRY-001 · 013 加注。
+- 01：§3.4 entries +`type_id`、kind 增 `custom`；新 §3.4c `entry_types` / `hidden_entry_kinds`；§3.12 审计 +`entry_type.deleted`；§5 +`entry_type.create` / `entry_type.manage`。
+- 02 §9：+`/entry-types` 5 条；`POST /entries/batch` op 增 retype / fields / pin / unpin；`GET /entries` +`typeId`；`PATCH /entries/:id` 可改 `kind` + `typeId`。
+- 08：§1 +`/settings/types`；§2.8 默认视图改为列表、search params +`typeId`、`view` 增 `cards`；§2.17 注快速编辑气泡与任务拖动。glossary：+自定义类型、隐藏内置类型、快速编辑气泡。
+
 **日历周视图重叠日程折叠「+N」**
 - 00：+REQ-CAL-011（每簇最多并排 2 列，余下收成「+N」，保证可点目标 ≥ 24px）。08 §2.17 周视图描述加注。
 

@@ -29,8 +29,15 @@ export const ENTRY_KINDS = [
   // ADR-0011 §3（2026-09-25）：产品优化 / 学习计划
   'optimize',
   'plan',
+  // ADR-0016（2026-09-27）：自定义类型——具体名 / 色 / 状态列表在 entry_types，entries.type_id 指向它
+  'custom',
 ] as const
 export type EntryKind = (typeof ENTRY_KINDS)[number]
+/** 内置类型（有固定 fields schema、图标、正文模板）；模板与「隐藏内置类型」只接受这些。 */
+export const BUILTIN_ENTRY_KINDS = ENTRY_KINDS.filter(
+  (k): k is Exclude<EntryKind, 'custom'> => k !== 'custom',
+)
+export type BuiltinEntryKind = Exclude<EntryKind, 'custom'>
 /** 用户模板范围（ADR-0011 §2）：个人 / 工作区；内置模板不入表。 */
 export const TEMPLATE_SCOPES = ['personal', 'workspace'] as const
 export type TemplateScope = (typeof TEMPLATE_SCOPES)[number]
@@ -86,7 +93,7 @@ export const DELIVERY_CHANNELS = ['in_app', 'webpush', 'email'] as const
 export const DELIVERY_STATUSES = ['pending', 'sent', 'failed', 'skipped'] as const
 export const DIGESTS = ['instant', 'daily'] as const
 
-/** 01 §3.12 审计 action 枚举（32 项；+3 注册审批 ADR-0008；+3 用户管理 / 个人资料 ADR-0010）；写入非枚举值即抛错（REQ-WS-017）。 */
+/** 01 §3.12 审计 action 枚举（32 项；+3 注册审批 ADR-0008；+3 用户管理 / 个人资料 ADR-0010；+1 删自定义类型 ADR-0016）；写入非枚举值即抛错（REQ-WS-017）。 */
 export const AUDIT_ACTIONS = [
   'auth.login',
   'auth.logout',
@@ -124,6 +131,8 @@ export const AUDIT_ACTIONS = [
   'api_key.revoked',
   'gc.failed',
   'backup.failed',
+  // ADR-0016：删自定义类型会把其下记录转为随手记，留痕
+  'entry_type.deleted',
 ] as const
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]
 

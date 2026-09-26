@@ -109,7 +109,7 @@ function EntryPage() {
         <>
           <Breadcrumb entry={e} />
           <div className="mb-2 flex items-center gap-2 text-xs">
-            <KindBadge kind={e.kind} size="md" />
+            <KindBadge kind={e.kind} typeId={e.typeId} size="md" />
             <span className="text-fg-muted">{t(`entry.visibility.${e.visibility}`)}</span>
             {e.archivedAt ? (
               <span

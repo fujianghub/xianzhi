@@ -1,7 +1,7 @@
 /**
  * 导出作业 `export.run`（02 §8、03 §8、REQ-EXPORT-001 · 002 · 007 · 008）。
  * - 内容一律按**发起人**的 visibleEntriesWhere / visibleTasksWhere 过滤，不因 admin 身份放宽（07 §2.4）；scope=workspace 仅 owner/admin。
- * - zip：`<space>/<kind>/<yyyy-mm-dd>-<slug>.md`（YAML frontmatter：id / title / kind / fields / tags / links …）、`assets/<id>.<ext>`、
+ * - zip：`<space>/<kind 或自定义类型名>/<yyyy-mm-dd>-<slug>.md`（YAML frontmatter：id / title / kind / fields / tags / links …）、`assets/<id>.<ext>`、
  *   `<space>/tasks.json`、`cycles.json`、`README.md`（说明有损项）。scope=entry 且 format=md|html 时产出单文件。
  * - 失败重试 3 次指数退避（共 4 次尝试），仍失败 → audit export.failed 并抛出（作业状态 failed）。
  * - 成功：DATA_DIR/exports/<jobId>.<ext>，audit export.done，发 system.export_done（通知发起人）；gc.exports 7 天后清理。
@@ -21,6 +21,7 @@ import {
   cycles,
   entries,
   entryTags,
+  entryTypes,
   links,
   spaces,
   tags,
@@ -84,6 +85,7 @@ export async function buildExport(db: Db, dataDir: string, actor: Actor, d: Expo
   const es = await db
     .select({
       e: entries,
+      typeName: entryTypes.name,
       slug: spaces.slug,
       author: userTable.name,
       authorDisplay: userTable.displayName,
@@ -91,6 +93,7 @@ export async function buildExport(db: Db, dataDir: string, actor: Actor, d: Expo
     .from(entries)
     .innerJoin(spaces, eq(spaces.id, entries.spaceId))
     .leftJoin(userTable, eq(userTable.id, entries.authorId))
+    .leftJoin(entryTypes, eq(entryTypes.id, entries.typeId))
     .where(and(...entryConds))
     .orderBy(asc(entries.createdAt))
   const ids = es.map((r) => r.e.id)
@@ -142,7 +145,13 @@ export async function buildExport(db: Db, dataDir: string, actor: Actor, d: Expo
         entries: 1,
         tasks: 0,
       }
-    const md = frontmatter({ id: r.e.id, title: r.e.title, kind: r.e.kind }) + pmToMarkdown(doc)
+    const md =
+      frontmatter({
+        id: r.e.id,
+        title: r.e.title,
+        kind: r.e.kind,
+        ...(r.typeName ? { type: r.typeName } : {}),
+      }) + pmToMarkdown(doc)
     return {
       single: {
         name: `${fileSlug(r.e.title)}.md`,
@@ -157,7 +166,9 @@ export async function buildExport(db: Db, dataDir: string, actor: Actor, d: Expo
   const files: Record<string, Uint8Array> = {}
   const used = new Set<string>()
   for (const r of es) {
-    const base = `${fileSlug(r.slug)}/${r.e.kind}/${ymd(r.e.createdAt)}-${fileSlug(r.e.title)}`
+    // 自定义类型按类型名分目录（ADR-0016）
+    const kindDir = r.typeName ? fileSlug(r.typeName) : r.e.kind
+    const base = `${fileSlug(r.slug)}/${kindDir}/${ymd(r.e.createdAt)}-${fileSlug(r.e.title)}`
     let path = `${base}.md`
     for (let i = 2; used.has(path); i++) path = `${base}-${i}.md`
     used.add(path)
@@ -165,6 +176,7 @@ export async function buildExport(db: Db, dataDir: string, actor: Actor, d: Expo
       id: r.e.id,
       title: r.e.title,
       kind: r.e.kind,
+      ...(r.typeName ? { type: r.typeName } : {}),
       space: r.slug,
       visibility: r.e.visibility,
       author: r.authorDisplay || r.author || '',

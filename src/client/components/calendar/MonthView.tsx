@@ -152,7 +152,7 @@ export function MonthView({
                   item={it}
                   tz={tz}
                   onOpen={onOpen}
-                  draggable={it.source === 'event'}
+                  draggable
                   onDragStart={(e) => {
                     drag.current = { item: it, from: key }
                     e.dataTransfer.effectAllowed = 'move'

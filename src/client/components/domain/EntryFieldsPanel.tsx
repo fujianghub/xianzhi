@@ -53,6 +53,7 @@ export default function EntryFieldsPanel({
   return (
     <EntryFieldsForm
       kind={entry.kind}
+      typeId={entry.typeId}
       value={value}
       disabled={disabled}
       errors={errors}

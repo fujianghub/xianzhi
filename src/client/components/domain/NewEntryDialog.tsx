@@ -3,6 +3,7 @@
  * 模板：「按类型默认」= 首次打开按 kind 注入骨架；选具体模板 → 带出 kind / fields，正文以模板初始化；
  * 当前空间类型（如「学习」）推荐的模板排在前面。改 kind 与所选模板不符时回到「按类型默认」。
  * 422 的 `fields.*` 错误就地显示在对应字段下；其余错误 Toast。按需懒加载（带 zod）。
+ * 类型（ADR-0016）：未隐藏的内置类型 + 自定义类型；自定义类型的状态默认取其第一项（服务端补）。
  */
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
@@ -14,7 +15,8 @@ import type { SpaceKind } from '../../../shared/schemas/enums.ts'
 import { useEntryActions } from '../../hooks/useEntries.ts'
 import { ApiError } from '../../lib/api.ts'
 import { cn } from '../../lib/cn.ts'
-import { ENTRY_KINDS, type EntryKind } from '../../lib/entry-queries.ts'
+import type { EntryKind } from '../../lib/entry-queries.ts'
+import { kindKey, useKindOptions } from '../../lib/entry-types.ts'
 import { spacesQuery } from '../../lib/space-queries.ts'
 import { useNewEntry } from '../../lib/stores.ts'
 import { sortTemplates, type Template, templatesQuery } from '../../lib/template-queries.ts'
@@ -29,6 +31,8 @@ export default function NewEntryDialog() {
   const actions = useEntryActions()
   const nav = useNavigate()
   const [kind, setKind] = useState<EntryKind>(defaults.kind ?? 'note')
+  const [typeId, setTypeId] = useState<string | undefined>(defaults.typeId)
+  const kindOptions = useKindOptions()
   const [title, setTitle] = useState('')
   const [fields, setFields] = useState<Record<string, unknown>>(defaultEntryFields[kind])
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -49,17 +53,19 @@ export default function NewEntryDialog() {
     setErrors({})
     if (!tpl) return
     setKind(tpl.kind)
+    setTypeId(undefined)
     setFields({ ...defaultEntryFields[tpl.kind], ...tpl.fields })
   }
 
   useEffect(() => {
     if (!open) return
-    const k = defaults.kind ?? 'note'
+    const k = defaults.kind === 'custom' && !defaults.typeId ? 'note' : (defaults.kind ?? 'note')
     setKind(k)
+    setTypeId(k === 'custom' ? defaults.typeId : undefined)
     setFields({ ...defaultEntryFields[k] })
     setErrors({})
     setTemplateId(null)
-  }, [open, defaults.kind])
+  }, [open, defaults.kind, defaults.typeId])
   // 外部预选（模板管理页「用此模板新建」）：列表到位后带出 kind / fields
   useEffect(() => {
     if (!open || !defaults.templateId) return
@@ -67,11 +73,13 @@ export default function NewEntryDialog() {
     if (!tpl) return
     setTemplateId(tpl.id)
     setKind(tpl.kind)
+    setTypeId(undefined)
     setFields({ ...defaultEntryFields[tpl.kind], ...tpl.fields })
   }, [open, defaults.templateId, templates.data])
 
-  const pickKind = (k: EntryKind) => {
+  const pickKind = (k: EntryKind, tid?: string) => {
     setKind(k)
+    setTypeId(tid)
     setFields({ ...defaultEntryFields[k] })
     setErrors({})
     const cur = templates.data?.find((x) => x.id === templateId)
@@ -87,6 +95,7 @@ export default function NewEntryDialog() {
     try {
       const r = await actions.create({
         kind,
+        ...(kind === 'custom' && typeId ? { typeId } : {}),
         title: v,
         fields,
         spaceId: defaults.spaceId,
@@ -149,23 +158,26 @@ export default function NewEntryDialog() {
             aria-label={t('entry.props.kind')}
             className="flex flex-wrap gap-1.5"
           >
-            {ENTRY_KINDS.map((k) => (
-              // biome-ignore lint/a11y/useSemanticElements: 胶囊式单选，保持按钮外观
-              <button
-                key={k}
-                type="button"
-                role="radio"
-                aria-checked={kind === k}
-                data-kind={k}
-                onClick={() => pickKind(k)}
-                className={cn(
-                  'h-8 rounded-full border border-border px-3 text-sm transition-colors duration-(--xz-dur-fast) hover:bg-hover',
-                  kind === k && 'border-transparent bg-selected font-medium text-primary-text',
-                )}
-              >
-                {t(`entry.kind.${k}`)}
-              </button>
-            ))}
+            {kindOptions.map((o) => {
+              const on = kind === o.kind && (o.kind !== 'custom' || typeId === o.typeId)
+              return (
+                // biome-ignore lint/a11y/useSemanticElements: 胶囊式单选，保持按钮外观
+                <button
+                  key={kindKey(o)}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  data-kind={kindKey(o)}
+                  onClick={() => pickKind(o.kind, o.typeId ?? undefined)}
+                  className={cn(
+                    'h-8 rounded-full border border-border px-3 text-sm transition-colors duration-(--xz-dur-fast) hover:bg-hover',
+                    on && 'border-transparent bg-selected font-medium text-primary-text',
+                  )}
+                >
+                  {o.label}
+                </button>
+              )
+            })}
           </div>
           <Input
             value={title}
@@ -175,7 +187,13 @@ export default function NewEntryDialog() {
             autoFocus
             data-testid="new-entry-title"
           />
-          <EntryFieldsForm kind={kind} value={fields} onChange={setFields} errors={errors} />
+          <EntryFieldsForm
+            kind={kind}
+            typeId={typeId}
+            value={fields}
+            onChange={setFields}
+            errors={errors}
+          />
           <div className="flex justify-end">
             <Button
               type="submit"

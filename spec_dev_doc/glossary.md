@@ -102,6 +102,9 @@
 | 最近打开 | Recent / `recent` | 本机 `localStorage xz:recent` | 最近打开 | `entry.nav.recent` | 本机最近访问的记录，按访问顺序（ADR-0014） | 08 §2.8 |
 | 记录位置 | Entries location | URL `spaceId under groupId favorite recent archived` | 记录位置 | `entry.nav.label` | 记录页左栏选中的范围，互斥（ADR-0014） | 08 §2.8 |
 | 批量操作 | Batch / `POST /entries/batch` | — | 多选 / 批量操作 | `entry.batch.*` | 逐条鉴权，部分失败不回滚（ADR-0014） | 02 §9 |
+| 自定义类型 | Custom entry type / `typeId` | `entry_types` | 自定义类型 | `settings.types.*` | 工作区共享的记录类型：名 + 色 + 状态列表；记录 `kind = custom`（ADR-0016） | 01 §3.4c |
+| 隐藏内置类型 | Hidden builtin kind | `hidden_entry_kinds` | 隐藏 | `settings.types.hide` | 只影响筛选条与新建菜单，已有记录照常显示（ADR-0016） | 01 §3.4c |
+| 快速编辑气泡 | Calendar quick edit | — | — | `calendar.quick.*` | 日历里点日程 / 任务在其旁弹出的就地编辑框（ADR-0016） | 08 §2.17 |
 | 看板（记录） | Entry board / `view=board` | — | 看板 | `entry.board.label` | 按 `fields.status` 分列的记录视图（ADR-0014） | 08 §2.8 |
 | 时间线 | Timeline / `view=timeline` | — | 时间线 | `entry.timeline.label` | 迭代 / 变更按日期的视图（ADR-0014） | 08 §2.8 |
 | 合并标签 | Merge tag | — | 合并到… | `settings.tags.merge` | 源标签关联并入目标后删除源（ADR-0014） | 02 §9 |

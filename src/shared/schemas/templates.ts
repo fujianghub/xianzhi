@@ -2,7 +2,7 @@
 import { z } from 'zod'
 import { uuidSchema } from './common.ts'
 import { entryFieldsIssues } from './entryFields.ts'
-import { ENTRY_KINDS, SPACE_KINDS, TEMPLATE_SCOPES } from './enums.ts'
+import { BUILTIN_ENTRY_KINDS, SPACE_KINDS, TEMPLATE_SCOPES } from './enums.ts'
 import { fullDocSchema } from './pm.ts'
 
 /** 模板 id：内置 `builtin:<key>` 或用户模板 uuid。 */
@@ -12,7 +12,7 @@ export const templateIdSchema = z.union([
 ])
 
 export const listTemplatesQuery = z.object({
-  kind: z.enum(ENTRY_KINDS).optional(),
+  kind: z.enum(BUILTIN_ENTRY_KINDS).optional(),
   spaceKind: z.enum(SPACE_KINDS).optional(),
 })
 
@@ -27,7 +27,7 @@ const meta = {
 export const createTemplateSchema = z
   .object({
     ...meta,
-    kind: z.enum(ENTRY_KINDS).optional(),
+    kind: z.enum(BUILTIN_ENTRY_KINDS).optional(),
     fields: z.record(z.string(), z.unknown()).optional(),
     body: fullDocSchema.optional(),
     fromEntryId: uuidSchema.optional(),

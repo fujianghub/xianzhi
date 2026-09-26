@@ -24,7 +24,7 @@ import type {
   listEntriesQuery,
   patchEntrySchema,
 } from '../../shared/schemas/entries.ts'
-import { entryFieldsByKind } from '../../shared/schemas/entryFields.ts'
+import { defaultEntryFields, entryFieldsByKind } from '../../shared/schemas/entryFields.ts'
 import type { EntryKind, EntryVisibility, SpaceRole } from '../../shared/schemas/enums.ts'
 import {
   type Actor,
@@ -50,6 +50,7 @@ import { type EventBus, getEventBus } from '../lib/event-bus.ts'
 import { audit } from './audit.ts'
 import { weightedTsv } from './derived.ts'
 import { entryPath, entryPaths, liftChildren, placeNew } from './entry-tree.ts'
+import { loadEntryType, normalizeCustomFields } from './entry-types.ts'
 import { purgeLinksOf } from './links.ts'
 import { publishChange } from './realtime.ts'
 import { resolveTemplateBody } from './templates.ts'
@@ -68,6 +69,8 @@ type SpaceRow = typeof spaces.$inferSelect
 export interface EntryView {
   id: string
   kind: EntryKind
+  /** 自定义类型 id（kind = 'custom'，ADR-0016）；名 / 色 / 状态由前端从 /entry-types 取 */
+  typeId: string | null
   title: string
   spaceId: string
   spaceSlug: string
@@ -186,6 +189,7 @@ function toView(
   const v: EntryView = {
     id: e.id,
     kind: e.kind as EntryKind,
+    typeId: e.typeId ?? null,
     title: e.title,
     spaceId: e.spaceId,
     spaceSlug: space.slug,
@@ -241,7 +245,11 @@ export async function listEntries(db: Db, ctx: EntryCtx, q: z.infer<typeof listE
     if (!sp || !can(ctx.actor, 'space.read', sp.ref)) throw AppError.notFound('空间不存在') // 02 §4：不可见筛选 → 404
     conds.push(eq(entries.spaceId, q.spaceId))
   }
-  if (q.kind?.length) conds.push(inArray(entries.kind, q.kind))
+  // 内置类型与自定义类型同给 = 任一命中（ADR-0016）
+  if (q.kind?.length && q.typeId?.length)
+    conds.push(or(inArray(entries.kind, q.kind), inArray(entries.typeId, q.typeId))!)
+  else if (q.kind?.length) conds.push(inArray(entries.kind, q.kind))
+  else if (q.typeId?.length) conds.push(inArray(entries.typeId, q.typeId))
   for (const [name, vals] of Object.entries(q.fields ?? {}))
     conds.push(
       sql`${entries.fields} ->> ${name} in (${sql.join(
@@ -401,6 +409,64 @@ function assertPersonalPrivate(isPersonal: boolean, visibility: EntryVisibility)
     throw AppError.validation([{ path: 'visibility', message: '个人空间里的记录只能是「仅自己」' }])
 }
 
+/**
+ * 按（目标）类型校验并规范化 fields（ADR-0016）：内置类型走各自 strict schema；
+ * 自定义类型须属本工作区，status ∈ 其状态列表（新建未给 → 第一项）。返回写库用的 { kind, typeId, fields }。
+ */
+export async function resolveKindFields(
+  db: DbOrTx,
+  ctx: EntryCtx,
+  kind: EntryKind,
+  typeId: string | null | undefined,
+  fields: Record<string, unknown>,
+  opts: { fillDefault: boolean },
+): Promise<{ kind: EntryKind; typeId: string | null; fields: Record<string, unknown> }> {
+  const r = entryFieldsByKind[kind].safeParse(fields)
+  if (!r.success)
+    throw AppError.validation(
+      r.error.issues.map((i) => ({ path: ['fields', ...i.path].join('.'), message: i.message })),
+    )
+  if (kind !== 'custom') return { kind, typeId: null, fields }
+  const type = typeId ? await loadEntryType(db, ctx.workspaceId, typeId) : null
+  if (!type) throw AppError.validation([{ path: 'typeId', message: '类型不存在' }])
+  return {
+    kind,
+    typeId: type.id,
+    fields: normalizeCustomFields(type.statuses ?? [], r.data as Record<string, unknown>, opts),
+  }
+}
+
+/**
+ * 改类型时重建 fields（ADR-0016）：从目标类型默认值出发，保留在目标类型仍合法的 status / progress。
+ * 目标类型有无默认值的必填字段（迭代 / 变更 / 复盘）→ 422，请在属性栏里填好后再改。
+ */
+export async function fieldsForRetype(
+  db: DbOrTx,
+  ctx: EntryCtx,
+  from: Record<string, unknown>,
+  kind: EntryKind,
+  typeId: string | null | undefined,
+): Promise<Record<string, unknown>> {
+  const base: Record<string, unknown> = { ...defaultEntryFields[kind] }
+  const statuses =
+    kind === 'custom' && typeId
+      ? ((await loadEntryType(db, ctx.workspaceId, typeId))?.statuses ?? [])
+      : null
+  for (const key of ['status', 'progress'] as const) {
+    if (from[key] === undefined) continue
+    const trial = { ...base, [key]: from[key] }
+    const ok =
+      entryFieldsByKind[kind].safeParse(trial).success &&
+      (key !== 'status' || statuses === null || statuses.includes(String(from[key])))
+    if (ok) base[key] = from[key]
+  }
+  if (!entryFieldsByKind[kind].safeParse(base).success)
+    throw AppError.validation([
+      { path: 'kind', message: '目标类型有必填属性，请在记录的属性栏里改类型并填写' },
+    ])
+  return base
+}
+
 export async function createEntry(
   db: Db,
   ctx: EntryCtx,
@@ -413,6 +479,9 @@ export async function createEntry(
   const visibility = input.visibility ?? (sp.row.isPersonal ? 'private' : 'space')
   assertPersonalPrivate(sp.row.isPersonal, visibility)
   // 套模板（ADR-0011 §2）：模板正文一次性写成初始 ydoc；未选模板则首次打开按 kind 注入（03 §6）
+  const typed = await resolveKindFields(db, ctx, input.kind, input.typeId, input.fields, {
+    fillDefault: true,
+  })
   const body = await resolveTemplateBody(db, ctx, input.templateId, {
     space: sp.row.isPersonal ? '' : sp.row.name,
   })
@@ -422,9 +491,10 @@ export async function createEntry(
       .values({
         workspaceId: ctx.workspaceId,
         spaceId,
-        kind: input.kind,
+        kind: typed.kind,
+        typeId: typed.typeId,
         title: input.title,
-        fields: input.fields,
+        fields: typed.fields,
         visibility,
         authorId: ctx.actor.id,
         ydoc: body ? ydocFromPm(body) : emptyYdoc(),
@@ -482,12 +552,26 @@ export async function patchEntry(
     const current = await getEntry(db, ctx, id)
     throw new AppError(409, 'CONFLICT_STALE', '记录已被他人修改', { current })
   }
-  if (patch.fields !== undefined) {
-    const r = entryFieldsByKind[loaded.row.kind as EntryKind].safeParse(patch.fields)
-    if (!r.success)
-      throw AppError.validation(
-        r.error.issues.map((i) => ({ path: ['fields', ...i.path].join('.'), message: i.message })),
-      )
+  // 改类型（ADR-0016）：未给 fields 时按目标类型重建；给了 fields 则按目标类型校验
+  const retype =
+    patch.kind !== undefined &&
+    (patch.kind !== loaded.row.kind || (patch.typeId ?? null) !== loaded.row.typeId)
+  const targetKind = (retype ? patch.kind : loaded.row.kind) as EntryKind
+  const targetTypeId = retype ? (patch.typeId ?? null) : loaded.row.typeId
+  let nextFields: Record<string, unknown> | undefined
+  if (patch.fields !== undefined || retype) {
+    const raw =
+      patch.fields ??
+      (await fieldsForRetype(
+        db,
+        ctx,
+        (loaded.row.fields ?? {}) as Record<string, unknown>,
+        targetKind,
+        targetTypeId,
+      ))
+    nextFields = (
+      await resolveKindFields(db, ctx, targetKind, targetTypeId, raw, { fillDefault: retype })
+    ).fields
   }
   let targetSpaceId = loaded.row.spaceId
   if (patch.spaceId && patch.spaceId !== loaded.row.spaceId) {
@@ -514,7 +598,11 @@ export async function patchEntry(
       // 标题进 tsv（权重 A），正文部分取已派生的 plain（02 §4.1）
       set.tsv = weightedTsv(patch.title, loaded.row.plain ?? '') as unknown as string
     }
-    if (patch.fields !== undefined) set.fields = patch.fields
+    if (nextFields !== undefined) set.fields = nextFields
+    if (retype) {
+      set.kind = targetKind
+      set.typeId = targetTypeId
+    }
     if (patch.visibility !== undefined) set.visibility = patch.visibility
     if (patch.pinned !== undefined) set.pinned = patch.pinned
     set.spaceId = targetSpaceId
@@ -607,6 +695,7 @@ export async function archiveEntry(
 export interface EntryPreview {
   id: string
   kind: EntryKind
+  typeId: string | null
   title: string
   excerpt: string
   author: { id: string; displayName: string }
@@ -627,6 +716,7 @@ const SUMMARY_KEYS: Record<EntryKind, string[]> = {
   review: [],
   optimize: ['status', 'metric'],
   plan: ['status', 'progress', 'endDate'],
+  custom: ['status', 'progress', 'dueDate'],
 }
 
 /** GET /entries/:id/preview：受 entry.read 约束（不可见 → 404）。 */
@@ -643,6 +733,7 @@ export async function previewEntry(db: Db, ctx: EntryCtx, id: string): Promise<E
   return {
     id: row.id,
     kind: row.kind as EntryKind,
+    typeId: row.typeId ?? null,
     title: row.title,
     excerpt: (row.plain ?? '').slice(0, EXCERPT_LEN),
     author: { id: row.authorId, displayName: names.get(row.authorId) ?? LEFT_MEMBER },

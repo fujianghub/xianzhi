@@ -1,6 +1,6 @@
 # 00 需求规范
 
-> 状态：已采纳 · 版本：v2 · 更新：2026-09-25 · 最后对照代码：2026-09-25（鲜艳色板 / 用户管理 / 个人资料，ADR-0010：REQ-CAL-010、REQ-UI-035、REQ-WS-018 ~ 023、REQ-AUTH-021；注册审批 / 用户名 / 日程 / 宽屏：REQ-AUTH-017 ~ 020、REQ-CAL-001 ~ 009、REQ-UI-034；此前 2026-09-24：REQ-AUTH-016、REQ-TASK-024、REQ-UI-024 ~ 032） · 依据 ADR-0001 §1、§7、§9、ADR-0003。
+> 状态：已采纳 · 版本：v2 · 更新：2026-09-27（ADR-0016：REQ-CAL-012 · 013、REQ-ENTRY-016 ~ 019、REQ-UI-038）· 最后对照代码：2026-09-25（鲜艳色板 / 用户管理 / 个人资料，ADR-0010：REQ-CAL-010、REQ-UI-035、REQ-WS-018 ~ 023、REQ-AUTH-021；注册审批 / 用户名 / 日程 / 宽屏：REQ-AUTH-017 ~ 020、REQ-CAL-001 ~ 009、REQ-UI-034；此前 2026-09-24：REQ-AUTH-016、REQ-TASK-024、REQ-UI-024 ~ 032） · 依据 ADR-0001 §1、§7、§9、ADR-0003。
 > 本文是**所有测试与任务的追溯源头**：每条需求有唯一 `REQ-<AREA>-<NNN>` 编号；`05` §5 的测试、`tasks/` 的任务、PR 描述都引用这里的编号。设计如何实现在 01–06；本文只写「做什么、验收什么」。
 > 分期：一期 = Phase 0–2（本文编号范围）；二期 = Phase 3（文末只列标题，不编号、不验收）。
 
@@ -148,7 +148,7 @@
 
 | ID | P | Phase | 需求（EARS） | 验收（GWT） | 依据 | 测试层 |
 |---|---|---|---|---|---|---|
-| REQ-ENTRY-001 | P0 | 0 | 当创建记录时，系统应校验 `kind` 属 7 种、`fields` 符合该 kind 的 Zod schema，返回 id，正文经 collab 写入 | When `POST /entries {kind:'bug', fields:{severity:'x'}}` Then 422 `errors[].path = fields.severity`<br>When 合法 Then 201 `{id}`，`ydoc` 为空文档 | 01 §3.4–3.5 · 02 §9 | api |
+| REQ-ENTRY-001 | P0 | 0 | 当创建记录时，系统应校验 `kind` 属 7 种、`fields` 符合该 kind 的 Zod schema，返回 id，正文经 collab 写入（注 2026-09-27 ADR-0016：kind 增 `custom`，须同给 `typeId`，见 REQ-ENTRY-018） | When `POST /entries {kind:'bug', fields:{severity:'x'}}` Then 422 `errors[].path = fields.severity`<br>When 合法 Then 201 `{id}`，`ydoc` 为空文档 | 01 §3.4–3.5 · 02 §9 | api |
 | REQ-ENTRY-002 | P0 | 1 | 记录列表应不返回 `ydoc / pmJson / plain`，附 160 字 `excerpt`，游标分页 | When `GET /entries?spaceId=&kind=` Then 每项无正文列，`excerpt.length ≤ 160` | 02 §4 | api |
 | REQ-ENTRY-003 | P0 | 1 | 可见性 `private` 仅作者、`space` 需空间可读、`workspace` 需工作区成员；记录必须属于一个空间，个人随笔落个人空间且 `visibility=private` | Given 他人 private When `GET /entries/:id` Then 404<br>~~When `POST /entries` 无 `spaceId` Then 422 `VALIDATION`~~（注 2026-09-24：与 01 §3.4「无空间语义的记录落作者个人空间」、02 §9 `spaceId?` 及 REQ-ENTRY-001 冲突，以缺省落个人空间为准；个人空间缺省 `private`）<br>When 在个人空间创建 `visibility:'workspace'` 或 `'space'` Then 422 | 01 §3.1 · 01 §3.4 · 01 §5 | api |
 | REQ-ENTRY-004 | P0 | 1 | 记录的修改应限作者或空间 admin，删除限作者或 owner/admin | Given 同空间 member 非作者 When `PATCH /entries/:id` Then 403；Given space admin Then 200 | 01 §5 | api |
@@ -160,9 +160,13 @@
 | REQ-ENTRY-010 | P0 | 0 | `pnpm xz rebuild-derived` 重建后的 `pm_json / plain / tsv / word_count` 应与实时派生逐字节一致 | Given 10 篇记录 When 清空派生列并重建 Then 与备份值相等 | 01 §7 · CLAUDE 不变量 1 | unit |
 | REQ-ENTRY-011 | P1 | 1 | 记录应可在空间间移动，移动后可见性按目标空间重新判定 | When `PATCH {spaceId: S2}` Then S1 成员非 S2 成员 `GET` 404 | 04 §6 ⌘K 上下文命令 | api |
 | REQ-ENTRY-012 | P1 | 2 | （2026-09-26 新增，ADR-0014）记录列表应可按位置定位：目录子树 `under`、大类 `groupId`（`none` = 未分类）、本人收藏 `favorite=1`、按 id `ids=`（最近打开）；每项带目录 `path` 与 `favorited`；`/entries` 左栏 = 全部 / 最近 / 收藏 / 已归档 / 个人随笔 / 大类 → 空间 → 目录树 | When `GET /entries?under=A` Then 含 A 及其子孙、子页 `path=[A]`；When 收藏后 `favorite=1` Then 只含本人收藏；When 左栏点目录节点 Then 只列该子树 | ADR-0014 · 02 §9 | api · e2e |
-| REQ-ENTRY-013 | P1 | 2 | （ADR-0014）批量 `POST /entries/batch`（移动空间 / 加去标签 / 归档 / 取消归档 / 删除，≤ 100）应逐条鉴权，无权条目进 `failed` 而不影响其它条 | When member 批量删 [自己的, owner 私人随笔] Then `ok=[自己的]`、`failed=[私人随笔]`；When 多选两篇点「归档」Then 两篇离开列表 | ADR-0014 | api · e2e |
+| REQ-ENTRY-013 | P1 | 2 | （ADR-0014）批量 `POST /entries/batch`（移动空间 / 加去标签 / 归档 / 取消归档 / 删除，≤ 100）应逐条鉴权，无权条目进 `failed` 而不影响其它条（注 2026-09-27 ADR-0016：op 增 retype / fields / pin / unpin，见 REQ-ENTRY-017） | When member 批量删 [自己的, owner 私人随笔] Then `ok=[自己的]`、`failed=[私人随笔]`；When 多选两篇点「归档」Then 两篇离开列表 | ADR-0014 | api · e2e |
 | REQ-ENTRY-014 | P1 | 2 | （ADR-0014）记录 ⋯ 菜单：收藏 · 固定 · 导出 md / html · 归档 / 取消归档 · 删除（确认 + 撤销）；已归档记录只在「已归档」出现 | When 归档 Then 不在默认列表、在 `archived=1`；When 删除后点「撤销」Then 记录回到列表 | ADR-0014 | e2e |
 | REQ-ENTRY-015 | P2 | 2 | （ADR-0014）只选一种带 status 的类型时可切看板（拖列 = 改 `fields.status`）；只选迭代 / 变更时可切时间线（按日期倒序、按月分组） | When Bug 看板把卡片拖到「已修复」Then `fields.status = fixed` | ADR-0014 | e2e |
+| REQ-ENTRY-016 | P1 | 2 | （2026-09-27 新增，ADR-0016）记录页与空间记录页默认为列表视图（`view=cards` 为卡片，`view=table` 兼容），列含勾选 · 标题（目录路径 + 一行摘要）· 类型 · 状态 · 进度 · 标签 · 空间 · 更新时间；状态为色胶囊 + 文字，进度为进度条 + 百分比 | When 打开 `/entries?spaceId=` Then 渲染 `entry-table`；学习计划 `progress=40` 的行进度列显示 40%，状态列显示「学习中」 | ADR-0016 · 08 §2.8 | e2e |
+| REQ-ENTRY-017 | P1 | 2 | （ADR-0016）批量编辑：列表勾选列常驻、表头全选，有选中即出操作条；`POST /entries/batch` 增 `retype {kind, typeId?}`（fields 按目标类型重建，保留仍合法的状态 / 进度；有必填属性的类型逐条失败）、`fields {set:{status?, progress?}}`（按类型校验，不合法进 failed）、`pin` / `unpin`；改状态按类型分组下发 | When 选两篇随笔批量改为 Bug Then 两篇 `fields = {severity:medium, status:open}`；When 改为 iteration Then 进 failed；When `fields {status:'open'}` 于自定义类型记录 Then `VALIDATION` | ADR-0016 · 02 §9 | api · e2e |
+| REQ-ENTRY-018 | P1 | 2 | （ADR-0016）自定义记录类型：`/entry-types` 增删改（名唯一、9 色、有序状态 0–12、状态名不含 `, | =`），创建 = 非 guest，改删 = 管理员或创建者；记录 `kind=custom` + `typeId`，status 须在其状态列表内（新建默认第一项）；列表 `typeId=` 筛选，与 `kind` 同给为任一命中；改状态列表时 `renames` 同步记录、被移除的状态改为第一项 | When 建「读书笔记」[想读, 在读, 读完] 并新建该类型记录 Then `fields.status = 想读`；When `renames {在读: 阅读中}` Then 原「在读」的记录变「阅读中」；When member 改 owner 建的类型 Then 403 | ADR-0016 · 01 §3.4c | api · e2e |
+| REQ-ENTRY-019 | P1 | 2 | （ADR-0016）删除自定义类型：其下全部记录（含回收站）转为随笔、清空 fields，同事务写审计 `entry_type.deleted`；内置类型不可删，管理员可隐藏（只影响筛选条与新建菜单） | When 删类型 Then `GET /entries?kind=custom` 为空、审计含该类型名；When member `PUT /entry-types/builtin/review {hidden:true}` Then 403 | ADR-0016 | api · e2e |
 
 ---
 
@@ -384,13 +388,14 @@
 | REQ-UI-028 | P1 | 2 | 动效档位 `reduce / standard / rich` 应可在设置页选择，写 `html[data-motion]`（standard 不写）并持久化 `xz:motion`；首帧前生效；系统 reduced-motion 优先；Motion 组件随档位关闭动画 | When 选「减弱」Then `data-motion=reduce`，刷新仍在；选「标准」Then 属性移除、存储清空 | 04 §2.4 · ADR-0005 §3 | e2e |
 | REQ-UI-029 | P1 | 2 | 路径变化的导航应以 View Transition 淡出 / 淡入（旧页 `dur-fast`、新页 `dur-base`），转场带 `route` 类型以区别主题切换；首次加载、仅 search 变化、减弱档不转场；浏览器不支持 view-transition types 时关闭 | When 侧栏点「收件箱」Then 一次 `startViewTransition` 且 types = `['route']`<br>Given 减弱档 Then 无调用 | 04 §2.4 · ADR-0005 §3 | e2e |
 | REQ-UI-030 | P1 | 2 | 展开 / 收起统一用圆角实心三角「展开指示」，展开时弹簧转 90°；纯方向仍用 Chevron | When 点击「今天完成的」Then 指示带 `data-open` 且旋转 90° | 04 §2.4 · 04 §5 | e2e |
-| REQ-UI-031 | P1 | 2 | 日历 `/calendar`（Apple 风格）：月视图 6×7（按 weekStartsOn）与周视图（全天行 + 24 小时时间轴 + 当前时间线）；（注 2026-09-25，ADR-0009：另有日 / 年视图与独立「日程」，见 REQ-CAL-*；任务改为可关闭的叠加层）事件 = 任务（dueAt 优先，本地 23:59 / 00:00 视为全天），色取空间色板，点击打开 Peek；`t` 今天、← / → 翻页、`m` / `w` 切换；侧栏与 ⌘K `g c` 可达 | When 区间内有任务 Then 月视图对应日期出现事件；点击 Then Peek；按 `w` Then 周视图且今天列有当前时间线 | 08 §2.17 · ADR-0005 | unit · e2e |
+| REQ-UI-031 | P1 | 2 | 日历 `/calendar`（Apple 风格）：月视图 6×7（按 weekStartsOn）与周视图（全天行 + 24 小时时间轴 + 当前时间线）；（注 2026-09-25，ADR-0009：另有日 / 年视图与独立「日程」，见 REQ-CAL-*；任务改为可关闭的叠加层）事件 = 任务（dueAt 优先，本地 23:59 / 00:00 视为全天），色取空间色板，点击打开 Peek；`t` 今天、← / → 翻页、`m` / `w` 切换；侧栏与 ⌘K `g c` 可达（注 2026-09-27 ADR-0016：点任务 / 日程改为弹快速编辑气泡，见 REQ-CAL-012；不再打开 Peek） | When 区间内有任务 Then 月视图对应日期出现事件；点击 Then Peek；按 `w` Then 周视图且今天列有当前时间线 | 08 §2.17 · ADR-0005 | unit · e2e |
 | REQ-UI-032 | P1 | 2 | 侧栏（2026-09-24 改版，参照简斋后台）：整高实玻璃板 + 右侧 1px 分隔与柔阴影；品牌区燕印 42 + 文楷；导航项 42px、图标带专属色（`--xz-icon-*` ≥ 3:1）；当前项为翡翠渐变胶囊 + inset 描边，无左侧竖条；导航与空间树共用样式；内容区内衬圆角淡翡翠面板 | When 视口 1280 Then 侧栏高 = 视口、右边框 1px；当前项 `data-active` + `aria-current=page`、背景为渐变、无 `::before` 竖条 | 06 §4 · REQ-UI-020 | e2e · unit |
 | REQ-UI-033 | P1 | 2 | 一级页页头统一（`PageHeader`：2xl 标题 + 可选文楷题记 / 说明 / 右侧动作）；今日页题记为本地日期与星期、说明为各段计数；记录类型用 04 §2.1 色板分色（决策 blue · 迭代 cyan · Bug red · 变更 orange · 日志 green · 随笔 yellow · 复盘 purple；ADR-0010 前为 indigo / teal / ochre / amber / pine / moss / plum），文字仍为类型名；跨空间列表以「空间色点 + 空间名」标注空间（取不到时回退 slug）；记录 / 空间卡片悬停抬升 2px + 翡翠边线，网格入场错峰 ≤ 8 格，时长走 token（减弱档无动画） | When 打开 `/today` Then 标题上方有日期题记；When 记录卡片类型为决策 Then 徽章为 blue 色板类；When 减弱档 Then `.xz-rise` 无动画 | 04 §2.1 · 04 §2.4 · 06 §5.2 | unit · 手工 |
 | REQ-UI-034 | P1 | 2 | 宽屏不留大片空白（2026-09-25）：今日 / 收件箱 / 通知在 ≥ xl 为「主列 + 20rem 右侧速览栏」（今天：日期 / 农历 / 节假日 · 今日日程 · 小月历 · 7 天内到期），主列最宽 96rem；今日页顶部四枚计数卡（逾期 / 今日到期 / 今日开始 / 今日日程）；回收站 / 搜索加宽到 5xl；空间卡片 2xl 四列；设置子页统一左对齐 | When 视口 1728 打开 `/today` Then `glance-rail` 可见、`today-stats` 4 格；When 视口 1280 Then 无速览栏 | 04 §4 · 08 §2.3 | e2e · 手工 |
 | REQ-UI-035 | P1 | 2 | 色板改为鲜艳 9 色（ADR-0010）：蓝 / 橙 / 黄 / 红 / 绿 / 紫 / 粉 / 青 / 灰，每色 `-solid`（色条 / 圆点）· `-bg`（浅底）· `-fg`（字，对 `-bg` ≥ 4.5，两主题）；空间 / 标签 / 日历共用；日历色块为「浅底 + 同色深字 + 3px 鲜艳左色条」；旧色名经迁移 0007 映射（moss / pine→green、amber→orange、indigo→blue、ochre→red、teal→cyan、plum→purple） | When `check-contrast` Then 9 色两主题全部达标<br>When 日历新建颜色为 `teal` Then 422 | ADR-0010 · 04 §2.1 | unit · api · 手工 |
 | REQ-UI-036 | P0 | 2 | 非安全上下文（按局域网 IP 走 HTTP）下所有写操作应可用（2026-09-25）：客户端 id / `Idempotency-Key` 只经 `lib/uuid.ts` 的 `newId()` 生成，禁止 `crypto.randomUUID`；复制走 `lib/clipboard.ts` 降级；创建失败且非 `ApiError` 时 `console.error` 留痕 | Given `crypto.randomUUID` 不存在 When 新建记录 / 任务 Then 创建成功<br>When `pnpm lint` Then `check-css` 对 `src/client` 中 `crypto.randomUUID` 报违规 | debug/2026-09-25-randomuuid-insecure-context | e2e · unit |
 | REQ-UI-037 | P1 | 2 | 记录类型图标与色块质感（ADR-0015）：9 种类型各有不同 Lucide 图标，色取 REQ-UI-033 色板；`KindIcon` 色块 = 浅底 → 实色渐变 + 顶部高光 + 同色细描边，所在行悬停弹簧放大；类型徽章全站改为「图标 + 类型名」胶囊；位置导航快捷项用 `--xz-icon-*` 专属色，大类用大类色色块；未设颜色的空间图标按类型给默认色，不回退灰色；只引用 token | When 记录卡片类型为 Bug Then 徽章含 Bug 图标且为 red 色板；When `check-contrast` Then 两主题达标；When 减弱档 Then 色块无变换 | ADR-0015 · 04 §2.1 · 06 §5 | unit · 手工 |
+| REQ-UI-038 | P1 | 2 | （2026-09-27 新增，ADR-0016）可点的侧栏分区标题须与纯标签区分：「空间」→ `/spaces` 用正文色 + 半粗 + 右箭头，悬停浅底 + `primary-text` + 箭头右移；「我的视图」保持 muted | When 渲染侧栏 Then 「空间」标题计算色 ≠「我的视图」，且带箭头图标；点击 Then `/spaces` | ADR-0016 · 04 §5 | e2e |
 | REQ-UI-027 | P1 | 2 | Topbar 滚动 > 8px 后应显示 `shadow-soft` 与翡翠枝线，回到顶部即消失；Dialog 打开时底板光晕下移 4px 并减弱，关闭复原 | When 页面滚动 100px Then topbar 带 `data-scrolled`；When 打开 Dialog Then `html[data-dialog-open]` 且 `body::before` transform 非 none | 06 §4 · ADR-0005 §2 | e2e |
 
 ---
@@ -445,6 +450,8 @@
 | REQ-CAL-009 | P1 | 2 | 日历页应提供日 / 周 / 月 / 年四种视图与左栏（小月历、我的日历、叠加项、接下来 7 天）；快捷键 t / ← / → / d / w / m / y / n；日视图宽屏带当日详情栏 | When 按 y Then 年视图 12 个月；点日期 Then 日视图 | 08 §2.17 | e2e · 手工 |
 | REQ-CAL-010 | P1 | 2 | 月视图与周 / 日视图的全天行应支持鼠标按住拖选日期范围：拖过的日期高亮，松开即以 [起, 止] 打开新建全天日程（如 9/9 → 9/11）；反向拖同样有效；单击仍为单日；按在日程条 / 日期号上不起选；Esc 取消；触屏不拖选（留给滚动） | When 月视图从 9/9 按住拖到 9/11 松开 Then 编辑器为全天、起 9/9、止 9/11；When 单击 9/9 Then 单日 | ADR-0010 · 08 §2.17 | e2e · 手工 |
 | REQ-CAL-011 | P1 | 2 | 周视图（多列时间轴）同一重叠簇最多并排 2 列：超过时保留第 1 列，其余收进占第 2 列的「+N」按钮（高 ≥ 24px，读屏文本「同一时段还有 N 项，查看当天」，悬停列出标题），点击进入当天日视图；日视图列宽足够，不收起。保证每个可点目标 ≥ 24px（axe target-size） | When 12/7 15:00 有 3 个重叠日程、周视图 Then 该列 1 个日程 + 「+2」、宽高均 ≥ 24px；点「+2」Then `view=day&date=2026-12-07` 且 3 个都可见 | 08 §2.17 · REQ-UI-013 | unit · e2e |
+| REQ-CAL-012 | P1 | 2 | （2026-09-27 新增，ADR-0016）点日程 / 任务在其旁弹快速编辑气泡，不离开日历：日程可改标题 / 全天 / 起止 / 日历 / 地点 / 备注（关闭即保存，重复日程先问范围）、删除、「更多选项」进完整编辑器；任务可勾完成、改标题 / 日期时间 / 优先级、删除（Toast 撤销）、「详情」在页内开抽屉；焦点不在输入框时 Delete 删除 | When 周视图点日程、改结束 11:30 点「保存」Then 块显示 10:00–11:30；When 再点开按 Delete Then 消失；When 任务改时刻 16:00 Then 块移到 16:00；When 删任务后点「撤销」Then 回来 | ADR-0016 · 08 §2.17 | e2e |
+| REQ-CAL-013 | P1 | 2 | （ADR-0016）任务可拖动改期：月视图拖到别的日期、周 / 日视图拖动改时刻（15 分钟吸附），平移其定位字段（截止优先，否则计划开始）并保留时刻；定时任务不落到 00:00 / 23:59（会被当全天），夹到 00:15 / 23:45；不能拖底边改时长 | When 周视图把 16:00 的任务向下拖 1 小时 Then `dueAt` 本地 17:00 | ADR-0016 | e2e |
 
 ---
 

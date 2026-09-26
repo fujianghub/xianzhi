@@ -305,6 +305,8 @@ export function TimeGrid({
                 const { lane, lanes: n } = slot ?? { lane: 0, lanes: 1 }
                 const dragging = drag && drag.kind !== 'create' && drag.item.key === it.key
                 const canDrag = it.source === 'event' && it.startDay === it.endDay
+                // 任务可拖动改时刻（REQ-CAL-013），不能拖底边改时长
+                const canMove = canDrag || it.source === 'task'
                 return (
                   <button
                     key={it.key}
@@ -321,7 +323,7 @@ export function TimeGrid({
                     onPointerDown={(e) => {
                       if (e.button !== 0) return
                       e.stopPropagation()
-                      if (!canDrag) {
+                      if (!canMove) {
                         setDrag({
                           kind: 'move',
                           item: it,
@@ -367,7 +369,7 @@ export function TimeGrid({
                       it.source === 'task' && 'border-dashed',
                       it.done && 'line-through opacity-60',
                       dragging && 'opacity-40',
-                      canDrag && 'cursor-grab',
+                      canMove && 'cursor-grab',
                     )}
                     style={{
                       top: (seg.from / 60) * HOUR + 1,

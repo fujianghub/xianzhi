@@ -53,7 +53,7 @@ export type EditorTarget =
   | { mode: 'create'; start: Date; end: Date; allDay: boolean; calendarId?: string }
   | { mode: 'edit'; occ: CalendarOccurrence }
 
-interface Form {
+export interface EventForm {
   title: string
   calendarId: string
   allDay: boolean
@@ -77,7 +77,7 @@ const ld = (s: string) => parseLocalDate(s) as LocalDate
 const fmt = (d: LocalDate) =>
   `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`
 
-function initialForm(target: EditorTarget, tz: string, cals: CalendarView[]): Form {
+export function initialForm(target: EditorTarget, tz: string, cals: CalendarView[]): EventForm {
   const fallbackCal = cals.find((c) => c.isDefault && !c.hidden)?.id ?? cals[0]?.id ?? ''
   if (target.mode === 'create') {
     const s = localDateTimeOf(tz, target.start)
@@ -118,6 +118,19 @@ function initialForm(target: EditorTarget, tz: string, cals: CalendarView[]): Fo
   }
 }
 
+/** 表单 → [开始, 结束)：全天按本地零点、结束日含当天（+1 天）。 */
+export function formRange(form: EventForm, tz: string): { start: Date; end: Date } {
+  if (form.allDay)
+    return {
+      start: zonedMidnight(tz, ld(form.startDate)),
+      end: zonedMidnight(tz, addDays(ld(form.endDate), 1)),
+    }
+  return {
+    start: at(tz, ld(form.startDate), fromTime(form.startTime)),
+    end: at(tz, ld(form.endDate), fromTime(form.endTime)),
+  }
+}
+
 export function EventEditor({
   target,
   onClose,
@@ -132,7 +145,7 @@ export function EventEditor({
   const { t } = useTranslation()
   const qc = useQueryClient()
   const uid = useId()
-  const [form, setForm] = useState<Form | null>(null)
+  const [form, setForm] = useState<EventForm | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [scopeEl, askScope] = useScopePrompt()
   useEffect(() => {
@@ -142,21 +155,10 @@ export function EventEditor({
 
   const occ = target?.mode === 'edit' ? target.occ : null
   const recurring = !!occ?.recurring
-  const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => (f ? { ...f, [k]: v } : f))
+  const set = <K extends keyof EventForm>(k: K, v: EventForm[K]) =>
+    setForm((f) => (f ? { ...f, [k]: v } : f))
 
-  const range = useMemo(() => {
-    if (!form) return null
-    if (form.allDay) {
-      return {
-        start: zonedMidnight(tz, ld(form.startDate)),
-        end: zonedMidnight(tz, addDays(ld(form.endDate), 1)),
-      }
-    }
-    return {
-      start: at(tz, ld(form.startDate), fromTime(form.startTime)),
-      end: at(tz, ld(form.endDate), fromTime(form.endTime)),
-    }
-  }, [form, tz])
+  const range = useMemo(() => (form ? formRange(form, tz) : null), [form, tz])
 
   const save = useMutation({
     mutationFn: async () => {

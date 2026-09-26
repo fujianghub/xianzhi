@@ -216,7 +216,7 @@ function HitRow({ hit }: { hit: Hit }) {
           ) : null}
         </span>
         {hit.type === 'entry' && hit.kind ? (
-          <KindBadge kind={hit.kind} className="shrink-0" />
+          <KindBadge kind={hit.kind} typeId={hit.typeId} className="shrink-0" />
         ) : hit.status ? (
           <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-fg-muted text-xs">
             {t(`task.status.${hit.status}`)}

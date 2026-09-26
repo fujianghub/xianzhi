@@ -120,6 +120,9 @@ export interface ActionMap {
   'tag.create': null
   /** 改名 / 改色 / 合并 / 删除（ADR-0014）：null = 仅管理员；TagRef = 管理员或其创建者（非 guest） */
   'tag.manage': TagRef | null
+  'entry_type.create': null
+  /** 自定义类型改名 / 改色 / 改状态 / 删除（ADR-0016）：同 tag.manage；null = 仅管理员（隐藏内置类型） */
+  'entry_type.manage': TagRef | null
   'space.read': SpaceRef
   'space.manage': SpaceRef
   'space.delete': SpaceRef
@@ -160,6 +163,8 @@ export const ACTIONS = [
   'space.create',
   'tag.create',
   'tag.manage',
+  'entry_type.create',
+  'entry_type.manage',
   'space.read',
   'space.manage',
   'space.delete',
@@ -300,8 +305,10 @@ export function can<A extends Action>(
       return (resource as UserRef).id === actor.id
     case 'space.create':
     case 'tag.create':
+    case 'entry_type.create':
       return actor.workspaceRole !== 'guest'
-    case 'tag.manage': {
+    case 'tag.manage':
+    case 'entry_type.manage': {
       if (admin) return true
       const t = resource as TagRef | null
       return !!t && t.createdBy === actor.id && actor.workspaceRole !== 'guest'

@@ -2,6 +2,7 @@
  * 记录的收藏与批量操作（ADR-0014、REQ-ENTRY-012 · 013）。
  * - 收藏：个人（entry_favorites），需可读该记录；列表 `favorite=1` 过滤、每项带 `favorited`。
  * - 批量：逐条走既有 service（鉴权 / 审计 / 实时失效与单条一致），单条失败不影响其它条，返回 ok / failed 明细。
+ * - ADR-0016：retype（改类型，fields 按目标类型重建）· fields（改状态 / 进度，合并进现有 fields 再按类型校验）· pin / unpin。
  */
 import { and, eq, inArray } from 'drizzle-orm'
 import type { z } from 'zod'
@@ -11,6 +12,7 @@ import type { Db } from '../db/index.ts'
 import { entries, entryFavorites, entryTags, tags } from '../db/schema/business.ts'
 import { AppError } from '../lib/errors.ts'
 import { archiveEntry, type EntryCtx, loadEntry, patchEntry, softDeleteEntry } from './entries.ts'
+import { loadEntryType } from './entry-types.ts'
 
 export async function setFavorite(db: Db, ctx: EntryCtx, id: string, on: boolean) {
   const e = await loadEntry(db, ctx.actor, id)
@@ -54,19 +56,53 @@ export async function batchEntries(
       throw AppError.validation([{ path: 'add', message: '标签不存在' }])
     tagIds = { add: input.add, remove: input.remove }
   }
+  if (
+    input.op === 'retype' &&
+    input.typeId &&
+    !(await loadEntryType(db, ctx.workspaceId, input.typeId))
+  )
+    throw AppError.validation([{ path: 'typeId', message: '类型不存在' }])
+  /** 读当前 updatedAt / fields，再走 patchEntry（与单条 PATCH 同一套鉴权、校验与失效） */
+  const current = async (id: string) => {
+    const [row] = await db
+      .select({ u: entries.updatedAt, fields: entries.fields })
+      .from(entries)
+      .where(eq(entries.id, id))
+    if (!row) throw AppError.notFound('记录不存在')
+    return {
+      ifUpdatedAt: row.u.toISOString(),
+      fields: (row.fields ?? {}) as Record<string, unknown>,
+    }
+  }
   for (const id of [...new Set(input.ids)]) {
     try {
       switch (input.op) {
         case 'move': {
-          const [row] = await db
-            .select({ u: entries.updatedAt })
-            .from(entries)
-            .where(eq(entries.id, id))
-          if (!row) throw AppError.notFound('记录不存在')
+          const c = await current(id)
+          await patchEntry(db, ctx, id, { spaceId: input.spaceId, ifUpdatedAt: c.ifUpdatedAt })
+          break
+        }
+        case 'retype': {
+          const c = await current(id)
           await patchEntry(db, ctx, id, {
-            spaceId: input.spaceId,
-            ifUpdatedAt: row.u.toISOString(),
+            kind: input.kind,
+            ...(input.typeId ? { typeId: input.typeId } : {}),
+            ifUpdatedAt: c.ifUpdatedAt,
           })
+          break
+        }
+        case 'fields': {
+          const c = await current(id)
+          await patchEntry(db, ctx, id, {
+            fields: { ...c.fields, ...input.set },
+            ifUpdatedAt: c.ifUpdatedAt,
+          })
+          break
+        }
+        case 'pin':
+        case 'unpin': {
+          const c = await current(id)
+          await patchEntry(db, ctx, id, { pinned: input.op === 'pin', ifUpdatedAt: c.ifUpdatedAt })
           break
         }
         case 'tags': {

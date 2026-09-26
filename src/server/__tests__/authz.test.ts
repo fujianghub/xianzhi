@@ -255,6 +255,15 @@ expectMatrix('tag.manage(own)', NON_GUEST_TAG, (a) =>
 expectMatrix('tag.manage(other)', ADMIN_ONLY, (a) =>
   can(a, 'tag.manage', { id: 'tg', createdBy: OTHER }),
 )
+// ADR-0016：自定义记录类型同标签规则；null（隐藏内置类型）仅管理员
+expectMatrix('entry_type.create', NOT_GUEST, (a) => can(a, 'entry_type.create', null))
+expectMatrix('entry_type.manage', ADMIN_ONLY, (a) => can(a, 'entry_type.manage', null))
+expectMatrix('entry_type.manage(own)', NON_GUEST_TAG, (a) =>
+  can(a, 'entry_type.manage', { id: 'et', createdBy: ME }),
+)
+expectMatrix('entry_type.manage(other)', ADMIN_ONLY, (a) =>
+  can(a, 'entry_type.manage', { id: 'et', createdBy: OTHER }),
+)
 expectMatrix('tag.manage(legacy)', ADMIN_ONLY, (a) =>
   can(a, 'tag.manage', { id: 'tg', createdBy: null }),
 )

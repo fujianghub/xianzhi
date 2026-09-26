@@ -10,7 +10,8 @@ import { toast } from 'sonner'
 import { useEntryActions } from '../../hooks/useEntries.ts'
 import { ApiError, api, unwrap } from '../../lib/api.ts'
 import { cn } from '../../lib/cn.ts'
-import { type Entry, treeQuery } from '../../lib/entry-queries.ts'
+import { type Entry, type EntryKind, treeQuery } from '../../lib/entry-queries.ts'
+import { kindKey, useKindLabel, useKindOptions } from '../../lib/entry-types.ts'
 import { type Space, spacesQuery } from '../../lib/space-queries.ts'
 import { useCommentDraft, useOutline } from '../../lib/stores.ts'
 import { childrenMap, flatten } from '../../lib/tree.ts'
@@ -162,12 +163,55 @@ function Props({
       )
   const row = 'flex flex-col gap-1 text-sm'
   const labelCls = 'text-fg-muted text-xs'
+  // 改类型（ADR-0016）：fields 按目标类型重建，保留仍合法的状态 / 进度；有必填属性的类型 422 → 提示原因
+  const kindOf = useKindLabel()
+  const cur = kindOf(entry.kind, entry.typeId)
+  const options = useKindOptions()
+  const kindOptions = options.some((o) => kindKey(o) === kindKey(cur)) ? options : [cur, ...options]
+  const retype = async (key: string) => {
+    const m = kindOptions.find((o) => kindKey(o) === key)
+    if (!m || key === kindKey(cur)) return
+    try {
+      const r = await unwrap<Entry>(
+        api.entries[':id'].$patch({
+          param: { id: entry.id },
+          json: {
+            kind: m.kind as EntryKind,
+            ...(m.typeId ? { typeId: m.typeId } : {}),
+            ifUpdatedAt: entry.updatedAt,
+          } as never,
+        }),
+      )
+      qc.setQueryData(['entry', entry.id], r)
+      void qc.invalidateQueries({ queryKey: ['entries'] })
+      void qc.invalidateQueries({ queryKey: ['entry-types'] })
+      toast.success(t('entry.aside.retyped', { kind: m.label }))
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? (err.problem.errors?.[0]?.message ?? err.message)
+          : t('task.saveFailed'),
+      )
+    }
+  }
   return (
     <div className="flex flex-col gap-4" data-testid="entry-props">
-      <div className={row}>
+      <label className={row}>
         <span className={labelCls}>{t('entry.props.kind')}</span>
-        <span>{t(`entry.kind.${entry.kind}`)}</span>
-      </div>
+        <select
+          value={kindKey(cur)}
+          disabled={!canWrite}
+          data-testid="entry-kind"
+          onChange={(e) => void retype(e.target.value)}
+          className="h-8 rounded-md border border-border bg-surface px-2"
+        >
+          {kindOptions.map((o) => (
+            <option key={kindKey(o)} value={kindKey(o)}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
       <label className={row}>
         <span className={labelCls}>{t('entry.props.visibility')}</span>
         <select

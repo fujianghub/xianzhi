@@ -29,6 +29,7 @@ import { calendarEventRoutes, calendarRoutes } from './routes/calendar.ts'
 import { collabRoutes } from './routes/collab.ts'
 import { commentRoutes } from './routes/comments.ts'
 import { entryRoutes } from './routes/entries.ts'
+import { entryTypeRoutes } from './routes/entry-types.ts'
 import { entryExportRoutes, exportRoutes } from './routes/exports.ts'
 import { healthRoutes } from './routes/health.ts'
 import { linkRoutes } from './routes/links.ts'
@@ -209,6 +210,7 @@ export function createApp(deps: AppDeps) {
     .route('/api/v1/spaces', spaceRoutes({ db: deps.db, dataDir: deps.dataDir }))
     .route('/api/v1/tasks', taskRoutes({ db: deps.db, dataDir: deps.dataDir }))
     .route('/api/v1/tags', tagRoutes({ db: deps.db }))
+    .route('/api/v1/entry-types', entryTypeRoutes({ db: deps.db }))
     .route('/api/v1/space-groups', spaceGroupRoutes({ db: deps.db }))
     .route('/api/v1/links', linkRoutes({ db: deps.db }))
     .route('/api/v1/templates', templateRoutes({ db: deps.db }))

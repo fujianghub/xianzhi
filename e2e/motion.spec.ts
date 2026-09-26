@@ -77,7 +77,7 @@ test('REQ-UI-021 卡片 → 详情共享元素：同一时刻带名元素 ≤ 1�
   await recordTransitions(page)
   await createEntry(request, { kind: 'note', title: '共享元素用例' })
   await page.setViewportSize({ width: 1280, height: 800 })
-  await page.goto('/entries')
+  await page.goto('/entries?view=cards')
   const supported = await page.evaluate(
     () => !!CSS.supports?.('selector(:active-view-transition-type(a))'),
   )

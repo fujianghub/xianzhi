@@ -31,6 +31,8 @@ export interface SearchHit {
   highlight: string
   spaceSlug: string
   kind?: string
+  /** 自定义类型 id（ADR-0016） */
+  typeId?: string | null
   status?: string
   updatedAt: string
   score: number
@@ -221,6 +223,7 @@ export async function search(
         title: entries.title,
         plain: sql<string>`left(${entries.plain}, 4000)`,
         kind: entries.kind,
+        typeId: entries.typeId,
         updatedAt: entries.updatedAt,
         slug: spaces.slug,
         score: sql<string>`round((${rank})::numeric, 6)`,
@@ -240,6 +243,7 @@ export async function search(
         highlight: highlight(r.plain || r.title, terms.length ? terms : [text]),
         spaceSlug: r.slug,
         kind: r.kind,
+        typeId: r.typeId,
         updatedAt: r.updatedAt.toISOString(),
         score: Number(r.score),
       })),

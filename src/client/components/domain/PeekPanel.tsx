@@ -8,6 +8,7 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { PmNode } from '../../../shared/schemas/pm.ts'
 import { api, unwrap } from '../../lib/api.ts'
+import { useKindLabel } from '../../lib/entry-types.ts'
 import { type PeekTarget, usePeek } from '../../lib/stores.ts'
 import { taskQuery } from '../../lib/task-queries.ts'
 import { dueLabel } from '../../lib/time.ts'
@@ -124,12 +125,14 @@ function TaskPeek({ id }: { id: string }) {
 interface Preview {
   title: string
   kind: string
+  typeId?: string | null
   excerpt: string
   author: { displayName: string }
   updatedAt?: string
 }
 function EntryPeek({ id }: { id: string }) {
   const { t } = useTranslation()
+  const kindLabel = useKindLabel()
   const { data, isPending } = useQuery({
     queryKey: ['entry', id, 'preview'],
     queryFn: () => unwrap<Preview>(api.entries[':id'].preview.$get({ param: { id } })),
@@ -145,7 +148,7 @@ function EntryPeek({ id }: { id: string }) {
   return (
     <>
       <p className="text-fg-muted text-xs">
-        {t(`entry.kind.${data.kind}`)} · {data.author.displayName}
+        {kindLabel(data.kind, data.typeId).label} · {data.author.displayName}
         {data.updatedAt ? (
           <>
             {' · '}

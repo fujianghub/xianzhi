@@ -26,7 +26,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { GripVertical, Layers, Plus } from 'lucide-react'
+import { ChevronRight, GripVertical, Layers, Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -244,8 +244,16 @@ export function SpaceSwitcher({ me, onNavigate }: { me: Me; onNavigate?: () => v
       data-testid="space-switcher"
     >
       <div className="xz-nav-label flex items-center justify-between pr-1">
-        <Link id="xz-spaces-heading" to="/spaces" onClick={onNavigate} className="hover:text-fg">
+        {/* 可点的分区标题（REQ-UI-038）：与不可点的「我的视图」区分——正文色 + 箭头 + 悬停底 */}
+        <Link
+          id="xz-spaces-heading"
+          to="/spaces"
+          onClick={onNavigate}
+          className="xz-nav-label-link"
+          data-testid="spaces-heading"
+        >
           {t('space.parts')}
+          <ChevronRight className="xz-nav-label-arrow size-3.5" aria-hidden />
         </Link>
         {me.workspaceRole !== 'guest' ? (
           <button

@@ -14,7 +14,12 @@ import {
   fillTemplateVars,
 } from '../../shared/editor/builtin-templates.ts'
 import { defaultEntryFields } from '../../shared/schemas/entryFields.ts'
-import type { EntryKind, SpaceKind, TemplateScope } from '../../shared/schemas/enums.ts'
+import type {
+  BuiltinEntryKind,
+  EntryKind,
+  SpaceKind,
+  TemplateScope,
+} from '../../shared/schemas/enums.ts'
 import type { PmNode } from '../../shared/schemas/pm.ts'
 import type {
   createTemplateSchema,
@@ -141,7 +146,8 @@ export async function createTemplate(
     if (!loaded || !can(ctx.actor, 'entry.read', loaded.ref)) throw AppError.notFound('记录不存在')
     // 取 ydoc（唯一真源）即时派生，而不是 pm_json：从未编辑过的记录 pm_json 为空（只读派生，不写库）
     body = deriveFromYdoc(loaded.row.ydoc).pmJson
-    kind = kind ?? (loaded.row.kind as EntryKind)
+    // 自定义类型的记录存为模板 → 随手记（模板只认内置类型，ADR-0016）
+    kind = kind ?? (loaded.row.kind === 'custom' ? 'note' : (loaded.row.kind as BuiltinEntryKind))
     fields =
       fields ??
       (kind === loaded.row.kind ? (loaded.row.fields as Record<string, unknown>) : undefined)

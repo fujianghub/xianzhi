@@ -6,6 +6,7 @@ export interface TreeNodeLite {
   id: string
   title: string
   kind: string
+  typeId?: string | null
   parentId: string | null
   treeOrder: string
 }
