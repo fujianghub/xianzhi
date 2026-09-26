@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next'
 import { type FileKind, fileKind, PREVIEWABLE } from '../../shared/editor/file-kind.ts'
 import { api, unwrap } from '../lib/api.ts'
 import { cn } from '../lib/cn.ts'
+import { useKindLabel } from '../lib/entry-types.ts'
 import { ALL_LANGUAGES, ensureLanguage, lowlight } from './lowlight.ts'
 
 const AttachmentPreview = lazy(() => import('./AttachmentPreview.tsx'))
@@ -144,11 +145,13 @@ export function AttachmentView({ node }: NodeViewProps) {
 interface Preview {
   title: string
   kind: string
+  typeId?: string | null
   excerpt: string
   author: { displayName: string }
 }
 export function EntryCardView({ node }: NodeViewProps) {
   const { t } = useTranslation()
+  const kindLabel = useKindLabel()
   const id = String(node.attrs.entryId ?? '')
   const { data, isError } = useQuery({
     queryKey: ['entry', id, 'preview'],
@@ -170,7 +173,7 @@ export function EntryCardView({ node }: NodeViewProps) {
             <span className="font-medium">{data?.title ?? '…'}</span>
             {data ? (
               <span className="ml-2 text-fg-muted text-xs">
-                {t(`entry.kind.${data.kind}`)} · {data.author.displayName}
+                {kindLabel(data.kind, data.typeId).label} · {data.author.displayName}
               </span>
             ) : null}
             {data?.excerpt ? (

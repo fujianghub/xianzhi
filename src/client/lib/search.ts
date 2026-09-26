@@ -57,10 +57,19 @@ export const ENTRY_KIND_VALUES = [
 ] as const
 /** 字段过滤 `status=open|fixed,severity=high`（ADR-0012；与 02 §9 `fields` 同名同格式）。 */
 const FIELDS_RE = /^[a-zA-Z]{1,40}=[^,=]{1,200}(,[a-zA-Z]{1,40}=[^,=]{1,200}){0,4}$/
+/** 逗号分隔的 uuid（自定义类型筛选 `typeId=a,b`，ADR-0016）；有非法项则整体丢弃 */
+const optUuidCsv = (v: unknown): string | undefined => {
+  const parts = optString(v)?.split(',').filter(Boolean) ?? []
+  return parts.length && parts.length <= 50 && parts.every((p) => optUuid(p))
+    ? parts.join(',')
+    : undefined
+}
 export function validateEntriesSearch(s: Record<string, unknown>): {
   kind?: string
+  typeId?: string
   fields?: string
-  view?: 'table' | 'board' | 'timeline'
+  /** 缺省 = 列表（ADR-0016）；cards = 卡片；table 为旧链接兼容，等同列表 */
+  view?: 'table' | 'cards' | 'board' | 'timeline'
   authorId?: string
   tag?: string
   q?: string
@@ -78,8 +87,9 @@ export function validateEntriesSearch(s: Record<string, unknown>): {
   const one = (v: unknown) => (v === '1' || v === 1 ? ('1' as const) : undefined)
   return {
     kind: optCsvOf(ENTRY_KIND_VALUES)(s.kind),
+    typeId: optUuidCsv(s.typeId),
     fields: fields && FIELDS_RE.test(fields) ? fields : undefined,
-    view: optOneOf(['table', 'board', 'timeline'] as const)(s.view),
+    view: optOneOf(['table', 'cards', 'board', 'timeline'] as const)(s.view),
     authorId: s.authorId === 'me' ? ('me' as const) : optUuid(s.authorId),
     tag: optString(s.tag),
     q: optString(s.q)?.slice(0, 200),

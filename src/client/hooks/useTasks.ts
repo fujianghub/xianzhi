@@ -109,10 +109,24 @@ export function useTaskActions() {
     return r
   }
 
-  const remove = async (task: Task) => {
-    await unwrap<void>(api.tasks[':id'].$delete({ param: { id: task.id } }))
-    toast.success(t('task.deleted'))
+  const restore = async (task: Task) => {
+    await unwrap(api.tasks[':id'].restore.$post({ param: { id: task.id } }))
     await invalidateLists()
+  }
+
+  /** 软删；`undo` = Toast 带「撤销」（POST restore）。 */
+  const remove = async (task: Task, opts: { undo?: boolean } = {}) => {
+    try {
+      await unwrap<void>(api.tasks[':id'].$delete({ param: { id: task.id } }))
+    } finally {
+      await invalidateLists()
+    }
+    toast.success(
+      opts.undo ? t('calendar.quick.taskDeleted', { title: task.title }) : t('task.deleted'),
+      opts.undo
+        ? { action: { label: t('task.undo'), onClick: () => void restore(task) } }
+        : undefined,
+    )
   }
 
   const batch = async (
@@ -129,5 +143,5 @@ export function useTaskActions() {
     return r
   }
 
-  return { patch, complete, uncomplete, create, remove, batch, invalidateLists }
+  return { patch, complete, uncomplete, create, remove, restore, batch, invalidateLists }
 }

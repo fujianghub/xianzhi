@@ -89,6 +89,15 @@ const cases: Record<
       { v: { status: 'active', extra: 1 }, path: 'extra' },
     ],
   },
+  // ADR-0016：自定义类型（status 是否在该类型列表里由 service 校验）
+  custom: {
+    ok: [{}, { status: '在读', progress: 40, dueDate: '2026-12-31' }],
+    bad: [
+      { v: { status: 'a,b' }, path: 'status' },
+      { v: { progress: 101 }, path: 'progress' },
+      { v: { extra: 1 }, path: 'extra' },
+    ],
+  },
 }
 
 describe('entry fields by kind', () => {

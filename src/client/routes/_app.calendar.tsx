@@ -2,13 +2,14 @@
  * 日历（08 §2.17；ADR-0009；REQ-CAL-001 ~ 009 · REQ-UI-031 · REQ-TASK-024；对标 macOS 日历）：
  * `?view=day|week|month|year&date=YYYY-MM-DD`。左栏小月历 + 我的日历 + 叠加项 + 接下来；右侧主视图。
  * 数据：GET /calendar-events?from&to（日程，含重复展开）+ 叠加 GET /tasks?from&to（截止 / 计划开始；年视图不叠加）。
- * 交互：空白处点击 / 拖选新建；点日程编辑；拖动改期、拖底边改时长；重复日程询问范围。
+ * 交互：空白处点击 / 拖选新建；点日程 / 任务在旁弹快速编辑气泡（就地改、删，REQ-CAL-012）；
+ * 拖动改期（日程与任务，REQ-CAL-013）、拖底边改时长（日程）；重复日程询问范围。
  * 快捷键：t 今天、← / → 翻页、d / w / m / y 切视图、n 新建日程。
  */
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { ChevronLeft, ChevronRight, PanelLeft, Plus } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -36,13 +37,16 @@ import {
   MIN_PER_DAY,
   taskToItem,
 } from '../components/calendar/model.ts'
+import { QuickEdit, type QuickTarget, shiftTaskIso } from '../components/calendar/QuickEdit.tsx'
 import { useScopePrompt } from '../components/calendar/ScopeDialog.tsx'
 import { TimeGrid } from '../components/calendar/TimeGrid.tsx'
 import { YearView } from '../components/calendar/YearView.tsx'
+import { TaskDetailSheet } from '../components/domain/TaskDetailSheet.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { useHotkeys } from '../hooks/useHotkeys.ts'
 import type { Me } from '../hooks/useMe.ts'
 import { useSpaces } from '../hooks/useSpaces.ts'
+import { useTaskActions } from '../hooks/useTasks.ts'
 import { ApiError } from '../lib/api.ts'
 import {
   type CalendarOccurrence,
@@ -53,7 +57,6 @@ import {
 } from '../lib/calendar-queries.ts'
 import { cn } from '../lib/cn.ts'
 import { optOneOf, optString } from '../lib/search.ts'
-import { usePeek } from '../lib/stores.ts'
 import { flattenPages, tasksInfiniteQuery } from '../lib/task-queries.ts'
 
 const VIEWS = ['day', 'week', 'month', 'year'] as const
@@ -119,7 +122,16 @@ function Calendar() {
   }
   const [editor, setEditor] = useState<EditorTarget | null>(null)
   const [scopeEl, askScope] = useScopePrompt()
-  const openPeek = usePeek((s) => s.open)
+  const [quick, setQuick] = useState<QuickTarget | null>(null)
+  const [sheetTaskId, setSheetTaskId] = useState<string | null>(null)
+  const taskActions = useTaskActions()
+  /** 最近一次按下 / 键盘操作的日历项元素：快速编辑气泡贴着它弹出 */
+  const lastHit = useRef<Element | null>(null)
+  const track = (e: { target: EventTarget | null }) => {
+    const el =
+      e.target instanceof Element ? e.target.closest('[data-testid="cal-event"],button') : null
+    if (el) lastHit.current = el
+  }
 
   // ---- 区间 ----
   const { days, start, end } = useMemo(() => {
@@ -258,8 +270,36 @@ function Calendar() {
     createAt(base, from, from + 60)
   }
   const open = (it: CalItem) => {
-    if (it.occ) setEditor({ mode: 'edit', occ: it.occ })
-    else if (it.task) openPeek({ kind: 'task', id: it.task.id, spaceSlug: it.task.spaceSlug })
+    const el = lastHit.current
+    const r = el?.isConnected ? el.getBoundingClientRect() : null
+    setQuick({
+      item: it,
+      rect: r
+        ? { left: r.left, top: r.top, width: r.width, height: r.height }
+        : { left: window.innerWidth / 2, top: window.innerHeight / 3, width: 0, height: 0 },
+    })
+  }
+
+  /** 任务改期（REQ-CAL-013）：平移日历上定位它的字段（截止优先，否则计划开始），保留时刻。 */
+  const moveTask = async (it: CalItem, dayDelta: number, minuteDelta: number) => {
+    const task = it.task
+    if (!task) return
+    const field = task.dueAt ? 'dueAt' : 'scheduledAt'
+    const iso = task[field]
+    if (!iso) return
+    let next = shiftTaskIso(iso, tz, dayDelta, minuteDelta)
+    // 定时任务拖到 00:00 / 23:59 会被当成全天（taskToItem）：夹到 00:15 / 23:45
+    if (!it.allDay) {
+      const m = localDateTimeOf(tz, new Date(next)).minutes
+      if (m === 0) next = new Date(new Date(next).getTime() + 15 * 60_000).toISOString()
+      else if (m >= 23 * 60 + 45) next = shiftTaskIso(next, tz, 0, 23 * 60 + 45 - m)
+    }
+    try {
+      await taskActions.patch(task, { [field]: next })
+      toast.success(t('calendar.quick.taskMoved'))
+    } catch {
+      /* hook 已提示并回滚 */
+    }
   }
 
   // ---- 拖动改期 ----
@@ -298,6 +338,7 @@ function Calendar() {
     }
   }
   const moveDays = (it: CalItem, n: number) => {
+    if (it.task) return moveTask(it, n, 0)
     const o = it.occ
     if (!o) return
     if (o.allDay) {
@@ -315,6 +356,7 @@ function Calendar() {
     return reschedule(o, ns, new Date(ns.getTime() + dur))
   }
   const moveTimed = (it: CalItem, dayDelta: number, minuteDelta: number) => {
+    if (it.task) return moveTask(it, dayDelta, minuteDelta)
     const o = it.occ
     if (!o) return
     const s = localDateTimeOf(tz, new Date(o.startAt))
@@ -349,6 +391,8 @@ function Calendar() {
     <section
       className="flex h-[calc(100dvh-var(--xz-topbar-h)-4.5rem)] min-h-[36rem] flex-col gap-4"
       data-testid="calendar"
+      onPointerDownCapture={track}
+      onKeyDownCapture={track}
     >
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -529,6 +573,22 @@ function Calendar() {
         calendars={calendars.data ?? []}
         tz={tz}
       />
+      <QuickEdit
+        target={quick}
+        onClose={() => setQuick(null)}
+        calendars={calendars.data ?? []}
+        tz={tz}
+        onMore={(it) => it.occ && setEditor({ mode: 'edit', occ: it.occ })}
+        onOpenTask={(task) => setSheetTaskId(task.id)}
+        askScope={askScope}
+      />
+      {sheetTaskId ? (
+        <TaskDetailSheet
+          taskId={sheetTaskId}
+          onClose={() => setSheetTaskId(null)}
+          onOpenTask={(task) => setSheetTaskId(task.id)}
+        />
+      ) : null}
       {scopeEl}
     </section>
   )

@@ -97,7 +97,7 @@ function CardLink({ entry, showSpace }: { entry: Entry; showSpace?: boolean }) {
       className="paper xz-lift xz-rise group flex min-h-36 flex-col gap-2 rounded-lg border border-divider p-4"
     >
       <div className="flex items-center gap-2 text-xs">
-        <KindBadge kind={entry.kind} size="md" />
+        <KindBadge kind={entry.kind} typeId={entry.typeId} size="md" />
         {showSpace ? <SpaceTag slug={entry.spaceSlug} /> : null}
         {entry.archivedAt ? (
           <span className="rounded-full bg-surface-2 px-2 py-0.5 text-fg-muted">

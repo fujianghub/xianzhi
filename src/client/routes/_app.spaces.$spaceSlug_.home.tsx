@@ -116,7 +116,7 @@ function EntryLine({ e, meta }: { e: Entry; meta?: ReactNode }) {
         params={{ entryId: e.id }}
         className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-hover"
       >
-        <KindBadge kind={e.kind} />
+        <KindBadge kind={e.kind} typeId={e.typeId} />
         <span className="min-w-0 flex-1 truncate">{e.title || t('entry.untitled')}</span>
         {meta}
         <RelativeTime date={e.updatedAt} className="shrink-0 text-fg-muted text-xs" />

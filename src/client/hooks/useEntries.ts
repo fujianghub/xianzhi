@@ -8,15 +8,19 @@ import { optimisticPatch } from '../lib/optimistic.ts'
 import { newId } from '../lib/uuid.ts'
 
 export type EntryPatch = Partial<
-  Pick<Entry, 'title' | 'fields' | 'visibility' | 'spaceId' | 'pinned'>
+  Pick<Entry, 'title' | 'fields' | 'visibility' | 'spaceId' | 'pinned' | 'kind'>
 > & {
   tagIds?: string[]
+  /** 改成自定义类型时给（ADR-0016） */
+  typeId?: string
 }
 
 export type BatchInput =
   | { op: 'move'; ids: string[]; spaceId: string }
   | { op: 'tags'; ids: string[]; add: string[]; remove: string[] }
-  | { op: 'archive' | 'unarchive' | 'delete'; ids: string[] }
+  | { op: 'archive' | 'unarchive' | 'delete' | 'pin' | 'unpin'; ids: string[] }
+  | { op: 'retype'; ids: string[]; kind: EntryKind; typeId?: string }
+  | { op: 'fields'; ids: string[]; set: { status?: string; progress?: number } }
 
 export function useEntryActions() {
   const qc = useQueryClient()
@@ -42,6 +46,7 @@ export function useEntryActions() {
 
   const create = async (input: {
     kind: EntryKind
+    typeId?: string
     title: string
     spaceId?: string
     fields?: Record<string, unknown>

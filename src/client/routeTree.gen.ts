@@ -31,6 +31,7 @@ import { Route as AppSettingsNotificationsRouteImport } from './routes/_app.sett
 import { Route as AppSettingsSecurityRouteImport } from './routes/_app.settings.security'
 import { Route as AppSettingsTagsRouteImport } from './routes/_app.settings.tags'
 import { Route as AppSettingsTemplatesRouteImport } from './routes/_app.settings.templates'
+import { Route as AppSettingsTypesRouteImport } from './routes/_app.settings.types'
 import { Route as AppSpacesIndexRouteImport } from './routes/_app.spaces.index'
 import { Route as AppSpacesSpaceSlugRouteImport } from './routes/_app.spaces.$spaceSlug'
 import { Route as AppSettingsWorkspaceIndexRouteImport } from './routes/_app.settings.workspace.index'
@@ -152,6 +153,11 @@ const AppSettingsTemplatesRoute = AppSettingsTemplatesRouteImport.update({
   path: '/templates',
   getParentRoute: () => AppSettingsRoute,
 } as any)
+const AppSettingsTypesRoute = AppSettingsTypesRouteImport.update({
+  id: '/types',
+  path: '/types',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppSpacesIndexRoute = AppSpacesIndexRouteImport.update({
   id: '/spaces/',
   path: '/spaces/',
@@ -229,6 +235,7 @@ export interface FileRoutesByFullPath {
   '/settings/security': typeof AppSettingsSecurityRoute
   '/settings/tags': typeof AppSettingsTagsRoute
   '/settings/templates': typeof AppSettingsTemplatesRoute
+  '/settings/types': typeof AppSettingsTypesRoute
   '/spaces/$spaceSlug': typeof AppSpacesSpaceSlugRouteWithChildren
   '/entries/': typeof AppEntriesIndexRoute
   '/settings/': typeof AppSettingsIndexRoute
@@ -261,6 +268,7 @@ export interface FileRoutesByTo {
   '/settings/security': typeof AppSettingsSecurityRoute
   '/settings/tags': typeof AppSettingsTagsRoute
   '/settings/templates': typeof AppSettingsTemplatesRoute
+  '/settings/types': typeof AppSettingsTypesRoute
   '/spaces/$spaceSlug': typeof AppSpacesSpaceSlugRouteWithChildren
   '/entries': typeof AppEntriesIndexRoute
   '/settings': typeof AppSettingsIndexRoute
@@ -296,6 +304,7 @@ export interface FileRoutesById {
   '/_app/settings/security': typeof AppSettingsSecurityRoute
   '/_app/settings/tags': typeof AppSettingsTagsRoute
   '/_app/settings/templates': typeof AppSettingsTemplatesRoute
+  '/_app/settings/types': typeof AppSettingsTypesRoute
   '/_app/spaces/$spaceSlug': typeof AppSpacesSpaceSlugRouteWithChildren
   '/_app/entries/': typeof AppEntriesIndexRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
@@ -331,6 +340,7 @@ export interface FileRouteTypes {
     | '/settings/security'
     | '/settings/tags'
     | '/settings/templates'
+    | '/settings/types'
     | '/spaces/$spaceSlug'
     | '/entries/'
     | '/settings/'
@@ -363,6 +373,7 @@ export interface FileRouteTypes {
     | '/settings/security'
     | '/settings/tags'
     | '/settings/templates'
+    | '/settings/types'
     | '/spaces/$spaceSlug'
     | '/entries'
     | '/settings'
@@ -397,6 +408,7 @@ export interface FileRouteTypes {
     | '/_app/settings/security'
     | '/_app/settings/tags'
     | '/_app/settings/templates'
+    | '/_app/settings/types'
     | '/_app/spaces/$spaceSlug'
     | '/_app/entries/'
     | '/_app/settings/'
@@ -576,6 +588,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsTemplatesRouteImport
       parentRoute: typeof AppSettingsRoute
     }
+    '/_app/settings/types': {
+      id: '/_app/settings/types'
+      path: '/types'
+      fullPath: '/settings/types'
+      preLoaderRoute: typeof AppSettingsTypesRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/_app/spaces/': {
       id: '/_app/spaces/'
       path: '/spaces'
@@ -655,6 +674,7 @@ interface AppSettingsRouteChildren {
   AppSettingsSecurityRoute: typeof AppSettingsSecurityRoute
   AppSettingsTagsRoute: typeof AppSettingsTagsRoute
   AppSettingsTemplatesRoute: typeof AppSettingsTemplatesRoute
+  AppSettingsTypesRoute: typeof AppSettingsTypesRoute
   AppSettingsIndexRoute: typeof AppSettingsIndexRoute
   AppSettingsWorkspaceAuditRoute: typeof AppSettingsWorkspaceAuditRoute
   AppSettingsWorkspaceMembersRoute: typeof AppSettingsWorkspaceMembersRoute
@@ -668,6 +688,7 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsSecurityRoute: AppSettingsSecurityRoute,
   AppSettingsTagsRoute: AppSettingsTagsRoute,
   AppSettingsTemplatesRoute: AppSettingsTemplatesRoute,
+  AppSettingsTypesRoute: AppSettingsTypesRoute,
   AppSettingsIndexRoute: AppSettingsIndexRoute,
   AppSettingsWorkspaceAuditRoute: AppSettingsWorkspaceAuditRoute,
   AppSettingsWorkspaceMembersRoute: AppSettingsWorkspaceMembersRoute,

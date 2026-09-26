@@ -22,6 +22,7 @@ import {
 import {
   ATTACHMENT_TARGET_TYPES,
   AUDIT_ACTIONS,
+  BUILTIN_ENTRY_KINDS,
   COMMENT_TARGET_TYPES,
   CYCLE_KINDS,
   CYCLE_STATUSES,
@@ -202,6 +203,41 @@ export const taskWatchers = pgTable(
   (t) => [primaryKey({ columns: [t.taskId, t.userId] })],
 )
 
+// ---------- 3.4c entry_types（ADR-0016 自定义记录类型）----------
+/** 工作区共享的自定义类型：名字唯一、9 色板、可选状态列表（有序，0–12 项）；记录 kind = 'custom' 且 type_id 指向它。 */
+export const entryTypes = pgTable(
+  'entry_types',
+  {
+    id: pk(),
+    workspaceId: orgRef(),
+    name: text().notNull(),
+    color: text().notNull(),
+    statuses: jsonb().$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    /** 创建者：可改名 / 改色 / 改状态 / 删除（与 tag.manage 同规则） */
+    createdBy: userRef(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique('entry_types_workspace_name_uq').on(t.workspaceId, t.name),
+    check('entry_types_color_ck', inList(t.color, PALETTE_COLORS)),
+  ],
+)
+
+/** 工作区隐藏的内置类型（ADR-0016）：只影响筛选条与新建菜单，已有记录照常显示。 */
+export const hiddenEntryKinds = pgTable(
+  'hidden_entry_kinds',
+  {
+    workspaceId: orgRef(),
+    kind: text().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workspaceId, t.kind] }),
+    check('hidden_entry_kinds_kind_ck', inList(t.kind, BUILTIN_ENTRY_KINDS)),
+  ],
+)
+
 // ---------- 3.4 entries ----------
 export const entries = pgTable(
   'entries',
@@ -212,6 +248,8 @@ export const entries = pgTable(
       .notNull()
       .references(() => spaces.id),
     kind: text().notNull(),
+    /** 自定义类型（ADR-0016）：kind = 'custom' 时必填，否则为空；删类型前 service 先把记录转为随手记 */
+    typeId: uuid().references(() => entryTypes.id),
     title: text().notNull(),
     fields: jsonb().notNull().default(sql`'{}'::jsonb`),
     visibility: text().notNull(),
@@ -249,6 +287,8 @@ export const entries = pgTable(
       name: 'entries_parent_id_fk',
     }).onDelete('set null'),
     check('entries_kind_ck', inList(t.kind, ENTRY_KINDS)),
+    check('entries_custom_type_ck', sql`(${t.kind} = 'custom') = (${t.typeId} is not null)`),
+    index('entries_type_idx').on(t.typeId),
     check('entries_visibility_ck', inList(t.visibility, ENTRY_VISIBILITIES)),
   ],
 )
@@ -293,7 +333,7 @@ export const entryTemplates = pgTable(
     index('entry_templates_workspace_scope_idx').on(t.workspaceId, t.scope),
     index('entry_templates_owner_idx').on(t.ownerId),
     check('entry_templates_scope_ck', inList(t.scope, TEMPLATE_SCOPES)),
-    check('entry_templates_kind_ck', inList(t.kind, ENTRY_KINDS)),
+    check('entry_templates_kind_ck', inList(t.kind, BUILTIN_ENTRY_KINDS)),
     check(
       'entry_templates_space_kind_ck',
       sql`${t.spaceKind} is null or ${inList(t.spaceKind, SPACE_KINDS)}`,

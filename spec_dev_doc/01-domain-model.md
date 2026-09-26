@@ -154,7 +154,8 @@
 | id | uuid | PK |
 | workspace_id | text | FK organization |
 | space_id | uuid | FK spaces，NOT NULL（个人记录落个人空间） |
-| kind | text | `decision` \| `iteration` \| `bug` \| `changelog` \| `journal` \| `note` \| `review` \| `optimize` \| `plan`（后两者 ADR-0011 §3，2026-09-25） |
+| kind | text | `decision` \| `iteration` \| `bug` \| `changelog` \| `journal` \| `note` \| `review` \| `optimize` \| `plan`（后两者 ADR-0011 §3，2026-09-25）\| `custom`（2026-09-27 ADR-0016：自定义类型，见 §3.4c） |
+| type_id | uuid? | FK entry_types（ADR-0016）；check `(kind = 'custom') = (type_id is not null)`；删类型前 service 先把记录转为 `note` |
 | title | text | |
 | fields | jsonb | 按 kind 的**元数据**（见 §3.5）；叙述性内容在正文，不在此重复 |
 | visibility | text | `private`（仅作者）\| `space` \| `workspace` |
@@ -215,6 +216,34 @@
 | updated_at | timestamptz | |
 
 - 索引：`(workspace_id, scope)`、`(owner_id)`。内置模板（`builtin:<key>`）是代码常量（`src/shared/editor/builtin-templates.ts`），不入表。
+
+### 3.4c entry_types / hidden_entry_kinds —— 自定义记录类型（2026-09-27 ADR-0016）
+
+**entry_types**
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| id | uuid | PK |
+| workspace_id | text | FK organization |
+| name | text | 1–20 字；唯一 `(workspace_id, name)` |
+| color | text | 9 色板 token 名（check） |
+| statuses | jsonb | 有序状态名 `string[]`（0–12，去重，不含 `, \| =`）；第一项 = 新建默认值 |
+| created_by | text? | FK user；创建者可管理（同 tag.manage 规则） |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
+
+- 自定义类型记录的 `fields` = `{ status?: string ∈ statuses, progress?: 0–100, dueDate?: date }`（strict；status 归属由 service 校验）。
+- 改 `statuses`：`renames` 一对一改名同步到记录；不再存在的状态改为新列表第一项（空列表 = 去掉 status）。删类型：其下记录（含回收站）→ `kind = note`、`type_id = null`、`fields = {}`，同事务 + 审计 `entry_type.deleted`。
+
+**hidden_entry_kinds**
+
+（管理员隐藏的内置类型；只影响筛选条与新建菜单）
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| workspace_id | text | FK organization，PK 之一 |
+| kind | text | 内置 9 种之一（check），PK 之一 |
+| created_at | timestamptz | |
 
 ### 3.5 `fields` 按 kind 的 Zod schema（`src/shared/entryFields.ts`）
 
@@ -448,7 +477,7 @@ plan     : { status: 'planning'|'active'|'paused'|'done', startDate?: date, endD
 - `action` 枚举（Zod `AuditAction`，新增值先改本表）：
   注（2026-09-25，ADR-0008）：+ `member.registered`（自助注册，actor 为空）· `member.approved` · `member.rejected`（驳回即删号，`meta` 留邮箱 / 用户名）。
   注（2026-09-25，ADR-0010）：+ `auth.password_changed`（本人改密，`meta.otherSessionsRevoked`）· `user.created`（owner 直建）· `user.updated`（改显示名 / 用户名 / 邮箱，`meta.byAdmin` 区分本人与 owner，含新旧值）；owner 重置他人密码记 `auth.password_reset`（`meta.byAdmin`），删号记 `user.deleted`（`meta.byAdmin`）。迁移 0007 同步 `audit_log_action_ck`。
-  `auth.login` · `auth.logout` · `auth.login_failed` · `auth.locked` · `auth.password_reset` · `auth.2fa_enabled` · `auth.2fa_disabled` · `auth.2fa_reset_by_admin` · `member.invited` · `member.joined` · `member.registered` · `member.approved` · `member.rejected` · `member.role_changed` · `member.suspended` · `member.unsuspended` · `member.removed` · `member.content_transferred` · `user.deleted` · `workspace.owner_transferred` · `workspace.settings_changed` · `space.deleted` · `space.permanently_deleted` · `task.permanently_deleted` · `entry.permanently_deleted` · `entry.restored`（ADR-0011）· `export.requested` · `export.done` · `export.failed` · `api_key.created` · `api_key.revoked` · `gc.failed` · `backup.failed`
+  `auth.login` · `auth.logout` · `auth.login_failed` · `auth.locked` · `auth.password_reset` · `auth.2fa_enabled` · `auth.2fa_disabled` · `auth.2fa_reset_by_admin` · `member.invited` · `member.joined` · `member.registered` · `member.approved` · `member.rejected` · `member.role_changed` · `member.suspended` · `member.unsuspended` · `member.removed` · `member.content_transferred` · `user.deleted` · `workspace.owner_transferred` · `workspace.settings_changed` · `space.deleted` · `space.permanently_deleted` · `task.permanently_deleted` · `entry.permanently_deleted` · `entry.restored`（ADR-0011）· `export.requested` · `export.done` · `export.failed` · `api_key.created` · `api_key.revoked` · `gc.failed` · `backup.failed` · `entry_type.deleted`（ADR-0016）
 
 ### 3.13 idempotency_keys
 
@@ -624,6 +653,7 @@ Workspace 角色 × Space 角色 → 有效角色取**较高者**，`guest` 只�
 | member.approve（审批注册申请，ADR-0008） | ✓ | ✗ | ✗ |
 | group.manage（大类增删改排，ADR-0012；把空间移入大类走 space.manage） | ✓ | ✗ | ✗ |
 | tag.manage（标签改名 / 改色 / 删除 / 合并；ADR-0014 起创建者也可） | ✓ | 本人创建的 | ✗ |
+| entry_type.create / entry_type.manage（自定义类型；隐藏内置类型仅管理员；ADR-0016） | ✓ | 创建 ✓ / 管理本人创建的 | ✗ |
 | template.read（记录模板，ADR-0011） | personal 仅本人；workspace 全员 | 同左 | 同左 |
 | template.create | personal：非 guest；workspace：仅 owner / admin | personal ✓ | ✗ |
 | template.manage（改名 / 范围 / 删除） | 本人的（非 guest）；workspace 模板管理员可管 | 本人的 | ✗ |

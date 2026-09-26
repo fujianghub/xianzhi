@@ -90,7 +90,7 @@ export function DirTree({
         const title = n.title || t('entry.untitled')
         const body = (
           <>
-            <KindIcon kind={n.kind} size="xs" />
+            <KindIcon kind={n.kind} typeId={n.typeId} size="xs" />
             <span className={cn('truncate', treeLevelClass(n.depth))}>{title}</span>
             {n.hasChildren && !isOpen ? (
               <span className="xz-tree-count ms-auto" aria-hidden>

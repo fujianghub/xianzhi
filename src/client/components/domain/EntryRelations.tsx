@@ -95,7 +95,7 @@ export function EntryRelations({ entry, canWrite }: { entry: Entry; canWrite: bo
       >
         {label ? <span className="shrink-0 text-[11px] text-fg-faint">{label}</span> : null}
         {end.kind && end.type === 'entry' ? (
-          <KindBadge kind={end.kind} className="shrink-0" />
+          <KindBadge kind={end.kind} typeId={end.typeId} className="shrink-0" />
         ) : null}
         {end.type === 'entry' && end.id ? (
           <Link

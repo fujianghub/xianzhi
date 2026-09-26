@@ -11,11 +11,13 @@ import {
   CommandList,
 } from '../components/ui/command.tsx'
 import { api, unwrap } from '../lib/api.ts'
+import { useKindLabel } from '../lib/entry-types.ts'
 
 interface Row {
   id: string
   title: string
   kind: string
+  typeId?: string | null
 }
 
 export function EntryPicker({
@@ -33,6 +35,7 @@ export function EntryPicker({
   kind?: string
 }) {
   const { t } = useTranslation()
+  const kindLabel = useKindLabel()
   const [q, setQ] = useState('')
   const { data } = useQuery({
     queryKey: ['entries', 'picker', q, kind ?? ''],
@@ -71,7 +74,9 @@ export function EntryPicker({
           >
             <FileText className="size-4 text-fg-muted" />
             <span className="truncate">{r.title}</span>
-            <span className="ml-auto text-fg-muted text-xs">{t(`entry.kind.${r.kind}`)}</span>
+            <span className="ml-auto text-fg-muted text-xs">
+              {kindLabel(r.kind ?? 'note', r.typeId).label}
+            </span>
           </CommandItem>
         ))}
       </CommandList>

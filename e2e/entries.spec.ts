@@ -42,7 +42,7 @@ test('REQ-ENTRY-006 固定项在列表中置顶', async ({ page, request }) => {
   await page.goto(`/entries/${older}`)
   await page.getByTestId('entry-pin').click()
   await expect(page.getByTestId('entry-pin')).toHaveAttribute('aria-pressed', 'true')
-  await page.goto(`/spaces/${s.slug}/entries`)
+  await page.goto(`/spaces/${s.slug}/entries?view=cards`)
   const cards = page.getByTestId('entry-card')
   await expect(cards).toHaveCount(2)
   await expect(cards.first()).toHaveAttribute('data-entry-id', older)

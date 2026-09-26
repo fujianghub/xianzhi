@@ -23,6 +23,7 @@ export interface TreeNode {
   id: string
   title: string
   kind: EntryKind
+  typeId: string | null
   parentId: string | null
   treeOrder: string
   updatedAt: string
@@ -85,6 +86,7 @@ export async function getSpaceTree(db: Db, ctx: EntryCtx, spaceKey: string): Pro
       id: entries.id,
       title: entries.title,
       kind: entries.kind,
+      typeId: entries.typeId,
       parentId: entries.parentId,
       treeOrder: entries.treeOrder,
       updatedAt: entries.updatedAt,
@@ -119,6 +121,7 @@ export async function getSpaceTree(db: Db, ctx: EntryCtx, spaceKey: string): Pro
       id: r.id,
       title: r.title,
       kind: r.kind as EntryKind,
+      typeId: r.typeId,
       parentId: r.parentId,
       treeOrder: r.treeOrder as string,
       updatedAt: r.updatedAt.toISOString(),

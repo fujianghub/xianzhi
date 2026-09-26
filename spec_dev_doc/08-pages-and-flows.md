@@ -34,6 +34,7 @@
 | `/settings/api-keys` | `routes/settings.api-keys.tsx` | API Key | member+ | ~~0~~ 1 | REQ-AUTH-010 |
 | `/spaces/$slug/home` | `routes/_app.spaces.$spaceSlug_.home.tsx` | 空间概览（进入空间默认页，ADR-0012；个人空间为工作台，ADR-0015） | guest+ | 2 | REQ-KB-003 · 007 |
 | `/spaces/$slug/tree` | `routes/_app.spaces.$spaceSlug_.tree.tsx` | 空间目录 + 其余记录（ADR-0012） | guest+ | 2 | REQ-KB-005 |
+| `/settings/types` | `routes/_app.settings.types.tsx` | 记录类型：自定义类型新建（色 + 状态）/ 改名改色 / 编辑状态 / 删除（其下记录转随笔），内置类型隐藏（管理员）、用量、查看记录（ADR-0016） | guest+（管理需 member+） | 2 | REQ-ENTRY-018 · 019 |
 | `/settings/tags` | `routes/_app.settings.tags.tsx` | 标签：新建选色、改名 / 改色 / 合并 / 删除（管理员或创建者）、用量、查看记录（ADR-0014） | guest+（管理需 member+） | 2 | REQ-TAG-004 · 005 |
 | `/settings/templates` | `routes/_app.settings.templates.tsx` | 模板：内置 / 我的 / 工作区，预览、用此模板新建、改名 / 范围 / 删除（ADR-0011） | guest+（管理需 member+） | 2 | REQ-TPL-001 · 004 |
 | `/settings/workspace` | `routes/settings.workspace.index.tsx` | 工作区设置 | admin+ | ~~0~~ 1 | REQ-WS-001 |
@@ -144,6 +145,7 @@
 - **三态**：空态按 kind 给不同一句话（decision：「还没有决定被记下来」）+ 「新建」下拉（选 kind）；骨架 6 卡；错误重试。
 - **主操作**：`e` 新记录（Dialog 选 kind + 标题 → 创建后跳编辑）；卡片悬停 Peek。
 - **REQ**：REQ-ENTRY-001 · 002 · 003 · 006 · 008 · REQ-UI-007。
+- **注 2026-09-27（ADR-0016）**：默认改为**列表**（勾选 · 标题 + 路径 + 一行摘要 · 类型 · 状态 · 进度 · 标签 · 空间 · 更新），`view=cards` 为卡片（`view=table` 兼容）；列表勾选常驻、有选中即出批量条（移动 / 改类型 / 改状态 / 标签 / 固定 / 归档 / 删除）；类型筛选含自定义类型（`typeId?: csv(uuid)`），筛选条与标签筛选旁各有「管理」入口（→ `/settings/types`、`/settings/tags`）。REQ-ENTRY-016 ~ 019。
 - **注 2026-09-26（ADR-0014）**：左栏位置导航（全部 / 最近打开 / 收藏 / 已归档 / 个人随笔 / 大类 → 空间 → 目录树；空间页签内只列本空间目录，窄屏折叠）；search params 追加 `spaceId? under? groupId?(uuid|'none') favorite?/recent?/archived?:'1'`（互斥）、`view?: 'table'|'board'|'timeline'`、`select?: '1'`（多选）；标签多选筛选；卡片 / 表格显示目录路径与收藏星标，悬停 ⋯ 菜单；目录节点下「新记录」= 子页。REQ-ENTRY-012 ~ 015 · REQ-TAG-006。
 
 ### 2.9 记录编辑 `/entries/$entryId`
@@ -198,6 +200,8 @@
 - **REQ**：REQ-EXPORT-001 · 007。
 
 ### 2.17 日历 `/calendar`（2026-09-24 新增；2026-09-25 按 ADR-0009 改版，对标 macOS 日历）
+
+> 注 2026-09-27（ADR-0016）：点日程 / 任务改为在其旁弹**快速编辑气泡**（就地改、删；Delete 删除；日程「更多选项」进完整编辑器，任务「详情」在页内开抽屉），不再打开 Peek 或跳转；任务可拖动改期（REQ-CAL-012 · 013）。
 注（2026-09-25）：以下为改版后规格，原「事件 = 任务」一段保留为叠加层说明。
 - **布局**：左栏 15.5rem（≥ xl，可折叠，本机记忆）：小月历（假日淡翡翠底、调休角点、有日程打点）· 我的日历（勾选显示、⋯ 改名 / 改色 / 删除、＋ 新建）· 同时显示（任务 / 法定节假日与调休 / 农历与节气，本机记忆）· 接下来 7 天。右侧主视图占满剩余高度。
 - **视图**：`?view=day|week|month|year`（缺省月）。月：格内左上「休 / 班」角标 + 农历（节日 / 节气优先，翡翠色），日期号右上；周 / 日：表头星期 + 日期 + 农历，全天行（全天与跨天事件），时间轴按真实时长、重叠分栏，打开时滚到 08:00 或更早的首个日程；日视图 ≥ 2xl 右侧当日详情栏（农历全称、干支年、节假日、当日清单）；年：12 个小月历。

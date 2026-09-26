@@ -27,6 +27,8 @@ export interface LinkEnd {
   title: string
   /** 记录 kind / 任务 status */
   kind?: string
+  /** 自定义类型 id（ADR-0016） */
+  typeId?: string | null
   spaceSlug?: string
   fields?: Record<string, unknown>
   url?: string
@@ -60,6 +62,7 @@ async function endOf(
       id,
       title: e.row.title,
       kind: e.row.kind,
+      typeId: e.row.typeId ?? null,
       spaceSlug: e.space.row.slug,
       fields: (e.row.fields ?? {}) as Record<string, unknown>,
     }

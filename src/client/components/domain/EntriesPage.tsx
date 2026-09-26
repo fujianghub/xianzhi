@@ -9,16 +9,22 @@
  * - 标签多选筛选；只选一种带 status 的类型时可切「看板」，只选 迭代 / 变更 时可切「时间线」；
  * - 「多选」进入批量模式（`select=1`），吸底操作条走 `POST /entries/batch`。
  * 「最近打开 / 收藏 / 已归档」不分固定区（单次查询）；最近打开按本机访问顺序排列。
+ *
+ * ADR-0016（REQ-ENTRY-016 ~ 019）：
+ * - 默认 = 列表视图（状态 / 进度 / 摘要常驻），`view=cards` 为卡片；列表勾选列常驻，选中即出批量条（卡片仍用「多选」）；
+ * - 类型筛选 = 未隐藏的内置类型 + 自定义类型（`typeId=`），旁边「管理」进 /settings/types；标签筛选旁「管理」进 /settings/tags。
  */
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import {
   CalendarRange,
   CheckSquare,
   Columns3,
   LayoutGrid,
+  List,
   ListTree,
   Plus,
-  Table2,
+  Settings2,
 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -26,7 +32,6 @@ import { useDelayedFlag } from '../../hooks/useDelayedFlag.ts'
 import { useMe } from '../../hooks/useMe.ts'
 import { cn } from '../../lib/cn.ts'
 import {
-  ENTRY_KINDS,
   ENTRY_SORTS,
   type Entry,
   type EntryKind,
@@ -35,6 +40,7 @@ import {
   flattenEntries,
   treeQuery,
 } from '../../lib/entry-queries.ts'
+import { kindKey, useKindLabel, useKindOptions } from '../../lib/entry-types.ts'
 import { recentIds } from '../../lib/recent.ts'
 import { csvList } from '../../lib/search.ts'
 import { type Space, spaceGroupsQuery, spacesQuery } from '../../lib/space-queries.ts'
@@ -54,8 +60,10 @@ import { TagFilter } from './TagFilter.tsx'
 
 export interface EntriesSearch {
   kind?: string
+  /** 自定义类型（ADR-0016），逗号多值；与 kind 同给 = 任一命中 */
+  typeId?: string
   fields?: string
-  view?: 'table' | 'board' | 'timeline'
+  view?: 'table' | 'cards' | 'board' | 'timeline'
   authorId?: string
   tag?: string
   q?: string
@@ -111,16 +119,26 @@ export function EntriesPage({
   const openNew = useNewEntry((s) => s.setOpen)
   const setDefaults = useNewEntry((s) => s.setDefaults)
   const kinds = csvList(search.kind) as EntryKind[]
-  const kind = kinds.length === 1 ? kinds[0] : undefined
-  const statuses = boardStatuses(kind)
+  const typeIds = csvList(search.typeId)
+  const kindOf = useKindLabel()
+  const kindOptions = useKindOptions()
+  // 只选了一种类型：内置 kind，或一个自定义类型
+  const typeId = !kinds.length && typeIds.length === 1 ? typeIds[0] : undefined
+  const kind: EntryKind | undefined = typeId
+    ? 'custom'
+    : kinds.length === 1 && !typeIds.length
+      ? kinds[0]
+      : undefined
+  const customStatuses = typeId ? kindOf('custom', typeId).statuses : null
+  const statuses = typeId ? (customStatuses?.length ? customStatuses : null) : boardStatuses(kind)
   const view =
     search.view === 'board' && statuses
       ? 'board'
       : search.view === 'timeline' && hasTimeline(kind)
         ? 'timeline'
-        : search.view === 'table'
-          ? 'table'
-          : 'cards'
+        : search.view === 'cards'
+          ? 'cards'
+          : 'table'
   const effSpaceId = spaceId ?? search.spaceId
   const showNav = !spaceId || !!space
   const selecting = search.select === '1'
@@ -128,9 +146,10 @@ export function EntriesPage({
     () => ({
       spaceId: effSpaceId,
       kind,
+      ...(typeId ? { typeId } : {}),
       ...(search.under && effSpaceId ? { parentId: search.under } : {}),
     }),
-    [effSpaceId, kind, search.under],
+    [effSpaceId, kind, typeId, search.under],
   )
   useEffect(() => {
     setDefaults(newDefaults)
@@ -158,6 +177,7 @@ export function EntriesPage({
     archived: search.archived,
     ids: recent?.join(','),
     kind: search.kind,
+    typeId: search.typeId,
     fields: search.fields,
     authorId: search.authorId,
     tag: search.tag,
@@ -185,11 +205,17 @@ export function EntriesPage({
     (!special && pinned.isPending) || (search.pinned !== '1' && !recentEmpty && rest.isPending)
   const skeleton = useDelayedFlag(loading)
 
-  // 多选
+  // 多选：列表视图勾选列常驻；卡片视图需进入「多选」模式。筛选 / 位置 / 视图变了清空选择
   const [selected, setSelected] = useState<string[]>([])
+  const listKey = JSON.stringify(base)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: listKey / view 变化即清空
   useEffect(() => {
-    if (!selecting) setSelected([])
-  }, [selecting])
+    setSelected([])
+  }, [listKey, view])
+  useEffect(() => {
+    if (!selecting && view === 'cards') setSelected([])
+  }, [selecting, view])
+  const showBatch = view === 'table' ? selected.length > 0 || selecting : selecting
   const selSet = new Set(selected)
   const toggleSel = (id: string) =>
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
@@ -207,12 +233,23 @@ export function EntriesPage({
       'h-8 shrink-0 rounded-full border px-3 text-sm',
       active ? 'border-selected-border bg-selected' : 'border-border hover:bg-hover',
     )
-  const toggleKind = (k: EntryKind) => {
-    const next = kinds.includes(k) ? kinds.filter((x) => x !== k) : [...kinds, k]
+  const kindOn = (o: { kind: string; typeId: string | null }) =>
+    o.kind === 'custom' ? typeIds.includes(o.typeId ?? '') : kinds.includes(o.kind as EntryKind)
+  const toggleKind = (o: { kind: string; typeId: string | null }) => {
     // 类型变了，字段过滤可能不再适用：清空
+    if (o.kind === 'custom' && o.typeId) {
+      const id = o.typeId
+      const next = typeIds.includes(id) ? typeIds.filter((x) => x !== id) : [...typeIds, id]
+      setSearch({ typeId: next.length ? next.join(',') : undefined, fields: undefined })
+      return
+    }
+    const k = o.kind as EntryKind
+    const next = kinds.includes(k) ? kinds.filter((x) => x !== k) : [...kinds, k]
     setSearch({ kind: next.length ? next.join(',') : undefined, fields: undefined })
   }
-  const fieldFilters = kind ? fieldSpecs(kind).filter((f) => f.kind === 'select') : []
+  const fieldFilters = kind
+    ? fieldSpecs(kind, customStatuses).filter((f) => f.kind === 'select')
+    : []
   const fieldValues = parseFieldsParam(search.fields)
   const viewBtn = (key: typeof view, icon: ReactNode, label: string, testId: string) => (
     <button
@@ -220,7 +257,7 @@ export function EntriesPage({
       aria-pressed={view === key}
       aria-label={label}
       title={label}
-      onClick={() => setSearch({ view: key === 'cards' ? undefined : key })}
+      onClick={() => setSearch({ view: key === 'table' ? undefined : key })}
       className={cn(
         'grid h-7 w-8 place-items-center rounded-full',
         view === key ? 'bg-selected' : 'text-fg-muted',
@@ -274,13 +311,13 @@ export function EntriesPage({
             <div className="ml-auto flex items-center gap-2">
               <fieldset className="flex rounded-full border border-border p-0.5">
                 <legend className="sr-only">{t('kb.view')}</legend>
+                {viewBtn('table', <List className="size-4" />, t('entry.list.label'), 'view-table')}
                 {viewBtn(
                   'cards',
                   <LayoutGrid className="size-4" />,
                   t('kb.viewCards'),
                   'view-cards',
                 )}
-                {viewBtn('table', <Table2 className="size-4" />, t('kb.viewTable'), 'view-table')}
                 {statuses
                   ? viewBtn(
                       'board',
@@ -298,7 +335,7 @@ export function EntriesPage({
                     )
                   : null}
               </fieldset>
-              {view === 'cards' || view === 'table' ? (
+              {view === 'cards' ? (
                 <Button
                   variant={selecting ? 'secondary' : 'ghost'}
                   size="sm"
@@ -326,23 +363,32 @@ export function EntriesPage({
               <legend className="sr-only">{t('entry.props.kind')}</legend>
               <button
                 type="button"
-                className={chip(!kinds.length)}
-                onClick={() => setSearch({ kind: undefined, fields: undefined })}
+                className={chip(!kinds.length && !typeIds.length)}
+                onClick={() => setSearch({ kind: undefined, typeId: undefined, fields: undefined })}
               >
                 {t('entry.allKinds')}
               </button>
-              {ENTRY_KINDS.map((k) => (
+              {kindOptions.map((o) => (
                 <button
-                  key={k}
+                  key={kindKey(o)}
                   type="button"
-                  aria-pressed={kinds.includes(k)}
-                  className={chip(kinds.includes(k))}
-                  onClick={() => toggleKind(k)}
-                  data-kind-filter={k}
+                  aria-pressed={kindOn(o)}
+                  className={chip(kindOn(o))}
+                  onClick={() => toggleKind(o)}
+                  data-kind-filter={kindKey(o)}
                 >
-                  {t(`entry.kind.${k}`)}
+                  {o.label}
                 </button>
               ))}
+              <Link
+                to="/settings/types"
+                className="inline-grid size-8 shrink-0 place-items-center rounded-full text-fg-muted hover:bg-hover hover:text-fg"
+                title={t('entry.types.manage')}
+                aria-label={t('entry.types.manage')}
+                data-testid="manage-types"
+              >
+                <Settings2 className="size-4" />
+              </Link>
             </fieldset>
             {fieldFilters.map((f) =>
               f.kind === 'select' ? (
@@ -363,13 +409,22 @@ export function EntriesPage({
                   </option>
                   {f.options.map((o) => (
                     <option key={String(o)} value={String(o)}>
-                      {t(`entry.fieldValue.${o}`, { defaultValue: String(o) })}
+                      {f.raw ? String(o) : t(`entry.fieldValue.${o}`, { defaultValue: String(o) })}
                     </option>
                   ))}
                 </select>
               ) : null,
             )}
             <TagFilter value={search.tag} onChange={(tag) => setSearch({ tag })} />
+            <Link
+              to="/settings/tags"
+              className="inline-grid size-8 shrink-0 place-items-center rounded-full text-fg-muted hover:bg-hover hover:text-fg"
+              title={t('entry.tagsManage')}
+              aria-label={t('entry.tagsManage')}
+              data-testid="manage-tags"
+            >
+              <Settings2 className="size-4" />
+            </Link>
             <button
               type="button"
               aria-pressed={search.authorId === 'me'}
@@ -434,8 +489,13 @@ export function EntriesPage({
             <EntryTable
               items={items}
               kinds={kinds}
+              typeId={typeId}
               showSpace={!effSpaceId}
-              select={selecting ? { has: (id) => selSet.has(id), toggle: toggleSel } : undefined}
+              select={{
+                has: (id) => selSet.has(id),
+                toggle: toggleSel,
+                setAll: (on) => setSelected(on ? items.map((e) => e.id) : []),
+              }}
             />
           ) : (
             <div
@@ -469,9 +529,10 @@ export function EntriesPage({
               </Button>
             </div>
           ) : null}
-          {selecting ? (
+          {showBatch ? (
             <EntryBatchBar
               selected={selected}
+              items={items}
               setSelected={setSelected}
               onSelectAll={() => setSelected(items.map((e) => e.id))}
               archivedView={!!search.archived}

@@ -55,6 +55,22 @@ export const planFields = z
     path: ['endDate'],
   })
 
+/**
+ * 自定义类型（ADR-0016）：状态（取值 ∈ 该类型的状态列表，service 校验）、进度百分比、截止日。
+ * 状态名不含 `, | =`（列表筛选参数的分隔符）。
+ */
+export const customStatusName = z
+  .string()
+  .trim()
+  .min(1)
+  .max(20)
+  .regex(/^[^,|=]+$/, '状态名不能含 , | =')
+export const customFields = z.strictObject({
+  status: customStatusName.optional(),
+  progress: z.number().int().min(0).max(100).optional(),
+  dueDate: isoDate.optional(),
+})
+
 export const entryFieldsByKind = {
   decision: decisionFields,
   bug: bugFields,
@@ -65,6 +81,7 @@ export const entryFieldsByKind = {
   note: noteFields,
   optimize: optimizeFields,
   plan: planFields,
+  custom: customFields,
 } as const satisfies Record<EntryKind, z.ZodType>
 
 export type EntryFields<K extends EntryKind = EntryKind> = z.infer<(typeof entryFieldsByKind)[K]>
@@ -104,4 +121,5 @@ export const defaultEntryFields: Record<EntryKind, Record<string, unknown>> = {
   note: {},
   optimize: { status: 'proposed' },
   plan: { status: 'active' },
+  custom: {}, // 状态默认取该类型状态列表第一项（service）
 }

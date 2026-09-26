@@ -43,6 +43,7 @@ import { staggerIndex, TreeGuides, treeLevelClass } from '../components/ui/tree-
 import { ApiError, api, unwrap } from '../lib/api.ts'
 import { cn } from '../lib/cn.ts'
 import { type EntryPage, treeQuery } from '../lib/entry-queries.ts'
+import { useKindLabel } from '../lib/entry-types.ts'
 import { type Space, spaceQuery } from '../lib/space-queries.ts'
 import { useNewEntry } from '../lib/stores.ts'
 import {
@@ -239,7 +240,7 @@ function TreeBody({ space }: { space: Space }) {
               data-testid="unfiled-row"
               data-entry-id={e.id}
             >
-              <KindBadge kind={e.kind} />
+              <KindBadge kind={e.kind} typeId={e.typeId} />
               <Link
                 to="/entries/$entryId"
                 params={{ entryId: e.id }}
@@ -289,6 +290,7 @@ function TreeRow({
   onNewChild: () => void
 }) {
   const { t } = useTranslation()
+  const kindLabel = useKindLabel()
   const {
     attributes,
     listeners,
@@ -344,7 +346,12 @@ function TreeRow({
         ) : (
           <span className="size-6" />
         )}
-        <KindIcon kind={item.kind} size="sm" label={t(`entry.kind.${item.kind}`)} />
+        <KindIcon
+          kind={item.kind}
+          typeId={item.typeId}
+          size="sm"
+          label={kindLabel(item.kind, item.typeId).label}
+        />
         <Link
           to="/entries/$entryId"
           params={{ entryId: item.id }}

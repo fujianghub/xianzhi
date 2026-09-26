@@ -132,6 +132,8 @@ export interface NewEntryDefaults {
   templateId?: string
   /** 目录（ADR-0012）：null = 放进目录根级；uuid = 作为其子页；undefined = 不进目录 */
   parentId?: string | null
+  /** 自定义类型（ADR-0016；kind = 'custom' 时） */
+  typeId?: string
 }
 export const useNewEntry = create<{
   open: boolean

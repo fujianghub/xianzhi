@@ -258,14 +258,14 @@
 | GET | `/cycles/current` | `kind`；按用户时区与 `weekStartsOn` | REQ-CYCLE-002 |
 | GET | `/cycles/:id` | 详情（含任务列表与完成数） | REQ-CYCLE-006 · REQ-TASK-018 |
 | PATCH | `/cycles/:id` | `goals / status`（单向流转） | REQ-CYCLE-003 · 005 |
-| GET | `/entries` | 筛选 `spaceId kind authorId tag q pinned deleted`；sort 白名单 `updatedAt createdAt title`；不返回正文列（注 2026-09-26 ADR-0012：`kind` 逗号多值；`fields=status=open\|fixed,severity=high` 按 fields 过滤；`inTree=1\|0`；每项带 `tagIds`；注 ADR-0014：+`under` 目录子树、`groupId`（uuid \| `none`）、`favorite=1`、`ids` csv ≤ 50，每项带 `path` `favorited`） | REQ-ENTRY-002 · REQ-KB-004 · REQ-ENTRY-012 |
-| POST | `/entries/batch` | `{ op: move\|tags\|archive\|unarchive\|delete, ids ≤ 100, spaceId? / add? / remove? }` 逐条鉴权 → `{ ok, failed[{id, code, message}] }`（ADR-0014） | REQ-ENTRY-013 |
+| GET | `/entries` | 筛选 `spaceId kind authorId tag q pinned deleted`；sort 白名单 `updatedAt createdAt title`；不返回正文列（注 2026-09-26 ADR-0012：`kind` 逗号多值；`fields=status=open\|fixed,severity=high` 按 fields 过滤；`inTree=1\|0`；每项带 `tagIds`；注 ADR-0014：+`under` 目录子树、`groupId`（uuid \| `none`）、`favorite=1`、`ids` csv ≤ 50，每项带 `path` `favorited`；注 ADR-0016：+`typeId` csv（自定义类型，与 `kind` 同给为任一命中），每项带 `typeId`） | REQ-ENTRY-002 · REQ-KB-004 · REQ-ENTRY-012 · 018 |
+| POST | `/entries/batch` | `{ op: move\|tags\|archive\|unarchive\|delete, ids ≤ 100, spaceId? / add? / remove? }` 逐条鉴权 → `{ ok, failed[{id, code, message}] }`（ADR-0014；注 ADR-0016：op 增 `retype {kind, typeId?}` · `fields {set:{status?, progress?}}` · `pin` · `unpin`） | REQ-ENTRY-013 · 017 |
 | PUT | `/entries/:id/favorite` | 收藏（个人；需可读；幂等）（ADR-0014） | REQ-ENTRY-012 |
 | DELETE | `/entries/:id/favorite` | 取消收藏（ADR-0014） | REQ-ENTRY-012 |
 | PATCH | `/entries/:id/move` | `{ parentId, after }` 移到目录某处 / `{ detach: true }` 移出目录；需 entry.write；防环、after 须同级 | REQ-KB-005 |
 | POST | `/entries` | `{ kind, title, spaceId?, fields, visibility, templateId? }` → `{ id }`；正文经 collab；`templateId`（`builtin:<key>` / uuid / `builtin:blank`）→ 模板正文写成初始 ydoc（ADR-0011 §2） | REQ-ENTRY-001 · REQ-TPL-003 |
 | GET | `/entries/:id` | 元数据详情（无 `ydoc`；`pmJson` 仅 `?withBody=1`） | REQ-ENTRY-003 |
-| PATCH | `/entries/:id` | 标题、fields、可见性、`spaceId`（移动）、`pinned`；带 `ifUpdatedAt` | REQ-ENTRY-004 · 006 · 011 |
+| PATCH | `/entries/:id` | 标题、fields、可见性、`spaceId`（移动）、`pinned`；带 `ifUpdatedAt`（注 ADR-0016：可改 `kind`（自定义再给 `typeId`），未给 fields 时按目标类型重建） | REQ-ENTRY-004 · 006 · 011 · 017 |
 | DELETE | `/entries/:id` | 软删；`?permanent=1` | REQ-ENTRY-007 |
 | POST | `/entries/:id/restore` | 恢复 | REQ-ENTRY-007 |
 | POST | `/entries/:id/archive` | 归档 | REQ-ENTRY-006 |
@@ -290,6 +290,11 @@
 | DELETE | `/comments/:id` | 软删，保留占位 | REQ-COMMENT-007 |
 | POST | `/comments/:id/resolve` | 解决线程 | REQ-COMMENT-003 |
 | POST | `/comments/:id/unresolve` | 取消解决 | REQ-COMMENT-003 |
+| GET | `/entry-types` | `{ builtin[{kind, hidden, usage}], items[{id, name, color, statuses, canManage, usage}], canManageBuiltin, canCreate }`（ADR-0016） | REQ-ENTRY-018 |
+| POST | `/entry-types` | `{ name, color, statuses? }`；重名 409；`Idempotency-Key` | REQ-ENTRY-018 |
+| PATCH | `/entry-types/:id` | `{ name?, color?, statuses?, renames? }`；需 `entry_type.manage` | REQ-ENTRY-018 |
+| DELETE | `/entry-types/:id` | 其下记录转随笔后删除；审计 `entry_type.deleted` | REQ-ENTRY-019 |
+| PUT | `/entry-types/builtin/:kind` | `{ hidden }` 隐藏 / 显示内置类型（管理员） | REQ-ENTRY-019 |
 | GET | `/tags` | 列表 | REQ-TAG-001 |
 | POST | `/tags` | `{ name, color }`；重名 409 | REQ-TAG-001 · 003 |
 | PATCH | `/tags/:id` | 改名 / 颜色 | REQ-TAG-001 |

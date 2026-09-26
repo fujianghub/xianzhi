@@ -515,6 +515,7 @@ export async function seed(deps: SeedDeps): Promise<Record<string, number>> {
     // 新 kind 不进 seed 分布（08 §7 每 kind 2 篇为既有 7 种），仅满足类型
     optimize: ['', ''],
     plan: ['', ''],
+    custom: ['', ''],
   }
   kinds.forEach((kind, k) => {
     for (const j of [0, 1]) {

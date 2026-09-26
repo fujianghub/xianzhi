@@ -1,15 +1,24 @@
 /**
  * kind 元数据表单（08 §2.9、T1-013）：由 `entryFieldsByKind[kind]` 的 Zod shape 生成——
  * enum / 字面量联合 → 下拉；日期 → date 输入；数字 → number 输入；其余 → 文本。前端不重复校验，422 的 `fields.x` 错误就地显示（REQ-ENTRY-001）。
+ * 自定义类型（ADR-0016）：状态下拉的选项 = 该类型的状态列表（原样显示，不翻译）；列表为空则不出状态项。
  */
 import { useTranslation } from 'react-i18next'
 import type { z } from 'zod'
 import { entryFieldsByKind } from '../../../shared/schemas/entryFields.ts'
 import type { EntryKind } from '../../lib/entry-queries.ts'
+import { useKindLabel } from '../../lib/entry-types.ts'
 import { Input } from '../ui/input.tsx'
 
 type Spec =
-  | { name: string; kind: 'select'; options: (string | number)[]; required: boolean }
+  | {
+      name: string
+      kind: 'select'
+      options: (string | number)[]
+      required: boolean
+      /** 选项是用户自定义文字（自定义类型的状态），不走 i18n */
+      raw?: boolean
+    }
   | { name: string; kind: 'date' | 'text' | 'number'; required: boolean }
 
 interface Def {
@@ -23,8 +32,24 @@ interface Def {
 const defOf = (s: z.ZodType) => (s as unknown as { _zod: { def: Def } })._zod.def
 
 /** Zod shape → 表单项规格（仅覆盖 entryFields 用到的类型）。 */
-export function fieldSpecs(kind: EntryKind): Spec[] {
+export function fieldSpecs(kind: EntryKind, statuses?: string[] | null): Spec[] {
   const shape = (entryFieldsByKind[kind] as unknown as { shape: Record<string, z.ZodType> }).shape
+  if (kind === 'custom')
+    return [
+      ...(statuses?.length
+        ? [
+            {
+              name: 'status',
+              kind: 'select',
+              options: statuses,
+              required: false,
+              raw: true,
+            } as const,
+          ]
+        : []),
+      { name: 'progress', kind: 'number', required: false },
+      { name: 'dueDate', kind: 'date', required: false },
+    ]
   return Object.entries(shape).map(([name, raw]) => {
     let s = raw
     let required = true
@@ -50,19 +75,21 @@ export function fieldSpecs(kind: EntryKind): Spec[] {
 
 export function EntryFieldsForm({
   kind,
+  typeId,
   value,
   onChange,
   errors,
   disabled,
 }: {
   kind: EntryKind
+  typeId?: string | null
   value: Record<string, unknown>
   onChange: (next: Record<string, unknown>) => void
   errors?: Record<string, string>
   disabled?: boolean
 }) {
   const { t } = useTranslation()
-  const specs = fieldSpecs(kind)
+  const specs = fieldSpecs(kind, useKindLabel()(kind, typeId).statuses)
   if (!specs.length) return null
   const set = (name: string, v: unknown) => {
     const next = { ...value }
@@ -98,7 +125,9 @@ export function EntryFieldsForm({
                 <option value="">—</option>
                 {f.options.map((o) => (
                   <option key={String(o)} value={String(o)}>
-                    {typeof o === 'number' ? o : t(`entry.fieldValue.${o}`, { defaultValue: o })}
+                    {typeof o === 'number' || f.raw
+                      ? o
+                      : t(`entry.fieldValue.${o}`, { defaultValue: o })}
                   </option>
                 ))}
               </select>
