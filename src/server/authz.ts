@@ -118,11 +118,13 @@ export interface ActionMap {
   'me.delete': UserRef
   'space.create': null
   'tag.create': null
-  /** 改名 / 改色 / 合并 / 删除（ADR-0014）：null = 仅管理员；TagRef = 管理员或其创建者（非 guest） */
+  /** 标签是个人的（ADR-0017）：只有创建者本人可改名 / 改色 / 合并 / 删除；null（无主旧数据）= 无人可管 */
   'tag.manage': TagRef | null
   'entry_type.create': null
-  /** 自定义类型改名 / 改色 / 改状态 / 删除（ADR-0016）：同 tag.manage；null = 仅管理员（隐藏内置类型） */
-  'entry_type.manage': TagRef | null
+  /** 自定义类型是个人的（ADR-0017）：只有创建者本人可改 / 删 */
+  'entry_type.manage': TagRef
+  /** 内置类型全工作区统一：改名 / 改色 / 删除 / 恢复仅所有者（ADR-0017） */
+  'entry_kind.manage': null
   'space.read': SpaceRef
   'space.manage': SpaceRef
   'space.delete': SpaceRef
@@ -165,6 +167,7 @@ export const ACTIONS = [
   'tag.manage',
   'entry_type.create',
   'entry_type.manage',
+  'entry_kind.manage',
   'space.read',
   'space.manage',
   'space.delete',
@@ -303,16 +306,19 @@ export function can<A extends Action>(
     case 'notification.read':
     case 'notification.write':
       return (resource as UserRef).id === actor.id
+    // ADR-0017：标签与自定义类型按人隔离——非 guest 可建自己的，只有创建者本人能管（管理员不例外）
     case 'space.create':
     case 'tag.create':
     case 'entry_type.create':
       return actor.workspaceRole !== 'guest'
     case 'tag.manage':
     case 'entry_type.manage': {
-      if (admin) return true
       const t = resource as TagRef | null
       return !!t && t.createdBy === actor.id && actor.workspaceRole !== 'guest'
     }
+    // 内置类型全工作区统一，仅所有者
+    case 'entry_kind.manage':
+      return actor.workspaceRole === 'owner'
     case 'space.read':
       return canReadSpace(actor, resource as SpaceRef)
     case 'space.manage': {

@@ -102,7 +102,8 @@ export async function buildExport(db: Db, dataDir: string, actor: Actor, d: Expo
         .select({ entryId: entryTags.entryId, name: tags.name })
         .from(entryTags)
         .innerJoin(tags, eq(tags.id, entryTags.tagId))
-        .where(inArray(entryTags.entryId, ids))
+        // 只导出发起人自己的标签（ADR-0017：标签按人隔离）
+        .where(and(inArray(entryTags.entryId, ids), eq(tags.createdBy, actor.id)))
     : []
   const linkRows = ids.length
     ? await db

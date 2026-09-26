@@ -1,6 +1,6 @@
 # 00 需求规范
 
-> 状态：已采纳 · 版本：v2 · 更新：2026-09-27（ADR-0016：REQ-CAL-012 · 013、REQ-ENTRY-016 ~ 019、REQ-UI-038）· 最后对照代码：2026-09-25（鲜艳色板 / 用户管理 / 个人资料，ADR-0010：REQ-CAL-010、REQ-UI-035、REQ-WS-018 ~ 023、REQ-AUTH-021；注册审批 / 用户名 / 日程 / 宽屏：REQ-AUTH-017 ~ 020、REQ-CAL-001 ~ 009、REQ-UI-034；此前 2026-09-24：REQ-AUTH-016、REQ-TASK-024、REQ-UI-024 ~ 032） · 依据 ADR-0001 §1、§7、§9、ADR-0003。
+> 状态：已采纳 · 版本：v2 · 更新：2026-09-27（ADR-0016：REQ-CAL-012 · 013、REQ-ENTRY-016 ~ 019、REQ-UI-038；ADR-0017：REQ-ENTRY-020、REQ-TAG-007）· 最后对照代码：2026-09-25（鲜艳色板 / 用户管理 / 个人资料，ADR-0010：REQ-CAL-010、REQ-UI-035、REQ-WS-018 ~ 023、REQ-AUTH-021；注册审批 / 用户名 / 日程 / 宽屏：REQ-AUTH-017 ~ 020、REQ-CAL-001 ~ 009、REQ-UI-034；此前 2026-09-24：REQ-AUTH-016、REQ-TASK-024、REQ-UI-024 ~ 032） · 依据 ADR-0001 §1、§7、§9、ADR-0003。
 > 本文是**所有测试与任务的追溯源头**：每条需求有唯一 `REQ-<AREA>-<NNN>` 编号；`05` §5 的测试、`tasks/` 的任务、PR 描述都引用这里的编号。设计如何实现在 01–06；本文只写「做什么、验收什么」。
 > 分期：一期 = Phase 0–2（本文编号范围）；二期 = Phase 3（文末只列标题，不编号、不验收）。
 
@@ -165,8 +165,9 @@
 | REQ-ENTRY-015 | P2 | 2 | （ADR-0014）只选一种带 status 的类型时可切看板（拖列 = 改 `fields.status`）；只选迭代 / 变更时可切时间线（按日期倒序、按月分组） | When Bug 看板把卡片拖到「已修复」Then `fields.status = fixed` | ADR-0014 | e2e |
 | REQ-ENTRY-016 | P1 | 2 | （2026-09-27 新增，ADR-0016）记录页与空间记录页默认为列表视图（`view=cards` 为卡片，`view=table` 兼容），列含勾选 · 标题（目录路径 + 一行摘要）· 类型 · 状态 · 进度 · 标签 · 空间 · 更新时间；状态为色胶囊 + 文字，进度为进度条 + 百分比 | When 打开 `/entries?spaceId=` Then 渲染 `entry-table`；学习计划 `progress=40` 的行进度列显示 40%，状态列显示「学习中」 | ADR-0016 · 08 §2.8 | e2e |
 | REQ-ENTRY-017 | P1 | 2 | （ADR-0016）批量编辑：列表勾选列常驻、表头全选，有选中即出操作条；`POST /entries/batch` 增 `retype {kind, typeId?}`（fields 按目标类型重建，保留仍合法的状态 / 进度；有必填属性的类型逐条失败）、`fields {set:{status?, progress?}}`（按类型校验，不合法进 failed）、`pin` / `unpin`；改状态按类型分组下发 | When 选两篇随笔批量改为 Bug Then 两篇 `fields = {severity:medium, status:open}`；When 改为 iteration Then 进 failed；When `fields {status:'open'}` 于自定义类型记录 Then `VALIDATION` | ADR-0016 · 02 §9 | api · e2e |
-| REQ-ENTRY-018 | P1 | 2 | （ADR-0016）自定义记录类型：`/entry-types` 增删改（名唯一、9 色、有序状态 0–12、状态名不含 `, | =`），创建 = 非 guest，改删 = 管理员或创建者；记录 `kind=custom` + `typeId`，status 须在其状态列表内（新建默认第一项）；列表 `typeId=` 筛选，与 `kind` 同给为任一命中；改状态列表时 `renames` 同步记录、被移除的状态改为第一项 | When 建「读书笔记」[想读, 在读, 读完] 并新建该类型记录 Then `fields.status = 想读`；When `renames {在读: 阅读中}` Then 原「在读」的记录变「阅读中」；When member 改 owner 建的类型 Then 403 | ADR-0016 · 01 §3.4c | api · e2e |
-| REQ-ENTRY-019 | P1 | 2 | （ADR-0016）删除自定义类型：其下全部记录（含回收站）转为随笔、清空 fields，同事务写审计 `entry_type.deleted`；内置类型不可删，管理员可隐藏（只影响筛选条与新建菜单） | When 删类型 Then `GET /entries?kind=custom` 为空、审计含该类型名；When member `PUT /entry-types/builtin/review {hidden:true}` Then 403 | ADR-0016 | api · e2e |
+| REQ-ENTRY-018 | P1 | 2 | （ADR-0016）自定义记录类型：`/entry-types` 增删改（名唯一、9 色、有序状态 0–12、状态名不含 `,（注 2026-09-27 ADR-0017：自定义类型归个人——只有本人能用来新建 / 改类型与管理，读者可见名 / 色 / 状态；名字同一人名下唯一） | =`），创建 = 非 guest，改删 = 管理员或创建者；记录 `kind=custom` + `typeId`，status 须在其状态列表内（新建默认第一项）；列表 `typeId=` 筛选，与 `kind` 同给为任一命中；改状态列表时 `renames` 同步记录、被移除的状态改为第一项 | When 建「读书笔记」[想读, 在读, 读完] 并新建该类型记录 Then `fields.status = 想读`；When `renames {在读: 阅读中}` Then 原「在读」的记录变「阅读中」；When member 改 owner 建的类型 Then 403 | ADR-0016 · 01 §3.4c | api · e2e |
+| REQ-ENTRY-019 | P1 | 2 | （ADR-0016）删除自定义类型：其下全部记录（含回收站）转为随笔、清空 fields，同事务写审计 `entry_type.deleted`；内置类型不可删，管理员可隐藏（只影响筛选条与新建菜单）（注 2026-09-27 ADR-0017：内置类型「隐藏」改为所有者删除 / 恢复；删除可选 `moveTo`，见 REQ-ENTRY-020） | When 删类型 Then `GET /entries?kind=custom` 为空、审计含该类型名；When member `PUT /entry-types/builtin/review {hidden:true}` Then 403 | ADR-0016 | api · e2e |
+| REQ-ENTRY-020 | P1 | 2 | （2026-09-27 新增，ADR-0017）内置类型由所有者统一维护：改名 / 改色（`null` = 恢复默认，与本人自定义类型重名 409）、删除（全员该类型记录含回收站转到另一内置类型 `moveTo`，缺省随笔，删随笔须给出）、恢复；已删除的内置类型不能新建或改成该类型；删自定义类型可选 `moveTo`（内置或本人的其它类型） | When owner 删「优化」`moveTo=plan` Then 其下记录变学习计划、`POST /entries {kind:optimize}` 422；When 恢复 Then 可再建；When member `PATCH /entry-types/builtin/optimize` Then 403；When 删内置类型 `moveTo=<自定义类型>` Then 422 | ADR-0017 · 01 §3.4c | api · e2e |
 
 ---
 
@@ -260,12 +261,13 @@
 
 | ID | P | Phase | 需求（EARS） | 验收（GWT） | 依据 | 测试层 |
 |---|---|---|---|---|---|---|
-| REQ-TAG-001 | P1 | 1 | 标签名在工作区内唯一，颜色为色板 token 名（ADR-0010 起 9 色） | When 重名 Then 409；`color:'#abc'` Then 422 | 01 §3.7 · 04 §2.1 | api |
-| REQ-TAG-002 | P1 | 1 | 任务与记录列表应支持 `?tag=` 筛选（多值逗号） | When `GET /tasks?tag=a,b` Then 只含带 a 或 b 的任务 | 02 §4 | api |
-| REQ-TAG-003 | P1 | 1 | TagPicker 应支持输入即创建 | When 输入不存在的名并 Enter Then `POST /tags` 并选中 | 04 §5 | e2e |
-| REQ-TAG-004 | P1 | 2 | （2026-09-26 新增，ADR-0014）标签改名 / 改色 / 删除 / 合并限管理员或创建者（`tag.manage`），列表每项带 `canManage`；`/settings/tags` 可新建选色；TagPicker 新建可选色 | Given member 建的标签 When 本人 PATCH Then 200；When 改 owner 建的 Then 403 | ADR-0014 · 01 §5 | api · e2e |
+| REQ-TAG-001 | P1 | 1 | 标签名在工作区内唯一，颜色为色板 token 名（ADR-0010 起 9 色）（注 2026-09-27 ADR-0017：名字改为同一人名下唯一） | When 重名 Then 409；`color:'#abc'` Then 422 | 01 §3.7 · 04 §2.1 | api |
+| REQ-TAG-002 | P1 | 1 | 任务与记录列表应支持 `?tag=` 筛选（多值逗号）（注 2026-09-27 ADR-0017：只按本人的标签筛选） | When `GET /tasks?tag=a,b` Then 只含带 a 或 b 的任务 | 02 §4 | api |
+| REQ-TAG-003 | P1 | 1 | TagPicker 应支持输入即创建（注 2026-09-27 ADR-0017：建的是本人的标签；guest 不可） | When 输入不存在的名并 Enter Then `POST /tags` 并选中 | 04 §5 | e2e |
+| REQ-TAG-004 | P1 | 2 | （2026-09-26 新增，ADR-0014）标签改名 / 改色 / 删除 / 合并限管理员或创建者（`tag.manage`），列表每项带 `canManage`；`/settings/tags` 可新建选色；TagPicker 新建可选色（注 2026-09-27 ADR-0017：改为只有本人可管，见 REQ-TAG-007） | Given member 建的标签 When 本人 PATCH Then 200；When 改 owner 建的 Then 403 | ADR-0014 · 01 §5 | api · e2e |
 | REQ-TAG-005 | P1 | 2 | （ADR-0014）`POST /tags/:id/merge {intoId}` 把源标签的任务 / 记录关联并入目标（去重）后删除源标签 | Given 记录同时带 A、B When A 合并到 B Then 该记录只带 B 一次，A 不存在 | ADR-0014 | api |
-| REQ-TAG-006 | P1 | 2 | （ADR-0014）记录页与搜索页应支持标签多选筛选（`tag=a,b` 任一命中；`/search` 的 `tag` 同改为多值） | When `GET /search?q=x&tag=a,b` Then 只含带 a 或 b 的记录 | ADR-0014 · 02 §4 | api · e2e |
+| REQ-TAG-006 | P1 | 2 | （ADR-0014）记录页与搜索页应支持标签多选筛选（`tag=a,b` 任一命中；`/search` 的 `tag` 同改为多值）（注 2026-09-27 ADR-0017：只按本人的标签筛选） | When `GET /search?q=x&tag=a,b` Then 只含带 a 或 b 的记录 | ADR-0014 · 02 §4 | api · e2e |
+| REQ-TAG-007 | P1 | 2 | （2026-09-27 新增，ADR-0017）标签按人隔离：非 guest 可建自己的标签，只有本人能看到、使用、筛选、搜索、改名 / 改色 / 合并 / 删除（管理员不例外）；同一人名下不重名，不同人可同名；共享记录 / 任务上各打各的，整组替换只动本人的；打别人的标签 422 | Given owner 与 member 在同一篇记录上各打一个标签 When 各自 `GET /entries/:id` Then 只见自己的 `tagIds`；When owner `PATCH {tagIds}` Then member 的标签仍在；When member `PATCH /tags/<owner 的>` Then 404 | ADR-0017 · 01 §3.7 | api · e2e |
 
 ---
 

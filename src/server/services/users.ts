@@ -327,6 +327,8 @@ export async function purgeUser(db: Db, ctx: UsersCtx, userId: string): Promise<
     await tx.execute(
       sql`delete from entry_templates where owner_id = ${userId} and scope = 'personal'`,
     )
+    // 个人标签随人删除（ADR-0017：只有本人看得见，关联随标签级联）；自定义类型保留（他人仍需显示其记录的类型）
+    await tx.execute(sql`delete from tags where created_by = ${userId}`)
     const unassigned = await unassignTasks(tx, ctx.workspaceId, target.u, 'member_removed')
     const revoked = await revokeAccess(tx, userId)
     await tx.delete(apikey).where(eq(apikey.referenceId, userId))

@@ -290,12 +290,14 @@
 | DELETE | `/comments/:id` | 软删，保留占位 | REQ-COMMENT-007 |
 | POST | `/comments/:id/resolve` | 解决线程 | REQ-COMMENT-003 |
 | POST | `/comments/:id/unresolve` | 取消解决 | REQ-COMMENT-003 |
-| GET | `/entry-types` | `{ builtin[{kind, hidden, usage}], items[{id, name, color, statuses, canManage, usage}], canManageBuiltin, canCreate }`（ADR-0016） | REQ-ENTRY-018 |
-| POST | `/entry-types` | `{ name, color, statuses? }`；重名 409；`Idempotency-Key` | REQ-ENTRY-018 |
+| GET | `/entry-types` | `{ builtin[{kind, name?, color?, deleted, usage}], items[{id, name, color, statuses, mine, canManage, usage}], canManageBuiltin, canCreate }`；items 含全部自定义类型（显示用），`mine` 标本人的（ADR-0016 · 0017） | REQ-ENTRY-018 · 020 |
+| POST | `/entry-types` | `{ name, color, statuses? }`；本人名下重名 409；`Idempotency-Key`；非 guest（ADR-0017） | REQ-ENTRY-018 |
 | PATCH | `/entry-types/:id` | `{ name?, color?, statuses?, renames? }`；需 `entry_type.manage` | REQ-ENTRY-018 |
-| DELETE | `/entry-types/:id` | 其下记录转随笔后删除；审计 `entry_type.deleted` | REQ-ENTRY-019 |
-| PUT | `/entry-types/builtin/:kind` | `{ hidden }` 隐藏 / 显示内置类型（管理员） | REQ-ENTRY-019 |
-| GET | `/tags` | 列表 | REQ-TAG-001 |
+| DELETE | `/entry-types/:id` | `?moveTo=kind\|uuid`（缺省随笔）其下记录转走后删除；审计 `entry_type.deleted` | REQ-ENTRY-019 · 020 |
+| PATCH | `/entry-types/builtin/:kind` | `{ name?, color? }`（null = 恢复默认）；仅所有者（`entry_kind.manage`，ADR-0017） | REQ-ENTRY-020 |
+| DELETE | `/entry-types/builtin/:kind` | `?moveTo=<内置 kind>`（删随笔时必填）全员该类型记录转走后标记已删除；仅所有者 | REQ-ENTRY-020 |
+| POST | `/entry-types/builtin/:kind/restore` | 恢复已删除的内置类型 | REQ-ENTRY-020 |
+| GET | `/tags` | 列表（注 ADR-0017：只返回本人的标签，附 `canCreate`；标签相关读写 / 筛选 / 搜索均按本人过滤） | REQ-TAG-001 · 007 |
 | POST | `/tags` | `{ name, color }`；重名 409 | REQ-TAG-001 · 003 |
 | PATCH | `/tags/:id` | 改名 / 颜色 | REQ-TAG-001 |
 | DELETE | `/tags/:id` | 删除并解除关联 | REQ-TAG-001 |

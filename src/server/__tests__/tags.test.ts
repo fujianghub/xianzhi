@@ -47,14 +47,18 @@ describe('T1-021 tags', () => {
     spaceId = ((await s.json()) as { id: string }).id
   })
 
-  it('REQ-TAG-001 创建 201；重名 409 CONFLICT_UNIQUE；非 token 色 422；guest 不能建；改名 / 删除 = 管理员或创建者（ADR-0014）', async () => {
-    const r = await req(u.member, 'POST', '/tags', { name: '前端', color: 'cyan' })
+  it('REQ-TAG-001 REQ-TAG-007 标签按人隔离：各自新建、同名互不冲突；本人名下重名 409；非 token 色 422；guest 不能建；看不到也改不了别人的（ADR-0017）', async () => {
+    const r = await req(u.owner, 'POST', '/tags', { name: '前端', color: 'cyan' })
     expect(r.status).toBe(201)
     const tag = (await r.json()) as Tag
     const dup = await req(u.owner, 'POST', '/tags', { name: '前端', color: 'green' })
     expect(dup.status).toBe(409)
     expect((await problemOf(dup)).code).toBe('CONFLICT_UNIQUE')
-    const bad = await req(u.member, 'POST', '/tags', { name: '颜色', color: '#abc' })
+    // 成员可以有自己的同名标签
+    const mine = await req(u.member, 'POST', '/tags', { name: '前端', color: 'pink' })
+    expect(mine.status).toBe(201)
+    const memberTag = (await mine.json()) as Tag
+    const bad = await req(u.owner, 'POST', '/tags', { name: '颜色', color: '#abc' })
     expect(bad.status).toBe(422)
     expect((await problemOf(bad)).errors?.[0]?.path).toBe('color')
     expect((await req(u.guest, 'POST', '/tags', { name: 'g', color: 'green' })).status).toBe(403)
@@ -67,14 +71,15 @@ describe('T1-021 tags', () => {
     await req(u.owner, 'POST', '/tags', { name: '后端', color: 'green' })
     const clash = await req(u.owner, 'PATCH', `/tags/${tag.id}`, { name: '后端' })
     expect(clash.status).toBe(409)
-    // 管理员建的「后端」：成员不能删（自己建的「前端开发」可以改，见 REQ-TAG-004）
-    const backend = (
-      (await (await req(u.guest, 'GET', '/tags')).json()) as { items: Tag[] }
-    ).items.find((t) => t.name === '后端')
-    expect((await req(u.member, 'DELETE', `/tags/${backend?.id}`)).status).toBe(403)
+    // 各自只看得到自己的；别人的标签对我不存在（404），管理员也一样
+    const listOf = async (who: U) =>
+      ((await (await req(who, 'GET', '/tags')).json()) as { items: Tag[] }).items.map((t) => t.name)
+    expect(await listOf(u.member)).toEqual(['前端'])
+    expect(await listOf(u.guest)).toEqual([])
+    expect((await req(u.member, 'PATCH', `/tags/${tag.id}`, { name: 'x' })).status).toBe(404)
+    expect((await req(u.owner, 'DELETE', `/tags/${memberTag.id}`)).status).toBe(404)
     expect((await req(u.owner, 'DELETE', `/tags/${tag.id}`)).status).toBe(204)
-    const list = (await (await req(u.guest, 'GET', '/tags')).json()) as { items: Tag[] }
-    expect(list.items.map((t) => t.name)).toEqual(['后端'])
+    expect(await listOf(u.owner)).toEqual(['后端'])
   })
 
   it('REQ-TAG-002 ?tag=a,b 只含带 a 或 b 的任务 / 记录；删除标签解除关联', async () => {

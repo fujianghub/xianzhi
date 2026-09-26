@@ -1,12 +1,13 @@
-/** /api/v1/entry-types（02 §9、ADR-0016、REQ-ENTRY-018 · 019）：记录类型管理。 */
+/** /api/v1/entry-types（02 §9、ADR-0016 · 0017、REQ-ENTRY-018 ~ 020）：类型管理（增删改仅所有者）。 */
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { uuidSchema } from '../../shared/schemas/common.ts'
 import {
   builtinKindParam,
   createEntryTypeSchema,
+  deleteEntryTypeQuery,
+  patchBuiltinKindSchema,
   patchEntryTypeSchema,
-  setBuiltinHiddenSchema,
 } from '../../shared/schemas/entryTypes.ts'
 import type { Actor } from '../authz.ts'
 import type { Db } from '../db/index.ts'
@@ -43,20 +44,42 @@ export function entryTypeRoutes(deps: { db: Db }) {
       validate('json', createEntryTypeSchema),
       async (c) => c.json(await svc.createEntryType(deps.db, ctxOf(c), c.req.valid('json')), 201),
     )
-    .put(
+    .patch(
       '/builtin/:kind',
       requireScope('write'),
       validate('param', builtinKindParam),
-      validate('json', setBuiltinHiddenSchema),
+      validate('json', patchBuiltinKindSchema),
       async (c) =>
         c.json(
-          await svc.setBuiltinHidden(
+          await svc.patchBuiltinKind(
             deps.db,
             ctxOf(c),
             c.req.valid('param').kind,
-            c.req.valid('json').hidden,
+            c.req.valid('json'),
           ),
         ),
+    )
+    .delete(
+      '/builtin/:kind',
+      requireScope('write'),
+      validate('param', builtinKindParam),
+      validate('query', deleteEntryTypeQuery),
+      async (c) =>
+        c.json(
+          await svc.deleteBuiltinKind(
+            deps.db,
+            ctxOf(c),
+            c.req.valid('param').kind,
+            c.req.valid('query').moveTo,
+          ),
+        ),
+    )
+    .post(
+      '/builtin/:kind/restore',
+      requireScope('write'),
+      validate('param', builtinKindParam),
+      async (c) =>
+        c.json(await svc.restoreBuiltinKind(deps.db, ctxOf(c), c.req.valid('param').kind)),
     )
     .patch(
       '/:id',
@@ -68,8 +91,19 @@ export function entryTypeRoutes(deps: { db: Db }) {
           await svc.patchEntryType(deps.db, ctxOf(c), c.req.valid('param').id, c.req.valid('json')),
         ),
     )
-    .delete('/:id', requireScope('write'), validate('param', idParam), async (c) => {
-      await svc.deleteEntryType(deps.db, ctxOf(c), c.req.valid('param').id)
-      return c.body(null, 204)
-    })
+    .delete(
+      '/:id',
+      requireScope('write'),
+      validate('param', idParam),
+      validate('query', deleteEntryTypeQuery),
+      async (c) => {
+        await svc.deleteEntryType(
+          deps.db,
+          ctxOf(c),
+          c.req.valid('param').id,
+          c.req.valid('query').moveTo,
+        )
+        return c.body(null, 204)
+      },
+    )
 }

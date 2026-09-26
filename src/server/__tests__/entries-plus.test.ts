@@ -75,40 +75,62 @@ describe('entries plus', () => {
     spaceB = await mk('plus-b', null)
   })
 
-  it('REQ-TAG-004 标签：创建者可改名改色、他人 403、管理员可管全部；列表带 canManage', async () => {
-    const r = await req(member, '/api/v1/tags', {
-      method: 'POST',
-      body: JSON.stringify({ name: '前端', color: 'blue' }),
-    })
-    expect(r.status).toBe(201)
-    const mine = (await r.json()) as Tag
+  it('REQ-TAG-004 REQ-TAG-007 标签按人隔离：同一篇记录上各打各的，互相看不到；改自己的标签不动别人的；不能打别人的标签（ADR-0017）', async () => {
+    const mkTag = async (cookie: string, name: string) => {
+      const r = await req(cookie, '/api/v1/tags', {
+        method: 'POST',
+        body: JSON.stringify({ name, color: 'blue' }),
+      })
+      expect(r.status).toBe(201)
+      return (await r.json()) as Tag
+    }
+    const fe = await mkTag(owner, '前端')
+    await mkTag(owner, '后端')
+    const mine = await mkTag(member, '我的待读')
     expect(mine.canManage).toBe(true)
-    const o = await req(owner, '/api/v1/tags', {
+    // 成员不能打所有者的标签
+    const denied = await req(member, '/api/v1/entries', {
       method: 'POST',
-      body: JSON.stringify({ name: '后端', color: 'green' }),
+      body: JSON.stringify({ kind: 'note', title: 'x', spaceId: spaceA, tagIds: [fe.id] }),
     })
-    const theirs = (await o.json()) as Tag
+    expect(denied.status).toBe(422)
+    // 成员建一篇并打自己的标签；所有者（可写）给同一篇打自己的标签
+    const id = await create(member, {
+      kind: 'note',
+      title: '共享的一篇',
+      spaceId: spaceA,
+      tagIds: [mine.id],
+    })
+    const detail = async (cookie: string) =>
+      (await (await req(cookie, `/api/v1/entries/${id}`)).json()) as {
+        tagIds: string[]
+        updatedAt: string
+      }
+    const p = await req(owner, `/api/v1/entries/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ tagIds: [fe.id], ifUpdatedAt: (await detail(owner)).updatedAt }),
+    })
+    expect(p.status).toBe(200)
+    expect((await detail(owner)).tagIds).toEqual([fe.id])
+    expect((await detail(member)).tagIds).toEqual([mine.id]) // 没被所有者的修改冲掉
+    // 列表与筛选同样只看自己的
+    expect((await list(member, `spaceId=${spaceA}&tag=前端`)).map((i) => i.id)).not.toContain(id)
+    expect((await list(owner, `spaceId=${spaceA}&tag=前端`)).map((i) => i.id)).toContain(id)
+    expect((await list(owner, `spaceId=${spaceA}`)).find((i) => i.id === id)?.tagIds).toEqual([
+      fe.id,
+    ])
+    // 改名 / 改色只能动自己的
     expect(
       (
-        await req(member, `/api/v1/tags/${mine.id}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ color: 'pink' }),
-        })
-      ).status,
-    ).toBe(200)
-    expect(
-      (
-        await req(member, `/api/v1/tags/${theirs.id}`, {
+        await req(member, `/api/v1/tags/${fe.id}`, {
           method: 'PATCH',
           body: JSON.stringify({ name: 'x' }),
         })
       ).status,
-    ).toBe(403)
-    const seen = ((await (await req(member, '/api/v1/tags')).json()) as { items: Tag[] }).items
-    expect(seen.find((t) => t.id === theirs.id)?.canManage).toBe(false)
+    ).toBe(404)
     expect(
       (
-        await req(owner, `/api/v1/tags/${mine.id}`, {
+        await req(owner, `/api/v1/tags/${fe.id}`, {
           method: 'PATCH',
           body: JSON.stringify({ name: '前端开发' }),
         })
@@ -132,7 +154,8 @@ describe('entries plus', () => {
       body: JSON.stringify({ intoId: be }),
     })
     expect(m.status).toBe(200)
-    expect(((await m.json()) as Tag).usage.entries).toBe(2)
+    // 本例两篇 + 上一例共享记录上的「前端」→ 合并后「后端」挂 3 篇
+    expect(((await m.json()) as Tag).usage.entries).toBe(3)
     const after = ((await (await req(owner, '/api/v1/tags')).json()) as { items: Tag[] }).items
     expect(after.map((t) => t.name)).not.toContain('前端开发')
     const d = (await (await req(owner, `/api/v1/entries/${e1}`)).json()) as { tagIds: string[] }

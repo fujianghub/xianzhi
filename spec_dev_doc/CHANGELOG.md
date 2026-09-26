@@ -4,6 +4,11 @@
 
 ## 2026-09-27
 
+**标签与自定义类型按人隔离、内置类型由所有者维护、改称「类型」（ADR-0017）**
+- 新增 ADR-0017。00：+REQ-ENTRY-020、REQ-TAG-007；REQ-TAG-001 ~ 004 · 006、REQ-ENTRY-018 · 019 加注。
+- 01：§3.7 tags 唯一约束改 `(workspace_id, created_by, name)`、读写按本人过滤；§3.4c `hidden_entry_kinds` → `entry_kind_overrides`，entry_types 唯一约束按人（迁移 0014 · 0015 · 0016）；§5 `tag.*` / `entry_type.*` 改为本人、+`entry_kind.manage`（仅 owner）。
+- 02 §9：`/entry-types` 去掉 `PUT builtin/:kind`，+`PATCH / DELETE builtin/:kind`、`POST builtin/:kind/restore`，删除支持 `moveTo`，列表每项带 `mine`；`GET /tags` 只返回本人的、附 `canCreate`。08 §1 `/settings/types` 改称「类型」、`/settings/tags` 行注。glossary：自定义类型、删除内置类型。
+
 **日历就地编辑、自定义记录类型、记录默认列表与批量编辑、侧栏「空间」可点（ADR-0016）**
 - 新增 ADR-0016。00：+REQ-CAL-012 · 013、REQ-ENTRY-016 ~ 019、REQ-UI-038；REQ-UI-031、REQ-ENTRY-001 · 013 加注。
 - 01：§3.4 entries +`type_id`、kind 增 `custom`；新 §3.4c `entry_types` / `hidden_entry_kinds`；§3.12 审计 +`entry_type.deleted`；§5 +`entry_type.create` / `entry_type.manage`。

@@ -50,9 +50,15 @@ import { type EventBus, getEventBus } from '../lib/event-bus.ts'
 import { audit } from './audit.ts'
 import { weightedTsv } from './derived.ts'
 import { entryPath, entryPaths, liftChildren, placeNew } from './entry-tree.ts'
-import { loadEntryType, normalizeCustomFields } from './entry-types.ts'
+import {
+  assertBuiltinAlive,
+  loadEntryType,
+  loadOwnEntryType,
+  normalizeCustomFields,
+} from './entry-types.ts'
 import { purgeLinksOf } from './links.ts'
 import { publishChange } from './realtime.ts'
+import { assertOwnTags, ownTagIdsSql } from './tags.ts'
 import { resolveTemplateBody } from './templates.ts'
 
 export interface EntryCtx {
@@ -281,7 +287,7 @@ export async function listEntries(db: Db, ctx: EntryCtx, q: z.infer<typeof listE
   if (q.ids?.length) conds.push(inArray(entries.id, q.ids))
   if (q.tag) {
     conds.push(
-      sql`exists (select 1 from ${entryTags} et join ${tags} t on t.id = et.tag_id where et.entry_id = ${entries.id} and t.name in (${sql.join(
+      sql`exists (select 1 from ${entryTags} et join ${tags} t on t.id = et.tag_id where et.entry_id = ${entries.id} and t.created_by = ${ctx.actor.id} and t.name in (${sql.join(
         q.tag.map((name) => sql`${name}`),
         sql`, `,
       )}))`,
@@ -333,9 +339,13 @@ export async function listEntries(db: Db, ctx: EntryCtx, q: z.infer<typeof listE
         .select({ entryId: entryTags.entryId, tagId: entryTags.tagId })
         .from(entryTags)
         .where(
-          inArray(
-            entryTags.entryId,
-            page.map((r) => r.e.id),
+          and(
+            inArray(
+              entryTags.entryId,
+              page.map((r) => r.e.id),
+            ),
+            // 只返回本人的标签（ADR-0017：标签按人隔离）
+            sql`${entryTags.tagId} in ${ownTagIdsSql(ctx.actor.id)}`,
           ),
         )
     : []
@@ -419,6 +429,7 @@ export async function resolveKindFields(
   kind: EntryKind,
   typeId: string | null | undefined,
   fields: Record<string, unknown>,
+  /** fillDefault：新建 / 改类型时补默认状态；同时要求自定义类型是本人的（ADR-0017，改已有记录的属性不要求） */
   opts: { fillDefault: boolean },
 ): Promise<{ kind: EntryKind; typeId: string | null; fields: Record<string, unknown> }> {
   const r = entryFieldsByKind[kind].safeParse(fields)
@@ -427,7 +438,11 @@ export async function resolveKindFields(
       r.error.issues.map((i) => ({ path: ['fields', ...i.path].join('.'), message: i.message })),
     )
   if (kind !== 'custom') return { kind, typeId: null, fields }
-  const type = typeId ? await loadEntryType(db, ctx.workspaceId, typeId) : null
+  const type = !typeId
+    ? null
+    : opts.fillDefault
+      ? await loadOwnEntryType(db, ctx, typeId)
+      : await loadEntryType(db, ctx.workspaceId, typeId)
   if (!type) throw AppError.validation([{ path: 'typeId', message: '类型不存在' }])
   return {
     kind,
@@ -479,6 +494,8 @@ export async function createEntry(
   const visibility = input.visibility ?? (sp.row.isPersonal ? 'private' : 'space')
   assertPersonalPrivate(sp.row.isPersonal, visibility)
   // 套模板（ADR-0011 §2）：模板正文一次性写成初始 ydoc；未选模板则首次打开按 kind 注入（03 §6）
+  await assertBuiltinAlive(db, ctx.workspaceId, input.kind) // 已删除的内置类型不能新建（ADR-0017）
+  if (input.tagIds?.length) await assertOwnTags(db, ctx, input.tagIds) // 只能打自己的标签（ADR-0017）
   const typed = await resolveKindFields(db, ctx, input.kind, input.typeId, input.fields, {
     fillDefault: true,
   })
@@ -524,7 +541,7 @@ export async function getEntry(
   const tagRows = await db
     .select({ tagId: entryTags.tagId })
     .from(entryTags)
-    .where(eq(entryTags.entryId, id))
+    .where(and(eq(entryTags.entryId, id), sql`${entryTags.tagId} in ${ownTagIdsSql(ctx.actor.id)}`))
   return {
     ...toView(row, space.row, names.get(row.authorId), { withBody: opts.withBody }),
     tagIds: tagRows.map((t) => t.tagId),
@@ -552,12 +569,14 @@ export async function patchEntry(
     const current = await getEntry(db, ctx, id)
     throw new AppError(409, 'CONFLICT_STALE', '记录已被他人修改', { current })
   }
+  if (patch.tagIds?.length) await assertOwnTags(db, ctx, patch.tagIds) // 只能打自己的标签（ADR-0017）
   // 改类型（ADR-0016）：未给 fields 时按目标类型重建；给了 fields 则按目标类型校验
   const retype =
     patch.kind !== undefined &&
     (patch.kind !== loaded.row.kind || (patch.typeId ?? null) !== loaded.row.typeId)
   const targetKind = (retype ? patch.kind : loaded.row.kind) as EntryKind
   const targetTypeId = retype ? (patch.typeId ?? null) : loaded.row.typeId
+  if (retype) await assertBuiltinAlive(db, ctx.workspaceId, targetKind)
   let nextFields: Record<string, unknown> | undefined
   if (patch.fields !== undefined || retype) {
     const raw =
@@ -614,7 +633,12 @@ export async function patchEntry(
     }
     await tx.update(entries).set(set).where(eq(entries.id, id))
     if (patch.tagIds) {
-      await tx.delete(entryTags).where(eq(entryTags.entryId, id))
+      // 只替换本人的标签；别人打在这篇上的标签不动（ADR-0017）
+      await tx
+        .delete(entryTags)
+        .where(
+          and(eq(entryTags.entryId, id), sql`${entryTags.tagId} in ${ownTagIdsSql(ctx.actor.id)}`),
+        )
       if (patch.tagIds.length)
         await tx
           .insert(entryTags)

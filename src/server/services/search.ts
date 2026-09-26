@@ -119,7 +119,7 @@ export async function search(
   if (types.has('task')) {
     const upd = sql`${tasks.updatedAt}`
     const titleHit = sql`${tasks.title} ilike ${like}`
-    const tagHit = sql`exists (select 1 from ${taskTags} tt join ${tags} tg on tg.id = tt.tag_id where tt.task_id = ${tasks.id} and tg.name ilike ${like})`
+    const tagHit = sql`exists (select 1 from ${taskTags} tt join ${tags} tg on tg.id = tt.tag_id where tt.task_id = ${tasks.id} and tg.created_by = ${ctx.actor.id} and tg.name ilike ${like})`
     const rank = tsq
       ? sql`(ts_rank_cd(coalesce(${tasks.tsv}, ''::tsvector), ${tsq}) + case when ${titleHit} then 0.1 else 0 end) / (1 + ${days(upd)} / 30)`
       : sql`(case when ${titleHit} then 0.5 else 0.2 end) / (1 + ${days(upd)} / 30)`
@@ -140,7 +140,7 @@ export async function search(
     if (q.status) conds.push(inArray(tasks.status, q.status))
     if (q.tag)
       conds.push(
-        sql`exists (select 1 from ${taskTags} tt join ${tags} tg on tg.id = tt.tag_id where tt.task_id = ${tasks.id} and tg.name in (${sql.join(
+        sql`exists (select 1 from ${taskTags} tt join ${tags} tg on tg.id = tt.tag_id where tt.task_id = ${tasks.id} and tg.created_by = ${ctx.actor.id} and tg.name in (${sql.join(
           q.tag.map((n) => sql`${n}`),
           sql`, `,
         )}))`,
@@ -187,7 +187,7 @@ export async function search(
   if (types.has('entry')) {
     const upd = sql`${entries.updatedAt}`
     const titleHit = sql`${entries.title} ilike ${like}`
-    const tagHit = sql`exists (select 1 from ${entryTags} et join ${tags} tg on tg.id = et.tag_id where et.entry_id = ${entries.id} and tg.name ilike ${like})`
+    const tagHit = sql`exists (select 1 from ${entryTags} et join ${tags} tg on tg.id = et.tag_id where et.entry_id = ${entries.id} and tg.created_by = ${ctx.actor.id} and tg.name ilike ${like})`
     const pinned = sql`case when ${entries.pinned} then 0.2 else 0 end`
     const rank = tsq
       ? sql`(ts_rank_cd(coalesce(${entries.tsv}, ''::tsvector), ${tsq}) + case when ${titleHit} then 0.1 else 0 end) / (1 + ${days(upd)} / 30) + ${pinned}`
@@ -210,7 +210,7 @@ export async function search(
     if (q.kind) conds.push(eq(entries.kind, q.kind))
     if (q.tag)
       conds.push(
-        sql`exists (select 1 from ${entryTags} et join ${tags} tg on tg.id = et.tag_id where et.entry_id = ${entries.id} and tg.name in (${sql.join(
+        sql`exists (select 1 from ${entryTags} et join ${tags} tg on tg.id = et.tag_id where et.entry_id = ${entries.id} and tg.created_by = ${ctx.actor.id} and tg.name in (${sql.join(
           q.tag.map((n) => sql`${n}`),
           sql`, `,
         )}))`,

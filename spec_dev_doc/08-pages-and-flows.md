@@ -34,8 +34,8 @@
 | `/settings/api-keys` | `routes/settings.api-keys.tsx` | API Key | member+ | ~~0~~ 1 | REQ-AUTH-010 |
 | `/spaces/$slug/home` | `routes/_app.spaces.$spaceSlug_.home.tsx` | 空间概览（进入空间默认页，ADR-0012；个人空间为工作台，ADR-0015） | guest+ | 2 | REQ-KB-003 · 007 |
 | `/spaces/$slug/tree` | `routes/_app.spaces.$spaceSlug_.tree.tsx` | 空间目录 + 其余记录（ADR-0012） | guest+ | 2 | REQ-KB-005 |
-| `/settings/types` | `routes/_app.settings.types.tsx` | 记录类型：自定义类型新建（色 + 状态）/ 改名改色 / 编辑状态 / 删除（其下记录转随笔），内置类型隐藏（管理员）、用量、查看记录（ADR-0016） | guest+（管理需 member+） | 2 | REQ-ENTRY-018 · 019 |
-| `/settings/tags` | `routes/_app.settings.tags.tsx` | 标签：新建选色、改名 / 改色 / 合并 / 删除（管理员或创建者）、用量、查看记录（ADR-0014） | guest+（管理需 member+） | 2 | REQ-TAG-004 · 005 |
+| `/settings/types` | `routes/_app.settings.types.tsx` | 类型（ADR-0017 起称「类型」）：内置类型（所有者）改名 / 改色 / 删除（记录转到另一内置类型）/ 恢复；「我的自定义类型」本人新建（色 + 状态）/ 改名改色 / 编辑状态 / 删除（选转入目标）；用量、查看记录（ADR-0016 · 0017） | guest+（自定义类型 member+ 管本人的；内置类型仅 owner） | 2 | REQ-ENTRY-018 ~ 020 |
+| `/settings/tags` | `routes/_app.settings.tags.tsx` | 标签：新建选色、改名 / 改色 / 合并 / 删除（~~管理员或创建者~~ ADR-0017：标签是个人的，只列 / 只管本人的）、用量、查看记录（ADR-0014） | guest+（member+ 管本人的，ADR-0017） | 2 | REQ-TAG-004 · 005 · 007 |
 | `/settings/templates` | `routes/_app.settings.templates.tsx` | 模板：内置 / 我的 / 工作区，预览、用此模板新建、改名 / 范围 / 删除（ADR-0011） | guest+（管理需 member+） | 2 | REQ-TPL-001 · 004 |
 | `/settings/workspace` | `routes/settings.workspace.index.tsx` | 工作区设置 | admin+ | ~~0~~ 1 | REQ-WS-001 |
 | `/settings/workspace/members` | `routes/settings.workspace.members.tsx` | 成员与邀请 | admin+ | ~~0~~ 1 | REQ-AUTH-003 · REQ-WS-002 · 004 |

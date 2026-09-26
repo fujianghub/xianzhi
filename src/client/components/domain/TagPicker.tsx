@@ -7,6 +7,7 @@ import { Check, Plus, Tag as TagIcon } from 'lucide-react'
 import { type KeyboardEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { useMe } from '../../hooks/useMe.ts'
 import { ApiError, api, unwrap } from '../../lib/api.ts'
 import { cn } from '../../lib/cn.ts'
 import { newId } from '../../lib/uuid.ts'
@@ -46,6 +47,9 @@ export function TagPicker({
   const selected = new Set(value.map((x) => x.id))
   const matches = all.filter((x) => x.name.toLowerCase().includes(q.trim().toLowerCase()))
   const exact = all.find((x) => x.name === q.trim())
+  // 标签是个人的（ADR-0017）：列表只有自己的；guest 不能新建
+  const { data: me } = useMe()
+  const canCreate = !!me && me.workspaceRole !== 'guest'
   const create = useMutation({
     mutationFn: (name: string) =>
       unwrap<Tag>(
@@ -80,7 +84,7 @@ export function TagPicker({
     const picked = navigated ? matches[active] : undefined
     if (picked) toggle(picked.id)
     else if (exact) toggle(exact.id)
-    else if (name) create.mutate(name) // 输入即创建（REQ-TAG-003）
+    else if (name && canCreate) create.mutate(name) // 输入即创建（REQ-TAG-003；guest 不可）
   }
   return (
     <Popover>
@@ -144,7 +148,7 @@ export function TagPicker({
               </button>
             </li>
           ))}
-          {q.trim() && !exact ? (
+          {q.trim() && !exact && canCreate ? (
             <li className="mt-1 flex flex-wrap gap-1 px-2" aria-label={t('task.tagColor')}>
               {PALETTE.map((c) => {
                 const on = (pickedColor ?? colorFor(q.trim())) === c
@@ -170,7 +174,7 @@ export function TagPicker({
               })}
             </li>
           ) : null}
-          {q.trim() && !exact ? (
+          {q.trim() && !exact && canCreate ? (
             <li>
               <button
                 type="button"

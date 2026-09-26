@@ -111,15 +111,15 @@ describe('T1-025 search', () => {
     expect(miss.groups.entries?.items).toEqual([]) // AND 语义
   })
 
-  it('REQ-SEARCH-003 标题 / 标签子串兜底：「存策」命中标题含「缓存策略」的记录与任务', async () => {
+  it('REQ-SEARCH-003 REQ-TAG-007 标题 / 本人标签子串兜底：「存策」命中标题含「缓存策略」的记录与任务', async () => {
     const e = await entry(u.member, '缓存策略复盘', '正文无关')
     const t = await req(u.member, 'POST', '/tasks', { title: '调研缓存策略', spaceId })
     const tid = ((await t.json()) as { id: string }).id
     const r = await find(u.member, `q=${encodeURIComponent('存策')}`)
     expect(r.groups.entries?.items.map((x) => x.id)).toContain(e)
     expect(r.groups.tasks?.items.map((x) => x.id)).toContain(tid)
-    // 标签名子串
-    const tag = await req(u.owner, 'POST', '/tags', { name: '性能优化', color: 'green' })
+    // 标签名子串（标签是个人的，ADR-0017：成员打自己的标签）
+    const tag = await req(u.member, 'POST', '/tags', { name: '性能优化', color: 'green' })
     const tagId = ((await tag.json()) as { id: string }).id
     const tt = await req(u.member, 'POST', '/tasks', {
       title: '无关标题',
@@ -132,6 +132,12 @@ describe('T1-025 search', () => {
         (x) => x.id,
       ),
     ).toContain(ttId)
+    // 别人的私有标签名不参与匹配：所有者看得到这个任务，但按「能优」搜不到
+    expect(
+      (await find(u.owner, `q=${encodeURIComponent('能优')}`)).groups.tasks?.items.map(
+        (x) => x.id,
+      ) ?? [],
+    ).not.toContain(ttId)
     // types 限定
     const only = await find(u.member, `q=${encodeURIComponent('存策')}&types=task`)
     expect(only.groups.entries).toBeUndefined()

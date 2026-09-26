@@ -1,6 +1,6 @@
 /**
  * 标签管理（ADR-0014、REQ-TAG-004 · 005 · 006）：新建（选色）· 改名 · 改色 · 合并到另一标签 · 删除 · 用量 · 查看记录。
- * 可管理 = 管理员或创建者（服务端 `can('tag.manage')`，列表每项带 canManage）；不可管理的行只读。
+ * ADR-0017：标签是个人的——这里只列本人的标签，本人可新建 / 改 / 合并 / 删除；guest 只读（服务端 `can('tag.*')`）。
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
@@ -18,6 +18,7 @@ import { Input } from '../components/ui/input.tsx'
 import { PageHeader } from '../components/ui/page-header.tsx'
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
+import { useMe } from '../hooks/useMe.ts'
 import { ApiError, api, unwrap } from '../lib/api.ts'
 import { cn } from '../lib/cn.ts'
 import { newId } from '../lib/uuid.ts'
@@ -88,6 +89,8 @@ function TagsPage() {
   const q = useQuery(tagsQuery)
   const tags = (q.data ?? []) as TagFull[]
   const m = useTagMutations()
+  const { data: me } = useMe()
+  const canCreate = !!me && me.workspaceRole !== 'guest'
   const [filter, setFilter] = useState('')
   const [name, setName] = useState('')
   const [color, setColor] = useState<PaletteName>('green')
@@ -101,19 +104,23 @@ function TagsPage() {
     <div className="flex flex-col gap-6" data-testid="tags-page">
       <PageHeader title={t('settings.tags.title')} description={t('settings.tags.hint')} />
       <form onSubmit={submit} className="flex flex-wrap items-center gap-2">
-        <ColorPicker value={color} onChange={setColor} label={t('settings.tags.color')} />
-        <Input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={t('settings.tags.newPlaceholder')}
-          aria-label={t('settings.tags.new')}
-          maxLength={40}
-          className="h-9 w-64"
-          data-testid="tag-new-name"
-        />
-        <Button type="submit" size="sm" loading={m.create.isPending} disabled={!name.trim()}>
-          {t('settings.tags.new')}
-        </Button>
+        {canCreate ? (
+          <>
+            <ColorPicker value={color} onChange={setColor} label={t('settings.tags.color')} />
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t('settings.tags.newPlaceholder')}
+              aria-label={t('settings.tags.new')}
+              maxLength={40}
+              className="h-9 w-64"
+              data-testid="tag-new-name"
+            />
+            <Button type="submit" size="sm" loading={m.create.isPending} disabled={!name.trim()}>
+              {t('settings.tags.new')}
+            </Button>
+          </>
+        ) : null}
         <Input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}

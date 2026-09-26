@@ -99,6 +99,27 @@
       "when": 1790447680046,
       "tag": "0013_entry_types",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790451445433,
+      "tag": "0014_entry_kind_overrides",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1790451472246,
+      "tag": "0015_drop_hidden_entry_kinds",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790453175078,
+      "tag": "0016_per_user_tags_types",
+      "breakpoints": true
     }
   ]
 }

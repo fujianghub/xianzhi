@@ -22,7 +22,11 @@ export function tagRoutes(deps: { db: Db }) {
   return new Hono<AppEnv>()
     .use(requireAuth)
     .get('/', async (c) =>
-      c.json({ items: await svc.listTags(deps.db, ctxOf(c)), nextCursor: null }),
+      c.json({
+        items: await svc.listTags(deps.db, ctxOf(c)),
+        nextCursor: null,
+        canCreate: svc.canCreateTag(ctxOf(c)),
+      }),
     )
     .post(
       '/',
