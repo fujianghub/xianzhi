@@ -17,17 +17,15 @@ describe('space sections', () => {
   const groups = [g('G1', '产品开发'), g('G2', '技术学习规划'), g('G3', '生活')]
   const spaces = [s('me', null, true), s('a', 'G1'), s('b', 'G1'), s('c', 'G2'), s('x', null)]
 
-  it('REQ-KB-002 groupSpaces：按大类分区、个人空间不参与、空大类保留、其他（未归入大类）最后', () => {
+  it('REQ-KB-002 groupSpaces：按大类分区、个人空间不参与、空大类保留、未分类最后', () => {
     const secs = groupSpaces(spaces, groups)
-    expect(
-      secs.map((x) => [x.group?.name ?? '其他（未归入大类）', x.items.map((i) => i.id)]),
-    ).toEqual([
+    expect(secs.map((x) => [x.group?.name ?? '未分类', x.items.map((i) => i.id)])).toEqual([
       ['产品开发', ['a', 'b']],
       ['技术学习规划', ['c']],
       ['生活', []],
-      ['其他（未归入大类）', ['x']],
+      ['未分类', ['x']],
     ])
-    // 无其他（未归入大类）时不出现该区
+    // 无未分类时不出现该区
     expect(groupSpaces(spaces.slice(0, 4), groups).at(-1)?.group?.name).toBe('生活')
   })
 

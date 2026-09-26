@@ -1,7 +1,7 @@
 /**
  * 大类 service（ADR-0012、02 §9 /space-groups、REQ-KB-001 · 002）。
  * - 工作区共享一套大类，全员可读；增删改排需 `can('group.manage')`（owner / admin）。
- * - 删大类 → 其下分类 group_id 置空（FK on delete set null），即「其他」。
+ * - 删大类 → 其下空间 group_id 置空（FK on delete set null），即「未分类」。
  * - 排序同空间：fractional-indexing `sort_key`（列级 COLLATE "C"），reorder 只改被拖项一行。
  */
 import { and, asc, eq, gt, ne } from 'drizzle-orm'
@@ -138,7 +138,7 @@ export async function patchSpaceGroup(
   }
 }
 
-/** 删除大类：其下分类变「其他」（不删分类）。 */
+/** 删除大类：其下空间变「未分类」（不删空间）。 */
 export async function deleteSpaceGroup(db: DbOrTx, ctx: SpaceCtx, id: string): Promise<void> {
   assertCan(ctx.actor, 'group.manage', null)
   await loadRow(db, ctx, id)

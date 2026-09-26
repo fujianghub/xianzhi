@@ -259,13 +259,7 @@ export function AppShell({
         </SheetContent>
       </Sheet>
 
-      <div
-        className={cn(
-          'flex min-h-dvh flex-col',
-          sidebarOpen && 'lg:pl-(--xz-sidebar-w)',
-          aside && asideOpen && 'xl:pr-(--xz-aside-w)',
-        )}
-      >
+      <div className={cn('flex min-h-dvh flex-col', sidebarOpen && 'lg:pl-(--xz-sidebar-w)')}>
         <header
           data-testid="topbar"
           data-scrolled={scrolled || undefined}
@@ -324,7 +318,11 @@ export function AppShell({
         </header>
         <main
           id="main"
-          className="xz-main flex-1 px-4 py-6 pb-[calc(var(--xz-bottomnav-h)+env(safe-area-inset-bottom)+1rem)] lg:px-10 lg:pt-8 lg:pb-10"
+          className={cn(
+            'xz-main flex-1 px-4 py-6 pb-[calc(var(--xz-bottomnav-h)+env(safe-area-inset-bottom)+1rem)] lg:px-10 lg:pt-8 lg:pb-10',
+            // Aside 让位只作用于正文：顶栏铺满整行，Aside 从顶栏下方开始（fixed top = topbar-h），右上角不再留白
+            aside && asideOpen && 'xl:pr-[calc(var(--xz-aside-w)+2.5rem)]',
+          )}
         >
           {children}
         </main>

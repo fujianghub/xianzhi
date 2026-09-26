@@ -9,3 +9,6 @@ export const patchTagSchema = z
     message: '至少一个字段',
     path: ['name'],
   })
+
+/** POST /tags/:id/merge（ADR-0014）：把本标签的所有关联并入目标标签后删除本标签。 */
+export const mergeTagSchema = z.object({ intoId: z.uuid() })

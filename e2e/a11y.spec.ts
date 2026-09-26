@@ -55,6 +55,8 @@ test.describe('owner', () => {
         '/settings/workspace/members',
         '/settings/workspace/users',
         '/settings/workspace/audit',
+        '/settings/tags',
+        '/entries?kind=bug&view=board',
         '/entries',
         '/spaces/product/entries',
         '/spaces/product?view=list',

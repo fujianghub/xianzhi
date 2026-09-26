@@ -138,7 +138,10 @@ export async function search(
     if (q.status) conds.push(inArray(tasks.status, q.status))
     if (q.tag)
       conds.push(
-        sql`exists (select 1 from ${taskTags} tt join ${tags} tg on tg.id = tt.tag_id where tt.task_id = ${tasks.id} and tg.name = ${q.tag})`,
+        sql`exists (select 1 from ${taskTags} tt join ${tags} tg on tg.id = tt.tag_id where tt.task_id = ${tasks.id} and tg.name in (${sql.join(
+          q.tag.map((n) => sql`${n}`),
+          sql`, `,
+        )}))`,
       )
     const cc = cursorCond(rank, upd, sql`${tasks.id}`, q.cursorTasks)
     if (cc) conds.push(cc)
@@ -205,7 +208,10 @@ export async function search(
     if (q.kind) conds.push(eq(entries.kind, q.kind))
     if (q.tag)
       conds.push(
-        sql`exists (select 1 from ${entryTags} et join ${tags} tg on tg.id = et.tag_id where et.entry_id = ${entries.id} and tg.name = ${q.tag})`,
+        sql`exists (select 1 from ${entryTags} et join ${tags} tg on tg.id = et.tag_id where et.entry_id = ${entries.id} and tg.name in (${sql.join(
+          q.tag.map((n) => sql`${n}`),
+          sql`, `,
+        )}))`,
       )
     const cc = cursorCond(rank, upd, sql`${entries.id}`, q.cursorEntries)
     if (cc) conds.push(cc)

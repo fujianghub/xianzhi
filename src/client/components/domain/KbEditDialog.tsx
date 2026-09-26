@@ -1,4 +1,4 @@
-/** 编辑分类（ADR-0012、REQ-KB-002）：名称、简介、类型（决定概览形态）、大类；需 space admin（服务端 space.manage）。 */
+/** 编辑空间（ADR-0012、REQ-KB-002）：名称、简介、类型（决定概览形态）、大类；需 space admin（服务端 space.manage）。 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'

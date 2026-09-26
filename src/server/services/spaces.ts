@@ -64,7 +64,7 @@ export interface SpaceView {
   visibility: 'workspace' | 'members'
   isPersonal: boolean
   description: string | null
-  /** 所属大类（ADR-0012）；null = 其他（未归入大类） */
+  /** 所属大类（ADR-0012）；null = 未分类 */
   groupId: string | null
   sortKey: string
   /** 当前用户的有效空间角色（01 §5，取较高者）；前端据此显示管理入口。 */

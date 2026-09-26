@@ -60,22 +60,38 @@ const FIELDS_RE = /^[a-zA-Z]{1,40}=[^,=]{1,200}(,[a-zA-Z]{1,40}=[^,=]{1,200}){0,
 export function validateEntriesSearch(s: Record<string, unknown>): {
   kind?: string
   fields?: string
-  view?: 'table'
+  view?: 'table' | 'board' | 'timeline'
   authorId?: string
   tag?: string
   q?: string
   pinned?: '1'
   sort?: string
+  spaceId?: string
+  under?: string
+  groupId?: string
+  favorite?: '1'
+  recent?: '1'
+  archived?: '1'
+  select?: '1'
 } {
   const fields = optString(s.fields)
+  const one = (v: unknown) => (v === '1' || v === 1 ? ('1' as const) : undefined)
   return {
     kind: optCsvOf(ENTRY_KIND_VALUES)(s.kind),
     fields: fields && FIELDS_RE.test(fields) ? fields : undefined,
-    view: s.view === 'table' ? ('table' as const) : undefined,
+    view: optOneOf(['table', 'board', 'timeline'] as const)(s.view),
     authorId: s.authorId === 'me' ? ('me' as const) : optUuid(s.authorId),
     tag: optString(s.tag),
     q: optString(s.q)?.slice(0, 200),
     pinned: s.pinned === '1' || s.pinned === 1 ? ('1' as const) : undefined,
     sort: optOneOf(['-updatedAt', '-createdAt', 'title'] as const)(s.sort),
+    // 左栏位置（ADR-0014）：空间 / 目录子树 / 大类（none = 未分类）/ 收藏 / 最近打开 / 已归档
+    spaceId: optUuid(s.spaceId),
+    under: optUuid(s.under),
+    groupId: s.groupId === 'none' ? 'none' : optUuid(s.groupId),
+    favorite: one(s.favorite),
+    recent: one(s.recent),
+    archived: one(s.archived),
+    select: one(s.select),
   }
 }

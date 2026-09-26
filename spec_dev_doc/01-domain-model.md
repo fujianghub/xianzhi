@@ -51,9 +51,9 @@
 | created_at | timestamptz | |
 | updated_at | timestamptz | |
 
-- 新工作区（create-owner / seed）与迁移 0010 预置「产品开发 / 技术学习规划 / 生活」，可改名 / 删除，不自动补回。删除大类 → 其下空间 `group_id` 置空（其他（未归入大类））。
+- 新工作区（create-owner / seed）与迁移 0010 预置「产品开发 / 技术学习规划 / 生活」，可改名 / 删除，不自动补回。删除大类 → 其下空间 `group_id` 置空（未分类）。
 
-### 3.1 spaces —— 空间（界面称「分类」，ADR-0012）
+### 3.1 spaces —— 空间（界面称「空间」，ADR-0012）
 
 | 列 | 类型 | 说明 |
 |---|---|---|
@@ -67,7 +67,7 @@
 | visibility | text | `workspace`（全员可见）\| `members`（仅 space_members） |
 | is_personal | bool | 个人空间，默认 false；见下 |
 | description | text? | |
-| group_id | uuid? | FK space_groups（on delete set null）；null = 其他（未归入大类）；个人空间恒为 null（ADR-0012） |
+| group_id | uuid? | FK space_groups（on delete set null）；null = 未分类；个人空间恒为 null（ADR-0012） |
 | sort_key | text | fractional indexing；列级 `COLLATE "C"`（注 2026-09-24：键须按字节序比较，库默认 en_US.utf8 大小写不敏感会排错，迁移 0003） |
 | archived_at | timestamptz? | 归档后空间只读：其任务与记录的写操作 403；列表默认隐藏（`?archived=1` 显示） |
 | deleted_at | timestamptz? | 软删 |
@@ -258,9 +258,21 @@ plan     : { status: 'planning'|'active'|'paused'|'done', startDate?: date, endD
 | workspace_id | text | FK organization |
 | name | text | |
 | color | text | 04 §2.1 的色板 token 名（ADR-0010 起 9 色） |
+| created_by | text? | FK user（2026-09-26 ADR-0014；历史标签为空，只有管理员能管） |
 | created_at | timestamptz | |
 
 - 唯一：`(workspace_id, name)`。
+
+**entry_favorites**
+
+（2026-09-26 ADR-0014：个人收藏）
+
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| user_id | text | FK user（cascade），PK 之一 |
+| entry_id | uuid | FK entries（cascade），PK 之一 |
+| created_at | timestamptz | 索引 `(user_id, created_at desc)` |
 
 **task_tags**
 
@@ -610,7 +622,8 @@ Workspace 角色 × Space 角色 → 有效角色取**较高者**，`guest` 只�
 | cycle.* | 仅 owner_id 本人（admin 可 read） | | |
 | calendar.read / calendar.write（日历与日程，ADR-0009） | 仅 owner_id 本人（admin 也不可见） | 仅本人 | 仅本人 |
 | member.approve（审批注册申请，ADR-0008） | ✓ | ✗ | ✗ |
-| group.manage（大类增删改排，ADR-0012；把分类移入大类走 space.manage） | ✓ | ✗ | ✗ |
+| group.manage（大类增删改排，ADR-0012；把空间移入大类走 space.manage） | ✓ | ✗ | ✗ |
+| tag.manage（标签改名 / 改色 / 删除 / 合并；ADR-0014 起创建者也可） | ✓ | 本人创建的 | ✗ |
 | template.read（记录模板，ADR-0011） | personal 仅本人；workspace 全员 | 同左 | 同左 |
 | template.create | personal：非 guest；workspace：仅 owner / admin | personal ✓ | ✗ |
 | template.manage（改名 / 范围 / 删除） | 本人的（非 guest）；workspace 模板管理员可管 | 本人的 | ✗ |

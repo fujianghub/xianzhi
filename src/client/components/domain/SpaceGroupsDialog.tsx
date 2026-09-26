@@ -1,6 +1,6 @@
 /**
  * 管理大类（ADR-0012、REQ-KB-001）：新建 / 改名 / 改色 / 上移下移 / 删除；仅 owner / admin 看到入口（服务端 can('group.manage')）。
- * 删除大类不删分类，其下分类变「其他」。
+ * 删除大类不删空间，其下空间变「未分类」。
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react'

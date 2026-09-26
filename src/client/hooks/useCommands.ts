@@ -7,6 +7,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { downloadEntryExport } from '../lib/entry-export.ts'
 import { entryQuery } from '../lib/entry-queries.ts'
 import {
   useCommandContext,
@@ -106,9 +108,10 @@ export function useCommands(): { commands: Cmd[]; target: ReturnType<typeof useT
           id: 'entry.export',
           group: 'context',
           label: t('cmd.entry.export'),
-          run: () => {
-            window.location.href = `/api/v1/entries/${entry.id}/export?format=md`
-          },
+          run: () =>
+            void downloadEntryExport(entry.id, 'md').catch(() =>
+              toast.error(t('entry.menu.exportFailed')),
+            ),
         },
         { id: 'entry.move', group: 'context', label: t('cmd.entry.move'), page: 'space' },
         {

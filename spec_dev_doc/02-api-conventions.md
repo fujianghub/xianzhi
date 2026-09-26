@@ -217,7 +217,7 @@
 | POST | `/space-groups` | `{ name, color?, icon?, description? }`；`group.manage`；同名 409 | REQ-KB-001 |
 | PATCH | `/space-groups/reorder` | `{ id, after }` | REQ-KB-001 |
 | PATCH | `/space-groups/:id` | 改名 / 色 / 图标 / 说明 | REQ-KB-001 |
-| DELETE | `/space-groups/:id` | 删除；其下分类变其他（未归入大类） | REQ-KB-001 |
+| DELETE | `/space-groups/:id` | 删除；其下空间变未分类 | REQ-KB-001 |
 
 注（2026-09-24，T1-001）：
 - `/spaces/:id` 的 `:id` 兼收 slug：UUID 形态按 id 查，否则按 slug。前端路由是 `/spaces/$spaceSlug`，免去先列表再找 id。
@@ -258,7 +258,10 @@
 | GET | `/cycles/current` | `kind`；按用户时区与 `weekStartsOn` | REQ-CYCLE-002 |
 | GET | `/cycles/:id` | 详情（含任务列表与完成数） | REQ-CYCLE-006 · REQ-TASK-018 |
 | PATCH | `/cycles/:id` | `goals / status`（单向流转） | REQ-CYCLE-003 · 005 |
-| GET | `/entries` | 筛选 `spaceId kind authorId tag q pinned deleted`；sort 白名单 `updatedAt createdAt title`；不返回正文列（注 2026-09-26 ADR-0012：`kind` 逗号多值；`fields=status=open\|fixed,severity=high` 按 fields 过滤；`inTree=1\|0`；每项带 `tagIds`） | REQ-ENTRY-002 · REQ-KB-004 |
+| GET | `/entries` | 筛选 `spaceId kind authorId tag q pinned deleted`；sort 白名单 `updatedAt createdAt title`；不返回正文列（注 2026-09-26 ADR-0012：`kind` 逗号多值；`fields=status=open\|fixed,severity=high` 按 fields 过滤；`inTree=1\|0`；每项带 `tagIds`；注 ADR-0014：+`under` 目录子树、`groupId`（uuid \| `none`）、`favorite=1`、`ids` csv ≤ 50，每项带 `path` `favorited`） | REQ-ENTRY-002 · REQ-KB-004 · REQ-ENTRY-012 |
+| POST | `/entries/batch` | `{ op: move\|tags\|archive\|unarchive\|delete, ids ≤ 100, spaceId? / add? / remove? }` 逐条鉴权 → `{ ok, failed[{id, code, message}] }`（ADR-0014） | REQ-ENTRY-013 |
+| PUT | `/entries/:id/favorite` | 收藏（个人；需可读；幂等）（ADR-0014） | REQ-ENTRY-012 |
+| DELETE | `/entries/:id/favorite` | 取消收藏（ADR-0014） | REQ-ENTRY-012 |
 | PATCH | `/entries/:id/move` | `{ parentId, after }` 移到目录某处 / `{ detach: true }` 移出目录；需 entry.write；防环、after 须同级 | REQ-KB-005 |
 | POST | `/entries` | `{ kind, title, spaceId?, fields, visibility, templateId? }` → `{ id }`；正文经 collab；`templateId`（`builtin:<key>` / uuid / `builtin:blank`）→ 模板正文写成初始 ydoc（ADR-0011 §2） | REQ-ENTRY-001 · REQ-TPL-003 |
 | GET | `/entries/:id` | 元数据详情（无 `ydoc`；`pmJson` 仅 `?withBody=1`） | REQ-ENTRY-003 |
@@ -291,6 +294,7 @@
 | POST | `/tags` | `{ name, color }`；重名 409 | REQ-TAG-001 · 003 |
 | PATCH | `/tags/:id` | 改名 / 颜色 | REQ-TAG-001 |
 | DELETE | `/tags/:id` | 删除并解除关联 | REQ-TAG-001 |
+| POST | `/tags/:id/merge` | `{ intoId }` 关联并入目标（去重）后删源；需两者 `tag.manage`（ADR-0014） | REQ-TAG-005 |
 | GET | `/templates` | 内置 + 本人个人 + 工作区模板（`?kind=&spaceKind=`）；不返回正文 | REQ-TPL-001 · 004 |
 | POST | `/templates` | `{ name, scope, description?, spaceKind?, body+kind \| fromEntryId }`；workspace 范围需管理员；幂等 | REQ-TPL-004 |
 | GET | `/templates/:id` | 详情带 `body`（id 可为 `builtin:<key>`） | REQ-TPL-001 · 005 |
@@ -298,7 +302,7 @@
 | DELETE | `/templates/:id` | 删除；内置 403；已建记录不受影响 | REQ-TPL-004 |
 
 注（2026-09-24，T1-021 / T1-022）：
-- 标签：创建为非 guest（authz `tag.create`，供 TagPicker 输入即创建）；改名、改色、删除限 owner/admin（`tag.manage`，影响全工作区）。`GET /tags` 不分页，附 `usage { tasks, entries }` 计数。`?tag=a,b` 为逗号多值，任一命中，最多 20 个。
+- 标签：创建为非 guest（authz `tag.create`，供 TagPicker 输入即创建）；改名、改色、删除限 owner/admin（`tag.manage`，影响全工作区；注 2026-09-26 ADR-0014：创建者也可，`tags.created_by`，列表每项带 `canManage`）。`GET /tags` 不分页，附 `usage { tasks, entries }` 计数。`?tag=a,b` 为逗号多值，任一命中，最多 20 个。
 - 评论：未带 `threadId` / `parentId` 时首条评论 id 即 threadId；回复继承父评论的线程。空正文 422。编辑只限作者且带 `ifUpdatedAt`，只对新增的提及发通知。删除限作者或 owner/admin，列表保留占位（`deleted: true, bodyPm: null`）。resolve / unresolve 对整条线程生效，按线程首条评论判 `comment.resolve`。
 - 评论里的提及发 `mention.created`（`targetType: 'comment'`），扇出前按评论所在目标的读权限过滤。
 | GET | `/calendars` | 本人日历列表（首次自动建 4 个默认）；不分页 | REQ-CAL-001 |

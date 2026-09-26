@@ -8,13 +8,15 @@ import { type FormEvent, lazy, Suspense, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useEntryActions } from '../../hooks/useEntries.ts'
-import { api, unwrap } from '../../lib/api.ts'
+import { ApiError, api, unwrap } from '../../lib/api.ts'
 import { cn } from '../../lib/cn.ts'
-import type { Entry } from '../../lib/entry-queries.ts'
-import { spacesQuery } from '../../lib/space-queries.ts'
+import { type Entry, treeQuery } from '../../lib/entry-queries.ts'
+import { type Space, spacesQuery } from '../../lib/space-queries.ts'
 import { useCommentDraft, useOutline } from '../../lib/stores.ts'
+import { childrenMap, flatten } from '../../lib/tree.ts'
 import { newId } from '../../lib/uuid.ts'
 import { Button } from '../ui/button.tsx'
+import { ConfirmDialog } from '../ui/confirm-dialog.tsx'
 import { Input } from '../ui/input.tsx'
 import { RelativeTime } from '../ui/relative-time.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
@@ -139,6 +141,25 @@ function Props({
   }
   const current = spaces.data?.find((s) => s.id === entry.spaceId)
   const personal = !!current?.isPersonal
+  const [leaveTree, setLeaveTree] = useState<Space | null>(null)
+  const moveSpace = (target: Space) =>
+    void actions
+      .patch(entry, {
+        spaceId: target.id,
+        // 个人空间只能 private；离开个人空间默认 space（REQ-ENTRY-003）
+        ...(target.isPersonal
+          ? { visibility: 'private' as const }
+          : personal
+            ? { visibility: 'space' as const }
+            : {}),
+      })
+      .then(() =>
+        toast.success(
+          t('entry.aside.moved', {
+            space: target.isPersonal ? t('space.personal') : target.name,
+          }),
+        ),
+      )
   const row = 'flex flex-col gap-1 text-sm'
   const labelCls = 'text-fg-muted text-xs'
   return (
@@ -174,23 +195,9 @@ function Props({
           onChange={(e) => {
             const target = spaces.data?.find((s) => s.id === e.target.value)
             if (!target) return
-            void actions
-              .patch(entry, {
-                spaceId: target.id,
-                // 个人空间只能 private；离开个人空间默认 space（REQ-ENTRY-003）
-                ...(target.isPersonal
-                  ? { visibility: 'private' as const }
-                  : personal
-                    ? { visibility: 'space' as const }
-                    : {}),
-              })
-              .then(() =>
-                toast.success(
-                  t('entry.aside.moved', {
-                    space: target.isPersonal ? t('space.personal') : target.name,
-                  }),
-                ),
-              )
+            // 在目录里的记录换空间会移出目录（ADR-0014）：先确认
+            if (entry.treeOrder !== null) setLeaveTree(target)
+            else moveSpace(target)
           }}
           className="h-8 rounded-md border border-border bg-surface px-2"
         >
@@ -201,6 +208,18 @@ function Props({
           ))}
         </select>
       </label>
+      <ConfirmDialog
+        open={!!leaveTree}
+        onOpenChange={(v) => !v && setLeaveTree(null)}
+        title={t('entry.aside.leaveTreeTitle')}
+        description={t('entry.aside.leaveTreeBody')}
+        confirmLabel={t('entry.aside.leaveTreeOk')}
+        onConfirm={() => {
+          if (leaveTree) moveSpace(leaveTree)
+          setLeaveTree(null)
+        }}
+      />
+      {current && !personal ? <TreePosition entry={entry} disabled={!canWrite} /> : null}
       <div className={row} data-testid="entry-tags">
         <span className={labelCls}>{t('kb.tags')}</span>
         <TagPicker
@@ -266,6 +285,68 @@ function Props({
     </div>
   )
 }
+
+/**
+ * 目录位置（ADR-0014、REQ-KB-005）：不在目录 / 目录顶层 / 某页之下（排除自身与子孙）；放到目标父级的最后。
+ */
+function TreePosition({ entry, disabled }: { entry: Entry; disabled: boolean }) {
+  const { t } = useTranslation()
+  const actions = useEntryActions()
+  const tree = useQuery(treeQuery(entry.spaceId))
+  const nodes = tree.data ?? []
+  // 自身及子孙不能作为父级
+  const banned = useMemo(() => {
+    const kids = childrenMap(nodes)
+    const out = new Set<string>([entry.id])
+    const walk = (id: string) => {
+      for (const c of kids.get(id) ?? []) {
+        out.add(c.id)
+        walk(c.id)
+      }
+    }
+    walk(entry.id)
+    return out
+  }, [nodes, entry.id])
+  const options = flatten(nodes).filter((n) => !banned.has(n.id))
+  const value = entry.treeOrder === null ? '' : (entry.parentId ?? ROOT)
+  const onChange = (v: string) => {
+    const to =
+      v === ''
+        ? ({ detach: true } as const)
+        : (() => {
+            const parentId = v === ROOT ? null : v
+            const siblings = (childrenMap(nodes).get(parentId) ?? []).filter(
+              (n) => n.id !== entry.id,
+            )
+            return { parentId, after: siblings.at(-1)?.id ?? null }
+          })()
+    void actions
+      .move(entry, to)
+      .then(() => toast.success(t('entry.aside.treeMoved')))
+      .catch((err) => toast.error(err instanceof ApiError ? err.message : t('task.saveFailed')))
+  }
+  return (
+    <label className="flex flex-col gap-1 text-sm">
+      <span className="text-fg-muted text-xs">{t('entry.aside.treePos')}</span>
+      <select
+        value={value}
+        disabled={disabled || tree.isPending}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-8 rounded-md border border-border bg-surface px-2"
+        data-testid="entry-tree-position"
+      >
+        <option value="">{t('entry.aside.treeNone')}</option>
+        <option value={ROOT}>{t('entry.aside.treeRoot')}</option>
+        {options.map((n) => (
+          <option key={n.id} value={n.id}>
+            {`${'\u00a0\u00a0'.repeat(n.depth + 1)}${n.title || t('entry.untitled')}`}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+const ROOT = '__root'
 
 /** 另存为模板（ADR-0011 §2、REQ-TPL-004）：取本篇当前正文 + kind / fields；工作区范围仅管理员（服务端判定）。 */
 function SaveAsTemplate({ entry, admin }: { entry: Entry; admin: boolean }) {

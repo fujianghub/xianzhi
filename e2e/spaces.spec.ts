@@ -42,7 +42,7 @@ test('REQ-SPACE-005 侧栏拖动排序只发一条 PATCH 且仅一行 sort_key �
   await createSpace(req, `拖动 B ${stamp}`)
   const c = await createSpace(req, `拖动 C ${stamp}`)
   await page.goto('/today')
-  // ADR-0012：新建分类默认「其他」分区
+  // ADR-0012：新建空间默认「未分类」分区
   const rows = page
     .locator('[data-testid="space-section"][data-group-id="none"]')
     .getByTestId('space-row')
@@ -82,7 +82,7 @@ test('REQ-SPACE-008 新建空间 Dialog：选色板 token 与图标 → 创建�
   await dlg.getByText('绿', { exact: true }).click()
   await dlg.locator('label', { hasText: 'rocket' }).click()
   await dlg.getByTestId('create-space-submit').click()
-  // ADR-0012：进入分类默认是概览页
+  // ADR-0012：进入空间默认是概览页
   await expect(page).toHaveURL(/\/spaces\/[a-z0-9-]+\/home$/)
   await expect(page.getByTestId('kb-home').getByRole('heading', { level: 1 })).toHaveText(name)
   await expect(page.getByTestId('sidebar').getByText(name)).toBeVisible()

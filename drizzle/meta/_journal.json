@@ -85,6 +85,13 @@
       "when": 1790361191602,
       "tag": "0011_entry_tree",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790367594867,
+      "tag": "0012_tags_owner_favorites",
+      "breakpoints": true
     }
   ]
 }

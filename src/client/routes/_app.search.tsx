@@ -8,6 +8,7 @@ import { CheckSquare, FileText, Search as SearchIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { entryKindClass } from '../components/domain/EntryCard.tsx'
+import { TagFilter } from '../components/domain/TagFilter.tsx'
 import { EmptyState } from '../components/ui/empty-state.tsx'
 import { Highlight } from '../components/ui/highlight.tsx'
 import { Input } from '../components/ui/input.tsx'
@@ -21,7 +22,7 @@ import { optCsvOf, optString, optUuid } from '../lib/search.ts'
 import { type Hit, hitLink, type SearchResult } from '../lib/search-queries.ts'
 import { usePeek } from '../lib/stores.ts'
 
-type Search = { q?: string; types?: string; spaceId?: string }
+type Search = { q?: string; types?: string; spaceId?: string; tag?: string }
 type GroupKey = 'tasks' | 'entries'
 
 export const Route = createFileRoute('/_app/search')({
@@ -29,6 +30,7 @@ export const Route = createFileRoute('/_app/search')({
     q: optString(s.q)?.slice(0, 200),
     types: optCsvOf(['task', 'entry'])(s.types),
     spaceId: optUuid(s.spaceId),
+    tag: optString(s.tag),
   }),
   component: SearchPage,
 })
@@ -46,6 +48,7 @@ function useGroup(group: GroupKey, search: Search, recent: string[]) {
             limit: '20',
             ...(search.q ? { q: search.q } : { recent: recent.join(',') }),
             ...(search.spaceId ? { spaceId: search.spaceId } : {}),
+            ...(search.tag ? { tag: search.tag } : {}),
             ...(pageParam
               ? { [group === 'tasks' ? 'cursorTasks' : 'cursorEntries']: pageParam }
               : {}),
@@ -126,6 +129,10 @@ function SearchPage() {
         {typeChip(undefined, t('search.all'))}
         {typeChip('task', t('task.tasks'))}
         {typeChip('entry', t('ui.page.entries'))}
+        <TagFilter
+          value={search.tag}
+          onChange={(tag) => void nav({ search: (s) => ({ ...s, tag }), replace: true })}
+        />
       </div>
       {limited ? (
         <p className="rounded-md bg-warning-soft px-3 py-2 text-sm" role="status">

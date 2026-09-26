@@ -4,6 +4,15 @@
 
 ## 2026-09-26
 
+**我的记录：位置导航、标签自定义、收藏 / 最近、批量、看板与时间线（ADR-0014）**
+- 新增 ADR-0014。00：+REQ-ENTRY-012 ~ 015、REQ-TAG-004 ~ 006。
+- 01：§3.7 tags +`created_by`，新表 `entry_favorites`；§5 +`tag.manage` 行（管理员或创建者）。
+- 02 §9：+`POST /entries/batch`、`PUT/DELETE /entries/:id/favorite`、`POST /tags/:id/merge`；`GET /entries` 注 `under / groupId / favorite / ids`、每项 `path / favorited`；标签权限注；`/search` `tag` 改多值。
+- 08：§1 +`/settings/tags`；§2.8 · §2.11 search params 注。glossary：+收藏、最近打开、记录位置、批量操作、看板（记录）、时间线、合并标签。
+
+**界面称呼改回「空间」（ADR-0013）**
+- 新增 ADR-0013；ADR-0012 头部与 §2 加注。00 REQ-KB-002、glossary「空间」行加注（合并重复行）；01 / 02 / 08 与代码注释中的「分类」改为「空间」；不属于大类的显示「未分类」。
+
 **分类：大类、概览与类型视图、目录树、关联（ADR-0012）**
 - 新增 ADR-0012。00：新增 §6c KB（REQ-KB-001 ~ 005）；REQ-LINK-001 · 002 · 003 · 005 加注已实现。
 - 01：§3.0 `space_groups`；spaces +`group_id`；entries +`parent_id` `tree_order`；§5 +`group.manage`。

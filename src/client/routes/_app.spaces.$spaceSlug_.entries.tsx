@@ -1,4 +1,4 @@
-/** 分类记录（08 §2.8，`/spaces/$spaceSlug/entries`；ADR-0012 类型视图）：与任务页平级（不嵌套在任务视图里）。 */
+/** 空间记录（08 §2.8，`/spaces/$spaceSlug/entries`；ADR-0012 类型视图）：与任务页平级（不嵌套在任务视图里）。 */
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, notFound, useNavigate } from '@tanstack/react-router'
 import { useCallback } from 'react'
@@ -42,6 +42,7 @@ function SpaceEntries() {
           search={search}
           setSearch={setSearch}
           spaceId={space.id}
+          space={space}
           title={space.isPersonal ? t('space.personal') : space.name}
           hideTitle
         />

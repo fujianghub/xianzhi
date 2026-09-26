@@ -1,5 +1,5 @@
 /**
- * 记录表格视图（ADR-0012、REQ-KB-004）：列 = 标题 · （多类型时）类型 · 所选类型的 fields · 标签 · （跨分类时）分类 · 更新时间。
+ * 记录表格视图（ADR-0012、REQ-KB-004）：列 = 标题 · （多类型时）类型 · 所选类型的 fields · 标签 · （跨空间时）空间 · 更新时间。
  * 点列头在已加载数据内排序；枚举字段按 schema 定义顺序（如严重度 low → critical），日期 / 文本按字典序，数字按数值。
  */
 import { useQuery } from '@tanstack/react-query'
@@ -22,7 +22,10 @@ export function EntryTable({
   items,
   kinds,
   showSpace,
+  select,
 }: {
+  /** 多选模式（ADR-0014 批量） */
+  select?: { has: (id: string) => boolean; toggle: (id: string) => void }
   items: Entry[]
   kinds: EntryKind[]
   showSpace: boolean
@@ -99,6 +102,7 @@ export function EntryTable({
       <table className="w-full min-w-[40rem] border-collapse text-sm" data-testid="entry-table">
         <thead className="border-divider border-b text-fg-muted text-xs">
           <tr>
+            {select ? <th scope="col" className="w-10 px-3 py-2" /> : null}
             {header('title', t('entry.title'))}
             {kinds.length !== 1 ? header('kind', t('entry.props.kind')) : null}
             {cols.map((c) => header(c.key, c.label))}
@@ -121,6 +125,18 @@ export function EntryTable({
               data-testid="entry-row"
               data-entry-id={e.id}
             >
+              {select ? (
+                <td className="px-3 py-2">
+                  <input
+                    type="checkbox"
+                    checked={select.has(e.id)}
+                    onChange={() => select.toggle(e.id)}
+                    aria-label={t('entry.batch.toggle', { title: e.title || t('entry.untitled') })}
+                    className="size-4 accent-(--color-primary)"
+                    data-testid="entry-row-select"
+                  />
+                </td>
+              ) : null}
               <td className="max-w-[28rem] px-3 py-2">
                 <Link
                   to="/entries/$entryId"
@@ -129,6 +145,11 @@ export function EntryTable({
                 >
                   {e.title || t('entry.untitled')}
                 </Link>
+                {e.path?.length ? (
+                  <span className="line-clamp-1 text-fg-faint text-xs">
+                    {e.path.map((p) => p.title || t('entry.untitled')).join(' / ')}
+                  </span>
+                ) : null}
               </td>
               {kinds.length !== 1 ? (
                 <td className="px-3 py-2">

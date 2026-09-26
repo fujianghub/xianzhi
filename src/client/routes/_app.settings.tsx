@@ -1,4 +1,4 @@
-/** 设置布局（08 §2.13、T1-033 · T1-043）：左侧二级导航（个人 / 通知 / 安全 / API Key / 模板；admin 多出工作区 / 成员 / 审计；owner 再多用户管理，ADR-0010）。 */
+/** 设置布局（08 §2.13、T1-033 · T1-043）：左侧二级导航（个人 / 通知 / 安全 / API Key / 模板 / 标签；admin 多出工作区 / 成员 / 审计；owner 再多用户管理，ADR-0010）。 */
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router'
 import {
   Bell,
@@ -8,6 +8,7 @@ import {
   type LucideIcon,
   ScrollText,
   ShieldCheck,
+  Tags,
   UserCog,
   UserRound,
   Users,
@@ -54,6 +55,9 @@ function SettingsLayout() {
         </Link>
         <Link to="/settings/templates" className={link} data-testid="nav-templates">
           <Item icon={LayoutTemplate}>{t('settings.nav.templates')}</Item>
+        </Link>
+        <Link to="/settings/tags" className={link} data-testid="nav-tags">
+          <Item icon={Tags}>{t('settings.nav.tags')}</Item>
         </Link>
         {isAdmin(me) ? (
           <>

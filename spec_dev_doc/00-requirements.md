@@ -159,6 +159,10 @@
 | REQ-ENTRY-009 | P1 | 2 | decision 的 `supersedesId` 应指向另一 decision，被取代者状态变为 `superseded` | When 创建 B `supersedesId=A` Then A `fields.status = superseded` | 01 §3.5 | api |
 | REQ-ENTRY-010 | P0 | 0 | `pnpm xz rebuild-derived` 重建后的 `pm_json / plain / tsv / word_count` 应与实时派生逐字节一致 | Given 10 篇记录 When 清空派生列并重建 Then 与备份值相等 | 01 §7 · CLAUDE 不变量 1 | unit |
 | REQ-ENTRY-011 | P1 | 1 | 记录应可在空间间移动，移动后可见性按目标空间重新判定 | When `PATCH {spaceId: S2}` Then S1 成员非 S2 成员 `GET` 404 | 04 §6 ⌘K 上下文命令 | api |
+| REQ-ENTRY-012 | P1 | 2 | （2026-09-26 新增，ADR-0014）记录列表应可按位置定位：目录子树 `under`、大类 `groupId`（`none` = 未分类）、本人收藏 `favorite=1`、按 id `ids=`（最近打开）；每项带目录 `path` 与 `favorited`；`/entries` 左栏 = 全部 / 最近 / 收藏 / 已归档 / 个人随笔 / 大类 → 空间 → 目录树 | When `GET /entries?under=A` Then 含 A 及其子孙、子页 `path=[A]`；When 收藏后 `favorite=1` Then 只含本人收藏；When 左栏点目录节点 Then 只列该子树 | ADR-0014 · 02 §9 | api · e2e |
+| REQ-ENTRY-013 | P1 | 2 | （ADR-0014）批量 `POST /entries/batch`（移动空间 / 加去标签 / 归档 / 取消归档 / 删除，≤ 100）应逐条鉴权，无权条目进 `failed` 而不影响其它条 | When member 批量删 [自己的, owner 私人随笔] Then `ok=[自己的]`、`failed=[私人随笔]`；When 多选两篇点「归档」Then 两篇离开列表 | ADR-0014 | api · e2e |
+| REQ-ENTRY-014 | P1 | 2 | （ADR-0014）记录 ⋯ 菜单：收藏 · 固定 · 导出 md / html · 归档 / 取消归档 · 删除（确认 + 撤销）；已归档记录只在「已归档」出现 | When 归档 Then 不在默认列表、在 `archived=1`；When 删除后点「撤销」Then 记录回到列表 | ADR-0014 | e2e |
+| REQ-ENTRY-015 | P2 | 2 | （ADR-0014）只选一种带 status 的类型时可切看板（拖列 = 改 `fields.status`）；只选迭代 / 变更时可切时间线（按日期倒序、按月分组） | When Bug 看板把卡片拖到「已修复」Then `fields.status = fixed` | ADR-0014 | e2e |
 
 ---
 
@@ -172,15 +176,15 @@
 | REQ-TPL-004 | P1 | 2 | 自定义模板：记录「属性」页「另存为模板」（取当前正文 + kind / fields）；个人模板仅本人可见可用；工作区模板全员可用、仅管理员可建；创建者或管理员可改名 / 改范围 / 删除；内置不可改删；设置 → 模板 页可预览与「用此模板新建」 | Given member 另存个人模板 When owner 列表 Then 不含；owner `GET` Then 404；When member 建 workspace 模板 Then 403；删内置 Then 403 | ADR-0011 §2 · 01 §5 | api · unit · e2e |
 | REQ-TPL-005 | P2 | 2 | 斜杠 `/模板` 打开模板选择（首项「按类型默认」），在光标处插入所选模板正文，不替换已有内容 | When 在正文输入 `/模板` 选「学习笔记」Then 光标处出现「核心概念」等标题，原有内容仍在 | 03 §11.1 | e2e |
 
-## 6c. KB —— 分类（2026-09-26 新增，ADR-0012）
+## 6c. KB —— 空间（2026-09-26 新增，ADR-0012）
 
 | ID | P | Phase | 需求（EARS） | 验收（GWT） | 规范 | 层 |
 |---|---|---|---|---|---|---|
-| REQ-KB-001 | P1 | 2 | 大类：工作区预置「产品开发 / 技术学习规划 / 生活」；owner / admin 可增 / 改名 / 改色 / 排序 / 删除（同名 409）；删除大类不删分类 | When 新工作区 `GET /space-groups` Then 三个预置大类有序；When member `POST /space-groups` Then 403 | ADR-0012 · 01 §3.0 · 02 §9 | api · unit |
-| REQ-KB-002 | P1 | 2 | 界面「空间」改称「分类」；分类可归入大类（新建时选择 / 编辑 / 侧栏拖到另一大类）；侧栏与列表按大类分区（其他（未归入大类）最后、空大类可「在此新建」、分区可折叠）；分类类型可改；个人空间不入大类 | When 在「生活」分区「在此新建」Then 新分类 `groupId` = 生活，侧栏出现在该分区；When 把分类拖到另一分区头 Then 一条 `PATCH /spaces/reorder {groupId}` | ADR-0012 · 08 §2.5 | api · unit · e2e |
-| REQ-KB-003 | P1 | 2 | 进入分类默认为概览：产品型显示未关闭 Bug（按严重度计数）· 最近迭代 · 最新版本 · 决策与优化 · 最近更新；学习型显示学习计划进度 · 最近笔记；快捷新建带好类型与内置模板 | When 分类有 critical 未关闭 Bug 与已修复 Bug Then Bug 面板只列未关闭的、critical 计数 1；点「Bug」快捷 Then 新建对话框预选「产品 Bug 修复与迭代」 | ADR-0012 · 08 §2.5b | e2e |
+| REQ-KB-001 | P1 | 2 | 大类：工作区预置「产品开发 / 技术学习规划 / 生活」；owner / admin 可增 / 改名 / 改色 / 排序 / 删除（同名 409）；删除大类不删空间 | When 新工作区 `GET /space-groups` Then 三个预置大类有序；When member `POST /space-groups` Then 403 | ADR-0012 · 01 §3.0 · 02 §9 | api · unit |
+| REQ-KB-002 | P1 | 2 | 界面沿用「空间」（注 2026-09-26：曾改称「知识库」「分类」，ADR-0013 改回）；空间可归入大类（新建时选择 / 编辑 / 侧栏拖到另一大类）；侧栏与列表按大类分区（未分类最后、空大类可「在此新建」、分区可折叠）；空间类型可改；个人空间不入大类 | When 在「生活」分区「在此新建」Then 新空间 `groupId` = 生活，侧栏出现在该分区；When 把空间拖到另一分区头 Then 一条 `PATCH /spaces/reorder {groupId}` | ADR-0012 · 08 §2.5 | api · unit · e2e |
+| REQ-KB-003 | P1 | 2 | 进入空间默认为概览：产品型显示未关闭 Bug（按严重度计数）· 最近迭代 · 最新版本 · 决策与优化 · 最近更新；学习型显示学习计划进度 · 最近笔记；快捷新建带好类型与内置模板 | When 空间有 critical 未关闭 Bug 与已修复 Bug Then Bug 面板只列未关闭的、critical 计数 1；点「Bug」快捷 Then 新建对话框预选「产品 Bug 修复与迭代」 | ADR-0012 · 08 §2.5b | e2e |
 | REQ-KB-004 | P1 | 2 | 记录列表：类型多选；按 fields 过滤（`fields=`）；卡片 / 表格视图；表格列为所选类型 fields 且可排序；卡片显示关键字段与标签；记录可编辑标签 | When `?kind=bug&view=table` 选严重度 high Then URL 带 `fields=severity=high` 且只剩 high；When `GET /entries?kind=bug,iteration` Then 两类都返回 | ADR-0012 · 02 §9 | api · e2e |
-| REQ-KB-005 | P1 | 2 | 目录树：记录可嵌套（同分类）、拖拽 / 按钮移动（上移 / 下移 / 缩进 / 取消缩进 / 移出目录）、防环；不在目录的记录列在「其余记录」可加入；软删父页或移到别的分类时子页上移一级；记录页面包屑显示完整路径 | When A 移到自己的孙页下 Then 422；When 软删父页 Then 子页上移到其父级；When 在目录「新建子页」Then 新记录面包屑含父页 | ADR-0012 · 01 §3.4 · 02 §9 | api · unit · e2e |
+| REQ-KB-005 | P1 | 2 | 目录树：记录可嵌套（同空间）、拖拽 / 按钮移动（上移 / 下移 / 缩进 / 取消缩进 / 移出目录）、防环；不在目录的记录列在「其余记录」可加入；软删父页或移到别的空间时子页上移一级；记录页面包屑显示完整路径 | When A 移到自己的孙页下 Then 422；When 软删父页 Then 子页上移到其父级；When 在目录「新建子页」Then 新记录面包屑含父页 | ADR-0012 · 01 §3.4 · 02 §9 | api · unit · e2e |
 
 ## 7. EDITOR —— 编辑器交互
 
@@ -253,6 +257,9 @@
 | REQ-TAG-001 | P1 | 1 | 标签名在工作区内唯一，颜色为色板 token 名（ADR-0010 起 9 色） | When 重名 Then 409；`color:'#abc'` Then 422 | 01 §3.7 · 04 §2.1 | api |
 | REQ-TAG-002 | P1 | 1 | 任务与记录列表应支持 `?tag=` 筛选（多值逗号） | When `GET /tasks?tag=a,b` Then 只含带 a 或 b 的任务 | 02 §4 | api |
 | REQ-TAG-003 | P1 | 1 | TagPicker 应支持输入即创建 | When 输入不存在的名并 Enter Then `POST /tags` 并选中 | 04 §5 | e2e |
+| REQ-TAG-004 | P1 | 2 | （2026-09-26 新增，ADR-0014）标签改名 / 改色 / 删除 / 合并限管理员或创建者（`tag.manage`），列表每项带 `canManage`；`/settings/tags` 可新建选色；TagPicker 新建可选色 | Given member 建的标签 When 本人 PATCH Then 200；When 改 owner 建的 Then 403 | ADR-0014 · 01 §5 | api · e2e |
+| REQ-TAG-005 | P1 | 2 | （ADR-0014）`POST /tags/:id/merge {intoId}` 把源标签的任务 / 记录关联并入目标（去重）后删除源标签 | Given 记录同时带 A、B When A 合并到 B Then 该记录只带 B 一次，A 不存在 | ADR-0014 | api |
+| REQ-TAG-006 | P1 | 2 | （ADR-0014）记录页与搜索页应支持标签多选筛选（`tag=a,b` 任一命中；`/search` 的 `tag` 同改为多值） | When `GET /search?q=x&tag=a,b` Then 只含带 a 或 b 的记录 | ADR-0014 · 02 §4 | api · e2e |
 
 ---
 

@@ -1,7 +1,10 @@
-/** 记录卡片（08 §2.8）：kind 徽章、标题、160 字摘要、关键字段与标签（ADR-0012）、作者、更新时间、固定图钉。 */
+/**
+ * 记录卡片（08 §2.8）：kind 徽章、标题、160 字摘要、关键字段与标签（ADR-0012）、作者、更新时间、固定图钉；
+ * ADR-0014：目录路径、收藏星标、悬停 ⋯ 菜单（链接之外，避免交互元素嵌套）、多选模式整卡切换选中。
+ */
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Pin } from 'lucide-react'
+import { Check, Pin, Star } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useHoverIntent } from '../../hooks/useHoverIntent.ts'
 import { markSharedSource } from '../../hooks/useSharedElement.ts'
@@ -9,6 +12,7 @@ import { cn } from '../../lib/cn.ts'
 import type { Entry } from '../../lib/entry-queries.ts'
 import { usePeek } from '../../lib/stores.ts'
 import { RelativeTime } from '../ui/relative-time.tsx'
+import { EntryMenu } from './EntryMenu.tsx'
 import { PALETTE_CLASS, type PaletteName } from './SpaceIcon.tsx'
 import { SpaceTag } from './SpaceTag.tsx'
 import { tagsQuery } from './TagPicker.tsx'
@@ -31,12 +35,57 @@ export function EntryCard({
   entry,
   showSpace,
   index = 0,
+  canWrite = false,
+  select,
 }: {
   entry: Entry
   showSpace?: boolean
   /** 网格中的序号，用于入场错峰（app.css .xz-rise） */
   index?: number
+  canWrite?: boolean
+  /** 多选模式（ADR-0014 批量） */
+  select?: { selected: boolean; toggle: () => void }
 }) {
+  const { t } = useTranslation()
+  return (
+    <div className="group/card relative" style={{ '--i': index } as React.CSSProperties}>
+      <CardLink entry={entry} showSpace={showSpace} />
+      {select ? (
+        <button
+          type="button"
+          aria-pressed={select.selected}
+          aria-label={t('entry.batch.toggle', { title: entry.title || t('entry.untitled') })}
+          onClick={select.toggle}
+          data-testid="entry-select"
+          className={cn(
+            'absolute inset-0 rounded-lg border-2 transition-colors duration-(--xz-dur-fast)',
+            select.selected
+              ? 'border-primary bg-primary-soft/40'
+              : 'border-transparent hover:bg-hover/40',
+          )}
+        >
+          <span
+            aria-hidden
+            className={cn(
+              'absolute top-3 right-3 grid size-5 place-items-center rounded-md border',
+              select.selected
+                ? 'border-primary bg-primary text-primary-fg'
+                : 'border-border bg-surface',
+            )}
+          >
+            {select.selected ? <Check className="size-3.5" /> : null}
+          </span>
+        </button>
+      ) : (
+        <div className="absolute right-3 bottom-3 opacity-0 transition-opacity duration-(--xz-dur-fast) focus-within:opacity-100 group-hover/card:opacity-100 [@media(hover:none)]:opacity-100">
+          <EntryMenu entry={entry} canWrite={canWrite} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CardLink({ entry, showSpace }: { entry: Entry; showSpace?: boolean }) {
   const { t } = useTranslation()
   const openPeek = usePeek((s) => s.open)
   const hover = useHoverIntent(() => openPeek({ kind: 'entry', id: entry.id }))
@@ -55,7 +104,6 @@ export function EntryCard({
           openPeek({ kind: 'entry', id: entry.id })
         }
       }}
-      style={{ '--i': index } as React.CSSProperties}
       className="paper xz-lift xz-rise group flex min-h-36 flex-col gap-2 rounded-lg border border-divider p-4"
     >
       <div className="flex items-center gap-2 text-xs">
@@ -63,16 +111,35 @@ export function EntryCard({
           {t(`entry.kind.${entry.kind}`)}
         </span>
         {showSpace ? <SpaceTag slug={entry.spaceSlug} /> : null}
-        {entry.pinned ? (
-          <Pin className="ml-auto size-3.5 text-primary-text" aria-label={t('entry.pinned')} />
+        {entry.archivedAt ? (
+          <span className="rounded-full bg-surface-2 px-2 py-0.5 text-fg-muted">
+            {t('entry.menu.archivedBadge')}
+          </span>
         ) : null}
+        <span className="ml-auto flex items-center gap-1">
+          {entry.favorited ? (
+            <Star
+              className="size-3.5 fill-current text-warning"
+              aria-label={t('entry.nav.favorite')}
+              data-testid="entry-card-favorited"
+            />
+          ) : null}
+          {entry.pinned ? (
+            <Pin className="size-3.5 text-primary-text" aria-label={t('entry.pinned')} />
+          ) : null}
+        </span>
       </div>
+      {entry.path?.length ? (
+        <p className="-mb-1 truncate text-fg-faint text-xs" data-testid="entry-card-path">
+          {entry.path.map((p) => p.title || t('entry.untitled')).join(' / ')}
+        </p>
+      ) : null}
       <h3 className="line-clamp-2 font-medium leading-snug transition-colors duration-(--xz-dur-fast) group-hover:text-primary-text">
         {entry.title || t('entry.untitled')}
       </h3>
       {entry.excerpt ? <p className="line-clamp-3 text-fg-muted text-sm">{entry.excerpt}</p> : null}
       <EntryMeta entry={entry} />
-      <div className="mt-auto flex items-center gap-2 text-fg-muted text-xs">
+      <div className="mt-auto flex items-center gap-2 pr-8 text-fg-muted text-xs">
         <span className="truncate">{entry.author.displayName}</span>
         <span aria-hidden>·</span>
         <RelativeTime date={entry.updatedAt} />

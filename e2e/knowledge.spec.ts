@@ -1,4 +1,4 @@
-/** ADR-0012 分类（REQ-KB-001 ~ 005、REQ-LINK-003 · 005）：大类分区、概览、类型表格、目录树、Bug ↔ 迭代关联。 */
+/** ADR-0012 空间（REQ-KB-001 ~ 005、REQ-LINK-003 · 005）：大类分区、概览、类型表格、目录树、Bug ↔ 迭代关联。 */
 import { type APIRequestContext, expect, test } from '@playwright/test'
 import { createEntry, STATE, sameSite } from './helpers.ts'
 
@@ -8,14 +8,14 @@ const stamp = () => Date.now().toString(36) + Math.random().toString(36).slice(2
 async function kb(req: APIRequestContext, kind: 'project' | 'learning' = 'project') {
   const slug = `kb-${stamp()}`
   const r = await req.post('/api/v1/spaces', {
-    data: { name: `分类 ${slug}`, slug, kind, visibility: 'workspace' },
+    data: { name: `空间 ${slug}`, slug, kind, visibility: 'workspace' },
     headers: sameSite,
   })
   expect(r.status(), await r.text()).toBe(201)
   return (await r.json()) as { id: string; slug: string; name: string }
 }
 
-test('REQ-KB-001 · 002 分类列表按大类分区；在「生活」里新建 → 侧栏出现在该分区', async ({
+test('REQ-KB-001 · 002 空间列表按大类分区；在「生活」里新建 → 侧栏出现在该分区', async ({
   page,
 }) => {
   await page.goto('/spaces')
@@ -36,7 +36,7 @@ test('REQ-KB-001 · 002 分类列表按大类分区；在「生活」里新建 �
   await expect(side.getByTestId('space-row').filter({ hasText: name })).toBeVisible()
 })
 
-test('REQ-KB-003 产品分类概览：未关闭 Bug 按严重度计数；快捷「Bug」带出修复模板', async ({
+test('REQ-KB-003 产品空间概览：未关闭 Bug 按严重度计数；快捷「Bug」带出修复模板', async ({
   page,
   request,
 }) => {

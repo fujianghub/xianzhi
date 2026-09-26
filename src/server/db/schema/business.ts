@@ -54,7 +54,7 @@ const orgRef = () =>
 const userRef = () => text().references(() => user.id)
 
 // ---------- 3.0 space_groups（ADR-0012 大类）----------
-/** 大类（产品开发 / 技术学习规划 / 生活…）：工作区共享、管理员维护；删大类 → 其下分类变「其他」。 */
+/** 大类（产品开发 / 技术学习规划 / 生活…）：工作区共享、管理员维护；删大类 → 其下空间变「未分类」。 */
 export const spaceGroups = pgTable(
   'space_groups',
   {
@@ -90,7 +90,7 @@ export const spaces = pgTable(
     visibility: text().notNull(),
     isPersonal: boolean().notNull().default(false),
     description: text(),
-    /** 所属大类（ADR-0012）；null = 其他（未归入大类）；个人空间恒为 null */
+    /** 所属大类（ADR-0012）；null = 未分类；个人空间恒为 null */
     groupId: uuid().references(() => spaceGroups.id, { onDelete: 'set null' }),
     // 列级 COLLATE "C"（drizzle/0003_sort_key_collate_c.sql）：fractional-indexing 键须按字节序比较
     sortKey: text().notNull(),
@@ -227,7 +227,7 @@ export const entries = pgTable(
     embedding: vector(1024)(),
     editorSchemaVersion: integer().notNull().default(1),
     pinned: boolean().notNull().default(false),
-    /** 目录树（ADR-0012）：父页（同分类）；硬删父页时置空 */
+    /** 目录树（ADR-0012）：父页（同空间）；硬删父页时置空 */
     parentId: uuid(),
     /** 目录内同级顺序（fractional-indexing，列级 COLLATE "C"）；null = 不在目录里（「其余记录」） */
     treeOrder: text(),
@@ -301,6 +301,25 @@ export const entryTemplates = pgTable(
   ],
 )
 
+// ---------- 3.5c entry_favorites（ADR-0014 收藏）----------
+/** 个人收藏：仅本人可见；记录硬删时级联。 */
+export const entryFavorites = pgTable(
+  'entry_favorites',
+  {
+    userId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    entryId: uuid()
+      .notNull()
+      .references(() => entries.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.entryId] }),
+    index('entry_favorites_user_idx').on(t.userId, sql`${t.createdAt} desc`),
+  ],
+)
+
 // ---------- 3.6 links ----------
 export const links = pgTable(
   'links',
@@ -344,6 +363,8 @@ export const tags = pgTable(
     workspaceId: orgRef(),
     name: text().notNull(),
     color: text().notNull(),
+    /** 创建者（ADR-0014）：可改名 / 改色 / 合并 / 删除自己建的；null = 迁移前的旧标签，仅管理员可管 */
+    createdBy: userRef(),
     createdAt: createdAt(),
   },
   (t) => [

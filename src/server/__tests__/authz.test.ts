@@ -241,6 +241,23 @@ expectMatrix('entry.create members', MEMBERS_SPACE_WRITE, (a, sp) =>
 )
 expectMatrix('tag.create', NOT_GUEST, (a) => can(a, 'tag.create', null))
 expectMatrix('tag.manage', ADMIN_ONLY, (a) => can(a, 'tag.manage', null))
+// ADR-0014：自己建的标签非 guest 可管；别人建的 / 旧标签（无创建者）仅管理员
+const NON_GUEST_TAG: Matrix = {
+  owner: [T, T, T, T],
+  admin: [T, T, T, T],
+  member: [T, T, T, T],
+  guest: [F, F, F, F],
+  anon: [F, F, F, F],
+}
+expectMatrix('tag.manage(own)', NON_GUEST_TAG, (a) =>
+  can(a, 'tag.manage', { id: 'tg', createdBy: ME }),
+)
+expectMatrix('tag.manage(other)', ADMIN_ONLY, (a) =>
+  can(a, 'tag.manage', { id: 'tg', createdBy: OTHER }),
+)
+expectMatrix('tag.manage(legacy)', ADMIN_ONLY, (a) =>
+  can(a, 'tag.manage', { id: 'tg', createdBy: null }),
+)
 expectMatrix('task.create members', MEMBERS_SPACE_WRITE, (a, sp) =>
   can(a, 'task.create', space({ memberRole: memberRole(sp) })),
 )

@@ -13,6 +13,11 @@ export type EntryPatch = Partial<
   tagIds?: string[]
 }
 
+export type BatchInput =
+  | { op: 'move'; ids: string[]; spaceId: string }
+  | { op: 'tags'; ids: string[]; add: string[]; remove: string[] }
+  | { op: 'archive' | 'unarchive' | 'delete'; ids: string[] }
+
 export function useEntryActions() {
   const qc = useQueryClient()
   const { t } = useTranslation()
@@ -50,10 +55,57 @@ export function useEntryActions() {
     return r
   }
 
-  const remove = async (entry: Entry) => {
+  const remove = async (entry: Pick<Entry, 'id'>) => {
     await unwrap<void>(api.entries[':id'].$delete({ param: { id: entry.id } }))
     await invalidate()
   }
 
-  return { patch, create, remove, invalidate }
+  /** 回收站恢复（删除 Toast 的「撤销」）。 */
+  const restore = async (id: string) => {
+    await unwrap(api.entries[':id'].restore.$post({ param: { id } }))
+    await invalidate()
+  }
+
+  const archive = async (entry: Pick<Entry, 'id'>, on: boolean) => {
+    const p = { param: { id: entry.id } }
+    await unwrap(on ? api.entries[':id'].archive.$post(p) : api.entries[':id'].unarchive.$post(p))
+    await Promise.all([invalidate(), qc.invalidateQueries({ queryKey: ['entry', entry.id] })])
+  }
+
+  /** 收藏（ADR-0014，个人）：详情缓存乐观翻转，列表随后失效。 */
+  const favorite = async (entry: Pick<Entry, 'id'>, on: boolean) => {
+    qc.setQueryData<Entry>(['entry', entry.id], (d) => (d ? { ...d, favorited: on } : d))
+    try {
+      const p = { param: { id: entry.id } }
+      await unwrap(
+        on ? api.entries[':id'].favorite.$put(p) : api.entries[':id'].favorite.$delete(p),
+      )
+    } catch (err) {
+      qc.setQueryData<Entry>(['entry', entry.id], (d) => (d ? { ...d, favorited: !on } : d))
+      toast.error(t('task.saveFailed'))
+      throw err
+    } finally {
+      void invalidate()
+    }
+  }
+
+  /** 目录位置（ADR-0012 move）：挂到 parentId 下 after 之后，或 detach 移出目录。 */
+  const move = async (
+    entry: Pick<Entry, 'id'>,
+    to: { parentId: string | null; after: string | null } | { detach: true },
+  ) => {
+    await unwrap(api.entries[':id'].move.$patch({ param: { id: entry.id }, json: to }))
+    await Promise.all([invalidate(), qc.invalidateQueries({ queryKey: ['entry', entry.id] })])
+  }
+
+  /** 批量（ADR-0014、REQ-ENTRY-013）：返回 ok / failed 明细。 */
+  const batch = async (input: BatchInput) => {
+    const r = await unwrap<{ ok: string[]; failed: { id: string; message: string }[] }>(
+      api.entries.batch.$post({ json: input as never }),
+    )
+    await Promise.all([invalidate(), qc.invalidateQueries({ queryKey: ['entry'] })])
+    return r
+  }
+
+  return { patch, create, remove, restore, archive, favorite, move, batch, invalidate }
 }

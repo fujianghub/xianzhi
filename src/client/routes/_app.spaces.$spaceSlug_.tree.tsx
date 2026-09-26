@@ -1,9 +1,9 @@
 /**
- * 分类目录（ADR-0012、REQ-KB-005、08 §2.5b）：可嵌套的页面树 + 「其余记录」。
+ * 空间目录（ADR-0012、REQ-KB-005、08 §2.5b）：可嵌套的页面树 + 「其余记录」。
  * - 拖放：拖手柄上下移动，水平拖动改变层级（每 24px 一级，夹在前后项之间）；放下只发一条 `PATCH /entries/:id/move`。
  * - 键盘 / 按钮：上移、下移、缩进（成为上一项的子页）、取消缩进（提升一级）、移出目录；每行「新建子页」。
  * - 「其余记录」= 不在目录中的记录（`inTree=0`），「加入目录」放到根级末尾。
- * - 折叠状态按分类存 `localStorage: xz:kb-tree-folds:v1:<spaceId>`（只在用户点击时写入）。
+ * - 折叠状态按空间存 `localStorage: xz:kb-tree-folds:v1:<spaceId>`（只在用户点击时写入）。
  */
 import {
   closestCenter,
@@ -41,7 +41,7 @@ import { RelativeTime } from '../components/ui/relative-time.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
 import { ApiError, api, unwrap } from '../lib/api.ts'
 import { cn } from '../lib/cn.ts'
-import type { EntryPage } from '../lib/entry-queries.ts'
+import { type EntryPage, treeQuery } from '../lib/entry-queries.ts'
 import { type Space, spaceQuery } from '../lib/space-queries.ts'
 import { useNewEntry } from '../lib/stores.ts'
 import {
@@ -52,7 +52,6 @@ import {
   keyboardMove,
   type MovePlan,
   projectDrop,
-  type TreeNodeLite,
 } from '../lib/tree.ts'
 
 export const Route = createFileRoute('/_app/spaces/$spaceSlug_/tree')({
@@ -83,15 +82,6 @@ const writeFolds = (spaceId: string, v: Set<string>) => {
     // 忽略（隐私模式）
   }
 }
-
-export const treeQuery = (spaceId: string) => ({
-  queryKey: ['entries', 'tree', spaceId] as const,
-  queryFn: () =>
-    unwrap<{ items: TreeNodeLite[] }>(api.spaces[':id'].tree.$get({ param: { id: spaceId } })).then(
-      (r) => r.items,
-    ),
-  staleTime: 10_000,
-})
 
 function KbTree() {
   const { spaceSlug } = Route.useParams()
