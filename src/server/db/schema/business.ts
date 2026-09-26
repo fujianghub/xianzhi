@@ -213,28 +213,39 @@ export const entryTypes = pgTable(
     name: text().notNull(),
     color: text().notNull(),
     statuses: jsonb().$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-    /** 创建者：可改名 / 改色 / 改状态 / 删除（与 tag.manage 同规则） */
+    /** 所有者（ADR-0017：自定义类型是个人的，只有本人能用来新建 / 改类型、能管理；读者只看名 / 色 / 状态） */
     createdBy: userRef(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
-    unique('entry_types_workspace_name_uq').on(t.workspaceId, t.name),
+    // 自定义类型是个人的（ADR-0017）
+    unique('entry_types_owner_name_uq').on(t.workspaceId, t.createdBy, t.name),
     check('entry_types_color_ck', inList(t.color, PALETTE_COLORS)),
   ],
 )
 
-/** 工作区隐藏的内置类型（ADR-0016）：只影响筛选条与新建菜单，已有记录照常显示。 */
-export const hiddenEntryKinds = pgTable(
-  'hidden_entry_kinds',
+/**
+ * 内置类型的工作区覆盖（ADR-0017）：改名 / 改色 / 已删除（删除时其下记录已转走；可恢复）。
+ * 取代 hidden_entry_kinds（迁移时隐藏 → 已删除）。
+ */
+export const entryKindOverrides = pgTable(
+  'entry_kind_overrides',
   {
     workspaceId: orgRef(),
     kind: text().notNull(),
-    createdAt: createdAt(),
+    name: text(),
+    color: text(),
+    deleted: boolean().notNull().default(false),
+    updatedAt: updatedAt(),
   },
   (t) => [
     primaryKey({ columns: [t.workspaceId, t.kind] }),
-    check('hidden_entry_kinds_kind_ck', inList(t.kind, BUILTIN_ENTRY_KINDS)),
+    check('entry_kind_overrides_kind_ck', inList(t.kind, BUILTIN_ENTRY_KINDS)),
+    check(
+      'entry_kind_overrides_color_ck',
+      sql`${t.color} is null or ${inList(t.color, PALETTE_COLORS)}`,
+    ),
   ],
 )
 
@@ -403,12 +414,13 @@ export const tags = pgTable(
     workspaceId: orgRef(),
     name: text().notNull(),
     color: text().notNull(),
-    /** 创建者（ADR-0014）：可改名 / 改色 / 合并 / 删除自己建的；null = 迁移前的旧标签，仅管理员可管 */
+    /** 所有者（ADR-0017：标签是个人的，只有本人看得到、用得了、管得了）；迁移 0016 把无主旧标签归给工作区所有者 */
     createdBy: userRef(),
     createdAt: createdAt(),
   },
   (t) => [
-    unique('tags_workspace_name_uq').on(t.workspaceId, t.name),
+    // 标签是个人的（ADR-0017）：同一人名下不重名；不同人可各有同名标签
+    unique('tags_owner_name_uq').on(t.workspaceId, t.createdBy, t.name),
     index('tags_name_trgm_idx').using('gin', sql`${t.name} gin_trgm_ops`),
   ],
 )

@@ -239,34 +239,21 @@ expectMatrix('task.write members', MEMBERS_SPACE_WRITE, (a, sp) =>
 expectMatrix('entry.create members', MEMBERS_SPACE_WRITE, (a, sp) =>
   can(a, 'entry.create', space({ memberRole: memberRole(sp) })),
 )
+// ADR-0017：标签 / 自定义类型按人隔离——非 guest 可建，只有创建者本人可管（管理员不例外）；内置类型仅所有者
 expectMatrix('tag.create', NOT_GUEST, (a) => can(a, 'tag.create', null))
-expectMatrix('tag.manage', ADMIN_ONLY, (a) => can(a, 'tag.manage', null))
-// ADR-0014：自己建的标签非 guest 可管；别人建的 / 旧标签（无创建者）仅管理员
-const NON_GUEST_TAG: Matrix = {
-  owner: [T, T, T, T],
-  admin: [T, T, T, T],
-  member: [T, T, T, T],
-  guest: [F, F, F, F],
-  anon: [F, F, F, F],
-}
-expectMatrix('tag.manage(own)', NON_GUEST_TAG, (a) =>
-  can(a, 'tag.manage', { id: 'tg', createdBy: ME }),
-)
-expectMatrix('tag.manage(other)', ADMIN_ONLY, (a) =>
+expectMatrix('tag.manage', NEVER, (a) => can(a, 'tag.manage', null))
+expectMatrix('tag.manage(own)', NOT_GUEST, (a) => can(a, 'tag.manage', { id: 'tg', createdBy: ME }))
+expectMatrix('tag.manage(other)', NEVER, (a) =>
   can(a, 'tag.manage', { id: 'tg', createdBy: OTHER }),
 )
-// ADR-0016：自定义记录类型同标签规则；null（隐藏内置类型）仅管理员
 expectMatrix('entry_type.create', NOT_GUEST, (a) => can(a, 'entry_type.create', null))
-expectMatrix('entry_type.manage', ADMIN_ONLY, (a) => can(a, 'entry_type.manage', null))
-expectMatrix('entry_type.manage(own)', NON_GUEST_TAG, (a) =>
+expectMatrix('entry_type.manage', NOT_GUEST, (a) =>
   can(a, 'entry_type.manage', { id: 'et', createdBy: ME }),
 )
-expectMatrix('entry_type.manage(other)', ADMIN_ONLY, (a) =>
+expectMatrix('entry_type.manage(other)', NEVER, (a) =>
   can(a, 'entry_type.manage', { id: 'et', createdBy: OTHER }),
 )
-expectMatrix('tag.manage(legacy)', ADMIN_ONLY, (a) =>
-  can(a, 'tag.manage', { id: 'tg', createdBy: null }),
-)
+expectMatrix('entry_kind.manage', OWNER_ONLY, (a) => can(a, 'entry_kind.manage', null))
 expectMatrix('task.create members', MEMBERS_SPACE_WRITE, (a, sp) =>
   can(a, 'task.create', space({ memberRole: memberRole(sp) })),
 )

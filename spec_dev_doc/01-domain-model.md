@@ -217,7 +217,7 @@
 
 - 索引：`(workspace_id, scope)`、`(owner_id)`。内置模板（`builtin:<key>`）是代码常量（`src/shared/editor/builtin-templates.ts`），不入表。
 
-### 3.4c entry_types / hidden_entry_kinds —— 自定义记录类型（2026-09-27 ADR-0016）
+### 3.4c entry_types / entry_kind_overrides —— 类型（2026-09-27 ADR-0016 · 0017）
 
 **entry_types**
 
@@ -225,25 +225,28 @@
 |---|---|---|
 | id | uuid | PK |
 | workspace_id | text | FK organization |
-| name | text | 1–20 字；唯一 `(workspace_id, name)` |
+| name | text | 1–20 字；唯一 `(workspace_id, created_by, name)`（ADR-0017：同一人名下不重名） |
 | color | text | 9 色板 token 名（check） |
 | statuses | jsonb | 有序状态名 `string[]`（0–12，去重，不含 `, \| =`）；第一项 = 新建默认值 |
-| created_by | text? | FK user；创建者可管理（同 tag.manage 规则） |
+| created_by | text? | FK user：类型属于此人（ADR-0017）——只有本人能用它新建 / 改类型、能管理；读者可见名 / 色 / 状态 |
 | created_at | timestamptz | |
 | updated_at | timestamptz | |
 
 - 自定义类型记录的 `fields` = `{ status?: string ∈ statuses, progress?: 0–100, dueDate?: date }`（strict；status 归属由 service 校验）。
-- 改 `statuses`：`renames` 一对一改名同步到记录；不再存在的状态改为新列表第一项（空列表 = 去掉 status）。删类型：其下记录（含回收站）→ `kind = note`、`type_id = null`、`fields = {}`，同事务 + 审计 `entry_type.deleted`。
+- 改 `statuses`：`renames` 一对一改名同步到记录；不再存在的状态改为新列表第一项（空列表 = 去掉 status）。删类型：其下记录（含回收站）转到 `moveTo`（缺省随笔；ADR-0017），fields 按目标重建，同事务 + 审计 `entry_type.deleted`。
 
-**hidden_entry_kinds**
+**entry_kind_overrides**
 
-（管理员隐藏的内置类型；只影响筛选条与新建菜单）
+（2026-09-27 ADR-0017：内置类型的工作区覆盖，取代 hidden_entry_kinds；迁移 0014 把「隐藏」迁为 `deleted = true`）
 
 | 列 | 类型 | 说明 |
 |---|---|---|
 | workspace_id | text | FK organization，PK 之一 |
 | kind | text | 内置 9 种之一（check），PK 之一 |
-| created_at | timestamptz | |
+| name | text? | 改过的名；null = 默认（前端 i18n） |
+| color | text? | 改过的色（9 色板 check）；null = 固定色 |
+| deleted | bool | 已删除（其下记录已转走；可恢复）；默认 false |
+| updated_at | timestamptz | |
 
 ### 3.5 `fields` 按 kind 的 Zod schema（`src/shared/entryFields.ts`）
 
@@ -287,10 +290,11 @@ plan     : { status: 'planning'|'active'|'paused'|'done', startDate?: date, endD
 | workspace_id | text | FK organization |
 | name | text | |
 | color | text | 04 §2.1 的色板 token 名（ADR-0010 起 9 色） |
-| created_by | text? | FK user（2026-09-26 ADR-0014；历史标签为空，只有管理员能管） |
+| created_by | text? | FK user（2026-09-26 ADR-0014）；注 2026-09-27 ADR-0017：标签属于此人，只有本人可见可用可管；迁移 0016 把无主旧标签归工作区所有者 |
 | created_at | timestamptz | |
 
-- 唯一：`(workspace_id, name)`。
+- 唯一：~~`(workspace_id, name)`~~ 注 ADR-0017：`(workspace_id, created_by, name)`（同一人名下不重名）。
+- 关联表 entry_tags / task_tags 不变；读写与筛选一律按 `tags.created_by = 当前用户` 过滤（共享对象上各打各的）。
 
 **entry_favorites**
 
@@ -652,8 +656,9 @@ Workspace 角色 × Space 角色 → 有效角色取**较高者**，`guest` 只�
 | calendar.read / calendar.write（日历与日程，ADR-0009） | 仅 owner_id 本人（admin 也不可见） | 仅本人 | 仅本人 |
 | member.approve（审批注册申请，ADR-0008） | ✓ | ✗ | ✗ |
 | group.manage（大类增删改排，ADR-0012；把空间移入大类走 space.manage） | ✓ | ✗ | ✗ |
-| tag.manage（标签改名 / 改色 / 删除 / 合并；ADR-0014 起创建者也可） | ✓ | 本人创建的 | ✗ |
-| entry_type.create / entry_type.manage（自定义类型；隐藏内置类型仅管理员；ADR-0016） | ✓ | 创建 ✓ / 管理本人创建的 | ✗ |
+| tag.create / tag.manage（标签个人私有，ADR-0017：新建 = 非 guest；改名 / 改色 / 删除 / 合并 = 本人，管理员不例外） | 建 ✓ / 管本人的 | 建 ✓ / 管本人的 | ✗ |
+| entry_type.create / entry_type.manage（自定义类型个人所有，ADR-0017：新建 = 非 guest；管理 = 本人） | 建 ✓ / 管本人的 | 建 ✓ / 管本人的 | ✗ |
+| entry_kind.manage（内置类型改名 / 改色 / 删除 / 恢复，ADR-0017） | 仅 owner | ✗ | ✗ |
 | template.read（记录模板，ADR-0011） | personal 仅本人；workspace 全员 | 同左 | 同左 |
 | template.create | personal：非 guest；workspace：仅 owner / admin | personal ✓ | ✗ |
 | template.manage（改名 / 范围 / 删除） | 本人的（非 guest）；workspace 模板管理员可管 | 本人的 | ✗ |

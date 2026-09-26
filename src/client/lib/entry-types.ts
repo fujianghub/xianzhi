@@ -41,7 +41,7 @@ export interface KindMeta {
   statuses: string[] | null
 }
 
-/** (kind, typeId) → 名 / 色；自定义类型已删或未加载时退回「自定义」灰色。 */
+/** (kind, typeId) → 名 / 色；内置类型取工作区改过的名 / 色（ADR-0017），否则 i18n 名与固定色；自定义类型已删或未加载时退回「自定义」灰色。 */
 export function useKindLabel() {
   const { t } = useTranslation()
   const { data } = useQuery(entryTypesQuery)
@@ -57,11 +57,12 @@ export function useKindLabel() {
           statuses: ty?.statuses ?? [],
         }
       }
+      const ov = data?.builtin.find((b) => b.kind === kind)
       return {
         kind: kind as EntryKind,
         typeId: null,
-        label: t(`entry.kind.${kind}`),
-        tone: ENTRY_KIND_TONE[kind] ?? 'gray',
+        label: ov?.name ?? t(`entry.kind.${kind}`),
+        tone: (ov?.color as PaletteColor | null) ?? ENTRY_KIND_TONE[kind] ?? 'gray',
         statuses: null,
       }
     },
@@ -69,14 +70,14 @@ export function useKindLabel() {
   )
 }
 
-/** 可选类型（筛选条 / 新建 / 批量改类型）：未隐藏的内置 + 全部自定义。`includeHidden` 用于管理页。 */
-export function useKindOptions(opts: { includeHidden?: boolean } = {}): KindMeta[] {
+/** 可选类型（筛选条 / 新建 / 批量改类型 / 删除时的转入目标）：未删除的内置 + 本人的自定义类型（ADR-0017）。 */
+export function useKindOptions(): KindMeta[] {
   const meta = useKindLabel()
   const { data } = useQuery(entryTypesQuery)
-  const hidden = new Set(data?.builtin.filter((b) => b.hidden).map((b) => b.kind) ?? [])
+  const deleted = new Set(data?.builtin.filter((b) => b.deleted).map((b) => b.kind) ?? [])
   return [
-    ...ENTRY_KINDS.filter((k) => opts.includeHidden || !hidden.has(k)).map((k) => meta(k)),
-    ...(data?.items ?? []).map((ty) => meta('custom', ty.id)),
+    ...ENTRY_KINDS.filter((k) => !deleted.has(k)).map((k) => meta(k)),
+    ...(data?.items ?? []).filter((ty) => ty.mine).map((ty) => meta('custom', ty.id)),
   ]
 }
 

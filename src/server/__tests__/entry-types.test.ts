@@ -1,4 +1,4 @@
-/** ADR-0016：自定义记录类型（REQ-ENTRY-018 · 019）与批量改类型 / 状态 / 固定（REQ-ENTRY-017）。 */
+/** ADR-0016 · 0017：类型（REQ-ENTRY-018 ~ 020，增删改仅所有者）与批量改类型 / 状态 / 固定（REQ-ENTRY-017）。 */
 import { beforeAll, describe, expect, it } from 'vitest'
 import { truncateAll } from './db.ts'
 import { buildApp, jsonHeaders, OWNER, problemOf, seedOwner, signIn } from './helpers.ts'
@@ -14,10 +14,17 @@ interface EType {
   color: string
   statuses: string[]
   canManage: boolean
+  mine: boolean
   usage: number
 }
 interface TypesList {
-  builtin: { kind: string; hidden: boolean; usage: number }[]
+  builtin: {
+    kind: string
+    name: string | null
+    color: string | null
+    deleted: boolean
+    usage: number
+  }[]
   items: EType[]
   canManageBuiltin: boolean
 }
@@ -80,8 +87,8 @@ describe('entry types', () => {
     spaceId = ((await s.json()) as { id: string }).id
   })
 
-  it('REQ-ENTRY-018 自定义类型 CRUD：重名 409、状态名不能含分隔符、guest 不能建、他人建的只有管理员能改删', async () => {
-    const r = await req(u.member, 'POST', '/entry-types', {
+  it('REQ-ENTRY-018 自定义类型按人隔离：各自新建、同名互不冲突；只有本人能改 / 删 / 用来新建；读者看得到名与状态；guest 不能建', async () => {
+    const r = await req(u.owner, 'POST', '/entry-types', {
       name: '读书笔记',
       color: 'purple',
       statuses: ['想读', '在读', '读完'],
@@ -105,23 +112,40 @@ describe('entry types', () => {
     expect((await req(u.guest, 'POST', '/entry-types', { name: 'g', color: 'red' })).status).toBe(
       403,
     )
-    const own = await req(u.owner, 'POST', '/entry-types', { name: '会议', color: 'blue' })
-    const ownId = ((await own.json()) as EType).id
-    expect((await req(u.member, 'PATCH', `/entry-types/${ownId}`, { name: '例会' })).status).toBe(
+    // 成员建自己的类型，可与所有者同名
+    const m = await req(u.member, 'POST', '/entry-types', {
+      name: '读书笔记',
+      color: 'blue',
+      statuses: ['待看', '看完'],
+    })
+    expect(m.status).toBe(201)
+    const memberType = (await m.json()) as EType
+    // 别人的类型：不能改 / 删（管理员也不例外），不能用来新建记录
+    expect((await req(u.member, 'PATCH', `/entry-types/${t.id}`, { name: '例会' })).status).toBe(
       403,
     )
-    expect((await req(u.member, 'DELETE', `/entry-types/${ownId}`)).status).toBe(403)
+    expect((await req(u.member, 'DELETE', `/entry-types/${t.id}`)).status).toBe(403)
+    expect((await req(u.owner, 'DELETE', `/entry-types/${memberType.id}`)).status).toBe(403)
+    expect(
+      (await create(u.member, { kind: 'custom', typeId: t.id, title: '借用别人的类型' })).status,
+    ).toBe(422)
     expect((await req(u.owner, 'PATCH', `/entry-types/${t.id}`, { color: 'green' })).status).toBe(
       200,
     )
-    const list = await types(u.guest)
-    expect(list.items.map((x) => x.name)).toEqual(['读书笔记', '会议'])
+    // 列表：全部类型都返回（用于显示别人记录的类型），mine / canManage 只对自己的为 true
+    const list = await types(u.member)
+    const byId = new Map(list.items.map((x) => [x.id, x]))
+    expect(byId.get(memberType.id)).toMatchObject({ mine: true, canManage: true })
+    expect(byId.get(t.id)).toMatchObject({ mine: false, canManage: false, name: '读书笔记' })
     expect(list.canManageBuiltin).toBe(false)
+    expect((await types(u.owner)).canManageBuiltin).toBe(true)
     expect(list.builtin.map((b) => b.kind)).not.toContain('custom')
+    // 清掉成员的类型，后续用例只看所有者的「读书笔记」
+    expect((await req(u.member, 'DELETE', `/entry-types/${memberType.id}`)).status).toBe(204)
   })
 
   it('REQ-ENTRY-018 自定义类型记录：状态默认第一项、状态须在列表里、typeId 筛选与 kind 任一命中；改状态列表同步记录', async () => {
-    const t = (await types()).items.find((x) => x.name === '读书笔记') as EType
+    const t = (await types()).items.find((x) => x.name === '读书笔记' && x.mine) as EType
     const a = await create(u.owner, {
       kind: 'custom',
       typeId: t.id,
@@ -174,7 +198,7 @@ describe('entry types', () => {
   })
 
   it('REQ-ENTRY-017 批量改类型 / 状态 / 固定；目标类型有必填字段 → 逐条失败', async () => {
-    const t = (await types()).items.find((x) => x.name === '读书笔记') as EType
+    const t = (await types()).items.find((x) => x.name === '读书笔记' && x.mine) as EType
     const n1 = await create(u.owner, { kind: 'note', title: '随手一' })
     const n2 = await create(u.owner, {
       kind: 'plan',
@@ -216,27 +240,84 @@ describe('entry types', () => {
     expect(bad.status).toBe(422)
   })
 
-  it('REQ-ENTRY-019 删除类型：其下记录（含回收站）转随手记并写审计；隐藏内置类型仅管理员', async () => {
-    const t = (await types()).items.find((x) => x.name === '读书笔记') as EType
+  it('REQ-ENTRY-019 删除自定义类型：其下记录（含回收站）转到 moveTo（缺省随笔）并写审计', async () => {
+    const t = (await types()).items.find((x) => x.name === '读书笔记' && x.mine) as EType
     const trashed = await create(u.owner, { kind: 'custom', typeId: t.id, title: '将被删' })
     expect((await req(u.owner, 'DELETE', `/entries/${trashed.id}`)).status).toBe(204)
-    expect((await req(u.owner, 'DELETE', `/entry-types/${t.id}`)).status).toBe(204)
+    // 目标不能是自己 / 有必填属性的类型
+    expect((await req(u.owner, 'DELETE', `/entry-types/${t.id}?moveTo=${t.id}`)).status).toBe(422)
+    expect((await req(u.owner, 'DELETE', `/entry-types/${t.id}?moveTo=iteration`)).status).toBe(422)
+    expect((await req(u.owner, 'DELETE', `/entry-types/${t.id}?moveTo=bug`)).status).toBe(204)
     expect((await types()).items.some((x) => x.id === t.id)).toBe(false)
-    expect((await listIds(`kind=custom`)).length).toBe(0)
+    expect((await listIds('kind=custom')).length).toBe(0)
+    const res = await req(u.owner, 'GET', `/entries?deleted=1`)
+    const gone = ((await res.json()) as { items: Entry[] }).items.find((x) => x.id === trashed.id)
+    expect(gone).toMatchObject({ kind: 'bug', typeId: null })
     const audit = await req(u.owner, 'GET', '/workspace/audit-log?action=entry_type.deleted')
-    expect(audit.status).toBe(200)
     expect(JSON.stringify(await audit.json())).toContain('读书笔记')
+  })
 
+  it('REQ-ENTRY-020 内置类型：所有者可改名 / 改色 / 删除（记录转走）/ 恢复；删后不能新建该类型；成员 403', async () => {
     expect(
-      (await req(u.member, 'PUT', '/entry-types/builtin/review', { hidden: true })).status,
+      (await req(u.member, 'PATCH', '/entry-types/builtin/optimize', { name: '改进' })).status,
     ).toBe(403)
-    const h = await req(u.owner, 'PUT', '/entry-types/builtin/review', { hidden: true })
-    expect(h.status).toBe(200)
-    expect(((await h.json()) as TypesList).builtin.find((b) => b.kind === 'review')?.hidden).toBe(
-      true,
-    )
-    const nope = await req(u.owner, 'PUT', '/entry-types/builtin/custom', { hidden: true })
-    expect(nope.status).toBe(422)
-    expect((await problemOf(nope)).code).toBe('VALIDATION')
+    const p = await req(u.owner, 'PATCH', '/entry-types/builtin/optimize', {
+      name: '改进',
+      color: 'cyan',
+    })
+    expect(p.status).toBe(200)
+    expect(
+      ((await p.json()) as TypesList).builtin.find((b) => b.kind === 'optimize'),
+    ).toMatchObject({ name: '改进', color: 'cyan', deleted: false })
+    // 与自定义类型重名 → 409
+    await req(u.owner, 'POST', '/entry-types', { name: '会议纪要', color: 'blue' })
+    expect(
+      (await req(u.owner, 'PATCH', '/entry-types/builtin/optimize', { name: '会议纪要' })).status,
+    ).toBe(409)
+    const o = await create(u.owner, {
+      kind: 'optimize',
+      title: '首页提速',
+      fields: { status: 'doing' },
+    })
+    expect((await req(u.member, 'DELETE', '/entry-types/builtin/optimize')).status).toBe(403)
+    const d = await req(u.owner, 'DELETE', '/entry-types/builtin/optimize?moveTo=plan')
+    expect(d.status).toBe(200)
+    expect(
+      ((await d.json()) as TypesList).builtin.find((b) => b.kind === 'optimize')?.deleted,
+    ).toBe(true)
+    expect(await get(o.id)).toMatchObject({ kind: 'plan', fields: { status: 'active' } })
+    expect(
+      (await create(u.owner, { kind: 'optimize', title: 'x', fields: { status: 'doing' } })).status,
+    ).toBe(422)
+    // 内置类型只能转到内置类型（不能把大家的记录转进某人的私有类型）
+    const own = (await types()).items.find((x) => x.mine) as EType
+    expect(
+      (await req(u.owner, 'DELETE', `/entry-types/builtin/journal?moveTo=${own.id}`)).status,
+    ).toBe(422)
+    // 删随笔必须给出目标
+    expect((await req(u.owner, 'DELETE', '/entry-types/builtin/note')).status).toBe(422)
+    // 转入目标不能是已删除的内置类型
+    expect(
+      (await req(u.owner, 'DELETE', '/entry-types/builtin/journal?moveTo=optimize')).status,
+    ).toBe(422)
+    const rs = await req(u.owner, 'POST', '/entry-types/builtin/optimize/restore')
+    expect(
+      ((await rs.json()) as TypesList).builtin.find((b) => b.kind === 'optimize')?.deleted,
+    ).toBe(false)
+    expect(
+      (await create(u.owner, { kind: 'optimize', title: 'y', fields: { status: 'doing' } })).status,
+    ).toBe(201)
+    // 恢复默认名 / 色
+    const reset = await req(u.owner, 'PATCH', '/entry-types/builtin/optimize', {
+      name: null,
+      color: null,
+    })
+    expect(
+      ((await reset.json()) as TypesList).builtin.find((b) => b.kind === 'optimize'),
+    ).toMatchObject({ name: null, color: null })
+    expect(
+      (await problemOf(await req(u.owner, 'PATCH', '/entry-types/builtin/custom', { name: 'x' })))
+        .code,
+    ).toBe('VALIDATION')
   })
 })

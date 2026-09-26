@@ -270,7 +270,7 @@ export async function seed(deps: SeedDeps): Promise<Record<string, number>> {
     ])
     .onConflictDoNothing()
 
-  // ---- 标签（9 色，ADR-0010） ----
+  // ---- 标签（9 色，ADR-0010；标签是个人的，ADR-0017 → 归所有者） ----
   const TAG_NAMES = ['前端', '后端', '设计', '性能', '安全', '文档', '阅读', '复盘', '灵感']
   await db
     .insert(tags)
@@ -280,6 +280,7 @@ export async function seed(deps: SeedDeps): Promise<Record<string, number>> {
         workspaceId: W,
         name: TAG_NAMES[i] as string,
         color,
+        createdBy: U.owner.id,
       })),
     )
     .onConflictDoNothing()

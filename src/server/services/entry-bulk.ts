@@ -9,10 +9,11 @@ import type { z } from 'zod'
 import type { batchEntriesSchema } from '../../shared/schemas/entries.ts'
 import { assertCan, can } from '../authz.ts'
 import type { Db } from '../db/index.ts'
-import { entries, entryFavorites, entryTags, tags } from '../db/schema/business.ts'
+import { entries, entryFavorites, entryTags } from '../db/schema/business.ts'
 import { AppError } from '../lib/errors.ts'
 import { archiveEntry, type EntryCtx, loadEntry, patchEntry, softDeleteEntry } from './entries.ts'
-import { loadEntryType } from './entry-types.ts'
+import { loadOwnEntryType } from './entry-types.ts'
+import { assertOwnTags } from './tags.ts'
 
 export async function setFavorite(db: Db, ctx: EntryCtx, id: string, on: boolean) {
   const e = await loadEntry(db, ctx.actor, id)
@@ -43,24 +44,11 @@ export async function batchEntries(
   const out: BatchResult = { ok: [], failed: [] }
   let tagIds: { add: string[]; remove: string[] } | null = null
   if (input.op === 'tags') {
-    const all = [...input.add, ...input.remove]
-    const found = all.length
-      ? (
-          await db
-            .select({ id: tags.id })
-            .from(tags)
-            .where(and(inArray(tags.id, all), eq(tags.workspaceId, ctx.workspaceId)))
-        ).map((t) => t.id)
-      : []
-    if (found.length !== new Set(all).size)
-      throw AppError.validation([{ path: 'add', message: '标签不存在' }])
+    // 只能用自己的标签（ADR-0017）；增删只动这些标签的关联，别人打的标签不受影响
+    await assertOwnTags(db, ctx, [...input.add, ...input.remove], 'add')
     tagIds = { add: input.add, remove: input.remove }
   }
-  if (
-    input.op === 'retype' &&
-    input.typeId &&
-    !(await loadEntryType(db, ctx.workspaceId, input.typeId))
-  )
+  if (input.op === 'retype' && input.typeId && !(await loadOwnEntryType(db, ctx, input.typeId)))
     throw AppError.validation([{ path: 'typeId', message: '类型不存在' }])
   /** 读当前 updatedAt / fields，再走 patchEntry（与单条 PATCH 同一套鉴权、校验与失效） */
   const current = async (id: string) => {

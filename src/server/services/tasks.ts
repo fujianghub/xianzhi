@@ -60,6 +60,7 @@ import { audit } from './audit.ts'
 import { taskDerivedSet } from './derived.ts'
 import { emit } from './events.ts'
 import { publishChange } from './realtime.ts'
+import { assertOwnTags, ownTagIdsSql } from './tags.ts'
 
 type TaskRow = typeof tasks.$inferSelect
 const CLOSED: TaskStatus[] = ['done', 'cancelled']
@@ -193,16 +194,25 @@ function selectJoined(db: DbOrTx, ctx: TaskCtx) {
 }
 
 /** 附标签（一条查询）并序列化。 */
-async function decorate(db: DbOrTx, joined: JoinedRow[], withBody = false): Promise<TaskView[]> {
+/** 附标签等；标签只取 `actorId` 本人的（ADR-0017：标签按人隔离）。 */
+async function decorate(
+  db: DbOrTx,
+  actorId: string,
+  joined: JoinedRow[],
+  withBody = false,
+): Promise<TaskView[]> {
   if (!joined.length) return []
   const tagRows = await db
     .select({ taskId: taskTags.taskId, id: tags.id, name: tags.name, color: tags.color })
     .from(taskTags)
     .innerJoin(tags, eq(tags.id, taskTags.tagId))
     .where(
-      inArray(
-        taskTags.taskId,
-        joined.map((j) => j.t.id),
+      and(
+        inArray(
+          taskTags.taskId,
+          joined.map((j) => j.t.id),
+        ),
+        eq(tags.createdBy, actorId),
       ),
     )
     .orderBy(asc(tags.name))
@@ -322,7 +332,7 @@ export async function listTasks(db: DbOrTx, ctx: TaskCtx, q: z.infer<typeof list
   if (q.parentId) conds.push(eq(tasks.parentId, q.parentId))
   if (q.tag)
     conds.push(
-      sql`exists (select 1 from ${taskTags} tt join ${tags} t on t.id = tt.tag_id where tt.task_id = ${tasks.id} and t.name in (${sql.join(
+      sql`exists (select 1 from ${taskTags} tt join ${tags} t on t.id = tt.tag_id where tt.task_id = ${tasks.id} and t.created_by = ${ctx.actor.id} and t.name in (${sql.join(
         q.tag.map((name) => sql`${name}`),
         sql`, `,
       )}))`,
@@ -387,7 +397,7 @@ export async function listTasks(db: DbOrTx, ctx: TaskCtx, q: z.infer<typeof list
     rows.length > q.limit && last
       ? encodeCursor([cursorValue(primary.field, last.t), last.t.id])
       : null
-  const items = await decorate(db, page)
+  const items = await decorate(db, ctx.actor.id, page)
   if (!q.withTotal) return { items, nextCursor }
   const [t] = await db
     .select({ n: sql<number>`count(*)::int` })
@@ -400,7 +410,7 @@ export async function listTasks(db: DbOrTx, ctx: TaskCtx, q: z.infer<typeof list
 export async function getTask(db: DbOrTx, ctx: TaskCtx, id: string): Promise<TaskView> {
   await requireTask(db, ctx, id)
   const joined = await selectJoined(db, ctx).where(eq(tasks.id, id)).limit(1)
-  const [v] = await decorate(db, joined, true)
+  const [v] = await decorate(db, ctx.actor.id, joined, true)
   if (!v) throw AppError.notFound('任务不存在')
   return v
 }
@@ -458,15 +468,8 @@ async function assertCycle(db: DbOrTx, ctx: TaskCtx, cycleId: string) {
     throw AppError.validation([{ path: 'cycleId', message: '周期不存在' }])
 }
 
-async function assertTags(db: DbOrTx, ctx: TaskCtx, tagIds: string[]) {
-  if (!tagIds.length) return
-  const found = await db
-    .select({ id: tags.id })
-    .from(tags)
-    .where(and(eq(tags.workspaceId, ctx.workspaceId), inArray(tags.id, tagIds)))
-  if (found.length !== new Set(tagIds).size)
-    throw AppError.validation([{ path: 'tagIds', message: '标签不存在' }])
-}
+/** 只能打自己的标签（ADR-0017）。 */
+const assertTags = (db: DbOrTx, ctx: TaskCtx, tagIds: string[]) => assertOwnTags(db, ctx, tagIds)
 
 /** 子任务最多 2 层（01 §3.2、REQ-TASK-008）：父任务本身不能有父任务；自己有子任务时不能再挂到别人下面。 */
 async function assertParent(
@@ -754,7 +757,12 @@ export async function patchTask(
         now,
       )
     if (patch.tagIds) {
-      await tx.delete(taskTags).where(eq(taskTags.taskId, id))
+      // 只替换本人的标签；别人打在这个任务上的标签不动（ADR-0017）
+      await tx
+        .delete(taskTags)
+        .where(
+          and(eq(taskTags.taskId, id), sql`${taskTags.tagId} in ${ownTagIdsSql(ctx.actor.id)}`),
+        )
       if (patch.tagIds.length)
         await tx
           .insert(taskTags)

@@ -214,7 +214,7 @@ test('REQ-ENTRY-016 · 017 默认列表：显示状态 / 进度；勾选两篇�
   await expect(page.getByTestId('entry-row')).toHaveCount(0)
 })
 
-test('REQ-ENTRY-018 · 019 自定义类型：管理页新建（色 + 状态）→ 记录页筛选 → 新建该类型记录 → 列表显示状态；隐藏内置类型', async ({
+test('REQ-ENTRY-018 · 019 自定义类型：管理页新建（色 + 状态）→ 记录页筛选 → 新建该类型记录 → 列表显示状态；内置类型改名 / 删除对话框', async ({
   page,
   request,
 }) => {
@@ -258,19 +258,30 @@ test('REQ-ENTRY-018 · 019 自定义类型：管理页新建（色 + 状态）�
   await page.goto(`/entries?spaceId=${s.id}&typeId=${ty?.id}`)
   await expect(r.locator('[data-field="status"]')).toContainText('待读')
 
-  // 隐藏内置类型「复盘」→ 记录页筛选条不再出现；再显示回来（共用库，复原）
+  // 内置类型改名「日志」→「日记」→ 记录页筛选条显示新名；恢复默认（共用库，复原）
+  // 删除内置类型会转走全库该类型记录，e2e 只验证删除对话框（真删 / 恢复见 API 用例 REQ-ENTRY-020）
   await page.goto('/settings/types')
-  const review = page.locator('[data-testid="builtin-row"][data-kind="review"]')
-  await review.getByTestId('builtin-toggle').click()
-  await expect(review).toContainText('已隐藏')
+  const journal = page.locator('[data-testid="builtin-row"][data-kind="journal"]')
+  await journal.getByTestId('builtin-name').click()
+  await page.keyboard.press('ControlOrMeta+a')
+  await page.keyboard.type('日记')
+  await page.keyboard.press('Enter')
+  await expect(journal.getByTestId('builtin-reset')).toBeVisible()
   await page.goto('/entries')
-  await expect(page.locator('[data-kind-filter="review"]')).toHaveCount(0)
+  await expect(page.locator('[data-kind-filter="journal"]')).toHaveText('日记')
   await page.goto('/settings/types')
-  await review.getByTestId('builtin-toggle').click()
-  await expect(review).not.toContainText('已隐藏')
+  await journal.getByTestId('builtin-reset').click()
+  await expect(journal.getByTestId('builtin-reset')).toHaveCount(0)
+  await page
+    .locator('[data-testid="builtin-row"][data-kind="review"]')
+    .getByTestId('builtin-delete')
+    .click()
+  await expect(page.getByTestId('type-delete-move-to')).toHaveValue('note')
+  await page.getByRole('button', { name: '取消' }).click()
 
-  // 删除类型：记录转为随笔
+  // 删除类型：记录转为随笔（默认目标）
   await row.getByTestId('type-delete').click()
+  await expect(page.getByTestId('type-delete-move-to')).toHaveValue('note')
   await page.getByTestId('confirm-ok').click()
   await expect(row).toHaveCount(0)
   await page.goto(`/entries?spaceId=${s.id}`)
@@ -293,4 +304,25 @@ test('REQ-UI-038 侧栏「空间」标题可点：正文色、带箭头，与「
   await expect(heading.locator('svg')).toHaveCount(1)
   await heading.click()
   await expect(page).toHaveURL(/\/spaces$/)
+})
+
+test.describe('非所有者', () => {
+  test.use({ storageState: STATE.member })
+  test('REQ-TAG-007 REQ-ENTRY-020 成员：能建自己的标签，看不到所有者的；类型页可建自己的类型，内置类型只读（ADR-0017）', async ({
+    page,
+  }) => {
+    const name = `成员私有${stamp()}`
+    await page.goto('/settings/tags')
+    await expect(page.getByTestId('tags-page')).toBeVisible()
+    await page.getByTestId('tag-new-name').fill(name)
+    await page.getByTestId('tag-new-name').press('Enter')
+    await expect(page.locator(`[data-testid="tag-row"][data-tag-name="${name}"]`)).toBeVisible()
+    // seed 的「前端」等标签属于所有者，成员看不到
+    await expect(page.locator('[data-testid="tag-row"][data-tag-name="前端"]')).toHaveCount(0)
+    await page.goto('/settings/types')
+    await expect(page.getByTestId('type-new-name')).toBeVisible()
+    await expect(page.locator('[data-testid="builtin-row"]').first()).toBeVisible()
+    await expect(page.getByTestId('builtin-delete')).toHaveCount(0)
+    await expect(page.getByTestId('builtin-color').first()).toBeDisabled()
+  })
 })
