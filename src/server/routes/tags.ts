@@ -2,7 +2,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { uuidSchema } from '../../shared/schemas/common.ts'
-import { createTagSchema, patchTagSchema } from '../../shared/schemas/tags.ts'
+import { createTagSchema, mergeTagSchema, patchTagSchema } from '../../shared/schemas/tags.ts'
 import type { Actor } from '../authz.ts'
 import type { Db } from '../db/index.ts'
 import { AppError } from '../lib/errors.ts'
@@ -38,6 +38,21 @@ export function tagRoutes(deps: { db: Db }) {
       validate('json', patchTagSchema),
       async (c) =>
         c.json(await svc.patchTag(deps.db, ctxOf(c), c.req.valid('param').id, c.req.valid('json'))),
+    )
+    .post(
+      '/:id/merge',
+      requireScope('write'),
+      validate('param', idParam),
+      validate('json', mergeTagSchema),
+      async (c) =>
+        c.json(
+          await svc.mergeTag(
+            deps.db,
+            ctxOf(c),
+            c.req.valid('param').id,
+            c.req.valid('json').intoId,
+          ),
+        ),
     )
     .delete('/:id', requireScope('write'), validate('param', idParam), async (c) => {
       await svc.deleteTag(deps.db, ctxOf(c), c.req.valid('param').id)

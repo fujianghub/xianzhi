@@ -32,8 +32,9 @@
 | `/settings/notifications` | `routes/settings.notifications.tsx` | 通知偏好 | guest+ | 1 | REQ-NOTIF-006 |
 | `/settings/security` | `routes/settings.security.tsx` | 密码 / 2FA / Passkey / 会话 | guest+ | 0 | REQ-AUTH-006 · 007 · 009 |
 | `/settings/api-keys` | `routes/settings.api-keys.tsx` | API Key | member+ | ~~0~~ 1 | REQ-AUTH-010 |
-| `/spaces/$slug/home` | `routes/_app.spaces.$spaceSlug_.home.tsx` | 分类概览（进入分类默认页，ADR-0012） | guest+ | 2 | REQ-KB-003 |
-| `/spaces/$slug/tree` | `routes/_app.spaces.$spaceSlug_.tree.tsx` | 分类目录 + 其余记录（ADR-0012） | guest+ | 2 | REQ-KB-005 |
+| `/spaces/$slug/home` | `routes/_app.spaces.$spaceSlug_.home.tsx` | 空间概览（进入空间默认页，ADR-0012） | guest+ | 2 | REQ-KB-003 |
+| `/spaces/$slug/tree` | `routes/_app.spaces.$spaceSlug_.tree.tsx` | 空间目录 + 其余记录（ADR-0012） | guest+ | 2 | REQ-KB-005 |
+| `/settings/tags` | `routes/_app.settings.tags.tsx` | 标签：新建选色、改名 / 改色 / 合并 / 删除（管理员或创建者）、用量、查看记录（ADR-0014） | guest+（管理需 member+） | 2 | REQ-TAG-004 · 005 |
 | `/settings/templates` | `routes/_app.settings.templates.tsx` | 模板：内置 / 我的 / 工作区，预览、用此模板新建、改名 / 范围 / 删除（ADR-0011） | guest+（管理需 member+） | 2 | REQ-TPL-001 · 004 |
 | `/settings/workspace` | `routes/settings.workspace.index.tsx` | 工作区设置 | admin+ | ~~0~~ 1 | REQ-WS-001 |
 | `/settings/workspace/members` | `routes/settings.workspace.members.tsx` | 成员与邀请 | admin+ | ~~0~~ 1 | REQ-AUTH-003 · REQ-WS-002 · 004 |
@@ -137,6 +138,7 @@
 - **三态**：空态按 kind 给不同一句话（decision：「还没有决定被记下来」）+ 「新建」下拉（选 kind）；骨架 6 卡；错误重试。
 - **主操作**：`e` 新记录（Dialog 选 kind + 标题 → 创建后跳编辑）；卡片悬停 Peek。
 - **REQ**：REQ-ENTRY-001 · 002 · 003 · 006 · 008 · REQ-UI-007。
+- **注 2026-09-26（ADR-0014）**：左栏位置导航（全部 / 最近打开 / 收藏 / 已归档 / 个人随笔 / 大类 → 空间 → 目录树；空间页签内只列本空间目录，窄屏折叠）；search params 追加 `spaceId? under? groupId?(uuid|'none') favorite?/recent?/archived?:'1'`（互斥）、`view?: 'table'|'board'|'timeline'`、`select?: '1'`（多选）；标签多选筛选；卡片 / 表格显示目录路径与收藏星标，悬停 ⋯ 菜单；目录节点下「新记录」= 子页。REQ-ENTRY-012 ~ 015 · REQ-TAG-006。
 
 ### 2.9 记录编辑 `/entries/$entryId`
 - **显示**：`paper` 纸面 760px 居中（可切 1080）；顶部标题 + kind 徽章 + fields 表单（按 kind 的 Zod schema 生成）+ 可见性；正文 Tiptap fullKit；Aside：大纲 / 反链 / 评论 / 属性；Topbar 右侧 StatusPill 显示 `synced / connecting / offline / readOnly`。数据：`GET /entries/:id` + collab WebSocket。
@@ -158,6 +160,7 @@
 - **三态**：空 `q` 显示最近访问；无结果「没有找到，试试更短的词」；骨架 2 组 × 5 行；429 提示稍后再试。
 - **主操作**：`g s` 聚焦；Enter 打开首项；行 Peek。
 - **REQ**：REQ-SEARCH-001 ~ 006。
+- **注 2026-09-26（ADR-0014）**：search params 追加 `tag?: csv(string)`（标签多选筛选，REQ-TAG-006）。
 
 ### 2.12 通知中心 `/notifications`
 - **显示**：Tab 全部 / 提及 / 未读；每项 NotificationItem（标题模板、正文、相对时间、深链）；顶部「全部已读」。数据：`GET /notifications?unread=1&cursor=`；「提及」Tab 加 `kind=mention.created`。

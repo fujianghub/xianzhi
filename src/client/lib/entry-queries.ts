@@ -4,6 +4,7 @@
 import type { InfiniteData } from '@tanstack/react-query'
 import type { EntryView } from '../../server/services/entries.ts'
 import { api, unwrap } from './api.ts'
+import type { TreeNodeLite } from './tree.ts'
 
 export type Entry = EntryView
 export type EntryKind = Entry['kind']
@@ -33,6 +34,11 @@ export interface EntryListParams {
   sort?: string
   deleted?: '1'
   archived?: '1'
+  /** 目录子树（含节点本身）· 大类（none = 未分类）· 本人收藏 · 按 id（最近打开）（ADR-0014） */
+  under?: string
+  groupId?: string
+  favorite?: '1'
+  ids?: string
 }
 export interface EntryPage {
   items: Entry[]
@@ -72,3 +78,13 @@ export const entryQuery = (id: string) => ({
 
 export const flattenEntries = (d: InfiniteData<EntryPage, unknown> | undefined): Entry[] =>
   d?.pages.flatMap((p) => p.items) ?? []
+
+/** 空间目录树（ADR-0012；记录页左栏与目录页共用）。 */
+export const treeQuery = (spaceId: string) => ({
+  queryKey: ['entries', 'tree', spaceId] as const,
+  queryFn: () =>
+    unwrap<{ items: TreeNodeLite[] }>(api.spaces[':id'].tree.$get({ param: { id: spaceId } })).then(
+      (r) => r.items,
+    ),
+  staleTime: 15_000,
+})

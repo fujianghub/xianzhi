@@ -40,6 +40,19 @@ export const listEntriesQuery = pageParams.extend({
   kind: csv(ENTRY_KINDS), // 逗号多值（08 §2.8、ADR-0012 类型视图）
   fields: fieldsFilter, // `status=open|fixed,severity=high`（ADR-0012）
   inTree: bool01, // 1 = 只要在目录里的，0 = 只要「其余记录」（ADR-0012）
+  under: uuidSchema.optional(), // 目录子树（含该节点本身，ADR-0014）
+  groupId: z.union([uuidSchema, z.literal('none')]).optional(), // 大类（none = 未分类，ADR-0014）
+  favorite: bool01, // 只看本人收藏（ADR-0014）
+  ids: z
+    .string()
+    .transform((s) =>
+      s
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean),
+    )
+    .pipe(z.array(uuidSchema).max(50))
+    .optional(), // 最近打开：按 id 取（ADR-0014）
   authorId: idOrMe,
   tag: csvText, // 逗号多值，任一命中（REQ-TAG-002）
   q: z.string().trim().max(200).optional(),
@@ -55,4 +68,21 @@ export const moveEntrySchema = z.union([
   z.object({ detach: z.literal(true) }),
 ])
 export const createSnapshotSchema = z.object({ label: z.string().trim().min(1).max(80) })
+/** POST /entries/batch（ADR-0014、REQ-ENTRY-013）：逐条鉴权，部分失败不回滚其它条。 */
+export const batchEntriesSchema = z.discriminatedUnion('op', [
+  z.object({
+    op: z.literal('move'),
+    ids: z.array(uuidSchema).min(1).max(100),
+    spaceId: uuidSchema,
+  }),
+  z.object({
+    op: z.literal('tags'),
+    ids: z.array(uuidSchema).min(1).max(100),
+    add: z.array(uuidSchema).max(50).default([]),
+    remove: z.array(uuidSchema).max(50).default([]),
+  }),
+  z.object({ op: z.literal('archive'), ids: z.array(uuidSchema).min(1).max(100) }),
+  z.object({ op: z.literal('unarchive'), ids: z.array(uuidSchema).min(1).max(100) }),
+  z.object({ op: z.literal('delete'), ids: z.array(uuidSchema).min(1).max(100) }),
+])
 export const entryExportQuery = z.object({ format: z.enum(ENTRY_EXPORT_FORMATS).default('md') })

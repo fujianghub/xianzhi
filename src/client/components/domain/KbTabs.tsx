@@ -1,5 +1,5 @@
 /**
- * 分类页签（ADR-0012、08 §2.5b）：概览 · 目录 · 记录 · 任务，分类内各页共用；当前页为胶囊。
+ * 空间页签（ADR-0012、08 §2.5b）：概览 · 目录 · 记录 · 任务，空间内各页共用；当前页为胶囊。
  * 路由各自平级（`/spaces/$slug/home|tree|entries`，任务页仍是 `/spaces/$slug`），不改原有任务 URL。
  */
 import { Link } from '@tanstack/react-router'

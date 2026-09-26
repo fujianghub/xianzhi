@@ -1,5 +1,5 @@
 /**
- * 新建分类 Dialog（08 §2.5、REQ-SPACE-001 · 008 · REQ-KB-002）：名称、slug（留空按名称生成）、大类、类型、可见性、颜色 token、图标。
+ * 新建空间 Dialog（08 §2.5、REQ-SPACE-001 · 008 · REQ-KB-002）：名称、slug（留空按名称生成）、大类、类型、可见性、颜色 token、图标。
  * 服务端校验错误按 `errors[].path` 落到对应字段；slug 冲突（409 CONFLICT_UNIQUE）落到 slug。
  */
 import { useQuery } from '@tanstack/react-query'

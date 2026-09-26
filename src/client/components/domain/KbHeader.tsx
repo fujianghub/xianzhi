@@ -1,4 +1,4 @@
-/** 分类页头（ADR-0012）：图标、名称、大类 · 类型 · 可见性、简介、编辑入口与页签；分类内各页共用。 */
+/** 空间页头（ADR-0012）：图标、名称、大类 · 类型 · 可见性、简介、编辑入口与页签；空间内各页共用。 */
 import { useQuery } from '@tanstack/react-query'
 import { Archive, Settings2 } from 'lucide-react'
 import { type ReactNode, useState } from 'react'

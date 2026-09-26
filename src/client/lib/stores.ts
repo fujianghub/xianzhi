@@ -94,7 +94,7 @@ export const useAsideSlot = create<{
 }>((set) => ({ node: null, set: (node) => set({ node }) }))
 
 /** 新建空间 Dialog（侧栏 + 空间列表页两个入口共用，08 §2.5）。 */
-/** 新建分类；`groupId` = 预选大类（列表页「在此新建」，ADR-0012）。 */
+/** 新建空间；`groupId` = 预选大类（列表页「在此新建」，ADR-0012）。 */
 export const useCreateSpaceDialog = create<{
   open: boolean
   groupId: string | null

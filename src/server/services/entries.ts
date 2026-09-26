@@ -36,13 +36,20 @@ import {
 } from '../authz.ts'
 import type { Db, DbOrTx } from '../db/index.ts'
 import { member, user } from '../db/schema/auth.ts'
-import { entries, entryTags, spaceMembers, spaces, tags } from '../db/schema/business.ts'
+import {
+  entries,
+  entryFavorites,
+  entryTags,
+  spaceMembers,
+  spaces,
+  tags,
+} from '../db/schema/business.ts'
 import { decodeCursor, encodeCursor } from '../lib/cursor.ts'
 import { AppError } from '../lib/errors.ts'
 import { type EventBus, getEventBus } from '../lib/event-bus.ts'
 import { audit } from './audit.ts'
 import { weightedTsv } from './derived.ts'
-import { entryPath, liftChildren, placeNew } from './entry-tree.ts'
+import { entryPath, entryPaths, liftChildren, placeNew } from './entry-tree.ts'
 import { purgeLinksOf } from './links.ts'
 import { publishChange } from './realtime.ts'
 import { resolveTemplateBody } from './templates.ts'
@@ -82,8 +89,10 @@ export interface EntryView {
   /** 目录树（ADR-0012） */
   parentId: string | null
   treeOrder: string | null
-  /** 仅详情：面包屑（根 → 父页） */
+  /** 面包屑（根 → 父页）；列表也返回（ADR-0014） */
   path?: { id: string; title: string }[]
+  /** 本人是否收藏（ADR-0014） */
+  favorited?: boolean
 }
 
 const EXCERPT_LEN = 160
@@ -244,6 +253,24 @@ export async function listEntries(db: Db, ctx: EntryCtx, q: z.infer<typeof listE
   if (q.pinned !== undefined) conds.push(eq(entries.pinned, q.pinned))
   if (q.inTree !== undefined)
     conds.push(q.inTree ? isNotNull(entries.treeOrder) : isNull(entries.treeOrder))
+  if (q.under)
+    conds.push(sql`${entries.id} in (
+      with recursive sub(id, depth) as (
+        select id, 0 from ${entries} where id = ${q.under}
+        union all
+        select e.id, sub.depth + 1 from ${entries} e join sub on e.parent_id = sub.id where sub.depth < 64
+      ) select id from sub)`)
+  if (q.groupId)
+    conds.push(
+      q.groupId === 'none'
+        ? sql`${entries.spaceId} in (select id from ${spaces} where group_id is null and not is_personal)`
+        : sql`${entries.spaceId} in (select id from ${spaces} where group_id = ${q.groupId})`,
+    )
+  if (q.favorite)
+    conds.push(
+      sql`exists (select 1 from ${entryFavorites} f where f.entry_id = ${entries.id} and f.user_id = ${ctx.actor.id})`,
+    )
+  if (q.ids?.length) conds.push(inArray(entries.id, q.ids))
   if (q.tag) {
     conds.push(
       sql`exists (select 1 from ${entryTags} et join ${tags} t on t.id = et.tag_id where et.entry_id = ${entries.id} and t.name in (${sql.join(
@@ -306,9 +333,35 @@ export async function listEntries(db: Db, ctx: EntryCtx, q: z.infer<typeof listE
     : []
   const tagsOf = new Map<string, string[]>()
   for (const r of tagRows) tagsOf.set(r.entryId, [...(tagsOf.get(r.entryId) ?? []), r.tagId])
+  // 目录路径与收藏（ADR-0014）：各一次批量查询
+  const paths = await entryPaths(
+    db,
+    ctx,
+    page.map((r) => r.e),
+  )
+  const favs = page.length
+    ? new Set(
+        (
+          await db
+            .select({ id: entryFavorites.entryId })
+            .from(entryFavorites)
+            .where(
+              and(
+                eq(entryFavorites.userId, ctx.actor.id),
+                inArray(
+                  entryFavorites.entryId,
+                  page.map((r) => r.e.id),
+                ),
+              ),
+            )
+        ).map((f) => f.id),
+      )
+    : new Set<string>()
   const items = page.map((r) => ({
     ...toView(r.e, r.s, names.get(r.e.authorId), { excerpt: true }),
     tagIds: tagsOf.get(r.e.id) ?? [],
+    path: paths.get(r.e.id) ?? [],
+    favorited: favs.has(r.e.id),
   }))
   const total = q.withTotal
     ? ((
@@ -406,6 +459,13 @@ export async function getEntry(
     ...toView(row, space.row, names.get(row.authorId), { withBody: opts.withBody }),
     tagIds: tagRows.map((t) => t.tagId),
     path: row.treeOrder !== null ? await entryPath(db, ctx, row.parentId) : [],
+    favorited:
+      (
+        await db
+          .select({ id: entryFavorites.entryId })
+          .from(entryFavorites)
+          .where(and(eq(entryFavorites.userId, ctx.actor.id), eq(entryFavorites.entryId, id)))
+      ).length > 0,
   }
 }
 
@@ -459,7 +519,7 @@ export async function patchEntry(
     if (patch.pinned !== undefined) set.pinned = patch.pinned
     set.spaceId = targetSpaceId
     if (targetSpaceId !== loaded.row.spaceId) {
-      // 移到别的分类：离开原目录，子页上移一级（ADR-0012）
+      // 移到别的空间：离开原目录，子页上移一级（ADR-0012）
       await liftChildren(tx, loaded.row)
       set.parentId = null
       set.treeOrder = null

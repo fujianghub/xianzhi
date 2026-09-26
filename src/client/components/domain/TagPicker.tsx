@@ -1,4 +1,7 @@
-/** TagPicker（04 §5、REQ-TAG-003）：输入过滤；不存在的名字回车即 POST /tags 并选中；9 色 token 按名字散列。 */
+/**
+ * TagPicker（04 §5、REQ-TAG-003）：输入过滤；不存在的名字回车即 POST /tags 并选中；
+ * 新标签颜色默认按名字散列，可在创建行旁点色点改选（ADR-0014、REQ-TAG-004）。
+ */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, Plus, Tag as TagIcon } from 'lucide-react'
 import { type KeyboardEvent, useState } from 'react'
@@ -39,6 +42,7 @@ export function TagPicker({
   const { data: all = [] } = useQuery(tagsQuery)
   const [q, setQ] = useState('')
   const [active, setActive] = useState(0)
+  const [pickedColor, setPickedColor] = useState<PaletteName | null>(null)
   const selected = new Set(value.map((x) => x.id))
   const matches = all.filter((x) => x.name.toLowerCase().includes(q.trim().toLowerCase()))
   const exact = all.find((x) => x.name === q.trim())
@@ -46,7 +50,7 @@ export function TagPicker({
     mutationFn: (name: string) =>
       unwrap<Tag>(
         api.tags.$post(
-          { json: { name, color: colorFor(name) } },
+          { json: { name, color: pickedColor ?? colorFor(name) } },
           { headers: { 'idempotency-key': newId() } },
         ),
       ),
@@ -54,6 +58,7 @@ export function TagPicker({
       qc.setQueryData<Tag[]>(tagsQuery.queryKey, (old) => [...(old ?? []), tag])
       onChange([...selected, tag.id])
       setQ('')
+      setPickedColor(null)
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : t('task.saveFailed')),
   })
@@ -139,6 +144,32 @@ export function TagPicker({
               </button>
             </li>
           ))}
+          {q.trim() && !exact ? (
+            <li className="mt-1 flex flex-wrap gap-1 px-2" aria-label={t('task.tagColor')}>
+              {PALETTE.map((c) => {
+                const on = (pickedColor ?? colorFor(q.trim())) === c
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    aria-label={c}
+                    aria-pressed={on}
+                    onClick={() => setPickedColor(c as PaletteName)}
+                    className={cn(
+                      'grid size-6 place-items-center rounded-full',
+                      on && 'ring-2 ring-selected-border',
+                    )}
+                    data-testid="tag-create-color"
+                    data-color={c}
+                  >
+                    <span
+                      className={cn('size-3.5 rounded-full', PALETTE_CLASS[c as PaletteName])}
+                    />
+                  </button>
+                )
+              })}
+            </li>
+          ) : null}
           {q.trim() && !exact ? (
             <li>
               <button

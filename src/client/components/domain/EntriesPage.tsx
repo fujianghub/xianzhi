@@ -2,41 +2,74 @@
  * 记录列表（08 §2.8、REQ-ENTRY-002 · 006、REQ-KB-004）：卡片 / 表格两种视图；固定项置顶（先查 pinned=1，再查 pinned=0）；
  * 类型可多选（`kind=bug,iteration`）；只选一种类型时按其 fields 给出下拉过滤（`fields=status=open,severity=high`）；
  * 表格视图列 = 该类型的 fields，点列头在已加载的数据内排序（枚举按定义顺序），一次最多加载 200 条。
- * 参数与 02 §9 同名、全部进 URL。`/entries` 与分类记录页共用。
+ * 参数与 02 §9 同名、全部进 URL。`/entries` 与空间记录页共用。
+ *
+ * ADR-0014（REQ-ENTRY-012 ~ 015、REQ-TAG-006）：
+ * - 左栏位置：全部 / 最近打开 / 收藏 / 已归档 / 个人随笔 / 大类 → 空间 → 目录子树（空间页签内只列本空间目录）；
+ * - 标签多选筛选；只选一种带 status 的类型时可切「看板」，只选 迭代 / 变更 时可切「时间线」；
+ * - 「多选」进入批量模式（`select=1`），吸底操作条走 `POST /entries/batch`。
+ * 「最近打开 / 收藏 / 已归档」不分固定区（单次查询）；最近打开按本机访问顺序排列。
  */
-import { useInfiniteQuery } from '@tanstack/react-query'
-import { LayoutGrid, Plus, Table2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import {
+  CalendarRange,
+  CheckSquare,
+  Columns3,
+  LayoutGrid,
+  ListTree,
+  Plus,
+  Table2,
+} from 'lucide-react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDelayedFlag } from '../../hooks/useDelayedFlag.ts'
+import { useMe } from '../../hooks/useMe.ts'
 import { cn } from '../../lib/cn.ts'
 import {
   ENTRY_KINDS,
   ENTRY_SORTS,
+  type Entry,
   type EntryKind,
   type EntryListParams,
   entriesInfiniteQuery,
   flattenEntries,
+  treeQuery,
 } from '../../lib/entry-queries.ts'
+import { recentIds } from '../../lib/recent.ts'
 import { csvList } from '../../lib/search.ts'
+import { type Space, spaceGroupsQuery, spacesQuery } from '../../lib/space-queries.ts'
 import { useNewEntry } from '../../lib/stores.ts'
 import { Button } from '../ui/button.tsx'
 import { EmptyState } from '../ui/empty-state.tsx'
 import { Input } from '../ui/input.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
+import { type EntriesLocation, EntriesNav, locationPatch } from './EntriesNav.tsx'
+import { EntryBatchBar } from './EntryBatchBar.tsx'
+import { boardStatuses, EntryBoard } from './EntryBoard.tsx'
 import { EntryCard } from './EntryCard.tsx'
 import { fieldSpecs } from './EntryFieldsForm.tsx'
 import { EntryTable } from './EntryTable.tsx'
+import { EntryTimeline, hasTimeline } from './EntryTimeline.tsx'
+import { TagFilter } from './TagFilter.tsx'
 
 export interface EntriesSearch {
   kind?: string
   fields?: string
-  view?: 'table'
+  view?: 'table' | 'board' | 'timeline'
   authorId?: string
   tag?: string
   q?: string
   pinned?: '1'
   sort?: string
+  /** 左栏位置（ADR-0014），互斥 */
+  spaceId?: string
+  under?: string
+  groupId?: string
+  favorite?: '1'
+  recent?: '1'
+  archived?: '1'
+  /** 多选（批量）模式 */
+  select?: '1'
 }
 
 /** `status=open|fixed,severity=high` ⇄ { status: 'open|fixed', severity: 'high' } */
@@ -58,6 +91,7 @@ export function EntriesPage({
   search,
   setSearch,
   spaceId,
+  space,
   title,
   header,
   hideTitle,
@@ -65,21 +99,43 @@ export function EntriesPage({
   search: EntriesSearch
   setSearch: (patch: Partial<EntriesSearch>) => void
   spaceId?: string
+  /** 空间页签内：左栏只列本空间目录 */
+  space?: Space
   title: string
   header?: React.ReactNode
-  /** 分类页签内：页头已由 KbHeader 提供 */
+  /** 空间页签内：页头已由 KbHeader 提供 */
   hideTitle?: boolean
 }) {
   const { t } = useTranslation()
+  const { data: me } = useMe()
   const openNew = useNewEntry((s) => s.setOpen)
   const setDefaults = useNewEntry((s) => s.setDefaults)
   const kinds = csvList(search.kind) as EntryKind[]
   const kind = kinds.length === 1 ? kinds[0] : undefined
-  const table = search.view === 'table'
+  const statuses = boardStatuses(kind)
+  const view =
+    search.view === 'board' && statuses
+      ? 'board'
+      : search.view === 'timeline' && hasTimeline(kind)
+        ? 'timeline'
+        : search.view === 'table'
+          ? 'table'
+          : 'cards'
+  const effSpaceId = spaceId ?? search.spaceId
+  const showNav = !spaceId || !!space
+  const selecting = search.select === '1'
+  const newDefaults = useMemo(
+    () => ({
+      spaceId: effSpaceId,
+      kind,
+      ...(search.under && effSpaceId ? { parentId: search.under } : {}),
+    }),
+    [effSpaceId, kind, search.under],
+  )
   useEffect(() => {
-    setDefaults({ spaceId, kind })
+    setDefaults(newDefaults)
     return () => setDefaults({})
-  }, [spaceId, kind, setDefaults])
+  }, [newDefaults, setDefaults])
 
   // 标题筛选输入防抖 300ms 后写入 URL
   const [q, setQ] = useState(search.q ?? '')
@@ -91,8 +147,16 @@ export function EntriesPage({
     return () => clearTimeout(h)
   }, [q, search.q, setSearch])
 
+  // 最近打开：本机访问顺序（任务 id 会被服务端自然滤掉）
+  const recent = useMemo(() => (search.recent ? recentIds() : null), [search.recent])
+  const special = !!(search.recent || search.favorite || search.archived)
   const base: EntryListParams = {
-    spaceId,
+    spaceId: effSpaceId,
+    under: search.under,
+    groupId: search.groupId,
+    favorite: search.favorite,
+    archived: search.archived,
+    ids: recent?.join(','),
     kind: search.kind,
     fields: search.fields,
     authorId: search.authorId,
@@ -100,17 +164,44 @@ export function EntriesPage({
     q: search.q,
     sort: search.sort ?? '-updatedAt',
   }
-  const pageSize = table ? 200 : 30
-  const pinned = useInfiniteQuery(entriesInfiniteQuery({ ...base, pinned: '1' }, 50))
-  const rest = useInfiniteQuery({
-    ...entriesInfiniteQuery({ ...base, pinned: '0' }, pageSize),
-    enabled: search.pinned !== '1',
+  const pageSize = view === 'cards' ? 30 : 200
+  const recentEmpty = !!recent && !recent.length
+  const pinned = useInfiniteQuery({
+    ...entriesInfiniteQuery({ ...base, pinned: '1' }, 50),
+    enabled: !special,
   })
-  const pinnedItems = flattenEntries(pinned.data)
-  const restItems = search.pinned === '1' ? [] : flattenEntries(rest.data)
+  const rest = useInfiniteQuery({
+    ...entriesInfiniteQuery(special ? base : { ...base, pinned: '0' }, pageSize),
+    enabled: search.pinned !== '1' && !recentEmpty,
+  })
+  const pinnedItems = special ? [] : flattenEntries(pinned.data)
+  let restItems = search.pinned === '1' || recentEmpty ? [] : flattenEntries(rest.data)
+  if (recent) {
+    const order = new Map(recent.map((id, i) => [id, i]))
+    restItems = [...restItems].sort((a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99))
+  }
   const items = [...pinnedItems, ...restItems]
-  const loading = pinned.isPending || (search.pinned !== '1' && rest.isPending)
+  const loading =
+    (!special && pinned.isPending) || (search.pinned !== '1' && !recentEmpty && rest.isPending)
   const skeleton = useDelayedFlag(loading)
+
+  // 多选
+  const [selected, setSelected] = useState<string[]>([])
+  useEffect(() => {
+    if (!selecting) setSelected([])
+  }, [selecting])
+  const selSet = new Set(selected)
+  const toggleSel = (id: string) =>
+    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
+  const canWrite = (e: Entry) => !!me && (e.authorId === me.id || me.workspaceRole !== 'guest')
+
+  const locTitle = useLocationTitle(search, effSpaceId, title)
+  const [navOpen, setNavOpen] = useState(false)
+  const selectLoc = (loc: EntriesLocation) => {
+    setSearch({ ...locationPatch(loc), select: undefined })
+    setNavOpen(false)
+  }
+
   const chip = (active: boolean) =>
     cn(
       'h-8 shrink-0 rounded-full border px-3 text-sm',
@@ -123,164 +214,251 @@ export function EntriesPage({
   }
   const fieldFilters = kind ? fieldSpecs(kind).filter((f) => f.kind === 'select') : []
   const fieldValues = parseFieldsParam(search.fields)
+  const viewBtn = (key: typeof view, icon: ReactNode, label: string, testId: string) => (
+    <button
+      type="button"
+      aria-pressed={view === key}
+      aria-label={label}
+      title={label}
+      onClick={() => setSearch({ view: key === 'cards' ? undefined : key })}
+      className={cn(
+        'grid h-7 w-8 place-items-center rounded-full',
+        view === key ? 'bg-selected' : 'text-fg-muted',
+      )}
+      data-testid={testId}
+    >
+      {icon}
+    </button>
+  )
+  const emptyTitle = search.recent
+    ? t('entry.nav.recentEmpty')
+    : search.favorite
+      ? t('entry.nav.favoriteEmpty')
+      : search.archived
+        ? t('entry.nav.archivedEmpty')
+        : t(`entry.empty.${kind ?? 'all'}`, { defaultValue: t('entry.empty.all') })
 
   return (
     <section className="mx-auto max-w-[100rem]" data-testid="entries-page">
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        {hideTitle ? null : <h1 className="font-semibold text-2xl tracking-tight">{title}</h1>}
-        {header}
-        <div className="ml-auto flex items-center gap-2">
-          <fieldset className="flex rounded-full border border-border p-0.5">
-            <legend className="sr-only">{t('kb.view')}</legend>
-            <button
-              type="button"
-              aria-pressed={!table}
-              aria-label={t('kb.viewCards')}
-              title={t('kb.viewCards')}
-              onClick={() => setSearch({ view: undefined })}
-              className={cn(
-                'grid h-7 w-8 place-items-center rounded-full',
-                !table ? 'bg-selected' : 'text-fg-muted',
-              )}
-              data-testid="view-cards"
-            >
-              <LayoutGrid className="size-4" />
-            </button>
-            <button
-              type="button"
-              aria-pressed={table}
-              aria-label={t('kb.viewTable')}
-              title={t('kb.viewTable')}
-              onClick={() => setSearch({ view: 'table' })}
-              className={cn(
-                'grid h-7 w-8 place-items-center rounded-full',
-                table ? 'bg-selected' : 'text-fg-muted',
-              )}
-              data-testid="view-table"
-            >
-              <Table2 className="size-4" />
-            </button>
-          </fieldset>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => openNew(true, { spaceId, kind })}
-            data-testid="new-entry"
-          >
-            <Plus className="size-4" />
-            {t('entry.new')}
-          </Button>
-        </div>
-      </div>
-      <div className="mb-5 flex flex-wrap items-center gap-2">
-        <fieldset className="flex gap-1.5 overflow-x-auto">
-          <legend className="sr-only">{t('entry.props.kind')}</legend>
-          <button
-            type="button"
-            className={chip(!kinds.length)}
-            onClick={() => setSearch({ kind: undefined, fields: undefined })}
-          >
-            {t('entry.allKinds')}
-          </button>
-          {ENTRY_KINDS.map((k) => (
-            <button
-              key={k}
-              type="button"
-              aria-pressed={kinds.includes(k)}
-              className={chip(kinds.includes(k))}
-              onClick={() => toggleKind(k)}
-              data-kind-filter={k}
-            >
-              {t(`entry.kind.${k}`)}
-            </button>
-          ))}
-        </fieldset>
-        {fieldFilters.map((f) =>
-          f.kind === 'select' ? (
-            <select
-              key={f.name}
-              value={fieldValues[f.name] ?? ''}
-              onChange={(e) =>
-                setSearch({
-                  fields: stringifyFieldsParam({ ...fieldValues, [f.name]: e.target.value }),
-                })
-              }
-              aria-label={t(`entry.field.${f.name}`)}
-              className="h-8 rounded-full border border-border bg-surface px-3 text-sm"
-              data-testid={`field-filter-${f.name}`}
-            >
-              <option value="">
-                {t(`entry.field.${f.name}`)}：{t('entry.allKinds')}
-              </option>
-              {f.options.map((o) => (
-                <option key={String(o)} value={String(o)}>
-                  {t(`entry.fieldValue.${o}`, { defaultValue: String(o) })}
-                </option>
-              ))}
-            </select>
-          ) : null,
-        )}
-        <button
-          type="button"
-          aria-pressed={search.authorId === 'me'}
-          className={chip(search.authorId === 'me')}
-          onClick={() => setSearch({ authorId: search.authorId === 'me' ? undefined : 'me' })}
-        >
-          {t('entry.mine')}
-        </button>
-        <Input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={t('entry.searchPlaceholder')}
-          aria-label={t('entry.searchPlaceholder')}
-          className="h-8 w-48"
-        />
-        <select
-          value={search.sort ?? '-updatedAt'}
-          onChange={(e) =>
-            setSearch({ sort: e.target.value === '-updatedAt' ? undefined : e.target.value })
-          }
-          aria-label={t('entry.sortLabel')}
-          className="h-8 rounded-full border border-border bg-surface px-3 text-sm"
-        >
-          {ENTRY_SORTS.map((s) => (
-            <option key={s} value={s}>
-              {t(`entry.sort.${s}`)}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {skeleton ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 6 }, (_, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: 骨架占位
-            <Skeleton key={i} className="h-36 rounded-lg" />
-          ))}
-        </div>
-      ) : !loading && !items.length ? (
-        <EmptyState
-          illustration="entries"
-          title={t(`entry.empty.${kind ?? 'all'}`, { defaultValue: t('entry.empty.all') })}
-          action={
-            <Button variant="primary" onClick={() => openNew(true, { spaceId, kind })}>
-              {t('entry.new')}
-            </Button>
-          }
-        />
-      ) : table ? (
-        <EntryTable items={items} kinds={kinds} showSpace={!spaceId} />
-      ) : (
-        <>
-          <div
-            className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
-            data-testid="entry-grid"
-          >
-            {items.map((e, i) => (
-              <EntryCard key={e.id} entry={e} showSpace={!spaceId} index={i} />
-            ))}
+      <div className={cn(showNav && 'lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8')}>
+        {showNav ? (
+          <aside className={cn('mb-4 lg:mb-0 lg:block', !navOpen && 'hidden')}>
+            <div className="paper rounded-xl p-2 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:bg-transparent lg:p-0 lg:shadow-none">
+              <EntriesNav search={search} onSelect={selectLoc} fixedSpace={space} />
+            </div>
+          </aside>
+        ) : null}
+        <div className="min-w-0">
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            {showNav ? (
+              <button
+                type="button"
+                aria-expanded={navOpen}
+                onClick={() => setNavOpen((v) => !v)}
+                className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border px-3 text-sm lg:hidden"
+                data-testid="entries-nav-toggle"
+              >
+                <ListTree className="size-4" />
+                {t('entry.nav.toggle')}
+              </button>
+            ) : null}
+            {hideTitle && !search.under && !search.archived ? null : (
+              <h1
+                className={cn('font-semibold tracking-tight', hideTitle ? 'text-lg' : 'text-2xl')}
+                data-testid="entries-title"
+              >
+                {locTitle}
+              </h1>
+            )}
+            {header}
+            <div className="ml-auto flex items-center gap-2">
+              <fieldset className="flex rounded-full border border-border p-0.5">
+                <legend className="sr-only">{t('kb.view')}</legend>
+                {viewBtn(
+                  'cards',
+                  <LayoutGrid className="size-4" />,
+                  t('kb.viewCards'),
+                  'view-cards',
+                )}
+                {viewBtn('table', <Table2 className="size-4" />, t('kb.viewTable'), 'view-table')}
+                {statuses
+                  ? viewBtn(
+                      'board',
+                      <Columns3 className="size-4" />,
+                      t('entry.board.label'),
+                      'view-board',
+                    )
+                  : null}
+                {hasTimeline(kind)
+                  ? viewBtn(
+                      'timeline',
+                      <CalendarRange className="size-4" />,
+                      t('entry.timeline.label'),
+                      'view-timeline',
+                    )
+                  : null}
+              </fieldset>
+              {view === 'cards' || view === 'table' ? (
+                <Button
+                  variant={selecting ? 'secondary' : 'ghost'}
+                  size="sm"
+                  aria-pressed={selecting}
+                  onClick={() => setSearch({ select: selecting ? undefined : '1' })}
+                  data-testid="entries-select-mode"
+                >
+                  <CheckSquare className="size-4" />
+                  {t(selecting ? 'entry.batch.done' : 'entry.batch.select')}
+                </Button>
+              ) : null}
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => openNew(true, newDefaults)}
+                data-testid="new-entry"
+              >
+                <Plus className="size-4" />
+                {t('entry.new')}
+              </Button>
+            </div>
           </div>
-          {rest.hasNextPage ? (
+          <div className="mb-5 flex flex-wrap items-center gap-2">
+            <fieldset className="flex gap-1.5 overflow-x-auto">
+              <legend className="sr-only">{t('entry.props.kind')}</legend>
+              <button
+                type="button"
+                className={chip(!kinds.length)}
+                onClick={() => setSearch({ kind: undefined, fields: undefined })}
+              >
+                {t('entry.allKinds')}
+              </button>
+              {ENTRY_KINDS.map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  aria-pressed={kinds.includes(k)}
+                  className={chip(kinds.includes(k))}
+                  onClick={() => toggleKind(k)}
+                  data-kind-filter={k}
+                >
+                  {t(`entry.kind.${k}`)}
+                </button>
+              ))}
+            </fieldset>
+            {fieldFilters.map((f) =>
+              f.kind === 'select' ? (
+                <select
+                  key={f.name}
+                  value={fieldValues[f.name] ?? ''}
+                  onChange={(e) =>
+                    setSearch({
+                      fields: stringifyFieldsParam({ ...fieldValues, [f.name]: e.target.value }),
+                    })
+                  }
+                  aria-label={t(`entry.field.${f.name}`)}
+                  className="h-8 rounded-full border border-border bg-surface px-3 text-sm"
+                  data-testid={`field-filter-${f.name}`}
+                >
+                  <option value="">
+                    {t(`entry.field.${f.name}`)}：{t('entry.allKinds')}
+                  </option>
+                  {f.options.map((o) => (
+                    <option key={String(o)} value={String(o)}>
+                      {t(`entry.fieldValue.${o}`, { defaultValue: String(o) })}
+                    </option>
+                  ))}
+                </select>
+              ) : null,
+            )}
+            <TagFilter value={search.tag} onChange={(tag) => setSearch({ tag })} />
+            <button
+              type="button"
+              aria-pressed={search.authorId === 'me'}
+              className={chip(search.authorId === 'me')}
+              onClick={() => setSearch({ authorId: search.authorId === 'me' ? undefined : 'me' })}
+            >
+              {t('entry.mine')}
+            </button>
+            <Input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={t('entry.searchPlaceholder')}
+              aria-label={t('entry.searchPlaceholder')}
+              className="h-8 w-48"
+            />
+            {search.recent ? null : (
+              <select
+                value={search.sort ?? '-updatedAt'}
+                onChange={(e) =>
+                  setSearch({ sort: e.target.value === '-updatedAt' ? undefined : e.target.value })
+                }
+                aria-label={t('entry.sortLabel')}
+                className="h-8 rounded-full border border-border bg-surface px-3 text-sm"
+              >
+                {ENTRY_SORTS.map((s) => (
+                  <option key={s} value={s}>
+                    {t(`entry.sort.${s}`)}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {skeleton ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {Array.from({ length: 6 }, (_, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: 骨架占位
+                <Skeleton key={i} className="h-36 rounded-lg" />
+              ))}
+            </div>
+          ) : !loading && !items.length ? (
+            <EmptyState
+              illustration="entries"
+              title={emptyTitle}
+              action={
+                special ? undefined : (
+                  <Button variant="primary" onClick={() => openNew(true, newDefaults)}>
+                    {t('entry.new')}
+                  </Button>
+                )
+              }
+            />
+          ) : view === 'board' && statuses ? (
+            <EntryBoard
+              items={items}
+              statuses={statuses}
+              canWrite={!!me && me.workspaceRole !== 'guest'}
+            />
+          ) : view === 'timeline' ? (
+            <EntryTimeline items={items} />
+          ) : view === 'table' ? (
+            <EntryTable
+              items={items}
+              kinds={kinds}
+              showSpace={!effSpaceId}
+              select={selecting ? { has: (id) => selSet.has(id), toggle: toggleSel } : undefined}
+            />
+          ) : (
+            <div
+              className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
+              data-testid="entry-grid"
+            >
+              {items.map((e, i) => (
+                <EntryCard
+                  key={e.id}
+                  entry={e}
+                  showSpace={!effSpaceId}
+                  index={i}
+                  canWrite={canWrite(e)}
+                  select={
+                    selecting
+                      ? { selected: selSet.has(e.id), toggle: () => toggleSel(e.id) }
+                      : undefined
+                  }
+                />
+              ))}
+            </div>
+          )}
+          {rest.hasNextPage && !skeleton && items.length ? (
             <div className="mt-6 flex justify-center">
               <Button
                 variant="ghost"
@@ -291,8 +469,41 @@ export function EntriesPage({
               </Button>
             </div>
           ) : null}
-        </>
-      )}
+          {selecting ? (
+            <EntryBatchBar
+              selected={selected}
+              setSelected={setSelected}
+              onSelectAll={() => setSelected(items.map((e) => e.id))}
+              archivedView={!!search.archived}
+            />
+          ) : null}
+        </div>
+      </div>
     </section>
   )
+}
+
+/** 页头标题随左栏位置变化：目录节点 > 空间 > 大类 > 收藏 / 最近 / 归档 > 默认标题。 */
+function useLocationTitle(search: EntriesSearch, spaceId: string | undefined, fallback: string) {
+  const { t } = useTranslation()
+  const spaces = useQuery({ ...spacesQuery(), enabled: !!search.spaceId })
+  const groups = useQuery({ ...spaceGroupsQuery, enabled: !!search.groupId })
+  const tree = useQuery({ ...treeQuery(spaceId ?? ''), enabled: !!search.under && !!spaceId })
+  if (search.recent) return t('entry.nav.recent')
+  if (search.favorite) return t('entry.nav.favorite')
+  if (search.archived) return t('entry.nav.archived')
+  if (search.under) {
+    const n = tree.data?.find((x) => x.id === search.under)
+    if (n) return n.title || t('entry.untitled')
+  }
+  if (search.spaceId) {
+    const s = spaces.data?.find((x) => x.id === search.spaceId)
+    if (s) return s.isPersonal ? t('entry.nav.personal') : s.name
+  }
+  if (search.groupId === 'none') return t('entry.nav.ungrouped')
+  if (search.groupId) {
+    const g = groups.data?.find((x) => x.id === search.groupId)
+    if (g) return g.name
+  }
+  return fallback
 }

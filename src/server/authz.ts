@@ -92,6 +92,12 @@ export interface UserRef {
   id: string
 }
 
+/** 标签（ADR-0014）：createdBy 为空 = 迁移前的旧标签。 */
+export interface TagRef {
+  id: string
+  createdBy: string | null
+}
+
 /** 记录模板（ADR-0011 §2）：personal 仅 owner；workspace 全员可读，创建者或管理员可管理。 */
 export interface TemplateRef {
   id: string
@@ -112,7 +118,8 @@ export interface ActionMap {
   'me.delete': UserRef
   'space.create': null
   'tag.create': null
-  'tag.manage': null
+  /** 改名 / 改色 / 合并 / 删除（ADR-0014）：null = 仅管理员；TagRef = 管理员或其创建者（非 guest） */
+  'tag.manage': TagRef | null
   'space.read': SpaceRef
   'space.manage': SpaceRef
   'space.delete': SpaceRef
@@ -137,7 +144,7 @@ export interface ActionMap {
   /** 资源为待建模板（id 为空，ownerId = 本人） */
   'template.create': TemplateRef
   'template.manage': TemplateRef
-  /** 大类的增删改排（ADR-0012）；把分类移入大类走 space.manage */
+  /** 大类的增删改排（ADR-0012）；把空间移入大类走 space.manage */
   'group.manage': null
 }
 export type Action = keyof ActionMap
@@ -294,8 +301,11 @@ export function can<A extends Action>(
     case 'space.create':
     case 'tag.create':
       return actor.workspaceRole !== 'guest'
-    case 'tag.manage':
-      return admin
+    case 'tag.manage': {
+      if (admin) return true
+      const t = resource as TagRef | null
+      return !!t && t.createdBy === actor.id && actor.workspaceRole !== 'guest'
+    }
     case 'space.read':
       return canReadSpace(actor, resource as SpaceRef)
     case 'space.manage': {

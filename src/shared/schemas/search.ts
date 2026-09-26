@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { uuidSchema } from './common.ts'
 import { ENTRY_KINDS, SEARCH_TYPES, TASK_STATUSES } from './enums.ts'
-import { csv } from './query.ts'
+import { csv, csvText } from './query.ts'
 
 export const searchQuery = z.object({
   q: z.string().trim().max(200).default(''), // 07 §5 长度 200
@@ -9,7 +9,7 @@ export const searchQuery = z.object({
   spaceId: uuidSchema.optional(),
   kind: z.enum(ENTRY_KINDS).optional(),
   status: csv(TASK_STATUSES),
-  tag: z.string().trim().max(60).optional(),
+  tag: csvText, // 逗号多值，任一命中（ADR-0014、REQ-TAG-006）
   limit: z.coerce.number().int().min(1).max(50).default(10),
   cursorTasks: z.string().max(512).optional(),
   cursorEntries: z.string().max(512).optional(),

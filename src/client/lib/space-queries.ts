@@ -36,14 +36,14 @@ export const spaceGroupsQuery = {
 }
 
 export interface SpaceSection {
-  /** null = 其他（未归入大类） */
+  /** null = 未分类 */
   group: SpaceGroup | null
   items: Space[]
 }
 
 /**
  * 按大类分区（ADR-0012、REQ-KB-002）：大类按 sort_key；区内沿用空间 sort_key 顺序；个人空间不参与；
- * 「其他」只在有内容时放最后；空大类也返回（侧栏可折叠 / 可拖入，列表页「在此新建」）。
+ * 「未分类」只在有内容时放最后；空大类也返回（侧栏可折叠 / 可拖入，列表页「在此新建」）。
  */
 export function groupSpaces(
   spaces: readonly Space[],
@@ -65,7 +65,7 @@ export const sectionDropId = (g: SpaceGroup | null) => `group:${g?.id ?? 'none'}
 /**
  * 侧栏拖放 → 服务端参数（纯函数）：`overId` 为空间 id 或分区头 `group:<id|none>`。
  * 同区内与 moveAfter 一致；跨区时放到目标项之后，拖到分区头则放到该区最前。
- * 返回 `groupId`（仅跨区时给出；null = 其他（未归入大类））、`after` 与拖后的扁平顺序（乐观更新用）。
+ * 返回 `groupId`（仅跨区时给出；null = 未分类）、`after` 与拖后的扁平顺序（乐观更新用）。
  */
 export function planSpaceMove(
   sections: readonly SpaceSection[],

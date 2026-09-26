@@ -55,7 +55,8 @@ pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore 
 | `spec_dev_doc/adr/0005 · 0006 · 0007` | 翡翠主色 / 燕印 / 动效档位 · 登录拼图滑块 · 晨光白燕燕印 |
 | `spec_dev_doc/adr/0008 · 0009 · 0010` | 开放注册 + 审批 / 用户名 / 密码 8 位 · 日历日程（重复、提醒、节假日） · 鲜艳 9 色板 / 日历拖选 / owner 用户管理 / 个人资料 |
 | `spec_dev_doc/adr/0011` | 历史版本恢复 · Markdown 源码对话框 / 语雀式识别 · 附件类型（Office / csv）· 记录模板（`entry_templates`、kind `optimize` `plan`） |
-| `spec_dev_doc/adr/0012` | 界面「空间」改称「分类」（大类 → 分类 → 记录，代码仍 space）· 大类 `space_groups` · 分类概览 / 类型视图 · 目录树 · `/links` 关联与反链 |
+| `spec_dev_doc/adr/0012 · 0013` | 大类 `space_groups`（大类 → 空间 → 记录）· 空间概览 / 类型视图 · 目录树 · `/links` 关联与反链 · 界面称呼定为「空间」 |
+| `spec_dev_doc/adr/0014` | 我的记录：位置导航（大类 → 空间 → 目录）· 标签自定义 / 合并（管理员或创建者）· 收藏 / 最近 · 批量 `/entries/batch` · 记录看板 / 时间线 |
 | `spec_dev_doc/01-domain-model.md` | 表结构、`fields` schema、事件种类、权限矩阵 |
 | `spec_dev_doc/02-api-conventions.md` | 路由/错误/分页/SSE/文件/MCP 约定、路由清单 |
 | `spec_dev_doc/03-editor-kernel.md` | Tiptap schema、Hocuspocus 钩子、快照、模板、交互规格、简斋陷阱 |

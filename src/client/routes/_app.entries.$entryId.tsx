@@ -4,11 +4,12 @@
  */
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound, useNavigate } from '@tanstack/react-router'
-import { ChevronRight, Pin } from 'lucide-react'
+import { ChevronRight, Pin, Star } from 'lucide-react'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type AsideTab, EntryAside } from '../components/domain/EntryAside.tsx'
 import { entryKindClass } from '../components/domain/EntryCard.tsx'
+import { EntryMenu } from '../components/domain/EntryMenu.tsx'
 import { Disclosure } from '../components/ui/disclosure.tsx'
 import { InlineEdit } from '../components/ui/inline-edit.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
@@ -112,6 +113,20 @@ function EntryPage() {
               {t(`entry.kind.${e.kind}`)}
             </span>
             <span className="text-fg-muted">{t(`entry.visibility.${e.visibility}`)}</span>
+            {e.archivedAt ? (
+              <span
+                className="rounded-full bg-surface-2 px-2 py-0.5 text-fg-muted"
+                data-testid="entry-archived-badge"
+              >
+                {t('entry.menu.archivedBadge')}
+              </span>
+            ) : null}
+            {e.favorited ? (
+              <Star
+                className="size-3.5 fill-current text-warning"
+                aria-label={t('entry.nav.favorite')}
+              />
+            ) : null}
             <div className="ml-auto flex items-center gap-1">
               {canWrite ? (
                 <button
@@ -128,6 +143,11 @@ function EntryPage() {
                   {t(e.pinned ? 'entry.unpin' : 'entry.pin')}
                 </button>
               ) : null}
+              <EntryMenu
+                entry={e}
+                canWrite={canWrite}
+                onDeleted={() => void nav({ to: '/entries', search: {} })}
+              />
             </div>
           </div>
           <div ref={sharedTarget}>
@@ -187,7 +207,7 @@ function EntryPage() {
   )
 }
 
-/** 面包屑（ADR-0012、REQ-KB-005）：分类 › 目录祖先（读不到的祖先截断）。个人空间不显示。 */
+/** 面包屑（ADR-0012、REQ-KB-005）：空间 › 目录祖先（读不到的祖先截断）。个人空间不显示。 */
 function Breadcrumb({ entry }: { entry: Entry }) {
   const { t } = useTranslation()
   const space = useQuery(spaceQuery(entry.spaceSlug))

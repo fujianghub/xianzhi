@@ -1,4 +1,4 @@
-/** ADR-0012 大类：REQ-KB-001（预置 / 管理员增删改排）· REQ-KB-002（分类归类、拖到其他大类、改类型）。 */
+/** ADR-0012 大类：REQ-KB-001（预置 / 管理员增删改排）· REQ-KB-002（空间归类、拖到其他大类、改类型）。 */
 import { beforeAll, describe, expect, it } from 'vitest'
 import { getDb } from '../db/index.ts'
 import { organization } from '../db/schema/auth.ts'
@@ -99,7 +99,7 @@ describe('space groups', () => {
     expect((await groups()).map((g) => g.name)).not.toContain('工作事务')
   })
 
-  it('REQ-KB-002 建分类带 groupId；改类型；拖到另一大类；删大类后变其他（未归入大类）；个人空间不入大类', async () => {
+  it('REQ-KB-002 建空间带 groupId；改类型；拖到另一大类；删大类后变未分类；个人空间不入大类', async () => {
     const [prod, learn] = await groups()
     const r = await req(member, '/api/v1/spaces', {
       method: 'POST',
@@ -133,7 +133,7 @@ describe('space groups', () => {
       }),
     })
     expect(bad.status).toBe(422)
-    // 删大类 → 其他（未归入大类）
+    // 删大类 → 未分类
     await req(owner, `/api/v1/space-groups/${prod?.id}`, { method: 'DELETE' })
     const after = (await (await req(member, `/api/v1/spaces/${s.id}`)).json()) as Space
     expect(after.groupId).toBeNull()
