@@ -1,6 +1,7 @@
 /**
  * 空间图标（REQ-SPACE-008）：emoji 原样显示；Lucide 名只认精选集合（避免把全部图标打进首屏），
  * 未收录的名字与空值按空间类型回退。色块取 04 §2.1 色板 token。
+ * ADR-0015：统一为 .xz-chip 质感色块；未设颜色时按类型给默认色（项目蓝 · 学习紫 · 工作橙 · 个人绿），不再回退灰色。
  */
 import {
   BookOpen,
@@ -91,6 +92,13 @@ export const PALETTE_DOT: Record<PaletteName, string> = {
   gray: 'bg-gray-solid',
 }
 
+/** 未设颜色时的默认色调（REQ-UI-037） */
+const KIND_TONE: Record<string, PaletteName> = {
+  project: 'blue',
+  learning: 'purple',
+  work: 'orange',
+}
+
 const isLucideName = (v: string) => /^[a-z][a-z0-9-]*$/.test(v)
 
 export function SpaceIcon({
@@ -98,25 +106,30 @@ export function SpaceIcon({
   kind,
   color,
   isPersonal,
+  plain,
   className,
 }: {
   icon: string | null
   kind: string
   color: string | null
   isPersonal?: boolean
+  /** 只要字形不要色块（图标选择器） */
+  plain?: boolean
   className?: string
 }) {
-  const tone =
+  const tone: PaletteName =
     color && color in PALETTE_CLASS
-      ? PALETTE_CLASS[color as PaletteName]
-      : 'bg-surface-2 text-fg-muted'
+      ? (color as PaletteName)
+      : isPersonal
+        ? 'green'
+        : (KIND_TONE[kind] ?? 'gray')
   const emoji = icon && !isLucideName(icon) ? icon : null
   const Icon = (icon && SPACE_ICONS[icon]) || (isPersonal ? User : (KIND_ICON[kind] ?? Folder))
   return (
     <span
       className={cn(
         'inline-flex size-6 shrink-0 items-center justify-center rounded-md text-sm',
-        tone,
+        !plain && `xz-chip xz-tone-${tone}`,
         className,
       )}
       aria-hidden

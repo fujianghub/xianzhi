@@ -13,22 +13,12 @@ import type { Entry } from '../../lib/entry-queries.ts'
 import { usePeek } from '../../lib/stores.ts'
 import { RelativeTime } from '../ui/relative-time.tsx'
 import { EntryMenu } from './EntryMenu.tsx'
+import { ENTRY_KIND_TONE, KindBadge } from './KindIcon.tsx'
 import { PALETTE_CLASS, type PaletteName } from './SpaceIcon.tsx'
 import { SpaceTag } from './SpaceTag.tsx'
 import { tagsQuery } from './TagPicker.tsx'
 
-/** 记录类型色（04 §2.1 色板）：一眼分出决策 / 迭代 / Bug…；文字仍是类型名，不单靠颜色 */
-export const ENTRY_KIND_TONE: Record<string, PaletteName> = {
-  decision: 'blue',
-  iteration: 'cyan',
-  bug: 'red',
-  changelog: 'orange',
-  journal: 'green',
-  note: 'yellow',
-  review: 'purple',
-  optimize: 'pink',
-  plan: 'gray',
-}
+export { ENTRY_KIND_TONE }
 export const entryKindClass = (kind: string) => PALETTE_CLASS[ENTRY_KIND_TONE[kind] ?? 'gray']
 
 export function EntryCard({
@@ -107,9 +97,7 @@ function CardLink({ entry, showSpace }: { entry: Entry; showSpace?: boolean }) {
       className="paper xz-lift xz-rise group flex min-h-36 flex-col gap-2 rounded-lg border border-divider p-4"
     >
       <div className="flex items-center gap-2 text-xs">
-        <span className={cn('rounded-full px-2 py-0.5 font-medium', entryKindClass(entry.kind))}>
-          {t(`entry.kind.${entry.kind}`)}
-        </span>
+        <KindBadge kind={entry.kind} size="md" />
         {showSpace ? <SpaceTag slug={entry.spaceSlug} /> : null}
         {entry.archivedAt ? (
           <span className="rounded-full bg-surface-2 px-2 py-0.5 text-fg-muted">

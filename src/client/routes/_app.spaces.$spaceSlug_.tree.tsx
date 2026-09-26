@@ -32,13 +32,14 @@ import {
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { entryKindClass } from '../components/domain/EntryCard.tsx'
 import { KbHeader } from '../components/domain/KbHeader.tsx'
+import { KindBadge, KindIcon } from '../components/domain/KindIcon.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { Disclosure } from '../components/ui/disclosure.tsx'
 import { Input } from '../components/ui/input.tsx'
 import { RelativeTime } from '../components/ui/relative-time.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
+import { staggerIndex, TreeGuides, treeLevelClass } from '../components/ui/tree-guides.tsx'
 import { ApiError, api, unwrap } from '../lib/api.ts'
 import { cn } from '../lib/cn.ts'
 import { type EntryPage, treeQuery } from '../lib/entry-queries.ts'
@@ -66,7 +67,9 @@ export const Route = createFileRoute('/_app/spaces/$spaceSlug_/tree')({
   component: KbTree,
 })
 
-const INDENT = 24
+/** 每级缩进；引导线落在祖先展开指示中心：拖动手柄 24 + 间距 4 + 指示半宽 12 */
+const INDENT = 20
+const GUIDE_X0 = 40
 const foldsKey = (spaceId: string) => `xz:kb-tree-folds:v1:${spaceId}`
 const readFolds = (spaceId: string): Set<string> => {
   try {
@@ -153,6 +156,7 @@ function TreeBody({ space }: { space: Space }) {
     if (p) move.mutate({ id: d.id, plan: { parentId: p.parentId, after: p.after } })
   }
   const projected = drag ? projectDrop(items, drag.id, drag.overId, drag.offsetX, INDENT) : null
+  const stagger = useMemo(() => staggerIndex(items), [items])
 
   return (
     <section className="mx-auto max-w-[100rem]" data-testid="kb-tree-page">
@@ -207,6 +211,7 @@ function TreeBody({ space }: { space: Space }) {
                     key={item.id}
                     item={item}
                     depth={drag?.id === item.id && projected ? projected.depth : item.depth}
+                    stagger={stagger.get(item.id) ?? 0}
                     open={!!q || !folds.has(item.id)}
                     onToggle={() => toggle(item.id)}
                     canWrite={canWrite}
@@ -234,11 +239,7 @@ function TreeBody({ space }: { space: Space }) {
               data-testid="unfiled-row"
               data-entry-id={e.id}
             >
-              <span
-                className={cn('shrink-0 rounded-full px-1.5 text-[11px]', entryKindClass(e.kind))}
-              >
-                {t(`entry.kind.${e.kind}`)}
-              </span>
+              <KindBadge kind={e.kind} />
               <Link
                 to="/entries/$entryId"
                 params={{ entryId: e.id }}
@@ -269,6 +270,7 @@ function TreeBody({ space }: { space: Space }) {
 function TreeRow({
   item,
   depth,
+  stagger,
   open,
   onToggle,
   canWrite,
@@ -278,6 +280,7 @@ function TreeRow({
 }: {
   item: FlatItem
   depth: number
+  stagger: number
   open: boolean
   onToggle: () => void
   canWrite: boolean
@@ -296,7 +299,7 @@ function TreeRow({
     isDragging,
   } = useSortable({ id: item.id, disabled: !canWrite })
   const icon =
-    'grid size-7 place-items-center rounded-md text-fg-muted hover:bg-active hover:text-fg'
+    'grid size-7 place-items-center rounded-md text-fg-muted transition-colors hover:bg-active hover:text-fg active:scale-[.92]'
   return (
     <li
       ref={setNodeRef}
@@ -304,13 +307,15 @@ function TreeRow({
         transform: CSS.Translate.toString(transform),
         transition,
         paddingInlineStart: `${depth * INDENT}px`,
+        ['--i' as string]: stagger,
       }}
       className={cn('group relative', isDragging && 'z-10 opacity-80')}
       data-testid="tree-row"
       data-entry-id={item.id}
       data-depth={item.depth}
     >
-      <div className="flex items-center gap-1 rounded-md py-1 pe-1 hover:bg-hover">
+      <TreeGuides depth={depth} x0={GUIDE_X0} indent={INDENT} />
+      <div className="xz-tree-in flex items-center gap-1 rounded-md py-1 pe-1 transition-colors hover:bg-hover">
         {canWrite ? (
           <button
             type="button"
@@ -330,29 +335,36 @@ function TreeRow({
           <button
             type="button"
             onClick={onToggle}
-            className="grid size-6 place-items-center"
+            className="xz-twisty size-6"
             aria-label={item.title}
+            aria-expanded={open}
           >
             <Disclosure open={open} />
           </button>
         ) : (
           <span className="size-6" />
         )}
-        <span className={cn('shrink-0 rounded-full px-1.5 text-[11px]', entryKindClass(item.kind))}>
-          {t(`entry.kind.${item.kind}`)}
-        </span>
+        <KindIcon kind={item.kind} size="sm" label={t(`entry.kind.${item.kind}`)} />
         <Link
           to="/entries/$entryId"
           params={{ entryId: item.id }}
-          className="min-w-0 flex-1 truncate text-sm hover:text-primary-text"
+          className={cn(
+            'min-w-0 flex-1 truncate ps-1 text-sm transition-colors hover:text-primary-text',
+            treeLevelClass(depth),
+          )}
         >
           {item.title || t('entry.untitled')}
         </Link>
+        {item.hasChildren && !open ? (
+          <span className="xz-tree-count" data-testid="tree-child-count">
+            {item.childCount}
+          </span>
+        ) : null}
         {canWrite ? (
           <div className="flex opacity-0 focus-within:opacity-100 group-hover:opacity-100">
             <button
               type="button"
-              className={icon}
+              className={cn(icon, 'hover:bg-primary-soft hover:text-primary-text')}
               aria-label={t('kb.tree.newChild')}
               title={t('kb.tree.newChild')}
               onClick={onNewChild}
@@ -402,7 +414,7 @@ function TreeRow({
             </button>
             <button
               type="button"
-              className={icon}
+              className={cn(icon, 'hover:bg-danger-soft hover:text-danger')}
               aria-label={t('kb.tree.detach')}
               title={t('kb.tree.detach')}
               onClick={onDetach}

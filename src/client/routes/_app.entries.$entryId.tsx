@@ -8,8 +8,8 @@ import { ChevronRight, Pin, Star } from 'lucide-react'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type AsideTab, EntryAside } from '../components/domain/EntryAside.tsx'
-import { entryKindClass } from '../components/domain/EntryCard.tsx'
 import { EntryMenu } from '../components/domain/EntryMenu.tsx'
+import { KindBadge } from '../components/domain/KindIcon.tsx'
 import { Disclosure } from '../components/ui/disclosure.tsx'
 import { InlineEdit } from '../components/ui/inline-edit.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
@@ -109,9 +109,7 @@ function EntryPage() {
         <>
           <Breadcrumb entry={e} />
           <div className="mb-2 flex items-center gap-2 text-xs">
-            <span className={cn('rounded-full px-2 py-0.5 font-medium', entryKindClass(e.kind))}>
-              {t(`entry.kind.${e.kind}`)}
-            </span>
+            <KindBadge kind={e.kind} size="md" />
             <span className="text-fg-muted">{t(`entry.visibility.${e.visibility}`)}</span>
             {e.archivedAt ? (
               <span

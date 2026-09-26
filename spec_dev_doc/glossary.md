@@ -22,6 +22,9 @@
 | 大类 | Space group / `spaceGroup` | `space_groups` | 大类 | `space.groups.*` | 空间的归组（产品开发 / 技术学习规划 / 生活…） | ADR-0012 · 01 §3.0 |
 | 目录 | Tree / `tree` | `entries.parent_id` `tree_order` | 目录 | `kb.tree.*` | 空间内可嵌套的页面树；不在目录的记录叫「其余记录」 | ADR-0012 |
 | 概览 | Home / `home` | — | 概览 | `kb.tab.home` | 进入空间的默认页 | ADR-0012 |
+| 空间目录 | Space directory / `SpaceDirectory` | — | 空间目录 | `kb.personal.dir` | 个人空间概览里的 大类 → 空间 → 目录树 总览 | ADR-0015 |
+| 引导线 | Tree guide / `TreeGuides` | — | —（纯视觉） | — | 目录树每级祖先的竖向细线，标示层级归属 | ADR-0015 |
+| 类型图标 | Kind icon / `KindIcon` | — | —（配合类型名） | `entry.kind.*` | 记录类型对应的 Lucide 图标色块 | ADR-0015 |
 | 空间管理员 / 成员 / 查看者 | admin / member / viewer | `space_members.role` | 空间管理员 / 空间成员 / 查看者 | `space.role.admin` `.member` `.viewer` | 空间级角色 | 01 §3.1 |
 | 空间类型 | `space.kind` | `project` / `learning` / `work` | 项目 / 学习 / 工作 | `space.kind.project` 等 | 只影响图标与默认视图 | 01 §3.1 |
 | 空间可见性 | `space.visibility` | `workspace` / `members` | 全员可见 / 仅成员 | `space.visibility.workspace` `.members` | | 01 §3.1 |

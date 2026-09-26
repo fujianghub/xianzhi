@@ -10,8 +10,8 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn.ts'
 import type { Entry, EntryKind } from '../../lib/entry-queries.ts'
 import { RelativeTime } from '../ui/relative-time.tsx'
-import { entryKindClass } from './EntryCard.tsx'
 import { fieldSpecs } from './EntryFieldsForm.tsx'
+import { KindBadge } from './KindIcon.tsx'
 import { PALETTE_CLASS, type PaletteName } from './SpaceIcon.tsx'
 import { SpaceTag } from './SpaceTag.tsx'
 import { tagsQuery } from './TagPicker.tsx'
@@ -153,9 +153,7 @@ export function EntryTable({
               </td>
               {kinds.length !== 1 ? (
                 <td className="px-3 py-2">
-                  <span className={cn('rounded-full px-2 py-0.5 text-xs', entryKindClass(e.kind))}>
-                    {t(`entry.kind.${e.kind}`)}
-                  </span>
+                  <KindBadge kind={e.kind} />
                 </td>
               ) : null}
               {cols.map((c) => (

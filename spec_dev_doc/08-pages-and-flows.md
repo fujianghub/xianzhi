@@ -32,7 +32,7 @@
 | `/settings/notifications` | `routes/settings.notifications.tsx` | 通知偏好 | guest+ | 1 | REQ-NOTIF-006 |
 | `/settings/security` | `routes/settings.security.tsx` | 密码 / 2FA / Passkey / 会话 | guest+ | 0 | REQ-AUTH-006 · 007 · 009 |
 | `/settings/api-keys` | `routes/settings.api-keys.tsx` | API Key | member+ | ~~0~~ 1 | REQ-AUTH-010 |
-| `/spaces/$slug/home` | `routes/_app.spaces.$spaceSlug_.home.tsx` | 空间概览（进入空间默认页，ADR-0012） | guest+ | 2 | REQ-KB-003 |
+| `/spaces/$slug/home` | `routes/_app.spaces.$spaceSlug_.home.tsx` | 空间概览（进入空间默认页，ADR-0012；个人空间为工作台，ADR-0015） | guest+ | 2 | REQ-KB-003 · 007 |
 | `/spaces/$slug/tree` | `routes/_app.spaces.$spaceSlug_.tree.tsx` | 空间目录 + 其余记录（ADR-0012） | guest+ | 2 | REQ-KB-005 |
 | `/settings/tags` | `routes/_app.settings.tags.tsx` | 标签：新建选色、改名 / 改色 / 合并 / 删除（管理员或创建者）、用量、查看记录（ADR-0014） | guest+（管理需 member+） | 2 | REQ-TAG-004 · 005 |
 | `/settings/templates` | `routes/_app.settings.templates.tsx` | 模板：内置 / 我的 / 工作区，预览、用此模板新建、改名 / 范围 / 删除（ADR-0011） | guest+（管理需 member+） | 2 | REQ-TPL-001 · 004 |
@@ -103,6 +103,12 @@
 - **三态**：空态「还没有空间，衔来第一根枝吧」；骨架 6 卡；错误重试。
 - **主操作**：新建空间 Dialog（名称、slug 自动、kind、可见性、颜色 token、图标）。
 - **REQ**：REQ-SPACE-001 · 004 · 005 · 008。
+
+### 2.5b 空间概览 `/spaces/$slug/home` 与目录 `/spaces/$slug/tree`（ADR-0012 · 0015）
+- **概览**：产品 / 工作型 = 未关闭 Bug（按严重度）· 最近迭代 · 最新版本 · 决策与优化 · 最近更新；学习型 = 学习计划进度 · 最近笔记 · 最近更新；面板标题前带彩色图标块，列表类型为图标胶囊。
+- **个人空间概览**（ADR-0015）：主面板「空间目录」= 大类 → 空间 → 目录树（大类默认展开、空间默认收起，展开时才取目录；展开状态本机 `xz:home-dir:v1`）；侧列「个人记录」「各空间最近更新」；快捷新建 随笔 / 笔记 / 计划。数据：`GET /spaces` `GET /space-groups` `GET /spaces/:id/tree` `GET /entries`。
+- **目录**：可嵌套页面树 + 「其余记录」；层级 = 20px 缩进 + 祖先引导线 + 类型色块 + 字重递减 + 折叠计数（ADR-0015）。
+- **REQ**：REQ-KB-003 · 005 · 006 · 007、REQ-UI-037。
 
 ### 2.6 空间任务 `/spaces/$spaceSlug`
 - **显示**：`view=board` 六列看板（inbox / todo / doing / blocked / done / cancelled，done 与 cancelled 默认折叠）或 `view=list` 虚拟列表。列头显示计数（NumberFlow 式滚动数字）。数据：`GET /tasks?spaceId=&status=&assigneeId=&cycleId=&tag=&dueBefore=&dueAfter=&q=&sort=&cursor=`。

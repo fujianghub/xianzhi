@@ -156,3 +156,38 @@ test('REQ-LINK-003 · 005 迭代「关联 Bug」→ Bug 页「修复于」显示
   await expect(page.getByTestId('relations-fixed-in')).toContainText(`第 40 周迭代 ${t}`)
   await expect(page.getByTestId('relations-backlinks')).toContainText('被解决于')
 })
+
+test('REQ-KB-007 · 006 个人空间概览 = 空间目录（大类 → 空间 → 目录树），展开空间才取目录；层级带引导线', async ({
+  page,
+  request,
+}) => {
+  const s = await kb(request)
+  const root = await createEntry(request, {
+    kind: 'note',
+    title: '根页',
+    spaceId: s.id,
+    parentId: null,
+  })
+  await createEntry(request, { kind: 'note', title: '子页', spaceId: s.id, parentId: root })
+  const me = (
+    (await (await request.get('/api/v1/spaces?limit=200')).json()) as {
+      items: { slug: string; isPersonal: boolean }[]
+    }
+  ).items.find((x) => x.isPersonal)
+  await page.goto(`/spaces/${me?.slug}/home`)
+  const dir = page.getByTestId('space-dir')
+  await expect(dir.getByTestId('space-dir-group').first()).toContainText('产品开发')
+  await expect(dir).toContainText('技术学习规划')
+  await expect(page.getByTestId('kb-panel-bugs')).toHaveCount(0)
+  const row = dir.locator(`[data-testid="space-dir-space"][data-space-id="${s.id}"]`)
+  const tree = page.waitForResponse((r) => r.url().includes(`/api/v1/spaces/${s.id}/tree`))
+  await row.getByTestId('space-dir-toggle').click()
+  await tree
+  const node = row.locator(`[data-testid="entries-nav-node"][data-entry-id="${root}"]`)
+  await expect(node).toContainText('根页')
+  // 折叠时行尾子项计数；根页位于第 2 级（大类 → 空间 → 根页）→ 2 条引导线
+  await expect(node.locator('.xz-tree-count')).toHaveText('1')
+  await expect(node.locator('.xz-guide')).toHaveCount(2)
+  await node.getByRole('button', { name: '展开 根页' }).click()
+  await expect(row.getByTestId('entries-nav-node').filter({ hasText: '子页' })).toBeVisible()
+})

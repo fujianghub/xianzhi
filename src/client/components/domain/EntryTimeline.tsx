@@ -6,7 +6,7 @@ import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn.ts'
 import type { Entry, EntryKind } from '../../lib/entry-queries.ts'
-import { entryKindClass } from './EntryCard.tsx'
+import { ENTRY_KIND_TONE, KindGlyph, toneClass } from './KindIcon.tsx'
 
 export const TIMELINE_KINDS = ['iteration', 'changelog'] as const satisfies readonly EntryKind[]
 export const hasTimeline = (k: EntryKind | undefined) =>
@@ -55,8 +55,12 @@ export function EntryTimeline({ items }: { items: Entry[] }) {
                 >
                   <span className="flex flex-wrap items-center gap-2 text-xs">
                     <span
-                      className={cn('rounded-full px-2 py-0.5 font-medium', entryKindClass(e.kind))}
+                      className={cn(
+                        'xz-kind-badge h-6 gap-1 px-2 [&>svg]:size-3.5',
+                        toneClass(ENTRY_KIND_TONE[e.kind]),
+                      )}
                     >
+                      <KindGlyph kind={e.kind} />
                       {typeof e.fields.version === 'string'
                         ? e.fields.version
                         : t(`entry.kind.${e.kind}`)}

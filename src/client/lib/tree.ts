@@ -12,6 +12,8 @@ export interface TreeNodeLite {
 export interface FlatItem extends TreeNodeLite {
   depth: number
   hasChildren: boolean
+  /** 直接子项数（折叠时显示在行尾，ADR-0015） */
+  childCount: number
 }
 export interface MovePlan {
   parentId: string | null
@@ -38,8 +40,9 @@ export function flatten(
   const out: FlatItem[] = []
   const walk = (parent: string | null, depth: number) => {
     for (const n of kids.get(parent) ?? []) {
-      const has = (kids.get(n.id)?.length ?? 0) > 0
-      out.push({ ...n, depth, hasChildren: has })
+      const childCount = kids.get(n.id)?.length ?? 0
+      const has = childCount > 0
+      out.push({ ...n, depth, hasChildren: has, childCount })
       if (has && !collapsed.has(n.id) && n.id !== skipChildrenOf) walk(n.id, depth + 1)
     }
   }

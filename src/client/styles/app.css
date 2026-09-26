@@ -926,3 +926,196 @@ select:disabled {
     }
   }
 }
+
+/*
+ * ---- 色调变量（ADR-0015）：把 04 §2.1 色板三件套映射到 --k-*，供图标色块 / 类型胶囊 / 目录引导线取色 ----
+ */
+.xz-tone-blue {
+  --k-solid: var(--xz-palette-blue-solid);
+  --k-bg: var(--xz-palette-blue-bg);
+  --k-fg: var(--xz-palette-blue-fg);
+}
+.xz-tone-orange {
+  --k-solid: var(--xz-palette-orange-solid);
+  --k-bg: var(--xz-palette-orange-bg);
+  --k-fg: var(--xz-palette-orange-fg);
+}
+.xz-tone-yellow {
+  --k-solid: var(--xz-palette-yellow-solid);
+  --k-bg: var(--xz-palette-yellow-bg);
+  --k-fg: var(--xz-palette-yellow-fg);
+}
+.xz-tone-red {
+  --k-solid: var(--xz-palette-red-solid);
+  --k-bg: var(--xz-palette-red-bg);
+  --k-fg: var(--xz-palette-red-fg);
+}
+.xz-tone-green {
+  --k-solid: var(--xz-palette-green-solid);
+  --k-bg: var(--xz-palette-green-bg);
+  --k-fg: var(--xz-palette-green-fg);
+}
+.xz-tone-purple {
+  --k-solid: var(--xz-palette-purple-solid);
+  --k-bg: var(--xz-palette-purple-bg);
+  --k-fg: var(--xz-palette-purple-fg);
+}
+.xz-tone-pink {
+  --k-solid: var(--xz-palette-pink-solid);
+  --k-bg: var(--xz-palette-pink-bg);
+  --k-fg: var(--xz-palette-pink-fg);
+}
+.xz-tone-cyan {
+  --k-solid: var(--xz-palette-cyan-solid);
+  --k-bg: var(--xz-palette-cyan-bg);
+  --k-fg: var(--xz-palette-cyan-fg);
+}
+.xz-tone-gray {
+  --k-solid: var(--xz-palette-gray-solid);
+  --k-bg: var(--xz-palette-gray-bg);
+  --k-fg: var(--xz-palette-gray-fg);
+}
+
+/*
+ * 图标色块（REQ-UI-037）：浅底 → 掺 22% 实色的斜向渐变 + 顶部 1px 高光 + 同色 1px 细描边 + 同色微投影；
+ * 所在行（.group）悬停时弹簧放大并轻转，按下回落；减弱档时长为 0。
+ */
+.xz-chip {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  color: var(--k-fg);
+  background: linear-gradient(
+    145deg,
+    var(--k-bg) 0%,
+    color-mix(in srgb, var(--k-solid) 22%, var(--k-bg)) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 var(--xz-edge),
+    inset 0 0 0 1px color-mix(in srgb, var(--k-solid) 24%, transparent),
+    0 1px 2px color-mix(in srgb, var(--k-solid) 22%, transparent);
+  transition:
+    transform var(--xz-dur-base) var(--xz-ease-spring),
+    box-shadow var(--xz-dur-base) var(--xz-ease-out);
+}
+.group:hover .xz-chip,
+.group:focus-visible .xz-chip {
+  transform: scale(1.08) rotate(-4deg);
+  box-shadow:
+    inset 0 1px 0 var(--xz-edge),
+    inset 0 0 0 1px color-mix(in srgb, var(--k-solid) 36%, transparent),
+    0 3px 8px color-mix(in srgb, var(--k-solid) 28%, transparent);
+}
+.group:active .xz-chip {
+  transform: scale(0.94);
+  transition-duration: var(--xz-dur-fast);
+}
+:root[data-motion="reduce"] .xz-chip {
+  transform: none;
+}
+
+/* 类型胶囊（06 §5 Badge）：12% 同色底 + 同色 1px 描边 + 深字，前置图标 */
+.xz-kind-badge {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  border-radius: 999px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--k-fg);
+  background: var(--k-bg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-solid) 28%, transparent);
+}
+
+/* 着色图标（REQ-UI-037）：导航快捷项等单色图标沿用 --xz-icon-* 专属色，静止 85%，悬停 / 当前 100% */
+.xz-hue {
+  color: color-mix(in srgb, var(--xz-ico, var(--xz-fg-muted)) 85%, var(--xz-fg-muted));
+  transition:
+    transform var(--xz-dur-base) var(--xz-ease-spring),
+    color var(--xz-dur-fast) var(--xz-ease-out);
+}
+.group:hover .xz-hue,
+.group[aria-current] .xz-hue {
+  color: var(--xz-ico, var(--xz-fg));
+  transform: scale(1.1);
+}
+
+/*
+ * ---- 目录树层级（ADR-0015、REQ-KB-006，参照简斋目录）：----
+ * 每级祖先一条 1px 竖向引导线（.xz-guide，left 由组件按层级算），最近一级更深；
+ * 当前行所在的最近引导线转主色。字重按层级递减（L0 600 · L1 500 · 其余 400）。
+ */
+.xz-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--xz-fg) 11%, transparent);
+  pointer-events: none;
+}
+.xz-guide[data-near] {
+  background: color-mix(in srgb, var(--xz-fg) 20%, transparent);
+}
+.xz-guide[data-active] {
+  background: var(--xz-primary);
+}
+.xz-tree-l0 {
+  font-weight: 600;
+}
+.xz-tree-l1 {
+  font-weight: 500;
+}
+/* 子项计数徽标 */
+.xz-tree-count {
+  flex-shrink: 0;
+  min-width: 18px;
+  padding-inline: 5px;
+  border-radius: 999px;
+  background: var(--xz-surface-2);
+  color: var(--xz-fg-muted);
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+/* 展开入场：新出现的子行自左上轻移淡入（只在挂载时播放；--i 错峰，最多 8 格） */
+@keyframes xz-tree-in {
+  from {
+    opacity: 0;
+    transform: translate(-6px, -2px);
+  }
+}
+.xz-tree-in {
+  animation: xz-tree-in var(--xz-dur-base) var(--xz-ease-out) backwards;
+  animation-delay: calc(min(var(--i, 0), 8) * 18ms);
+}
+:root[data-motion="reduce"] .xz-tree-in {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .xz-tree-in {
+    animation: none;
+  }
+}
+/* 展开指示按钮：悬停主色淡底 + 指示放大，按下缩回（04 §2.4 图标按钮 .92） */
+.xz-twisty {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--xz-fg-muted);
+  transition:
+    background-color var(--xz-dur-fast) var(--xz-ease-out),
+    color var(--xz-dur-fast) var(--xz-ease-out),
+    transform var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-twisty:hover {
+  background: var(--xz-primary-soft);
+  color: var(--xz-primary-text);
+}
+.xz-twisty:hover > svg {
+  color: currentColor;
+}
+.xz-twisty:active {
+  transform: scale(0.88);
+}

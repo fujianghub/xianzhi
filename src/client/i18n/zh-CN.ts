@@ -909,6 +909,15 @@ export const zhCN = {
       plans: '还没有学习计划',
       notes: '还没有笔记',
     },
+    personal: {
+      dir: '空间目录',
+      manage: '管理空间',
+      mine: '个人记录',
+      recentAll: '各空间最近更新',
+      emptyMine: '还没有个人记录，从上面的快捷按钮开始吧',
+      emptyGroup: '这个大类下还没有空间',
+      noSpaces: '还没有空间',
+    },
     tree: {
       title: '目录',
       empty: '目录还是空的：新建一篇记录，或把已有记录拖进来',

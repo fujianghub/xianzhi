@@ -5,15 +5,16 @@
  * 空间页签内（`fixedSpace`）只显示本空间的「全部」与目录树。
  */
 import { useQuery } from '@tanstack/react-query'
-import { Archive, Clock, FileText, Layers, NotebookPen, Star } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { Archive, Clock, FileText, Layers, type LucideIcon, NotebookPen, Star } from 'lucide-react'
+import { type CSSProperties, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn.ts'
-import { treeQuery } from '../../lib/entry-queries.ts'
 import { groupSpaces, type Space, spaceGroupsQuery, spacesQuery } from '../../lib/space-queries.ts'
-import { flatten } from '../../lib/tree.ts'
 import { Disclosure } from '../ui/disclosure.tsx'
+import { TreeGuides } from '../ui/tree-guides.tsx'
+import { DirTree, navRowCls, TWISTY_CENTER } from './DirTree.tsx'
 import type { EntriesSearch } from './EntriesPage.tsx'
+import { IconChip } from './KindIcon.tsx'
 import { SpaceIcon } from './SpaceIcon.tsx'
 
 export const LOCATION_KEYS = [
@@ -31,11 +32,28 @@ export const locationPatch = (loc: EntriesLocation): Partial<EntriesSearch> => (
   ...loc,
 })
 
-const rowCls = (active: boolean) =>
-  cn(
-    'flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-sm',
-    active ? 'bg-selected font-medium text-fg' : 'text-fg-muted hover:bg-hover hover:text-fg',
+const rowCls = (active: boolean) => cn(navRowCls(active), 'group h-8')
+/** 位置导航层级缩进（大类 → 空间 → 目录），与展开指示中心对齐画引导线 */
+const INDENT = 12
+/** 快捷项专属色（沿用侧栏 --xz-icon-*，REQ-UI-037） */
+const QUICK_HUE: Record<string, string> = {
+  all: 'blue',
+  recent: 'cyan',
+  favorite: 'amber',
+  archived: 'violet',
+  personal: 'emerald',
+}
+function HueIcon({ icon: Icon, hue }: { icon: LucideIcon; hue: string }) {
+  return (
+    <span
+      className="xz-hue inline-grid shrink-0 place-items-center"
+      style={{ '--xz-ico': `var(--xz-icon-${hue})` } as CSSProperties}
+      aria-hidden
+    >
+      <Icon className="size-4" strokeWidth={2} />
+    </span>
   )
+}
 
 export function EntriesNav({
   search,
@@ -74,7 +92,7 @@ export function EntriesNav({
 
   const quick = (
     key: string,
-    icon: ReactNode,
+    icon: LucideIcon,
     label: string,
     active: boolean,
     loc: EntriesLocation,
@@ -87,7 +105,7 @@ export function EntriesNav({
         onClick={() => onSelect(loc)}
         data-testid={`entries-nav-${key}`}
       >
-        {icon}
+        <HueIcon icon={icon} hue={QUICK_HUE[key] ?? 'blue'} />
         <span className="truncate">{label}</span>
       </button>
     </li>
@@ -99,25 +117,22 @@ export function EntriesNav({
         <ul className="flex flex-col gap-0.5">
           {quick(
             'all',
-            <FileText className="size-4 shrink-0" />,
+            FileText,
             t('entry.nav.all'),
             !search.under && !search.favorite && !search.archived,
             {},
           )}
-          {quick(
-            'archived',
-            <Archive className="size-4 shrink-0" />,
-            t('entry.nav.archived'),
-            !!search.archived,
-            { archived: '1' },
-          )}
+          {quick('archived', Archive, t('entry.nav.archived'), !!search.archived, {
+            archived: '1',
+          })}
         </ul>
         <div className="mt-3 border-divider border-t pt-3">
-          <SpaceTree
+          <DirTree
             spaceId={fixedSpace.id}
-            under={search.under}
+            level={0}
+            indent={INDENT}
+            active={search.under}
             onSelect={(under) => onSelect({ under })}
-            depth={0}
           />
         </div>
       </nav>
@@ -126,39 +141,21 @@ export function EntriesNav({
   return (
     <nav aria-label={t('entry.nav.label')} data-testid="entries-nav">
       <ul className="flex flex-col gap-0.5">
-        {quick('all', <FileText className="size-4 shrink-0" />, t('entry.nav.all'), noLoc, {})}
-        {quick(
-          'recent',
-          <Clock className="size-4 shrink-0" />,
-          t('entry.nav.recent'),
-          !!search.recent,
-          { recent: '1' },
-        )}
-        {quick(
-          'favorite',
-          <Star className="size-4 shrink-0" />,
-          t('entry.nav.favorite'),
-          !!search.favorite,
-          { favorite: '1' },
-        )}
-        {quick(
-          'archived',
-          <Archive className="size-4 shrink-0" />,
-          t('entry.nav.archived'),
-          !!search.archived,
-          { archived: '1' },
-        )}
+        {quick('all', FileText, t('entry.nav.all'), noLoc, {})}
+        {quick('recent', Clock, t('entry.nav.recent'), !!search.recent, { recent: '1' })}
+        {quick('favorite', Star, t('entry.nav.favorite'), !!search.favorite, { favorite: '1' })}
+        {quick('archived', Archive, t('entry.nav.archived'), !!search.archived, { archived: '1' })}
         {personal
           ? quick(
               'personal',
-              <NotebookPen className="size-4 shrink-0" />,
+              NotebookPen,
               t('entry.nav.personal'),
               search.spaceId === personal.id,
               { spaceId: personal.id },
             )
           : null}
       </ul>
-      <ul className="mt-3 flex flex-col gap-2 border-divider border-t pt-3">
+      <ul className="mt-3 flex flex-col gap-1.5 border-divider border-t pt-3">
         {sections.map(({ group, items }) => {
           const gid = group?.id ?? 'none'
           const open = !closedGroups.has(gid)
@@ -171,28 +168,40 @@ export function EntriesNav({
                   aria-expanded={open}
                   aria-label={t(open ? 'entry.nav.collapse' : 'entry.nav.expand', { name })}
                   onClick={() => setClosedGroups((s) => toggle(s, gid))}
-                  className="grid size-6 shrink-0 place-items-center rounded text-fg-muted hover:bg-hover"
+                  className="xz-twisty size-6"
                 >
                   <Disclosure open={open} />
                 </button>
                 <button
                   type="button"
-                  className={cn(rowCls(search.groupId === gid), 'h-7 text-xs uppercase')}
+                  className={cn(rowCls(search.groupId === gid), 'xz-tree-l0 h-8 text-fg')}
                   aria-current={search.groupId === gid ? 'page' : undefined}
                   onClick={() => onSelect({ groupId: gid })}
                 >
-                  <Layers className="size-3.5 shrink-0" />
+                  <IconChip icon={Layers} tone={group?.color ?? 'gray'} size="sm" />
                   <span className="truncate">{name}</span>
+                  <span className="xz-tree-count ms-auto" aria-hidden>
+                    {items.length}
+                  </span>
                 </button>
               </div>
               {open ? (
-                <ul className="mt-0.5 flex flex-col gap-0.5">
+                <ul className="flex flex-col">
                   {items.map((sp) => {
                     const spOpen = openSpaces.has(sp.id)
                     const active = search.spaceId === sp.id && !search.under
                     return (
-                      <li key={sp.id} data-testid="entries-nav-space" data-space-id={sp.id}>
-                        <div className="flex items-center pl-3">
+                      <li
+                        key={sp.id}
+                        className="relative"
+                        data-testid="entries-nav-space"
+                        data-space-id={sp.id}
+                      >
+                        <TreeGuides depth={1} x0={TWISTY_CENTER} indent={INDENT} active={active} />
+                        <div
+                          className="flex items-center py-px"
+                          style={{ paddingInlineStart: INDENT }}
+                        >
                           <button
                             type="button"
                             aria-expanded={spOpen}
@@ -200,14 +209,14 @@ export function EntriesNav({
                               name: sp.name,
                             })}
                             onClick={() => setOpenSpaces((s) => toggle(s, sp.id))}
-                            className="grid size-6 shrink-0 place-items-center rounded text-fg-muted hover:bg-hover"
+                            className="xz-twisty size-6"
                             data-testid="entries-nav-space-toggle"
                           >
                             <Disclosure open={spOpen} />
                           </button>
                           <button
                             type="button"
-                            className={rowCls(active)}
+                            className={cn(rowCls(active), 'xz-tree-l1')}
                             aria-current={active ? 'page' : undefined}
                             onClick={() => onSelect({ spaceId: sp.id })}
                           >
@@ -221,11 +230,12 @@ export function EntriesNav({
                           </button>
                         </div>
                         {spOpen ? (
-                          <SpaceTree
+                          <DirTree
                             spaceId={sp.id}
-                            under={search.spaceId === sp.id ? search.under : undefined}
+                            level={2}
+                            indent={INDENT}
+                            active={search.spaceId === sp.id ? search.under : undefined}
                             onSelect={(under) => onSelect({ spaceId: sp.id, under })}
-                            depth={1}
                           />
                         ) : null}
                       </li>
@@ -238,94 +248,5 @@ export function EntriesNav({
         })}
       </ul>
     </nav>
-  )
-}
-
-/** 某空间的目录树（懒加载）；选中节点 = 过滤该子树。节点展开状态本地保存在组件内。 */
-function SpaceTree({
-  spaceId,
-  under,
-  onSelect,
-  depth,
-}: {
-  spaceId: string
-  under: string | undefined
-  onSelect: (under: string) => void
-  depth: number
-}) {
-  const { t } = useTranslation()
-  const tree = useQuery(treeQuery(spaceId))
-  const nodes = tree.data ?? []
-  // 默认全部收起，只展开当前所选节点的祖先链
-  const [open, setOpen] = useState<Set<string>>(() => new Set())
-  useEffect(() => {
-    if (!under || !tree.data) return
-    const byId = new Map(tree.data.map((n) => [n.id, n]))
-    const chain: string[] = []
-    let cur = byId.get(under)?.parentId ?? null
-    while (cur) {
-      chain.push(cur)
-      cur = byId.get(cur)?.parentId ?? null
-    }
-    if (chain.length) setOpen((s) => new Set([...s, ...chain]))
-  }, [under, tree.data])
-  const collapsed = useMemo(
-    () => new Set(nodes.filter((n) => !open.has(n.id)).map((n) => n.id)),
-    [nodes, open],
-  )
-  const flat = flatten(nodes, collapsed)
-  if (tree.isPending) return null
-  if (!flat.length)
-    return (
-      <p className="py-1 text-fg-faint text-xs" style={{ paddingLeft: `${depth * 12 + 38}px` }}>
-        {t('entry.nav.treeEmpty')}
-      </p>
-    )
-  return (
-    <ul className="flex flex-col gap-0.5" data-testid="entries-nav-tree">
-      {flat.map((n) => {
-        const active = under === n.id
-        const isOpen = open.has(n.id)
-        const title = n.title || t('entry.untitled')
-        return (
-          <li
-            key={n.id}
-            className="flex items-center"
-            style={{ paddingLeft: `${(depth + n.depth) * 12 + 12}px` }}
-            data-testid="entries-nav-node"
-            data-entry-id={n.id}
-          >
-            {n.hasChildren ? (
-              <button
-                type="button"
-                aria-expanded={isOpen}
-                aria-label={t(isOpen ? 'entry.nav.collapse' : 'entry.nav.expand', { name: title })}
-                onClick={() =>
-                  setOpen((s) => {
-                    const x = new Set(s)
-                    if (x.has(n.id)) x.delete(n.id)
-                    else x.add(n.id)
-                    return x
-                  })
-                }
-                className="grid size-6 shrink-0 place-items-center rounded text-fg-muted hover:bg-hover"
-              >
-                <Disclosure open={isOpen} />
-              </button>
-            ) : (
-              <span className="size-6 shrink-0" aria-hidden />
-            )}
-            <button
-              type="button"
-              className={cn(rowCls(active), 'h-7')}
-              aria-current={active ? 'page' : undefined}
-              onClick={() => onSelect(n.id)}
-            >
-              <span className="truncate">{title}</span>
-            </button>
-          </li>
-        )
-      })}
-    </ul>
   )
 }

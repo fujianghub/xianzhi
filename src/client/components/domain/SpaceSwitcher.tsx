@@ -26,7 +26,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { GripVertical, Plus } from 'lucide-react'
+import { GripVertical, Layers, Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -45,7 +45,8 @@ import { cn } from '../../lib/cn.ts'
 import { useCreateSpaceDialog } from '../../lib/stores.ts'
 import { Disclosure } from '../ui/disclosure.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
-import { PALETTE_DOT, type PaletteName, SpaceIcon } from './SpaceIcon.tsx'
+import { IconChip } from './KindIcon.tsx'
+import { type PaletteName, SpaceIcon } from './SpaceIcon.tsx'
 
 const FOLDS_KEY = 'xz:kb-folds:v1'
 function readFolds(): Record<string, boolean> {
@@ -165,7 +166,7 @@ function Section({
         data-testid="space-section-toggle"
       >
         <Disclosure open={open} />
-        <span className={cn('size-2 shrink-0 rounded-full', PALETTE_DOT[tone])} aria-hidden />
+        <IconChip icon={Layers} tone={tone} size="xs" />
         <span className="truncate font-medium">{name}</span>
         <span className="ms-auto tabular-nums">{section.items.length}</span>
       </button>
@@ -174,17 +175,27 @@ function Section({
           items={section.items.map((s) => s.id)}
           strategy={verticalListSortingStrategy}
         >
-          <ul className="flex flex-col gap-0.5 pb-1" aria-label={name}>
-            {section.items.map((s) => (
-              <SpaceRow
-                key={s.id}
-                space={s}
-                active={activeSlug === s.slug}
-                sortable={s.myRole === 'admin'}
-                onNavigate={onNavigate}
-              />
-            ))}
-          </ul>
+          {/* 空间行缩进一级 + 分区引导线（对齐展开指示中心；含当前空间时为主色，ADR-0015） */}
+          <div className="relative ps-3">
+            <span
+              className="xz-guide"
+              style={{ insetInlineStart: '14px' }}
+              data-near
+              data-active={section.items.some((s) => s.slug === activeSlug) || undefined}
+              aria-hidden
+            />
+            <ul className="flex flex-col gap-0.5 pb-1" aria-label={name}>
+              {section.items.map((s) => (
+                <SpaceRow
+                  key={s.id}
+                  space={s}
+                  active={activeSlug === s.slug}
+                  sortable={s.myRole === 'admin'}
+                  onNavigate={onNavigate}
+                />
+              ))}
+            </ul>
+          </div>
         </SortableContext>
       ) : null}
     </div>
