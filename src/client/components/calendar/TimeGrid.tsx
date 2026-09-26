@@ -12,6 +12,7 @@ import { cn } from '../../lib/cn.ts'
 import { weekdayName } from './MonthView.tsx'
 import {
   type CalItem,
+  capLanes,
   covers,
   dayKey,
   hhmm,
@@ -111,13 +112,16 @@ export function TimeGrid({
   }, [rangeKey, earliest])
   const isBlock = (it: CalItem) => it.allDay || it.startDay !== it.endDay
   const allDay = keys.map((k) => sorted.filter((it) => isBlock(it) && covers(it, k)))
+  const cols = days.length
+  // 多列视图最多并排 2 列，更多的收成「+N」（REQ-CAL-011）；日视图列宽足够，不收起
+  const maxLanes = cols > 1 ? 2 : Number.POSITIVE_INFINITY
   const timed = keys.map((k) => {
     const list = sorted.filter((it) => !isBlock(it) && covers(it, k))
     const segs = list.map((it) => segmentOf(it, k, tz))
-    return { list, segs, lanes: layoutLanes(segs) }
+    const { shown, more } = capLanes(segs, layoutLanes(segs), maxLanes)
+    return { list, segs, lanes: shown, more }
   })
   const todayIdx = days.findIndex((d) => sameLocalDate(d, today))
-  const cols = days.length
 
   const pointAt = (e: { clientX: number; clientY: number }) => {
     const r = grid.current?.getBoundingClientRect()
@@ -277,7 +281,7 @@ export function TimeGrid({
               </span>
             ))}
           </div>
-          {timed.map(({ list, segs, lanes }, i) => (
+          {timed.map(({ list, segs, lanes, more }, i) => (
             <div
               key={keys[i]}
               className={cn(
@@ -295,8 +299,10 @@ export function TimeGrid({
               }}
             >
               {list.map((it, k) => {
+                const slot = lanes[k]
+                if (slot === null) return null
                 const seg = segs[k] as { from: number; to: number }
-                const { lane, lanes: n } = lanes[k] ?? { lane: 0, lanes: 1 }
+                const { lane, lanes: n } = slot ?? { lane: 0, lanes: 1 }
                 const dragging = drag && drag.kind !== 'create' && drag.item.key === it.key
                 const canDrag = it.source === 'event' && it.startDay === it.endDay
                 return (
@@ -384,6 +390,34 @@ export function TimeGrid({
                         className="absolute inset-x-0 bottom-0 h-1.5 cursor-ns-resize"
                       />
                     ) : null}
+                  </button>
+                )
+              })}
+              {more.map((m) => {
+                const first = list[m.hidden[0] as number]
+                const label = t('calendar.moreInSlot', { count: m.hidden.length })
+                return (
+                  <button
+                    key={`more-${m.cluster}`}
+                    type="button"
+                    data-testid="cal-more"
+                    aria-label={label}
+                    title={m.hidden.map((h) => list[h]?.title).join('、')}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={() => {
+                      const d = days[i]
+                      if (onPickDay && d) onPickDay(d)
+                      else if (first) onOpen(first)
+                    }}
+                    className="absolute z-[1] grid min-h-6 place-items-center rounded-md border border-divider border-dashed bg-surface-2 font-medium text-fg-muted text-xs tabular-nums transition-colors hover:bg-hover hover:text-fg"
+                    style={{
+                      top: (m.from / 60) * HOUR + 1,
+                      height: Math.max(24, HOUR / 2 - 2),
+                      left: `calc(${(m.lane / m.lanes) * 100}% + 2px)`,
+                      width: `calc(${100 / m.lanes}% - 4px)`,
+                    }}
+                  >
+                    +{m.hidden.length}
                   </button>
                 )
               })}
