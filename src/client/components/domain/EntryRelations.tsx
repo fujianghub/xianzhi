@@ -15,12 +15,11 @@ import type { LinkView } from '../../../server/services/links.ts'
 import { LINK_KINDS, type LinkKind } from '../../../shared/schemas/enums.ts'
 import { EntryPicker } from '../../editor/EntryPicker.tsx'
 import { ApiError, api, unwrap } from '../../lib/api.ts'
-import { cn } from '../../lib/cn.ts'
 import type { Entry } from '../../lib/entry-queries.ts'
 import { newId } from '../../lib/uuid.ts'
 import { Button } from '../ui/button.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
-import { entryKindClass } from './EntryCard.tsx'
+import { KindBadge } from './KindIcon.tsx'
 
 const MANUAL_KINDS = LINK_KINDS.filter((k) => k !== 'mentions')
 
@@ -96,11 +95,7 @@ export function EntryRelations({ entry, canWrite }: { entry: Entry; canWrite: bo
       >
         {label ? <span className="shrink-0 text-[11px] text-fg-faint">{label}</span> : null}
         {end.kind && end.type === 'entry' ? (
-          <span
-            className={cn('shrink-0 rounded-full px-1.5 text-[11px]', entryKindClass(end.kind))}
-          >
-            {t(`entry.kind.${end.kind}`)}
-          </span>
+          <KindBadge kind={end.kind} className="shrink-0" />
         ) : null}
         {end.type === 'entry' && end.id ? (
           <Link

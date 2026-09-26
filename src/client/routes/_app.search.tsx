@@ -7,7 +7,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { CheckSquare, FileText, Search as SearchIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { entryKindClass } from '../components/domain/EntryCard.tsx'
+import { KindBadge } from '../components/domain/KindIcon.tsx'
 import { TagFilter } from '../components/domain/TagFilter.tsx'
 import { EmptyState } from '../components/ui/empty-state.tsx'
 import { Highlight } from '../components/ui/highlight.tsx'
@@ -216,14 +216,7 @@ function HitRow({ hit }: { hit: Hit }) {
           ) : null}
         </span>
         {hit.type === 'entry' && hit.kind ? (
-          <span
-            className={cn(
-              'shrink-0 rounded-full px-2 py-0.5 font-medium text-xs',
-              entryKindClass(hit.kind),
-            )}
-          >
-            {t(`entry.kind.${hit.kind}`)}
-          </span>
+          <KindBadge kind={hit.kind} className="shrink-0" />
         ) : hit.status ? (
           <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-fg-muted text-xs">
             {t(`task.status.${hit.status}`)}

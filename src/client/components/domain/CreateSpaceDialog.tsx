@@ -232,7 +232,7 @@ export function CreateSpaceDialog() {
                 t('space.noIcon')
               ) : (
                 <>
-                  <SpaceIcon icon={i} kind={kind} color={null} className="size-5 bg-transparent" />
+                  <SpaceIcon icon={i} kind={kind} color={null} plain className="size-5" />
                   <span className="sr-only">{i}</span>
                 </>
               )

@@ -182,9 +182,11 @@
 |---|---|---|---|---|---|---|
 | REQ-KB-001 | P1 | 2 | 大类：工作区预置「产品开发 / 技术学习规划 / 生活」；owner / admin 可增 / 改名 / 改色 / 排序 / 删除（同名 409）；删除大类不删空间 | When 新工作区 `GET /space-groups` Then 三个预置大类有序；When member `POST /space-groups` Then 403 | ADR-0012 · 01 §3.0 · 02 §9 | api · unit |
 | REQ-KB-002 | P1 | 2 | 界面沿用「空间」（注 2026-09-26：曾改称「知识库」「分类」，ADR-0013 改回）；空间可归入大类（新建时选择 / 编辑 / 侧栏拖到另一大类）；侧栏与列表按大类分区（未分类最后、空大类可「在此新建」、分区可折叠）；空间类型可改；个人空间不入大类 | When 在「生活」分区「在此新建」Then 新空间 `groupId` = 生活，侧栏出现在该分区；When 把空间拖到另一分区头 Then 一条 `PATCH /spaces/reorder {groupId}` | ADR-0012 · 08 §2.5 | api · unit · e2e |
-| REQ-KB-003 | P1 | 2 | 进入空间默认为概览：产品型显示未关闭 Bug（按严重度计数）· 最近迭代 · 最新版本 · 决策与优化 · 最近更新；学习型显示学习计划进度 · 最近笔记；快捷新建带好类型与内置模板 | When 空间有 critical 未关闭 Bug 与已修复 Bug Then Bug 面板只列未关闭的、critical 计数 1；点「Bug」快捷 Then 新建对话框预选「产品 Bug 修复与迭代」 | ADR-0012 · 08 §2.5b | e2e |
+| REQ-KB-003 | P1 | 2 | 进入空间默认为概览：产品型显示未关闭 Bug（按严重度计数）· 最近迭代 · 最新版本 · 决策与优化 · 最近更新；学习型显示学习计划进度 · 最近笔记；快捷新建带好类型与内置模板（注 2026-09-26：个人空间改为个人工作台，见 REQ-KB-007） | When 空间有 critical 未关闭 Bug 与已修复 Bug Then Bug 面板只列未关闭的、critical 计数 1；点「Bug」快捷 Then 新建对话框预选「产品 Bug 修复与迭代」 | ADR-0012 · 08 §2.5b | e2e |
 | REQ-KB-004 | P1 | 2 | 记录列表：类型多选；按 fields 过滤（`fields=`）；卡片 / 表格视图；表格列为所选类型 fields 且可排序；卡片显示关键字段与标签；记录可编辑标签 | When `?kind=bug&view=table` 选严重度 high Then URL 带 `fields=severity=high` 且只剩 high；When `GET /entries?kind=bug,iteration` Then 两类都返回 | ADR-0012 · 02 §9 | api · e2e |
 | REQ-KB-005 | P1 | 2 | 目录树：记录可嵌套（同空间）、拖拽 / 按钮移动（上移 / 下移 / 缩进 / 取消缩进 / 移出目录）、防环；不在目录的记录列在「其余记录」可加入；软删父页或移到别的空间时子页上移一级；记录页面包屑显示完整路径 | When A 移到自己的孙页下 Then 422；When 软删父页 Then 子页上移到其父级；When 在目录「新建子页」Then 新记录面包屑含父页 | ADR-0012 · 01 §3.4 · 02 §9 | api · unit · e2e |
+| REQ-KB-006 | P1 | 2 | 目录层级表达（ADR-0015，参照简斋）：目录页 / 位置导航 / 个人首页空间目录的每级祖先有 1px 竖向引导线（位于该级展开指示中心，最近一级更深，当前行的最近一级为主色）；侧栏空间行在大类下缩进一级并带分区引导线；字重 L0 600 · L1 500 · 其余 400；折叠且有子项时行尾显示直接子项数；新展开子行淡入（减弱档无动画） | When 目录页展开三层 Then 第 2 级行有 2 条 `.xz-guide`、`data-depth=2`；When 折叠有 2 个子页的节点 Then 行尾计数为 2 | ADR-0015 · 04 §2.4 | unit · 手工 |
+| REQ-KB-007 | P1 | 2 | 个人空间概览为个人工作台：主面板「空间目录」= 大类 → 空间 → 目录树（空间展开时才请求目录，状态本机保存），侧列个人记录与各空间最近更新，快捷新建随笔 / 笔记 / 计划；不显示 Bug / 迭代 / 版本面板 | When 打开 `/spaces/me-…/home` Then 出现「产品开发」「技术学习规划」大类及其空间；展开某空间 Then 请求 `GET /spaces/:id/tree` 并显示其目录；页面无 `kb-panel-bugs` | ADR-0015 · 08 §2.5b | e2e |
 
 ## 7. EDITOR —— 编辑器交互
 
@@ -388,6 +390,7 @@
 | REQ-UI-034 | P1 | 2 | 宽屏不留大片空白（2026-09-25）：今日 / 收件箱 / 通知在 ≥ xl 为「主列 + 20rem 右侧速览栏」（今天：日期 / 农历 / 节假日 · 今日日程 · 小月历 · 7 天内到期），主列最宽 96rem；今日页顶部四枚计数卡（逾期 / 今日到期 / 今日开始 / 今日日程）；回收站 / 搜索加宽到 5xl；空间卡片 2xl 四列；设置子页统一左对齐 | When 视口 1728 打开 `/today` Then `glance-rail` 可见、`today-stats` 4 格；When 视口 1280 Then 无速览栏 | 04 §4 · 08 §2.3 | e2e · 手工 |
 | REQ-UI-035 | P1 | 2 | 色板改为鲜艳 9 色（ADR-0010）：蓝 / 橙 / 黄 / 红 / 绿 / 紫 / 粉 / 青 / 灰，每色 `-solid`（色条 / 圆点）· `-bg`（浅底）· `-fg`（字，对 `-bg` ≥ 4.5，两主题）；空间 / 标签 / 日历共用；日历色块为「浅底 + 同色深字 + 3px 鲜艳左色条」；旧色名经迁移 0007 映射（moss / pine→green、amber→orange、indigo→blue、ochre→red、teal→cyan、plum→purple） | When `check-contrast` Then 9 色两主题全部达标<br>When 日历新建颜色为 `teal` Then 422 | ADR-0010 · 04 §2.1 | unit · api · 手工 |
 | REQ-UI-036 | P0 | 2 | 非安全上下文（按局域网 IP 走 HTTP）下所有写操作应可用（2026-09-25）：客户端 id / `Idempotency-Key` 只经 `lib/uuid.ts` 的 `newId()` 生成，禁止 `crypto.randomUUID`；复制走 `lib/clipboard.ts` 降级；创建失败且非 `ApiError` 时 `console.error` 留痕 | Given `crypto.randomUUID` 不存在 When 新建记录 / 任务 Then 创建成功<br>When `pnpm lint` Then `check-css` 对 `src/client` 中 `crypto.randomUUID` 报违规 | debug/2026-09-25-randomuuid-insecure-context | e2e · unit |
+| REQ-UI-037 | P1 | 2 | 记录类型图标与色块质感（ADR-0015）：9 种类型各有不同 Lucide 图标，色取 REQ-UI-033 色板；`KindIcon` 色块 = 浅底 → 实色渐变 + 顶部高光 + 同色细描边，所在行悬停弹簧放大；类型徽章全站改为「图标 + 类型名」胶囊；位置导航快捷项用 `--xz-icon-*` 专属色，大类用大类色色块；未设颜色的空间图标按类型给默认色，不回退灰色；只引用 token | When 记录卡片类型为 Bug Then 徽章含 Bug 图标且为 red 色板；When `check-contrast` Then 两主题达标；When 减弱档 Then 色块无变换 | ADR-0015 · 04 §2.1 · 06 §5 | unit · 手工 |
 | REQ-UI-027 | P1 | 2 | Topbar 滚动 > 8px 后应显示 `shadow-soft` 与翡翠枝线，回到顶部即消失；Dialog 打开时底板光晕下移 4px 并减弱，关闭复原 | When 页面滚动 100px Then topbar 带 `data-scrolled`；When 打开 Dialog Then `html[data-dialog-open]` 且 `body::before` transform 非 none | 06 §4 · ADR-0005 §2 | e2e |
 
 ---
