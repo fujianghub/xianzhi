@@ -21,7 +21,8 @@ test.describe('admin', () => {
       const g = page.getByTestId('design')
       await expect(g).toHaveAttribute('data-page', p)
       await page.evaluate(() => document.fonts.ready)
-      await expect(g).toHaveScreenshot(`design-${p}.png`)
+      // 吸顶顶栏压在画廊上：通知未读数随库里数据变化，遮罩铃铛，基线不依赖累积数据
+      await expect(g).toHaveScreenshot(`design-${p}.png`, { mask: [page.getByTestId('bell')] })
     })
   }
 })

@@ -12,8 +12,11 @@ interface S {
 }
 const listSpaces = async (req: APIRequestContext) =>
   ((await (await req.get('/api/v1/spaces?limit=200')).json()) as { items: S[] }).items
-const createSpace = async (req: APIRequestContext, name: string) => {
-  const r = await req.post('/api/v1/spaces', { data: { name, kind: 'project' }, headers: sameSite })
+const createSpace = async (req: APIRequestContext, name: string, groupId?: string) => {
+  const r = await req.post('/api/v1/spaces', {
+    data: { name, kind: 'project', ...(groupId ? { groupId } : {}) },
+    headers: sameSite,
+  })
   expect(r.status()).toBe(201)
   return (await r.json()) as S
 }
@@ -38,14 +41,22 @@ test('REQ-SPACE-005 侧栏拖动排序只发一条 PATCH 且仅一行 sort_key �
 }) => {
   const req = request
   const stamp = Date.now().toString(36)
-  await createSpace(req, `拖动 A ${stamp}`)
-  await createSpace(req, `拖动 B ${stamp}`)
-  const c = await createSpace(req, `拖动 C ${stamp}`)
+  // 专用大类：分区里只有这 3 个空间。放进「未分类」会随历次运行累积（验证库不重建时上百行，
+  // 拖动目标滚出视口），用例就依赖了库里的数据
+  const g = await req.post('/api/v1/space-groups', {
+    data: { name: `拖动 ${stamp}` },
+    headers: sameSite,
+  })
+  expect(g.status()).toBe(201)
+  const gid = ((await g.json()) as { id: string }).id
+  await createSpace(req, `拖动 A ${stamp}`, gid)
+  await createSpace(req, `拖动 B ${stamp}`, gid)
+  const c = await createSpace(req, `拖动 C ${stamp}`, gid)
   await page.goto('/today')
-  // ADR-0012：新建空间默认「未分类」分区
   const rows = page
-    .locator('[data-testid="space-section"][data-group-id="none"]')
+    .locator(`[data-testid="space-section"][data-group-id="${gid}"]`)
     .getByTestId('space-row')
+  await expect(rows).toHaveCount(3)
   await expect(rows.last()).toHaveAttribute('data-space-id', c.id)
   const first = await rows.first().getAttribute('data-space-id')
   const before = new Map((await listSpaces(req)).map((s) => [s.id, s.sortKey]))

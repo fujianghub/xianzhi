@@ -1,5 +1,5 @@
 /** T1-020 附件（REQ-ATTACH-001 ~ 011 · REQ-OPS-008，api / unit）。 */
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { eq } from 'drizzle-orm'
@@ -235,6 +235,19 @@ describe('T1-020 attachments', () => {
     expect((await sharp(Buffer.from(await md.arrayBuffer())).metadata()).width).toBe(1280)
     const th = await get(u.owner, a.variants.thumb ?? '')
     expect((await sharp(Buffer.from(await th.arrayBuffer())).metadata()).width).toBe(320)
+  })
+
+  it('REQ-ATTACH-004 去重命中但磁盘文件已丢（只恢复了库 / 数据目录换位置）→ 按原 key 补回，同 id 可下载', async () => {
+    const bytes = await png(64, 64, '#c52')
+    const first = (await (await up(u.owner, bytes, 'lost.png')).json()) as A
+    const [row] = await db().select().from(attachments).where(eq(attachments.id, first.id))
+    for (const k of [row?.storageKey ?? '', ...Object.values(row?.variants ?? {})])
+      rmSync(dataPath(DATA, k as string), { force: true })
+    expect((await get(u.owner, first.variants.md ?? '')).status).toBe(404)
+    const again = (await (await up(u.owner, bytes, 'lost.png')).json()) as A
+    expect(again.id).toBe(first.id)
+    expect((await get(u.owner, again.url)).status).toBe(200)
+    expect((await get(u.owner, again.variants.md ?? '')).status).toBe(200)
   })
 
   it('REQ-ATTACH-005 含 <script> 的 SVG → 201，mime=image/png，存储文件无脚本', async () => {
