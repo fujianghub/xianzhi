@@ -1,4 +1,4 @@
-/** 设置布局（08 §2.13、T1-033 · T1-043）：左侧二级导航（个人 / 通知 / 安全 / API Key / 模板 / 类型（ADR-0016 · 0017）/ 标签；admin 多出工作区 / 成员 / 审计；owner 再多用户管理，ADR-0010）。 */
+/** 设置布局（08 §2.13、T1-033 · T1-043）：左侧二级导航（个人 / 通知 / 安全 / API Key / 模板 / 类型（ADR-0016 · 0017）/ 标签；admin 多出工作区 / 成员 / 审计 / 设计画廊（ADR-0020）；owner 再多用户管理，ADR-0010）。 */
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router'
 import {
   Bell,
@@ -6,6 +6,7 @@ import {
   KeyRound,
   LayoutTemplate,
   type LucideIcon,
+  Palette,
   ScrollText,
   Shapes,
   ShieldCheck,
@@ -81,6 +82,9 @@ function SettingsLayout() {
             ) : null}
             <Link to="/settings/workspace/audit" className={link}>
               <Item icon={ScrollText}>{t('settings.nav.audit')}</Item>
+            </Link>
+            <Link to="/settings/design" className={link} data-testid="nav-design">
+              <Item icon={Palette}>{t('settings.nav.design')}</Item>
             </Link>
           </>
         ) : null}

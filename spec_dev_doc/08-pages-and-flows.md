@@ -45,7 +45,7 @@
 注（2026-09-24）：`/settings/api-keys`、`/settings/workspace`、`/settings/workspace/members`、`/settings/workspace/audit` 四页 Phase 0 无对应任务、未做页面（接口已就绪），经用户裁定并入 Phase 1，任务 T1-043。
 | `/trash` | `routes/trash.tsx` | 回收站（任务 / 记录 / 空间） | member+（只见自己软删的；owner/admin 见全部；guest 无写权限故无入口） | 1 | REQ-ENTRY-007 · REQ-TASK-013 |
 | `/jobs/$jobId` | `routes/jobs.$jobId.tsx` | 作业进度与下载 | 发起人 | 1 | REQ-EXPORT-001 |
-| `/design` | `routes/design.tsx` | 组件与材质画廊 | admin+ | 0 | REQ-UI-004 |
+| ~~`/design`~~ `/settings/design` | `routes/_app.settings.design.tsx`（`_app.design.tsx` 只做跳转） | 组件与材质画廊（注 2026-09-27，ADR-0020：挪进设置「工作区」组，旧地址带 search 跳转） | admin+ | 0 | REQ-UI-004 · 039 · 040 |
 
 不是路由：Peek 面板（REQ-UI-007，叠在任意列表之上，不改 URL）、⌘K、通知铃铛面板、快捷键面板 `?`。
 布局：`routes/__root.tsx` 挂 Topbar / Sidebar / Aside / 底部导航（REQ-UI-014、REQ-MOBILE-001）；`/login*` 与 `/invite/*` 用无 chrome 布局。
@@ -231,7 +231,8 @@
 ### 2.16 `/design`
 - **显示**：token 页、材质 / 深度 / 切换三页、组件矩阵（04 §8、06 §10）。
 - **search params**：`{ page?: string; theme?: 'light'|'dark'|'both'; motion?: 'reduce'|'standard'|'rich'; transparency?: 'reduce' }`。
-- **REQ**：REQ-UI-002 · 003 · 004 · 016。
+- **REQ**：REQ-UI-002 · 003 · 004 · 016 · 039 · 040。
+- 注（2026-09-27，ADR-0020）：路由改为 `/settings/design`，嵌在设置布局内（「工作区」组，admin+）；旧 `/design` 带 search 跳转。顶部说明 + 工具栏（主题 当前 / 日场 / 夜场 / 并排 · 动效档位 · 降低透明度），`motion` / `transparency` 只在画廊内临时生效，离开恢复本机偏好；Token 页加对比度表；组件页加类型色块 / 胶囊 / 9 色板 / 燕印 / 目录引导线。
 
 ---
 

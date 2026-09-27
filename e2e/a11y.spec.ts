@@ -37,7 +37,7 @@ test.describe('owner', () => {
   test.use({ storageState: STATE.owner })
   for (const theme of ['light', 'dark'] as const) {
     test(`REQ-UI-013 axe 已登录路由（${theme}）`, async ({ page, request }) => {
-      test.setTimeout(150_000) // 30 条路由逐个扫描，60 s 默认上限会偶发超时
+      test.setTimeout(240_000) // 30+ 条路由逐个扫描，每条约 4 s（加载 + axe）；150 s 已贴边
       await page.addInitScript((t) => localStorage.setItem('xz:theme', t), theme)
       const id = await createEntry(request, {
         kind: 'decision',
@@ -71,11 +71,11 @@ test.describe('owner', () => {
         '/calendar?view=week',
         '/calendar?view=day',
         '/calendar?view=year',
-        '/design?page=tokens',
-        '/design?page=materials',
-        '/design?page=depth',
-        '/design?page=switch',
-        '/design?page=components',
+        '/settings/design?page=tokens',
+        '/settings/design?page=materials',
+        '/settings/design?page=depth',
+        '/settings/design?page=switch',
+        '/settings/design?page=components',
       ]) {
         await page.goto(path)
         await page.waitForLoadState('networkidle')
