@@ -37,7 +37,7 @@ export function DialogContent({
       <DialogPrimitive.Content
         ref={sheen}
         className={cn(
-          'glass-thick glass-cursor-sheen fixed top-1/2 left-1/2 z-(--xz-z-modal) w-[min(92vw,32rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl p-6 text-fg outline-none data-[state=open]:animate-[xz-pop-in_var(--xz-dur-slow)_var(--xz-ease-out)]',
+          'glass-thick glass-cursor-sheen fixed top-1/2 left-1/2 z-(--xz-z-modal) max-h-[calc(100dvh-2rem)] w-[min(92vw,32rem)] -translate-x-1/2 overflow-y-auto overscroll-contain -translate-y-1/2 rounded-xl p-6 text-fg outline-none data-[state=open]:animate-[xz-pop-in_var(--xz-dur-slow)_var(--xz-ease-out)]',
           className,
         )}
         {...props}

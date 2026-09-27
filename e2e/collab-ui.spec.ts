@@ -208,25 +208,34 @@ test('REQ-UI-007 悬停 700ms Peek 可见且 URL 不变；Enter 后 URL 变为�
 })
 
 test('REQ-NOTIF-005 点击通知跳深链并标已读；全部已读后未读 0', async ({ page, request }) => {
-  // 由 member 在 owner 的任务上评论，产生 owner 的通知
+  // 由 member 在 owner 的两个任务上各评论一次，产生 owner 的两条通知：
+  // 第一条用来点深链；第二条保证点完之后仍有未读，「全部已读」可用——不依赖共用库里别的用例留下的未读
+  //（见 debug/2026-09-26-e2e-shared-db-data-drift）
   const s = await space(request)
   const t = await task(request, { title: '通知深链', spaceId: s.id })
+  const t2 = await task(request, { title: '通知深链 其二', spaceId: s.id })
   const member = await memberCtx()
-  const c = await member.post('/api/v1/comments', {
-    data: {
-      targetType: 'task',
-      targetId: t.id,
-      bodyPm: {
-        type: 'doc',
-        content: [{ type: 'paragraph', content: [{ type: 'text', text: '看一下' }] }],
+  for (const target of [t, t2]) {
+    const c = await member.post('/api/v1/comments', {
+      data: {
+        targetType: 'task',
+        targetId: target.id,
+        bodyPm: {
+          type: 'doc',
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: '看一下' }] }],
+        },
       },
-    },
-    headers: sameSite,
-  })
-  expect(c.status(), await c.text()).toBe(201)
+      headers: sameSite,
+    })
+    expect(c.status(), await c.text()).toBe(201)
+  }
   await member.dispose()
   await page.goto('/notifications?tab=unread')
-  const item = page.getByTestId('notification-item').filter({ hasText: '通知深链' }).first()
+  const item = page
+    .getByTestId('notification-item')
+    .filter({ hasText: '通知深链' })
+    .filter({ hasNotText: '其二' })
+    .first()
   await expect(item).toBeVisible({ timeout: 15_000 })
   await item.locator('button').first().click()
   await expect(page).toHaveURL(new RegExp(`/tasks/${t.id}`))

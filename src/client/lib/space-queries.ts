@@ -13,12 +13,28 @@ export type SpaceVisibility = 'workspace' | 'members'
 
 export const spacesKey = (archived: boolean) => ['spaces', { archived }] as const
 
+/**
+ * 侧栏 / 空间列表 / 个人工作台 / 选择器都要完整的空间集合：按 `nextCursor` 逐页取完（每页上限 200）。
+ * 曾只取第一页，空间超过 200 个时排在后面的（新建的都在最后）静默消失。
+ */
+export async function fetchAllSpaces(
+  query: { archived?: '1'; deleted?: '1' } = {},
+): Promise<Space[]> {
+  const items: Space[] = []
+  let cursor: string | undefined
+  do {
+    const page = await unwrap<{ items: Space[]; nextCursor: string | null }>(
+      api.spaces.$get({ query: { ...query, limit: '200', ...(cursor ? { cursor } : {}) } }),
+    )
+    items.push(...page.items)
+    cursor = page.nextCursor ?? undefined
+  } while (cursor)
+  return items
+}
+
 export const spacesQuery = (archived = false) => ({
   queryKey: spacesKey(archived),
-  queryFn: () =>
-    unwrap<{ items: Space[] }>(
-      api.spaces.$get({ query: archived ? { archived: '1', limit: '200' } : { limit: '200' } }),
-    ).then((r) => r.items),
+  queryFn: () => fetchAllSpaces(archived ? { archived: '1' } : {}),
   staleTime: 30_000,
 })
 

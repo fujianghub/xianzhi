@@ -59,6 +59,7 @@ pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore 
 | `spec_dev_doc/adr/0014 · 0015` | 我的记录：位置导航（大类 → 空间 → 目录）· 标签自定义 / 合并 · 收藏 / 最近 · 批量 `/entries/batch` · 看板 / 时间线 · 目录引导线与字重分级（`DirTree` / `TreeGuides`）· 个人空间工作台（空间目录）· 记录类型图标色块（`KindIcon`，`.xz-chip` 只取 token） |
 | `spec_dev_doc/adr/0016 · 0017` | 日历快速编辑气泡 / 任务拖动 · 记录默认列表 + 批量改类型 / 状态 · 侧栏「空间」可点 · 标签与自定义类型按人隔离（读写按 `tags.created_by` 过滤）· 内置类型所有者维护（`entry_kind_overrides`、`/settings/types`） |
 | `spec_dev_doc/adr/0018 · 0019 · 0020` | 大类就地管理（侧栏 ⋯）· 在空间里就地新建：对话框「建在」行、`e` 跟随上下文（`useNewEntryContext`）、新建子页面 / 新建并关联（`linkFrom`）· `[[` 新建 · 侧栏 / 目录「+」· 空间默认类型与模板 · 设计画廊挪进设置（`/settings/design`，旧 `/design` 跳转）、工具栏 / 对比度表 / 领域组件 |
+| `spec_dev_doc/adr/0021` | 空间批量管理：`POST /spaces/batch`（dryRun 计数、purge 只收回收站）· `/spaces`「批量管理」· 回收站空间多选 |
 | `spec_dev_doc/01-domain-model.md` | 表结构、`fields` schema、事件种类、权限矩阵 |
 | `spec_dev_doc/02-api-conventions.md` | 路由/错误/分页/SSE/文件/MCP 约定、路由清单 |
 | `spec_dev_doc/03-editor-kernel.md` | Tiptap schema、Hocuspocus 钩子、快照、模板、交互规格、简斋陷阱 |

@@ -245,8 +245,14 @@ describe('entries plus', () => {
     expect((await list(owner, `spaceId=${spaceB}&archived=1`)).map((i) => i.id)).toEqual([a])
     // member 删不了 owner 的私人随笔（不可见 → failed），能删自己可写的
     const m1 = await create(member, { kind: 'note', title: '成员的', spaceId: spaceB })
-    r = await batch({ op: 'delete', ids: [m1, privateOfOwner] }, member)
+    // owner 的 b 可见但 member 不是作者：authz 拒绝 → FORBIDDEN（不是 INTERNAL，也不透出 `forbidden: entry.delete`）
+    r = await batch({ op: 'delete', ids: [m1, privateOfOwner, b] }, member)
     expect(r.body.ok).toEqual([m1])
-    expect(r.body.failed.map((f: { id: string }) => f.id)).toEqual([privateOfOwner])
+    const failed = r.body.failed as { id: string; code: string; message: string }[]
+    expect(failed.map((f) => [f.id, f.code])).toEqual([
+      [privateOfOwner, 'NOT_FOUND'],
+      [b, 'FORBIDDEN'],
+    ])
+    expect(failed[1]?.message).toBe('无权操作此记录')
   })
 })

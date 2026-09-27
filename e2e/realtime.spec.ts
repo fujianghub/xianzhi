@@ -34,33 +34,44 @@ test('REQ-NOTIF-003 第 4 个标签页挤掉第 1 个（evicted 后不再重连�
   const before = Number((await bell.textContent().catch(() => '0')) || '0')
   const framesBefore = await second.evaluate(() => (window as GiWindow).__gi?.realtime?.frames ?? 0)
   await second.evaluate(() => (window as GiWindow).__gi?.realtime?.close())
-  expect(
-    (
-      await owner.post('/api/v1/workspace/owner-transfer', {
-        data: { toUserId: memberId },
-        headers: sameSite,
-      })
-    ).status(),
-  ).toBe(204)
-  expect(
-    (
+  try {
+    expect(
+      (
+        await owner.post('/api/v1/workspace/owner-transfer', {
+          data: { toUserId: memberId },
+          headers: sameSite,
+        })
+      ).status(),
+    ).toBe(204)
+    expect(
+      (
+        await member.post('/api/v1/workspace/owner-transfer', {
+          data: { toUserId: ownerId },
+          headers: sameSite,
+        })
+      ).status(),
+    ).toBe(204)
+    await second.waitForTimeout(1500) // 期间帧进入服务端缓冲
+    await second.evaluate(() => (window as GiWindow).__gi?.realtime?.reconnect())
+    await expect
+      .poll(() => second.evaluate(() => (window as GiWindow).__gi?.realtime?.frames ?? 0))
+      .toBeGreaterThan(framesBefore)
+    await expect(bell).toHaveText(String(before + 1))
+  } finally {
+    // 无论断言成败都复原：owner 仍在 member 手里就转回；转回后原 owner 之外的一方会留在 admin，
+    // 改回 member。否则后续依赖角色的用例（如 REQ-WS-005）连带失败，且 owner 转让不写角色审计、难以追查
+    const role = async (ctx: typeof owner) =>
+      ((await (await ctx.get('/api/v1/me')).json()) as { workspaceRole?: string }).workspaceRole
+    if ((await role(member)) === 'owner')
       await member.post('/api/v1/workspace/owner-transfer', {
         data: { toUserId: ownerId },
         headers: sameSite,
       })
-    ).status(),
-  ).toBe(204)
-  await second.waitForTimeout(1500) // 期间帧进入服务端缓冲
-  await second.evaluate(() => (window as GiWindow).__gi?.realtime?.reconnect())
-  await expect
-    .poll(() => second.evaluate(() => (window as GiWindow).__gi?.realtime?.frames ?? 0))
-    .toBeGreaterThan(framesBefore)
-  await expect(bell).toHaveText(String(before + 1))
-  // 转回后原 owner 之外的一方会留在 admin：复原 member 角色，免得影响后续依赖角色的用例
-  await owner.patch(`/api/v1/workspace/members/${memberId}`, {
-    data: { role: 'member' },
-    headers: sameSite,
-  })
-  await owner.dispose()
-  await member.dispose()
+    await owner.patch(`/api/v1/workspace/members/${memberId}`, {
+      data: { role: 'member' },
+      headers: sameSite,
+    })
+    await owner.dispose()
+    await member.dispose()
+  }
 })
