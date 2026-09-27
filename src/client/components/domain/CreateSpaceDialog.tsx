@@ -178,6 +178,8 @@ export function CreateSpaceDialog() {
             value={group}
             options={['none', ...(groups.data ?? []).map((g) => g.id)] as const}
             onChange={setGroup}
+            // 大类可能很多：限高滚动，不把对话框撑出视口
+            className="max-h-28 overflow-y-auto"
             render={(g) =>
               g === 'none'
                 ? t('space.groups.none')

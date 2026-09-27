@@ -84,4 +84,9 @@ test('REQ-SPACE-010 · 011 · 012 批量管理：Shift 连选 → 归档并撤�
   const left = await request.get('/api/v1/spaces?deleted=1&limit=200')
   const ids = ((await left.json()) as { items: { id: string }[] }).items.map((x) => x.id)
   for (const s of sp) expect(ids).not.toContain(s.id)
+  // 收尾删掉本用例的两个大类：共用库里大类只增不减会撑高新建空间对话框（debug/2026-09-27-spaces-list-truncated-200）
+  for (const id of [g.id, g2.id])
+    expect(
+      (await request.delete(`/api/v1/space-groups/${id}`, { headers: sameSite })).status(),
+    ).toBe(204)
 })

@@ -20,6 +20,7 @@ import { type SpaceBatchResult, useSpaceBatch } from '../hooks/useSpaces.ts'
 import { ApiError, api, unwrap } from '../lib/api.ts'
 import { cn } from '../lib/cn.ts'
 import { optOneOf } from '../lib/search.ts'
+import { fetchAllSpaces } from '../lib/space-queries.ts'
 
 const TABS = ['tasks', 'entries', 'spaces'] as const
 type Tab = (typeof TABS)[number]
@@ -41,7 +42,8 @@ interface Row {
 const fetchers: Record<Tab, () => Promise<{ items: Row[] }>> = {
   tasks: () => unwrap(api.tasks.$get({ query: { deleted: '1', limit: '200' } as never })),
   entries: () => unwrap(api.entries.$get({ query: { deleted: '1', limit: '100' } as never })),
-  spaces: () => unwrap(api.spaces.$get({ query: { deleted: '1', limit: '200' } as never })),
+  // 空间批量永久删除在这里做，列表必须完整：逐页取完（ADR-0021）
+  spaces: () => fetchAllSpaces({ deleted: '1' }).then((items) => ({ items: items as Row[] })),
 }
 const paths: Record<Tab, string> = { tasks: 'tasks', entries: 'entries', spaces: 'spaces' }
 
