@@ -105,6 +105,8 @@
 | 自定义类型 | Custom entry type / `typeId` | `entry_types` | 我的自定义类型（管理页称「类型」，ADR-0017） | `settings.types.*` | 个人的记录类型：名 + 色 + 状态列表；只有本人能用、能管，读者可见名 / 色 / 状态；记录 `kind = custom`（ADR-0016 · 0017） | 01 §3.4c |
 | 删除内置类型 | Deleted builtin kind | `entry_kind_overrides.deleted` | 删除 / 恢复 | `settings.types.delete` · `settings.types.restore` | 所有者操作：全员该类型记录转到另一内置类型后标记已删除，可恢复；取代 ADR-0016 的「隐藏」（ADR-0017） | 01 §3.4c |
 | 快速编辑气泡 | Calendar quick edit | — | — | `calendar.quick.*` | 日历里点日程 / 任务在其旁弹出的就地编辑框（ADR-0016） | 08 §2.17 |
+| 新建上下文 | New-entry context | — | 建在 | `entry.location.*` | 页面登记的「在这里新建建在哪」：空间页 = 目录顶层，记录页 = 同级；按钮可传一次性默认值（ADR-0018） | 08 §2.8 |
+| 新建并关联 | Create & link / `linkFrom` | `links` | 新建并关联 | `link.createLinked` | 新建记录同时由当前记录关联到它，同事务（ADR-0018） | 02 §9 |
 | 看板（记录） | Entry board / `view=board` | — | 看板 | `entry.board.label` | 按 `fields.status` 分列的记录视图（ADR-0014） | 08 §2.8 |
 | 时间线 | Timeline / `view=timeline` | — | 时间线 | `entry.timeline.label` | 迭代 / 变更按日期的视图（ADR-0014） | 08 §2.8 |
 | 合并标签 | Merge tag | — | 合并到… | `settings.tags.merge` | 源标签关联并入目标后删除源（ADR-0014） | 02 §9 |

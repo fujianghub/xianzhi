@@ -7,15 +7,17 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Plus, X } from 'lucide-react'
+import { FilePlus2, Plus, X } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { LinkView } from '../../../server/services/links.ts'
 import { LINK_KINDS, type LinkKind } from '../../../shared/schemas/enums.ts'
 import { EntryPicker } from '../../editor/EntryPicker.tsx'
+import { entryPageContext } from '../../hooks/useNewEntryContext.ts'
 import { ApiError, api, unwrap } from '../../lib/api.ts'
 import type { Entry } from '../../lib/entry-queries.ts'
+import { useNewEntry } from '../../lib/stores.ts'
 import { newId } from '../../lib/uuid.ts'
 import { Button } from '../ui/button.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
@@ -24,6 +26,7 @@ import { KindBadge } from './KindIcon.tsx'
 const MANUAL_KINDS = LINK_KINDS.filter((k) => k !== 'mentions')
 
 export function EntryRelations({ entry, canWrite }: { entry: Entry; canWrite: boolean }) {
+  const openNew = useNewEntry((s) => s.setOpen)
   const { t } = useTranslation()
   const qc = useQueryClient()
   const outQ = useQuery({
@@ -232,6 +235,25 @@ export function EntryRelations({ entry, canWrite }: { entry: Entry; canWrite: bo
             >
               <Plus className="size-4" />
               {t('link.add')}
+            </Button>
+            {/* 新建并关联（ADR-0018、REQ-LINK-006）：同级新建，按所选关联类型一步建好 */}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() =>
+                openNew(true, {
+                  ...entryPageContext(entry),
+                  linkFrom: {
+                    entryId: entry.id,
+                    title: entry.title,
+                    kind: manualKind as 'relates' | 'blocks' | 'caused_by' | 'resolves',
+                  },
+                })
+              }
+              data-testid="link-create"
+            >
+              <FilePlus2 className="size-4" />
+              {t('link.createLinked')}
             </Button>
           </div>
         ) : null,

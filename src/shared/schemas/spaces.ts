@@ -1,7 +1,14 @@
 import { z } from 'zod'
 import { isoDateTime, uuidSchema } from './common.ts'
-import { PALETTE_COLORS, SPACE_KINDS, SPACE_ROLES, SPACE_VISIBILITIES } from './enums.ts'
+import {
+  BUILTIN_ENTRY_KINDS,
+  PALETTE_COLORS,
+  SPACE_KINDS,
+  SPACE_ROLES,
+  SPACE_VISIBILITIES,
+} from './enums.ts'
 import { bool01, pageParams, sortParam } from './query.ts'
+import { templateIdSchema } from './templates.ts'
 
 export const slugSchema = z
   .string()
@@ -44,6 +51,9 @@ export const patchSpaceSchema = z
     color: z.enum(PALETTE_COLORS).nullable().optional(),
     visibility: z.enum(SPACE_VISIBILITIES).optional(),
     description: z.string().trim().max(500).nullable().optional(),
+    /** ADR-0019：在此空间新建记录的默认类型（内置）与默认模板（内置 / 工作区模板） */
+    defaultKind: z.enum(BUILTIN_ENTRY_KINDS).nullable().optional(),
+    defaultTemplateId: templateIdSchema.nullable().optional(),
     ifUpdatedAt: isoDateTime,
   })
   .refine((v) => Object.keys(v).length > 1, { message: '至少一个字段', path: ['name'] })

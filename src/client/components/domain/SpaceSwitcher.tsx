@@ -6,11 +6,14 @@
  * - 拖动：只拖手柄（行本身是链接），6px 起拖，键盘空格拿起 / 方向键移动；可在区内排序或拖到另一大类
  *   （落在分区头 = 放到该区最前）。每次放下只发一条 `PATCH /spaces/reorder`；只对 myRole=admin 的空间开放。
  * - 「已归档」折叠，展开时才请求。
+ * - 大类管理就地可达（ADR-0018、REQ-KB-008）：owner / admin 在「空间」标题旁有「管理大类」，
+ *   每个大类分区标题悬停出 ⋯（改名 / 改色 / 在此新建空间 / 删除）；拖动时「未分类」始终作为放置区出现。
  */
 import {
   closestCenter,
   DndContext,
   type DragEndEvent,
+  type DragStartEvent,
   KeyboardSensor,
   PointerSensor,
   useDroppable,
@@ -26,11 +29,11 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { ChevronRight, GripVertical, Layers, Plus } from 'lucide-react'
+import { ChevronRight, FolderCog, GripVertical, Layers, Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import type { Me } from '../../hooks/useMe.ts'
+import { isAdmin, type Me } from '../../hooks/useMe.ts'
 import {
   groupSpaces,
   planSpaceMove,
@@ -42,10 +45,13 @@ import {
   useSpaces,
 } from '../../hooks/useSpaces.ts'
 import { cn } from '../../lib/cn.ts'
-import { useCreateSpaceDialog } from '../../lib/stores.ts'
+import { canCreateIn } from '../../lib/space-queries.ts'
+import { useCreateSpaceDialog, useNewEntry } from '../../lib/stores.ts'
 import { Disclosure } from '../ui/disclosure.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
+import { GroupMenu } from './GroupMenu.tsx'
 import { IconChip } from './KindIcon.tsx'
+import { SpaceGroupsDialog } from './SpaceGroupsDialog.tsx'
 import { type PaletteName, SpaceIcon } from './SpaceIcon.tsx'
 
 const FOLDS_KEY = 'xz:kb-folds:v1'
@@ -76,6 +82,9 @@ function SpaceRow({
   onNavigate?: () => void
 }) {
   const { t } = useTranslation()
+  const openNew = useNewEntry((s) => s.setOpen)
+  // 在该空间目录顶层新建记录（ADR-0019、REQ-KB-009）；可写 = 个人空间或我是 admin / member（服务端 can() 为准）
+  const canCreate = canCreateIn(space)
   const {
     attributes,
     listeners,
@@ -98,7 +107,7 @@ function SpaceRow({
         params={{ spaceSlug: space.slug }}
         onClick={onNavigate}
         // 与主导航同一套样式（app.css .xz-nav-item；当前项 data-active = 翡翠胶囊，REQ-UI-020 · 032）
-        className={cn('xz-nav-item', sortable && 'pr-8')}
+        className={cn('xz-nav-item', sortable ? 'pr-14' : canCreate && 'pr-8')}
         data-active={active || undefined}
         aria-current={active ? 'page' : undefined}
       >
@@ -113,6 +122,25 @@ function SpaceRow({
         </span>
         <span className="truncate">{space.isPersonal ? t('space.personal') : space.name}</span>
       </Link>
+      {canCreate ? (
+        <button
+          type="button"
+          onClick={() => openNew(true, { spaceId: space.id, parentId: null })}
+          aria-label={t('space.newEntryIn', {
+            name: space.isPersonal ? t('space.personal') : space.name,
+          })}
+          title={t('space.newEntryIn', {
+            name: space.isPersonal ? t('space.personal') : space.name,
+          })}
+          className={cn(
+            'absolute top-1.5 inline-flex size-6 items-center justify-center rounded-md text-fg-muted opacity-0 hover:bg-hover hover:text-fg focus-visible:opacity-100 group-hover:opacity-100 max-lg:opacity-100',
+            sortable ? 'right-8' : 'right-1.5',
+          )}
+          data-testid="space-row-new-entry"
+        >
+          <Plus className="size-4" />
+        </button>
+      ) : null}
       {sortable ? (
         <button
           type="button"
@@ -136,12 +164,15 @@ function Section({
   onToggle,
   activeSlug,
   onNavigate,
+  canManageGroups,
 }: {
   section: SpaceSection
   open: boolean
   onToggle: () => void
   activeSlug: string | undefined
   onNavigate?: () => void
+  /** owner / admin：分区标题悬停出 ⋯ 菜单 */
+  canManageGroups: boolean
 }) {
   const { t } = useTranslation()
   const dropId = sectionDropId(section.group)
@@ -154,22 +185,24 @@ function Section({
       data-testid="space-section"
       data-group-id={section.group?.id ?? 'none'}
     >
-      <button
-        ref={setNodeRef}
-        type="button"
-        aria-expanded={open}
-        onClick={onToggle}
-        className={cn(
-          'flex h-7 items-center gap-1.5 rounded-md px-2 text-fg-muted text-xs hover:bg-hover hover:text-fg',
-          isOver && 'bg-selected text-fg',
-        )}
-        data-testid="space-section-toggle"
-      >
-        <Disclosure open={open} />
-        <IconChip icon={Layers} tone={tone} size="xs" />
-        <span className="truncate font-medium">{name}</span>
-        <span className="ms-auto tabular-nums">{section.items.length}</span>
-      </button>
+      <div ref={setNodeRef} className="group/section flex items-center gap-0.5">
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={onToggle}
+          className={cn(
+            'flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 text-fg-muted text-xs hover:bg-hover hover:text-fg',
+            isOver && 'bg-selected text-fg',
+          )}
+          data-testid="space-section-toggle"
+        >
+          <Disclosure open={open} />
+          <IconChip icon={Layers} tone={tone} size="xs" />
+          <span className="truncate font-medium">{name}</span>
+          <span className="ms-auto tabular-nums">{section.items.length}</span>
+        </button>
+        {canManageGroups && section.group ? <GroupMenu group={section.group} /> : null}
+      </div>
       {open ? (
         <SortableContext
           items={section.items.map((s) => s.id)}
@@ -212,12 +245,23 @@ export function SpaceSwitcher({ me, onNavigate }: { me: Me; onNavigate?: () => v
   const reorder = useReorderSpace()
   const openCreate = useCreateSpaceDialog((s) => s.setOpen)
   const [folds, setFolds] = useState<Record<string, boolean>>(readFolds)
+  const [groupsOpen, setGroupsOpen] = useState(false)
+  const [dragging, setDragging] = useState(false)
+  const admin = isAdmin(me)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
   const personal = useMemo(() => (data ?? []).filter((s) => s.isPersonal), [data])
-  const sections = useMemo(() => groupSpaces(data ?? [], groups.data ?? []), [data, groups.data])
+  const grouped = useMemo(() => groupSpaces(data ?? [], groups.data ?? []), [data, groups.data])
+  // 拖动期间「未分类」始终可放（即使当前为空），否则全部归类后就拖不回未分类（ADR-0018）
+  const sections = useMemo(
+    () =>
+      dragging && !grouped.some((sec) => !sec.group)
+        ? [...grouped, { group: null, items: [] }]
+        : grouped,
+    [grouped, dragging],
+  )
   const nameOf = (id: unknown) => (data ?? []).find((x) => x.id === id)?.name ?? ''
   const activeSlug = /^\/spaces\/([^/]+)/.exec(path)?.[1]
 
@@ -227,7 +271,9 @@ export function SpaceSwitcher({ me, onNavigate }: { me: Me; onNavigate?: () => v
     writeFolds(next)
   }
 
+  const onDragStart = (_e: DragStartEvent) => setDragging(true)
   const onDragEnd = (e: DragEndEvent) => {
+    setDragging(false)
     if (!e.over) return
     const m = planSpaceMove(sections, String(e.active.id), String(e.over.id))
     if (!m) return
@@ -243,7 +289,7 @@ export function SpaceSwitcher({ me, onNavigate }: { me: Me; onNavigate?: () => v
       aria-labelledby="xz-spaces-heading"
       data-testid="space-switcher"
     >
-      <div className="xz-nav-label flex items-center justify-between pr-1">
+      <div className="xz-nav-label flex items-center gap-0.5 pr-1">
         {/* 可点的分区标题（REQ-UI-038）：与不可点的「我的视图」区分——正文色 + 箭头 + 悬停底 */}
         <Link
           id="xz-spaces-heading"
@@ -255,6 +301,19 @@ export function SpaceSwitcher({ me, onNavigate }: { me: Me; onNavigate?: () => v
           {t('space.parts')}
           <ChevronRight className="xz-nav-label-arrow size-3.5" aria-hidden />
         </Link>
+        <span className="ms-auto" />
+        {admin ? (
+          <button
+            type="button"
+            onClick={() => setGroupsOpen(true)}
+            className="inline-flex size-6 items-center justify-center rounded-md text-fg-muted hover:bg-hover hover:text-fg"
+            aria-label={t('space.groups.manage')}
+            title={t('space.groups.manage')}
+            data-testid="sidebar-groups-manage"
+          >
+            <FolderCog className="size-4" />
+          </button>
+        ) : null}
         {me.workspaceRole !== 'guest' ? (
           <button
             type="button"
@@ -301,7 +360,9 @@ export function SpaceSwitcher({ me, onNavigate }: { me: Me; onNavigate?: () => v
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
+            onDragStart={onDragStart}
             onDragEnd={onDragEnd}
+            onDragCancel={() => setDragging(false)}
             accessibility={{
               screenReaderInstructions: { draggable: t('space.dragInstructions') },
               announcements: {
@@ -325,6 +386,7 @@ export function SpaceSwitcher({ me, onNavigate }: { me: Me; onNavigate?: () => v
                     onToggle={() => toggle(key)}
                     activeSlug={activeSlug}
                     onNavigate={onNavigate}
+                    canManageGroups={admin}
                   />
                 )
               })}
@@ -361,6 +423,7 @@ export function SpaceSwitcher({ me, onNavigate }: { me: Me; onNavigate?: () => v
           ) : null}
         </>
       )}
+      {admin ? <SpaceGroupsDialog open={groupsOpen} onOpenChange={setGroupsOpen} /> : null}
     </section>
   )
 }

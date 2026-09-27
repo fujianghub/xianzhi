@@ -14,6 +14,7 @@ import { TaskList } from '../components/domain/TaskList.tsx'
 import { EmptyState } from '../components/ui/empty-state.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
 import { useDelayedFlag } from '../hooks/useDelayedFlag.ts'
+import { useNewEntryContext } from '../hooks/useNewEntryContext.ts'
 import { useTaskActions } from '../hooks/useTasks.ts'
 import { ApiError } from '../lib/api.ts'
 import { cn } from '../lib/cn.ts'
@@ -74,6 +75,8 @@ function SpacePage() {
   const actions = useTaskActions()
   const setDefaults = useNewTask((s) => s.setDefaults)
   const view = search.view ?? 'board'
+  // 在任务页按 e = 在本空间目录根新建记录（ADR-0018）
+  useNewEntryContext(space ? { spaceId: space.id, parentId: null } : null)
   useEffect(() => {
     if (space) setDefaults({ spaceId: space.id, status: 'todo' })
     return () => setDefaults({})

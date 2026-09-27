@@ -120,6 +120,13 @@
       "when": 1790453175078,
       "tag": "0016_per_user_tags_types",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790459588649,
+      "tag": "0017_space_entry_defaults",
+      "breakpoints": true
     }
   ]
 }

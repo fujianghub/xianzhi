@@ -1,7 +1,12 @@
 import { z } from 'zod'
 import { isoDateTime, uuidSchema } from './common.ts'
 import { entryFieldsIssues } from './entryFields.ts'
-import { ENTRY_EXPORT_FORMATS, ENTRY_KINDS, ENTRY_VISIBILITIES } from './enums.ts'
+import {
+  ENTRY_EXPORT_FORMATS,
+  ENTRY_KINDS,
+  ENTRY_VISIBILITIES,
+  MANUAL_LINK_KINDS,
+} from './enums.ts'
 import { bool01, csv, csvText, fieldsFilter, idOrMe, pageParams, sortParam } from './query.ts'
 import { templateIdSchema } from './templates.ts'
 
@@ -20,6 +25,8 @@ export const createEntrySchema = z
     templateId: templateIdSchema.optional(),
     // 目录树（ADR-0012）：给出该键 = 放进目录（null = 根级；uuid = 作为其子页）；省略 = 不进目录
     parentId: uuidSchema.nullable().optional(),
+    // 新建并关联（ADR-0018、REQ-LINK-006）：同事务建 links(entryId → 新记录, kind)；mentions 不可手动建
+    linkFrom: z.object({ entryId: uuidSchema, kind: z.enum(MANUAL_LINK_KINDS) }).optional(),
   })
   .superRefine((v, ctx) => {
     entryFieldsIssues(v.kind, v.fields, ctx)

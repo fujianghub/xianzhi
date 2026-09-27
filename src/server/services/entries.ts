@@ -40,6 +40,7 @@ import {
   entries,
   entryFavorites,
   entryTags,
+  links,
   spaceMembers,
   spaces,
   tags,
@@ -56,7 +57,7 @@ import {
   loadOwnEntryType,
   normalizeCustomFields,
 } from './entry-types.ts'
-import { purgeLinksOf } from './links.ts'
+import { assertLinkSource, purgeLinksOf } from './links.ts'
 import { publishChange } from './realtime.ts'
 import { assertOwnTags, ownTagIdsSql } from './tags.ts'
 import { resolveTemplateBody } from './templates.ts'
@@ -496,6 +497,8 @@ export async function createEntry(
   // 套模板（ADR-0011 §2）：模板正文一次性写成初始 ydoc；未选模板则首次打开按 kind 注入（03 §6）
   await assertBuiltinAlive(db, ctx.workspaceId, input.kind) // 已删除的内置类型不能新建（ADR-0017）
   if (input.tagIds?.length) await assertOwnTags(db, ctx, input.tagIds) // 只能打自己的标签（ADR-0017）
+  // 新建并关联（ADR-0018）：源记录须可读（404）且可写（403），与 POST /links 同一套 can()
+  if (input.linkFrom) await assertLinkSource(db, ctx, 'entry', input.linkFrom.entryId)
   const typed = await resolveKindFields(db, ctx, input.kind, input.typeId, input.fields, {
     fillDefault: true,
   })
@@ -524,6 +527,16 @@ export async function createEntry(
         .insert(entryTags)
         .values(input.tagIds.map((tagId) => ({ entryId: row.id, tagId })))
         .onConflictDoNothing()
+    if (input.linkFrom)
+      await tx.insert(links).values({
+        workspaceId: ctx.workspaceId,
+        fromType: 'entry',
+        fromId: input.linkFrom.entryId,
+        toType: 'entry',
+        toId: row.id,
+        kind: input.linkFrom.kind,
+        createdBy: ctx.actor.id,
+      })
     return { id: row.id }
   })
   entryChanged(ctx, [spaceId], created.id, visibility)

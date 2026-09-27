@@ -1,16 +1,29 @@
 /**
  * 记录 ⋯ 菜单（ADR-0014、REQ-ENTRY-014）：收藏 · 固定 · 导出 md / html · 归档 / 取消归档 · 删除（确认 + Toast 撤销）。
+ * ADR-0018（REQ-ENTRY-023）：新建子页面（仅当本篇在目录里）· 新建关联记录（同级、自动关联「相关」）。
  * 详情页页头与卡片悬停共用；写操作按乐观权限显示，最终由服务端 `can()` 判定。
  */
-import { Archive, ArchiveRestore, Download, MoreHorizontal, Pin, Star, Trash2 } from 'lucide-react'
+import {
+  Archive,
+  ArchiveRestore,
+  Download,
+  FilePlus2,
+  Link2,
+  MoreHorizontal,
+  Pin,
+  Star,
+  Trash2,
+} from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useEntryActions } from '../../hooks/useEntries.ts'
+import { entryPageContext } from '../../hooks/useNewEntryContext.ts'
 import { ApiError } from '../../lib/api.ts'
 import { cn } from '../../lib/cn.ts'
 import { downloadEntryExport } from '../../lib/entry-export.ts'
 import type { Entry } from '../../lib/entry-queries.ts'
+import { useNewEntry } from '../../lib/stores.ts'
 import { ConfirmDialog } from '../ui/confirm-dialog.tsx'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.tsx'
 
@@ -28,6 +41,7 @@ export function EntryMenu({
 }) {
   const { t } = useTranslation()
   const actions = useEntryActions()
+  const openNew = useNewEntry((s) => s.setOpen)
   const [open, setOpen] = useState(false)
   const [confirm, setConfirm] = useState(false)
   const title = entry.title || t('entry.untitled')
@@ -81,6 +95,28 @@ export function EntryMenu({
         </PopoverTrigger>
         <PopoverContent align="end" className="w-48 p-1">
           <ul aria-label={t('entry.menu.label')}>
+            {/* 子页须挂在目录里的父页下（服务端 placeNew），不在目录的记录不给此项 */}
+            {canWrite && entry.treeOrder !== null
+              ? item(
+                  'new-child',
+                  <FilePlus2 className="size-4" />,
+                  t('entry.menu.newChild'),
+                  run(() => openNew(true, { spaceId: entry.spaceId, parentId: entry.id })),
+                )
+              : null}
+            {canWrite
+              ? item(
+                  'new-linked',
+                  <Link2 className="size-4" />,
+                  t('entry.menu.newLinked'),
+                  run(() =>
+                    openNew(true, {
+                      ...entryPageContext(entry),
+                      linkFrom: { entryId: entry.id, title: entry.title, kind: 'relates' },
+                    }),
+                  ),
+                )
+              : null}
             {item(
               'favorite',
               <Star className={cn('size-4', entry.favorited && 'fill-current text-warning')} />,

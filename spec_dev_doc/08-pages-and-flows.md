@@ -102,14 +102,17 @@
 - **显示**：我的空间（可拖排序）、其他可见空间、归档折叠区。数据：`GET /spaces`。
 - **search params**：`{ archived?: '1' }`。
 - **三态**：空态「还没有空间，衔来第一根枝吧」；骨架 6 卡；错误重试。
-- **主操作**：新建空间 Dialog（名称、slug 自动、kind、可见性、颜色 token、图标）。
-- **REQ**：REQ-SPACE-001 · 004 · 005 · 008。
+- **主操作**：新建空间 Dialog（名称、slug 自动、kind、可见性、颜色 token、图标、大类）。
+- **注 2026-09-27（补记 ADR-0012 · 0018）**：空间按大类分区显示（大类按顺序，「未分类」最后），每个大类有「在此新建」；owner / admin 右上角「管理大类」（新建 / 改名 / 色块改色 / 上移下移 / 删除，删除大类不删空间）。空间卡片 ⋯ 可归档与移到大类。侧栏同样按大类分区，「空间」标题旁有「管理大类」，分区标题 ⋯ 可改名 / 改色 / 在此新建空间 / 删除，拖动空间可换大类（拖动时「未分类」始终可放）。
+- **REQ**：REQ-SPACE-001 · 004 · 005 · 008 · REQ-KB-001 · 002 · 008。
 
 ### 2.5b 空间概览 `/spaces/$slug/home` 与目录 `/spaces/$slug/tree`（ADR-0012 · 0015）
 - **概览**：产品 / 工作型 = 未关闭 Bug（按严重度）· 最近迭代 · 最新版本 · 决策与优化 · 最近更新；学习型 = 学习计划进度 · 最近笔记 · 最近更新；面板标题前带彩色图标块，列表类型为图标胶囊。
 - **个人空间概览**（ADR-0015）：主面板「空间目录」= 大类 → 空间 → 目录树（大类默认展开、空间默认收起，展开时才取目录；展开状态本机 `xz:home-dir:v1`）；侧列「个人记录」「各空间最近更新」；快捷新建 随笔 / 笔记 / 计划。数据：`GET /spaces` `GET /space-groups` `GET /spaces/:id/tree` `GET /entries`。
 - **目录**：可嵌套页面树 + 「其余记录」；层级 = 20px 缩进 + 祖先引导线 + 类型色块 + 字重递减 + 折叠计数（ADR-0015）。
 - **REQ**：REQ-KB-003 · 005 · 006 · 007、REQ-UI-037。
+
+- **注 2026-09-27（ADR-0019）**：侧栏空间行与目录节点悬停「+」就地新建（REQ-KB-009）；「编辑空间」可设新建记录的默认类型 / 默认模板（REQ-KB-010）。
 
 ### 2.6 空间任务 `/spaces/$spaceSlug`
 - **显示**：`view=board` 六列看板（inbox / todo / doing / blocked / done / cancelled，done 与 cancelled 默认折叠）或 `view=list` 虚拟列表。列头显示计数（NumberFlow 式滚动数字）。数据：`GET /tasks?spaceId=&status=&assigneeId=&cycleId=&tag=&dueBefore=&dueAfter=&q=&sort=&cursor=`。
@@ -148,12 +151,16 @@
 - **注 2026-09-27（ADR-0016）**：默认改为**列表**（勾选 · 标题 + 路径 + 一行摘要 · 类型 · 状态 · 进度 · 标签 · 空间 · 更新），`view=cards` 为卡片（`view=table` 兼容）；列表勾选常驻、有选中即出批量条（移动 / 改类型 / 改状态 / 标签 / 固定 / 归档 / 删除）；类型筛选含自定义类型（`typeId?: csv(uuid)`），筛选条与标签筛选旁各有「管理」入口（→ `/settings/types`、`/settings/tags`）。REQ-ENTRY-016 ~ 019。
 - **注 2026-09-26（ADR-0014）**：左栏位置导航（全部 / 最近打开 / 收藏 / 已归档 / 个人随笔 / 大类 → 空间 → 目录树；空间页签内只列本空间目录，窄屏折叠）；search params 追加 `spaceId? under? groupId?(uuid|'none') favorite?/recent?/archived?:'1'`（互斥）、`view?: 'table'|'board'|'timeline'`、`select?: '1'`（多选）；标签多选筛选；卡片 / 表格显示目录路径与收藏星标，悬停 ⋯ 菜单；目录节点下「新记录」= 子页。REQ-ENTRY-012 ~ 015 · REQ-TAG-006。
 
+- **注 2026-09-27（ADR-0018）**：新建对话框顶部「建在」= 空间 › 目录位置（目录顶层 / 不放进目录 / 某页之下），可改；`e` 跟随当前页面：空间各页签 = 本空间目录顶层（记录页签选中节点时 = 其子页），记录页 = 同级；一次性默认值不被记住。REQ-ENTRY-021 · 022。
+
 ### 2.9 记录编辑 `/entries/$entryId`
 - **显示**：`paper` 纸面 760px 居中（可切 1080）；顶部标题 + kind 徽章 + fields 表单（按 kind 的 Zod schema 生成）+ 可见性；正文 Tiptap fullKit；Aside：大纲 / 反链 / 评论 / 属性；Topbar 右侧 StatusPill 显示 `synced / connecting / offline / readOnly`。数据：`GET /entries/:id` + collab WebSocket。
 - **search params**：`{ aside?: 'outline'|'backlinks'|'comments'|'props'|'history'; wide?: '1'; c?: uuid /* 评论锚点 */ }`；`#c-:commentId` `#m-:mentionId` 由 01 §4.1 深链使用；`/entries/$entryId/history` 只是重定向到 `?aside=history` 的可分享短链（§1）。
 - **三态**：新建空文档注入模板（REQ-ENTRY-005）；加载先渲染 IndexedDB 内容再等 `synced`（REQ-COLLAB-005）；票据失败 → 只读 + 「重新连接」按钮；404 退回列表。
 - **主操作**：编辑器快捷键（03 §11.2）；`Mod+S` 无效（自动保存，显示「已同步」）；「标记版本」在 Aside 属性页。
 - **REQ**：REQ-EDITOR-001 ~ 018 · REQ-COLLAB-001 ~ 015 · REQ-ENTRY-005。
+- **注 2026-09-27（ADR-0018）**：页头 ⋯ 菜单 +「新建子页面」（本篇在目录里时）·「新建关联记录」；Aside 关联页「+ 新建并关联」按所选关联类型一步建好（`POST /entries {linkFrom}`）。REQ-ENTRY-023 · REQ-LINK-006。
+- **注 2026-09-27（ADR-0019）**：正文 `[[` 选择器找不到时可「新建《q》并插入」（本空间、本篇子页），搜索当前空间优先。REQ-EDITOR-023。
 
 ### 2.10 周期列表 `/cycles`、周期详情 `/cycles/$cycleId`
 - **显示**：列表按年分组，每行「第 N 程 · 标题 · 完成 x/y · 状态」；详情：页头（「第 N 程」命名，REQ-CYCLE-007）、目标清单（可勾、可关联任务）、本周期任务列表、复盘记录入口（`review_entry_id`）。数据：`GET /cycles?kind=&year=`、`GET /cycles/:id`、`GET /cycles/current?kind=`。

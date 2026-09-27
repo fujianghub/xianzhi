@@ -93,6 +93,10 @@ export const spaces = pgTable(
     description: text(),
     /** 所属大类（ADR-0012）；null = 未分类；个人空间恒为 null */
     groupId: uuid().references(() => spaceGroups.id, { onDelete: 'set null' }),
+    /** 在此空间新建记录时的默认类型（ADR-0019）：仅内置类型；null = 随笔 */
+    defaultKind: text(),
+    /** 在此空间新建记录时的默认模板（ADR-0019）：`builtin:<key>` 或工作区模板 uuid；个人模板不可（他人用不了） */
+    defaultTemplateId: text(),
     // 列级 COLLATE "C"（drizzle/0003_sort_key_collate_c.sql）：fractional-indexing 键须按字节序比较
     sortKey: text().notNull(),
     archivedAt: timestamptz(),
@@ -105,6 +109,10 @@ export const spaces = pgTable(
     unique('spaces_workspace_slug_uq').on(t.workspaceId, t.slug),
     uniqueIndex('spaces_personal_uq').on(t.workspaceId, t.createdBy).where(sql`${t.isPersonal}`),
     check('spaces_kind_ck', inList(t.kind, SPACE_KINDS)),
+    check(
+      'spaces_default_kind_ck',
+      sql`${t.defaultKind} is null or ${inList(t.defaultKind, BUILTIN_ENTRY_KINDS)}`,
+    ),
     check('spaces_visibility_ck', inList(t.visibility, SPACE_VISIBILITIES)),
   ],
 )

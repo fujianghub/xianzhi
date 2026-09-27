@@ -124,7 +124,7 @@ export const useNewTask = create<{
   setDefaults: (defaults) => set({ defaults }),
 }))
 
-/** 全局新记录（08 §2.8：`e`）：页面登记默认空间 / kind（空间记录页 → 该空间）。 */
+/** 全局新记录（08 §2.8：`e`）的默认值：新记录建在哪（空间 / 目录位置）、什么类型、关联到谁。 */
 export interface NewEntryDefaults {
   spaceId?: string
   kind?: EntryKind
@@ -134,17 +134,50 @@ export interface NewEntryDefaults {
   parentId?: string | null
   /** 自定义类型（ADR-0016；kind = 'custom' 时） */
   typeId?: string
+  /** 新建并关联（ADR-0018）：新记录建好后由 `entryId` 指向它，关联类型 `kind` */
+  linkFrom?: {
+    entryId: string
+    title: string
+    kind: 'relates' | 'blocks' | 'caused_by' | 'resolves'
+  }
 }
+
+/**
+ * 打开时的有效默认值（ADR-0018、REQ-ENTRY-022）：一次性默认值（按钮显式传入）优先，
+ * 否则取最后登记的页面上下文，都没有则为空（服务端落个人空间）。纯函数，便于单测。
+ */
+export function pickNewEntryDefaults(
+  override: NewEntryDefaults | undefined,
+  contexts: readonly { token: number; d: NewEntryDefaults }[],
+): NewEntryDefaults {
+  return override ?? contexts[contexts.length - 1]?.d ?? {}
+}
+
+let contextToken = 0
+/**
+ * 新建记录对话框（ADR-0018）：
+ * - 页面用 `register(d)` 登记上下文（空间页 → 该空间目录根；记录页 → 同级），返回撤销函数，只撤自己那份
+ *   （修 ADR-0014 起「一次性默认值被永久记住、e 沿用旧位置」的问题）；
+ * - `setOpen(true, override?)`：打开瞬间把有效默认值冻结进 `defaults`，打开期间上下文变化不影响表单。
+ */
 export const useNewEntry = create<{
   open: boolean
+  /** 本次打开冻结的有效默认值 */
   defaults: NewEntryDefaults
-  setOpen: (v: boolean, defaults?: NewEntryDefaults) => void
-  setDefaults: (d: NewEntryDefaults) => void
-}>((set) => ({
+  contexts: { token: number; d: NewEntryDefaults }[]
+  setOpen: (v: boolean, override?: NewEntryDefaults) => void
+  register: (d: NewEntryDefaults) => () => void
+}>((set, get) => ({
   open: false,
   defaults: {},
-  setOpen: (open, defaults) => set(defaults ? { open, defaults } : { open }),
-  setDefaults: (defaults) => set({ defaults }),
+  contexts: [],
+  setOpen: (open, override) =>
+    set(open ? { open, defaults: pickNewEntryDefaults(override, get().contexts) } : { open }),
+  register: (d) => {
+    const token = ++contextToken
+    set((s) => ({ contexts: [...s.contexts, { token, d }] }))
+    return () => set((s) => ({ contexts: s.contexts.filter((c) => c.token !== token) }))
+  },
 }))
 
 /** 当前编辑器的大纲（Aside 大纲页读取；EntryEditor 在每次更新后写入，REQ-EDITOR-012）。 */

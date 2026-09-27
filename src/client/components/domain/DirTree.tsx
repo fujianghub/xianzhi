@@ -6,6 +6,7 @@
  */
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
+import { Plus } from 'lucide-react'
 import { type CSSProperties, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn.ts'
@@ -31,6 +32,7 @@ export function DirTree({
   indent = 12,
   active,
   onSelect,
+  onNewChild,
   testId = 'entries-nav-tree',
 }: {
   spaceId: string
@@ -40,6 +42,8 @@ export function DirTree({
   active?: string
   /** 传入 = 选择模式（按钮）；省略 = 链接模式（打开记录） */
   onSelect?: (id: string) => void
+  /** 传入 = 节点悬停出「+ 新建子页」（ADR-0019；可写与否由调用方决定，DirTree 不知道角色） */
+  onNewChild?: (id: string) => void
   testId?: string
 }) {
   const { t } = useTranslation()
@@ -102,7 +106,7 @@ export function DirTree({
         return (
           <li
             key={n.id}
-            className="relative flex py-px"
+            className="group/node relative flex py-px"
             style={{ paddingInlineStart: pad(d), '--i': stagger.get(n.id) ?? 0 } as CSSProperties}
             data-testid="entries-nav-node"
             data-entry-id={n.id}
@@ -150,6 +154,18 @@ export function DirTree({
                   {body}
                 </Link>
               )}
+              {onNewChild ? (
+                <button
+                  type="button"
+                  onClick={() => onNewChild(n.id)}
+                  aria-label={t('entry.nav.newChild', { name: title })}
+                  title={t('entry.nav.newChild', { name: title })}
+                  className="grid size-6 shrink-0 place-items-center rounded-md text-fg-muted opacity-0 hover:bg-hover hover:text-fg focus-visible:opacity-100 group-hover/node:opacity-100 max-lg:opacity-100"
+                  data-testid="dir-new-child"
+                >
+                  <Plus className="size-3.5" />
+                </button>
+              ) : null}
             </div>
           </li>
         )

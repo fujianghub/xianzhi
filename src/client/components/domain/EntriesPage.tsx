@@ -30,6 +30,7 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDelayedFlag } from '../../hooks/useDelayedFlag.ts'
 import { useMe } from '../../hooks/useMe.ts'
+import { useNewEntryContext } from '../../hooks/useNewEntryContext.ts'
 import { cn } from '../../lib/cn.ts'
 import {
   ENTRY_SORTS,
@@ -117,7 +118,6 @@ export function EntriesPage({
   const { t } = useTranslation()
   const { data: me } = useMe()
   const openNew = useNewEntry((s) => s.setOpen)
-  const setDefaults = useNewEntry((s) => s.setDefaults)
   const kinds = csvList(search.kind) as EntryKind[]
   const typeIds = csvList(search.typeId)
   const kindOf = useKindLabel()
@@ -147,14 +147,12 @@ export function EntriesPage({
       spaceId: effSpaceId,
       kind,
       ...(typeId ? { typeId } : {}),
-      ...(search.under && effSpaceId ? { parentId: search.under } : {}),
+      // 在空间里新建默认进目录（ADR-0018）：选中目录节点 → 其子页，否则目录根
+      ...(effSpaceId ? { parentId: search.under ?? null } : {}),
     }),
     [effSpaceId, kind, typeId, search.under],
   )
-  useEffect(() => {
-    setDefaults(newDefaults)
-    return () => setDefaults({})
-  }, [newDefaults, setDefaults])
+  useNewEntryContext(newDefaults)
 
   // 标题筛选输入防抖 300ms 后写入 URL
   const [q, setQ] = useState(search.q ?? '')

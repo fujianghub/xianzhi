@@ -1,10 +1,15 @@
-/** 编辑空间（ADR-0012、REQ-KB-002）：名称、简介、类型（决定概览形态）、大类；需 space admin（服务端 space.manage）。 */
+/**
+ * 编辑空间（ADR-0012、REQ-KB-002）：名称、简介、类型（决定概览形态）、大类；需 space admin（服务端 space.manage）。
+ * ADR-0019（REQ-KB-010）：在此空间新建记录的默认类型（内置）与默认模板（内置 / 工作区模板——个人模板别人用不了）。
+ */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { type Space, type SpaceKind, spaceGroupsQuery } from '../../hooks/useSpaces.ts'
 import { api, unwrap } from '../../lib/api.ts'
+import { useKindOptions } from '../../lib/entry-types.ts'
+import { templatesQuery } from '../../lib/template-queries.ts'
 import { Button } from '../ui/button.tsx'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../ui/dialog.tsx'
 import { Input } from '../ui/input.tsx'
@@ -27,8 +32,15 @@ export function KbEditDialog({
   const [description, setDescription] = useState(space.description ?? '')
   const [kind, setKind] = useState(space.kind as SpaceKind)
   const [groupId, setGroupId] = useState(space.groupId ?? '')
+  const [defaultKind, setDefaultKind] = useState(space.defaultKind ?? '')
+  const [defaultTemplateId, setDefaultTemplateId] = useState(space.defaultTemplateId ?? '')
+  const templates = useQuery({ ...templatesQuery, enabled: open })
+  const sharedTemplates = (templates.data ?? []).filter((x) => x.source !== 'personal')
+  const builtinKinds = useKindOptions().filter((o) => o.kind !== 'custom')
   useEffect(() => {
     if (!open) return
+    setDefaultKind(space.defaultKind ?? '')
+    setDefaultTemplateId(space.defaultTemplateId ?? '')
     setName(space.name)
     setDescription(space.description ?? '')
     setKind(space.kind as SpaceKind)
@@ -42,6 +54,8 @@ export function KbEditDialog({
           json: {
             ...(space.isPersonal ? {} : { name: name.trim(), kind, groupId: groupId || null }),
             description: description.trim() || null,
+            defaultKind: (defaultKind || null) as never,
+            defaultTemplateId: defaultTemplateId || null,
             ifUpdatedAt: space.updatedAt,
           },
         }),
@@ -105,6 +119,39 @@ export function KbEditDialog({
               </label>
             </>
           )}
+          <label className={field}>
+            <span className="text-fg-muted text-xs">{t('kb.defaultKind')}</span>
+            <select
+              value={defaultKind}
+              onChange={(e) => setDefaultKind(e.target.value)}
+              className="h-9 rounded-md border border-border bg-surface px-2"
+              data-testid="kb-edit-default-kind"
+            >
+              <option value="">{t('kb.defaultNone')}</option>
+              {builtinKinds.map((o) => (
+                <option key={o.kind} value={o.kind}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className={field}>
+            <span className="text-fg-muted text-xs">{t('kb.defaultTemplate')}</span>
+            <select
+              value={defaultTemplateId}
+              onChange={(e) => setDefaultTemplateId(e.target.value)}
+              className="h-9 rounded-md border border-border bg-surface px-2"
+              data-testid="kb-edit-default-template"
+            >
+              <option value="">{t('kb.defaultNone')}</option>
+              {sharedTemplates.map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.name}
+                </option>
+              ))}
+            </select>
+            <span className="text-fg-muted text-xs">{t('kb.defaultHint')}</span>
+          </label>
           <label className={field}>
             <span className="text-fg-muted text-xs">{t('kb.description')}</span>
             <textarea

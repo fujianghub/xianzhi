@@ -9,7 +9,14 @@ import { Archive, Clock, FileText, Layers, type LucideIcon, NotebookPen, Star } 
 import { type CSSProperties, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn.ts'
-import { groupSpaces, type Space, spaceGroupsQuery, spacesQuery } from '../../lib/space-queries.ts'
+import {
+  canCreateIn,
+  groupSpaces,
+  type Space,
+  spaceGroupsQuery,
+  spacesQuery,
+} from '../../lib/space-queries.ts'
+import { useNewEntry } from '../../lib/stores.ts'
 import { Disclosure } from '../ui/disclosure.tsx'
 import { TreeGuides } from '../ui/tree-guides.tsx'
 import { DirTree, navRowCls, TWISTY_CENTER } from './DirTree.tsx'
@@ -65,6 +72,7 @@ export function EntriesNav({
   fixedSpace?: Space
 }) {
   const { t } = useTranslation()
+  const openNew = useNewEntry((s) => s.setOpen)
   const spaces = useQuery({ ...spacesQuery(), enabled: !fixedSpace })
   const groups = useQuery({ ...spaceGroupsQuery, enabled: !fixedSpace })
   const sections = useMemo(
@@ -133,6 +141,11 @@ export function EntriesNav({
             indent={INDENT}
             active={search.under}
             onSelect={(under) => onSelect({ under })}
+            onNewChild={
+              canCreateIn(fixedSpace)
+                ? (id) => openNew(true, { spaceId: fixedSpace.id, parentId: id })
+                : undefined
+            }
           />
         </div>
       </nav>
@@ -236,6 +249,11 @@ export function EntriesNav({
                             indent={INDENT}
                             active={search.spaceId === sp.id ? search.under : undefined}
                             onSelect={(under) => onSelect({ spaceId: sp.id, under })}
+                            onNewChild={
+                              canCreateIn(sp)
+                                ? (id) => openNew(true, { spaceId: sp.id, parentId: id })
+                                : undefined
+                            }
                           />
                         ) : null}
                       </li>

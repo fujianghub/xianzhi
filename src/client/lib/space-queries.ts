@@ -100,3 +100,10 @@ export function planSpaceMove(
     order: next.flat(),
   }
 }
+
+/**
+ * 能否在该空间新建记录（仅决定是否显示入口；服务端 `can('entry.create')` 为准，ADR-0019）：
+ * 个人空间，或我在其中是 admin / member（viewer 只读）。
+ */
+export const canCreateIn = (s: Pick<Space, 'isPersonal' | 'myRole'>) =>
+  s.isPersonal || s.myRole === 'admin' || s.myRole === 'member'
