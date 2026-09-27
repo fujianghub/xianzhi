@@ -10,6 +10,7 @@ import type { batchEntriesSchema } from '../../shared/schemas/entries.ts'
 import { assertCan, can } from '../authz.ts'
 import type { Db } from '../db/index.ts'
 import { entries, entryFavorites, entryTags } from '../db/schema/business.ts'
+import { type BatchFailure, batchFailure } from '../lib/batch.ts'
 import { AppError } from '../lib/errors.ts'
 import { archiveEntry, type EntryCtx, loadEntry, patchEntry, softDeleteEntry } from './entries.ts'
 import { loadOwnEntryType } from './entry-types.ts'
@@ -33,7 +34,7 @@ export async function setFavorite(db: Db, ctx: EntryCtx, id: string, on: boolean
 
 export interface BatchResult {
   ok: string[]
-  failed: { id: string; code: string; message: string }[]
+  failed: BatchFailure[]
 }
 
 export async function batchEntries(
@@ -119,12 +120,7 @@ export async function batchEntries(
       }
       out.ok.push(id)
     } catch (err) {
-      const e = err as { code?: string; message?: string }
-      out.failed.push({
-        id,
-        code: err instanceof AppError ? err.code : 'INTERNAL',
-        message: e.message ?? '',
-      })
+      out.failed.push(batchFailure(id, err, '无权操作此记录'))
     }
   }
   return out

@@ -34,7 +34,6 @@ import {
   assertCan,
   can,
   effectiveSpaceRole,
-  ForbiddenError,
   type SpaceRef,
   spaceRoleCap,
   spaceRoleWithin,
@@ -44,6 +43,7 @@ import type { Db, DbOrTx } from '../db/index.ts'
 import { member as memberTable, user as userTable } from '../db/schema/auth.ts'
 import { entries, spaceMembers, spaces, tasks } from '../db/schema/business.ts'
 import { purgeSpace } from '../jobs/gc.ts'
+import { type BatchFailure, batchFailure } from '../lib/batch.ts'
 import { decodeCursor, encodeCursor } from '../lib/cursor.ts'
 import { AppError } from '../lib/errors.ts'
 import { type EventBus, getEventBus } from '../lib/event-bus.ts'
@@ -569,7 +569,7 @@ export async function permanentlyDeleteSpace(db: Db, ctx: SpaceCtx, key: string)
 
 export interface SpaceBatchResult {
   ok: string[]
-  failed: { id: string; code: string; message: string }[]
+  failed: BatchFailure[]
   /** ok 里的空间当前未删除的记录 / 任务数（删除确认弹层据此提示影响面） */
   counts: { entries: number; tasks: number }
 }
@@ -632,7 +632,7 @@ export async function batchSpaces(
       }
       pending.push(id)
     } catch (err) {
-      failed.push(batchFailure(id, err))
+      failed.push(batchFailure(id, err, '无权操作此空间'))
     }
   }
   const counts = await contentCounts(db, pending)
@@ -659,17 +659,10 @@ export async function batchSpaces(
       }
       ok.push(id)
     } catch (err) {
-      failed.push(batchFailure(id, err))
+      failed.push(batchFailure(id, err, '无权操作此空间'))
     }
   }
   return { ok, failed, counts }
-}
-
-function batchFailure(id: string, err: unknown) {
-  if (err instanceof AppError) return { id, code: err.code, message: err.message }
-  // assertCan 抛 ForbiddenError（由 app.onError 映射成 403）；批量里逐条收集，这里同样归为 FORBIDDEN
-  if (err instanceof ForbiddenError) return { id, code: 'FORBIDDEN', message: '无权操作此空间' }
-  return { id, code: 'INTERNAL', message: '' }
 }
 
 // ---------- 排序 ----------
