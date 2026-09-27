@@ -483,6 +483,7 @@ plan     : { status: 'planning'|'active'|'paused'|'done', startDate?: date, endD
 - `action` 枚举（Zod `AuditAction`，新增值先改本表）：
   注（2026-09-25，ADR-0008）：+ `member.registered`（自助注册，actor 为空）· `member.approved` · `member.rejected`（驳回即删号，`meta` 留邮箱 / 用户名）。
   注（2026-09-25，ADR-0010）：+ `auth.password_changed`（本人改密，`meta.otherSessionsRevoked`）· `user.created`（owner 直建）· `user.updated`（改显示名 / 用户名 / 邮箱，`meta.byAdmin` 区分本人与 owner，含新旧值）；owner 重置他人密码记 `auth.password_reset`（`meta.byAdmin`），删号记 `user.deleted`（`meta.byAdmin`）。迁移 0007 同步 `audit_log_action_ck`。
+  注（2026-09-27，ADR-0022）：+ `space.merged`（合并空间，target = 源空间，`meta` 含目标、记录 / 任务 / 成员数、`visibilityWidened`；迁移 0018 重建 check 约束）。
   `auth.login` · `auth.logout` · `auth.login_failed` · `auth.locked` · `auth.password_reset` · `auth.2fa_enabled` · `auth.2fa_disabled` · `auth.2fa_reset_by_admin` · `member.invited` · `member.joined` · `member.registered` · `member.approved` · `member.rejected` · `member.role_changed` · `member.suspended` · `member.unsuspended` · `member.removed` · `member.content_transferred` · `user.deleted` · `workspace.owner_transferred` · `workspace.settings_changed` · `space.deleted` · `space.permanently_deleted` · `task.permanently_deleted` · `entry.permanently_deleted` · `entry.restored`（ADR-0011）· `export.requested` · `export.done` · `export.failed` · `api_key.created` · `api_key.revoked` · `gc.failed` · `backup.failed` · `entry_type.deleted`（ADR-0016）
 
 ### 3.13 idempotency_keys

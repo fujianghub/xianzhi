@@ -1,12 +1,15 @@
 /**
  * 空间卡片（08 §2.5）：纸面卡；空间管理员可归档 / 取消归档（REQ-SPACE-004），可移到大类（ADR-0018、REQ-KB-008）。
+ * 工作区 owner / admin 可「合并到…」另一个空间（ADR-0022、REQ-SPACE-015）。
  * 批量管理模式（ADR-0021、REQ-SPACE-010）：传 `selection` 时整卡是一个勾选按钮（不跳转、不显示 ⋯）；不可选的卡片变淡。
  */
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Archive, ArchiveRestore, Check, Lock, MoreHorizontal, Users } from 'lucide-react'
+import { Archive, ArchiveRestore, Check, Lock, Merge, MoreHorizontal, Users } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { isAdmin, useMe } from '../../hooks/useMe.ts'
 import {
   type Space,
   spaceGroupsQuery,
@@ -18,6 +21,7 @@ import { cn } from '../../lib/cn.ts'
 import { Button } from '../ui/button.tsx'
 import { Checkbox } from '../ui/checkbox.tsx'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.tsx'
+import { MergeSpaceDialog } from './MergeSpaceDialog.tsx'
 import { SpaceIcon } from './SpaceIcon.tsx'
 
 export interface SpaceSelection {
@@ -43,6 +47,10 @@ export function SpaceCard({
   const name = space.isPersonal ? t('space.personal') : space.name
   const canManage = space.myRole === 'admin' && !space.isPersonal
   const selecting = !!selection
+  // 合并会删掉本空间：与删除同权限（工作区 owner / admin，ADR-0022）
+  const { data: me } = useMe()
+  const canMerge = canManage && isAdmin(me)
+  const [merging, setMerging] = useState(false)
   const groups = useQuery({ ...spaceGroupsQuery, enabled: canManage && !selecting })
   const setGroup = (groupId: string | null) =>
     moveTo.mutate(
@@ -150,6 +158,17 @@ export function SpaceCard({
                 )}
                 {space.archivedAt ? t('space.unarchive') : t('space.archive')}
               </button>
+              {canMerge ? (
+                <button
+                  type="button"
+                  className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-sm hover:bg-hover"
+                  onClick={() => setMerging(true)}
+                  data-testid="space-merge"
+                >
+                  <Merge className="size-4" />
+                  {t('space.merge.menu')}
+                </button>
+              ) : null}
               <p className="mt-1 border-divider border-t px-2 pt-2 pb-1 text-fg-muted text-xs">
                 {t('space.moveToGroup')}
               </p>
@@ -191,6 +210,9 @@ export function SpaceCard({
           </span>
         ) : null}
       </div>
+      {canMerge ? (
+        <MergeSpaceDialog space={space} open={merging} onOpenChange={setMerging} />
+      ) : null}
     </li>
   )
 }

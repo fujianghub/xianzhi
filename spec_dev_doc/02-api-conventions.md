@@ -208,6 +208,7 @@
 | POST | `/spaces/:id/archive` | 归档（只读） | REQ-SPACE-004 |
 | POST | `/spaces/:id/unarchive` | 取消归档 | REQ-SPACE-004 |
 | POST | `/spaces/:id/restore` | 从回收站恢复 | REQ-SPACE-007 |
+| POST | `/spaces/:id/merge` | `{ into, dryRun? }` 源空间整体并入 `into`：记录 / 任务 / 成员搬过去，源进回收站，审计 `space.merged`；仅工作区 owner / admin → `{ preview{entries, tasks, members, visibilityWidened, from, into}, into? }`（ADR-0022） | REQ-SPACE-013 · 014 |
 | GET | `/spaces/:id/members` | 空间成员 | REQ-SPACE-006 |
 | POST | `/spaces/:id/members` | `{ userId, role }`；发 `space.invited`；个人空间 403 | REQ-SPACE-006 · 009 |
 | PATCH | `/spaces/:id/members/:userId` | 改空间角色 | REQ-SPACE-003 |

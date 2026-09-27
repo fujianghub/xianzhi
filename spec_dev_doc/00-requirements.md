@@ -1,6 +1,6 @@
 # 00 需求规范
 
-> 状态：已采纳 · 版本：v2 · 更新：2026-09-27（ADR-0021：REQ-SPACE-010 ~ 012；ADR-0016：REQ-CAL-012 · 013、REQ-ENTRY-016 ~ 019、REQ-UI-038；ADR-0017：REQ-ENTRY-020、REQ-TAG-007；ADR-0018：REQ-KB-008、REQ-ENTRY-021 ~ 023、REQ-LINK-006；ADR-0019：REQ-KB-009 · 010、REQ-EDITOR-023）· 最后对照代码：2026-09-25（鲜艳色板 / 用户管理 / 个人资料，ADR-0010：REQ-CAL-010、REQ-UI-035、REQ-WS-018 ~ 023、REQ-AUTH-021；注册审批 / 用户名 / 日程 / 宽屏：REQ-AUTH-017 ~ 020、REQ-CAL-001 ~ 009、REQ-UI-034；此前 2026-09-24：REQ-AUTH-016、REQ-TASK-024、REQ-UI-024 ~ 032） · 依据 ADR-0001 §1、§7、§9、ADR-0003。
+> 状态：已采纳 · 版本：v2 · 更新：2026-09-27（ADR-0022：REQ-SPACE-013 ~ 015；ADR-0021：REQ-SPACE-010 ~ 012；ADR-0016：REQ-CAL-012 · 013、REQ-ENTRY-016 ~ 019、REQ-UI-038；ADR-0017：REQ-ENTRY-020、REQ-TAG-007；ADR-0018：REQ-KB-008、REQ-ENTRY-021 ~ 023、REQ-LINK-006；ADR-0019：REQ-KB-009 · 010、REQ-EDITOR-023）· 最后对照代码：2026-09-25（鲜艳色板 / 用户管理 / 个人资料，ADR-0010：REQ-CAL-010、REQ-UI-035、REQ-WS-018 ~ 023、REQ-AUTH-021；注册审批 / 用户名 / 日程 / 宽屏：REQ-AUTH-017 ~ 020、REQ-CAL-001 ~ 009、REQ-UI-034；此前 2026-09-24：REQ-AUTH-016、REQ-TASK-024、REQ-UI-024 ~ 032） · 依据 ADR-0001 §1、§7、§9、ADR-0003。
 > 本文是**所有测试与任务的追溯源头**：每条需求有唯一 `REQ-<AREA>-<NNN>` 编号；`05` §5 的测试、`tasks/` 的任务、PR 描述都引用这里的编号。设计如何实现在 01–06；本文只写「做什么、验收什么」。
 > 分期：一期 = Phase 0–2（本文编号范围）；二期 = Phase 3（文末只列标题，不编号、不验收）。
 
@@ -98,6 +98,9 @@
 | REQ-SPACE-010 | P1 | 2 | （2026-09-27 新增，ADR-0021）`POST /spaces/batch`（archive / unarchive / move，≤ 100）应逐个鉴权，个人空间与无权空间进 `failed` 而不影响其它；`/spaces`「批量管理」整卡点选、Shift 连选、「全选本组」，底部操作条归档 / 取消归档 / 移到大类，归档可撤销 | When member 批量归档 [自己管理的 2 个, 他人空间, 个人空间] Then `ok` = 前 2 个、其余 `failed` 为 `FORBIDDEN`<br>When 批量 `move {groupId: 不存在}` Then 422<br>When 点第一张卡再 Shift 点第三张 Then 已选 3 个 | ADR-0021 · 02 §9 | api · e2e |
 | REQ-SPACE-011 | P1 | 2 | （ADR-0021）批量删除（软删）仅工作区 owner / admin；`dryRun` 只校验并返回可删空间下未删除的记录 / 任务数，不写库；确认弹层写明计数；删除后可撤销（批量 `restore`） | Given 空间下 2 条记录 1 个任务 When `dryRun` Then `counts = {entries:2, tasks:1}` 且空间未删<br>When member 批量删 Then 全部 `FORBIDDEN`<br>When 删除后点「撤销」Then 空间回到列表 | ADR-0021 · REQ-SPACE-003 · 007 | api · e2e |
 | REQ-SPACE-012 | P1 | 2 | （ADR-0021）回收站空间 Tab 可多选批量恢复 / 永久删除；批量 `purge` 只接受已在回收站的空间，内容一并清除，逐个写审计 | When 批量 `purge [已删, 未删]` Then `ok=[已删]`、未删的 `failed` 为 `CONFLICT_STALE`<br>When member 批量 `purge` Then `FORBIDDEN`<br>When 回收站勾选 3 个点「永久删除所选」并确认 Then 三行消失 | ADR-0021 · REQ-SPACE-007 | api · e2e |
+| REQ-SPACE-013 | P1 | 2 | （2026-09-27 新增，ADR-0022）`POST /spaces/:id/merge {into}` 应把源空间的全部记录与任务（含回收站里的）并入目标，id 与评论 / 附件 / 关联不变、`updated_at` 不变；A 的顶层目录页按原序接在 B 顶层末尾、子页层级不变；任务在各状态列排到 B 原有任务之后；A 的成员并入 B（角色取较高）；A 移入回收站并审计 `space.merged` | Given A 有顶层页 A1、A2（A2 有子页）与任务 T1、T2，B 有顶层页 B1 与任务 BT When 合并 Then B 目录顶层 = [B1, A1, A2]、子页父仍为 A2；todo 列 = [BT, T1, T2]；T1 的评论仍可读<br>Given member 是 A 的 admin、B 的 viewer Then 合并后在 B 为 admin<br>Then A 在 `?deleted=1`，再合并 A → 404 | ADR-0022 · 02 §9 | api |
+| REQ-SPACE-014 | P1 | 2 | （ADR-0022）合并仅工作区 owner / admin（对源需 `space.delete`、对目标需 `space.manage`）；同一空间 422、任一方个人空间 403、目标已归档 403（源已归档可以）；`dryRun` 只返回预览（记录 / 任务 / 成员数、`visibilityWidened`），不写库 | Given A 仅成员、B 全员可见 When `dryRun` Then `visibilityWidened=true` 且 A 未删<br>When 工作区 member（两边都是空间管理员）合并 Then 403 | ADR-0022 · REQ-SPACE-003 | api |
+| REQ-SPACE-015 | P1 | 2 | （ADR-0022）空间卡片 ⋯「合并到…」（工作区 owner / admin）打开对话框：目标只列本人管理的、未归档的非个人空间；选中即预览计数，可见性扩大时警告；确认后源卡片消失，Toast 可打开目标空间 | When 选目标 Then 预览含「1 条记录、1 个任务」与可见性警告；When 点「合并」Then 源卡片消失、源空间在回收站、记录在目标目录 | ADR-0022 · 08 §2.5 | e2e |
 
 ---
 

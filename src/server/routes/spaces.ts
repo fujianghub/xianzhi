@@ -5,6 +5,7 @@ import {
   batchSpacesSchema,
   createSpaceSchema,
   listSpacesQuery,
+  mergeSpaceSchema,
   patchSpaceMemberSchema,
   patchSpaceSchema,
   reorderSpaceSchema,
@@ -19,6 +20,7 @@ import { idempotency } from '../middleware/idempotency.ts'
 import { clientIp } from '../middleware/request-context.ts'
 import { requireAuth, requireScope } from '../middleware/session.ts'
 import { getSpaceTree } from '../services/entry-tree.ts'
+import { mergeSpace } from '../services/space-merge.ts'
 import * as svc from '../services/spaces.ts'
 import type { AppEnv } from '../types.ts'
 
@@ -86,6 +88,15 @@ export function spaceRoutes(deps: { db: Db; dataDir: string }) {
       )
       .post('/:id/unarchive', requireScope('write'), validate('param', spaceKeyParam), async (c) =>
         c.json(await svc.setSpaceArchived(deps.db, ctxOf(c), c.req.valid('param').id, false)),
+      )
+      // 合并空间（ADR-0022、REQ-SPACE-013 · 014）：dryRun 返回预览，否则执行并返回目标空间
+      .post(
+        '/:id/merge',
+        requireScope('write'),
+        validate('param', spaceKeyParam),
+        validate('json', mergeSpaceSchema),
+        async (c) =>
+          c.json(await mergeSpace(deps.db, ctxOf(c), c.req.valid('param').id, c.req.valid('json'))),
       )
       .post('/:id/restore', requireScope('write'), validate('param', spaceKeyParam), async (c) =>
         c.json(await svc.restoreSpace(deps.db, ctxOf(c), c.req.valid('param').id)),

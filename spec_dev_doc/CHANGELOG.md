@@ -4,6 +4,9 @@
 
 ## 2026-09-27
 
+**合并空间（ADR-0022）**
+- 新增 ADR-0022。00：+REQ-SPACE-013 ~ 015。01 §3.12 审计动作 +`space.merged`（迁移 0018）。02 §9 +`POST /spaces/:id/merge`。08 §2.5 注。glossary +合并空间。
+
 **空间批量管理（ADR-0021）**
 - 新增 ADR-0021。00：+REQ-SPACE-010 ~ 012。02 §9 +`POST /spaces/batch`。08 §2.5 · §2.14 注。
 

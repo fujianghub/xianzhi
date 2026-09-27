@@ -123,6 +123,7 @@ export const AUDIT_ACTIONS = [
   'workspace.settings_changed',
   'space.deleted',
   'space.permanently_deleted',
+  'space.merged',
   'task.permanently_deleted',
   'entry.permanently_deleted',
   'entry.restored',
