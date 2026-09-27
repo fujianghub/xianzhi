@@ -26,9 +26,9 @@ pnpm start / start:collab        # 生产：app 容器（migrate+api+worker）/ 
 pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore | create-owner [--username] | seed | migrate-prefix（import-debug 属二期）
 ```
 
-- 后端 API 测试用 `app.request()`，不起端口；`signIn()` 辅助自动取拼图答案。E2E 用独立端口 3011/8012/8013 与独立 `.vite-verify` 缓存；`pnpm e2e` 会重建 `xz_e2e`，且只认 `localhost:3011`（跑前停掉按 IP 起的验证实例）；对其它实例跑指定用例：`XZ_E2E_BASE=http://localhost:<port> pnpm exec playwright test <spec> --project=setup --project=desktop`
+- 后端 API 测试用 `app.request()`，不起端口；`signIn()` 辅助自动取拼图答案。E2E 用独立端口 3011/8012/8013 与独立 `.vite-verify` 缓存；`pnpm e2e` 会重建 `xz_e2e`，且只认 `localhost:3011`（跑前停掉按 IP 起的验证实例）；对其它实例跑指定用例：`XZ_E2E_BASE=<与该实例 APP_URL 同源，按 IP 起的就用 IP> pnpm exec playwright test <spec> --project=setup --project=desktop`（Origin 不一致则登录 setup 超时）
 - 验证实例设 `XZ_CAPTCHA_DEBUG=1`（拼图答案回显，e2e `solveCaptcha()` 真实拖拽）；production 由服务端强制忽略。`xz_e2e` 各 worktree 共用，附件目录固定为主仓 `data/e2e`；不重建库也要能过，用例勿依赖累积数据（自建大类 / 空间，遮罩未读数等易变区域；见 `debug/2026-09-26-e2e-shared-db-data-drift`）
-- 视觉基线：确认新视觉后 `pnpm exec playwright test e2e/design.spec.ts e2e/feedback.spec.ts --project=setup --project=desktop --update-snapshots`
+- 视觉基线：改样式后先在 `/settings/design?theme=both` 逐页过一遍，确认后 `pnpm exec playwright test e2e/design.spec.ts e2e/feedback.spec.ts --project=setup --project=desktop --update-snapshots`
 - **主 dev server 运行时勿在同目录再起共享 `.vite` 缓存的实例**（简斋教训：prosemirror/codemirror 多实例崩溃）；worktree 有自己的 `node_modules`，可在另一端口起预览
 - 改被 `inList()` 引用的枚举（`AUDIT_ACTIONS`、`PALETTE_COLORS` 等）必须 `pnpm db:generate` 重建 check 约束，否则插库 500（见 `debug/2026-09-25-audit-action-check-constraint`）
 - 客户端生成 id / `Idempotency-Key` 只用 `lib/uuid.ts` 的 `newId()`：按局域网 IP 走 HTTP 时没有 `crypto.randomUUID`（check-css 拦截；见 `debug/2026-09-25-randomuuid-insecure-context`）
@@ -62,7 +62,7 @@ pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore 
 | `spec_dev_doc/01-domain-model.md` | 表结构、`fields` schema、事件种类、权限矩阵 |
 | `spec_dev_doc/02-api-conventions.md` | 路由/错误/分页/SSE/文件/MCP 约定、路由清单 |
 | `spec_dev_doc/03-editor-kernel.md` | Tiptap schema、Hocuspocus 钩子、快照、模板、交互规格、简斋陷阱 |
-| `spec_dev_doc/04-design-system.md` | token、动效档位、布局、交互、`/design` 画廊 |
+| `spec_dev_doc/04-design-system.md` | token、动效档位、布局、交互、`/settings/design` 画廊（ADR-0020，旧 `/design` 跳转） |
 | `spec_dev_doc/05-dev-workflow.md` | 环境、测试策略、CI、部署、备份、Phase 0 验收清单 |
 | `spec_dev_doc/06-visual-style.md` | Apple 玻璃材质、日场 / 夜场 token、组件材质表、性能预算（ADR-0002） |
 | `spec_dev_doc/07-security-and-data.md` | 威胁模型、保留 / 清理表、成员生命周期、限额表、安全测试 |
