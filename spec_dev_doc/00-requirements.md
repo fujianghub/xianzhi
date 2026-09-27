@@ -1,6 +1,6 @@
 # 00 需求规范
 
-> 状态：已采纳 · 版本：v2 · 更新：2026-09-27（ADR-0016：REQ-CAL-012 · 013、REQ-ENTRY-016 ~ 019、REQ-UI-038；ADR-0017：REQ-ENTRY-020、REQ-TAG-007；ADR-0018：REQ-KB-008、REQ-ENTRY-021 ~ 023、REQ-LINK-006；ADR-0019：REQ-KB-009 · 010、REQ-EDITOR-023）· 最后对照代码：2026-09-25（鲜艳色板 / 用户管理 / 个人资料，ADR-0010：REQ-CAL-010、REQ-UI-035、REQ-WS-018 ~ 023、REQ-AUTH-021；注册审批 / 用户名 / 日程 / 宽屏：REQ-AUTH-017 ~ 020、REQ-CAL-001 ~ 009、REQ-UI-034；此前 2026-09-24：REQ-AUTH-016、REQ-TASK-024、REQ-UI-024 ~ 032） · 依据 ADR-0001 §1、§7、§9、ADR-0003。
+> 状态：已采纳 · 版本：v2 · 更新：2026-09-27（ADR-0021：REQ-SPACE-010 ~ 012；ADR-0016：REQ-CAL-012 · 013、REQ-ENTRY-016 ~ 019、REQ-UI-038；ADR-0017：REQ-ENTRY-020、REQ-TAG-007；ADR-0018：REQ-KB-008、REQ-ENTRY-021 ~ 023、REQ-LINK-006；ADR-0019：REQ-KB-009 · 010、REQ-EDITOR-023）· 最后对照代码：2026-09-25（鲜艳色板 / 用户管理 / 个人资料，ADR-0010：REQ-CAL-010、REQ-UI-035、REQ-WS-018 ~ 023、REQ-AUTH-021；注册审批 / 用户名 / 日程 / 宽屏：REQ-AUTH-017 ~ 020、REQ-CAL-001 ~ 009、REQ-UI-034；此前 2026-09-24：REQ-AUTH-016、REQ-TASK-024、REQ-UI-024 ~ 032） · 依据 ADR-0001 §1、§7、§9、ADR-0003。
 > 本文是**所有测试与任务的追溯源头**：每条需求有唯一 `REQ-<AREA>-<NNN>` 编号；`05` §5 的测试、`tasks/` 的任务、PR 描述都引用这里的编号。设计如何实现在 01–06；本文只写「做什么、验收什么」。
 > 分期：一期 = Phase 0–2（本文编号范围）；二期 = Phase 3（文末只列标题，不编号、不验收）。
 
@@ -95,6 +95,9 @@
 | REQ-SPACE-007 | P1 | 1 | 当空间被软删时，其任务与记录应随之对所有人不可见，30 天后硬删，仅 owner/admin 可永久删 | When `DELETE /spaces/:id` Then 204；其下 `GET /tasks` 404<br>When `DELETE /spaces/:id?permanent=1` by member Then 403 | 01 §1 软删 · 02 §5 | api |
 | REQ-SPACE-008 | P1 | 1 | 空间颜色与图标应只接受 04 §2.1 色板中的 8 个 token 名与 emoji / Lucide 名 | When `POST /spaces {color:'#ff0000'}` Then 422 `VALIDATION` | 01 §3.1 · 04 §2.1 | api |
 | REQ-SPACE-009 | P0 | 0 | 每个成员加入工作区时（含 `create-owner`）系统应自动创建其个人空间（`is_personal=true`），该空间不可删除、不可加人、不可改可见性 | When 接受邀请 Then `GET /spaces` 含 `isPersonal=true` 且 `visibility=members` 的一项<br>When `DELETE` 或 `POST /:id/members` Then 403 | 01 §3.1 | api |
+| REQ-SPACE-010 | P1 | 2 | （2026-09-27 新增，ADR-0021）`POST /spaces/batch`（archive / unarchive / move，≤ 100）应逐个鉴权，个人空间与无权空间进 `failed` 而不影响其它；`/spaces`「批量管理」整卡点选、Shift 连选、「全选本组」，底部操作条归档 / 取消归档 / 移到大类，归档可撤销 | When member 批量归档 [自己管理的 2 个, 他人空间, 个人空间] Then `ok` = 前 2 个、其余 `failed` 为 `FORBIDDEN`<br>When 批量 `move {groupId: 不存在}` Then 422<br>When 点第一张卡再 Shift 点第三张 Then 已选 3 个 | ADR-0021 · 02 §9 | api · e2e |
+| REQ-SPACE-011 | P1 | 2 | （ADR-0021）批量删除（软删）仅工作区 owner / admin；`dryRun` 只校验并返回可删空间下未删除的记录 / 任务数，不写库；确认弹层写明计数；删除后可撤销（批量 `restore`） | Given 空间下 2 条记录 1 个任务 When `dryRun` Then `counts = {entries:2, tasks:1}` 且空间未删<br>When member 批量删 Then 全部 `FORBIDDEN`<br>When 删除后点「撤销」Then 空间回到列表 | ADR-0021 · REQ-SPACE-003 · 007 | api · e2e |
+| REQ-SPACE-012 | P1 | 2 | （ADR-0021）回收站空间 Tab 可多选批量恢复 / 永久删除；批量 `purge` 只接受已在回收站的空间，内容一并清除，逐个写审计 | When 批量 `purge [已删, 未删]` Then `ok=[已删]`、未删的 `failed` 为 `CONFLICT_STALE`<br>When member 批量 `purge` Then `FORBIDDEN`<br>When 回收站勾选 3 个点「永久删除所选」并确认 Then 三行消失 | ADR-0021 · REQ-SPACE-007 | api · e2e |
 
 ---
 

@@ -85,3 +85,19 @@ export const spaceMemberParam = z.object({
   id: z.string().trim().min(1).max(64),
   userId: z.string().trim().min(1).max(64),
 })
+
+/**
+ * POST /spaces/batch（ADR-0021、REQ-SPACE-010 ~ 012）：≤ 100 个，逐个鉴权，单个失败不影响其它。
+ * archive / unarchive / move（groupId null = 未分类）/ delete（软删）/ restore（回收站恢复）/ purge（彻底删除，只接受回收站里的）。
+ * `dryRun`：只鉴权并统计将受影响的记录 / 任务数，不写库（删除确认弹层用）。
+ */
+const spaceBatchIds = z.array(uuidSchema).min(1).max(100)
+const dryRun = z.boolean().optional()
+export const batchSpacesSchema = z.discriminatedUnion('op', [
+  z.object({ op: z.literal('archive'), ids: spaceBatchIds, dryRun }),
+  z.object({ op: z.literal('unarchive'), ids: spaceBatchIds, dryRun }),
+  z.object({ op: z.literal('move'), ids: spaceBatchIds, groupId: uuidSchema.nullable(), dryRun }),
+  z.object({ op: z.literal('delete'), ids: spaceBatchIds, dryRun }),
+  z.object({ op: z.literal('restore'), ids: spaceBatchIds, dryRun }),
+  z.object({ op: z.literal('purge'), ids: spaceBatchIds, dryRun }),
+])

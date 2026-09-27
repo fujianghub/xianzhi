@@ -6,11 +6,25 @@
  * - 大类（ADR-0012）：`group_id` 可空；移入大类需 space.manage；个人空间不入大类。
  * - 访问变化（成员增删改、可见性、归档、软删、恢复、永久删）提交后广播 `entry.access_changed`，collab 重新 can()（01 §5）。
  */
-import { and, asc, desc, eq, gt, isNotNull, isNull, ne, not, type SQL, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  not,
+  type SQL,
+  sql,
+} from 'drizzle-orm'
 import { generateKeyBetween } from 'fractional-indexing'
 import type { z } from 'zod'
 import type { SpaceRole, WorkspaceRole } from '../../shared/schemas/enums.ts'
 import type {
+  batchSpacesSchema,
   createSpaceSchema,
   listSpacesQuery,
   patchSpaceSchema,
@@ -20,6 +34,7 @@ import {
   assertCan,
   can,
   effectiveSpaceRole,
+  ForbiddenError,
   type SpaceRef,
   spaceRoleCap,
   spaceRoleWithin,
@@ -27,7 +42,7 @@ import {
 } from '../authz.ts'
 import type { Db, DbOrTx } from '../db/index.ts'
 import { member as memberTable, user as userTable } from '../db/schema/auth.ts'
-import { spaceMembers, spaces } from '../db/schema/business.ts'
+import { entries, spaceMembers, spaces, tasks } from '../db/schema/business.ts'
 import { purgeSpace } from '../jobs/gc.ts'
 import { decodeCursor, encodeCursor } from '../lib/cursor.ts'
 import { AppError } from '../lib/errors.ts'
@@ -447,6 +462,37 @@ export async function patchSpace(
   return viewOf(db, ctx, row.id)
 }
 
+// 各写操作的鉴权与前置校验单独成函数：单个接口与批量（含 dryRun）共用，保证判定一致（ADR-0021）
+
+async function checkArchive(db: DbOrTx, ctx: SpaceCtx, key: string, archived: boolean) {
+  const { row, ref } = await loadSpace(db, ctx, key)
+  assertCan(ctx.actor, 'space.manage', ref)
+  if (row.isPersonal && archived) throw AppError.forbidden('个人空间不可归档')
+  return row
+}
+
+async function checkSoftDelete(db: DbOrTx, ctx: SpaceCtx, key: string) {
+  const { row, ref } = await loadSpace(db, ctx, key)
+  if (row.isPersonal) throw AppError.forbidden('个人空间不可删除')
+  assertCan(ctx.actor, 'space.delete', ref)
+  return row
+}
+
+async function checkRestore(db: DbOrTx, ctx: SpaceCtx, key: string) {
+  assertCan(ctx.actor, 'workspace.manage', null)
+  const { row } = await loadSpace(db, ctx, key, { allowDeleted: true })
+  if (!row.deletedAt) throw new AppError(409, 'CONFLICT_STALE', '空间未被删除')
+  return row
+}
+
+async function checkPurge(db: DbOrTx, ctx: SpaceCtx, key: string) {
+  // 先判权限再查对象：member 对任何 id 都是 403（REQ-SPACE-007 验收）
+  assertCan(ctx.actor, 'workspace.manage', null)
+  const { row } = await loadSpace(db, ctx, key, { allowDeleted: true })
+  if (row.isPersonal) throw AppError.forbidden('个人空间不可删除')
+  return row
+}
+
 /** POST /spaces/:id/archive|unarchive（REQ-SPACE-004）：归档后只读；个人空间不可归档（收件箱默认落点）。 */
 export async function setSpaceArchived(
   db: DbOrTx,
@@ -454,9 +500,7 @@ export async function setSpaceArchived(
   key: string,
   archived: boolean,
 ): Promise<SpaceView> {
-  const { row, ref } = await loadSpace(db, ctx, key)
-  assertCan(ctx.actor, 'space.manage', ref)
-  if (row.isPersonal && archived) throw AppError.forbidden('个人空间不可归档')
+  const row = await checkArchive(db, ctx, key, archived)
   if (!!row.archivedAt !== archived) {
     await db
       .update(spaces)
@@ -471,9 +515,7 @@ export async function setSpaceArchived(
 
 /** DELETE /spaces/:id（REQ-SPACE-003 · 007 · 009）：软删；仅工作区 owner/admin；个人空间 403。 */
 export async function softDeleteSpace(db: DbOrTx, ctx: SpaceCtx, key: string): Promise<void> {
-  const { row, ref } = await loadSpace(db, ctx, key)
-  if (row.isPersonal) throw AppError.forbidden('个人空间不可删除')
-  assertCan(ctx.actor, 'space.delete', ref)
+  const row = await checkSoftDelete(db, ctx, key)
   await db
     .update(spaces)
     .set({ deletedAt: new Date(), updatedAt: new Date() })
@@ -493,9 +535,7 @@ export async function softDeleteSpace(db: DbOrTx, ctx: SpaceCtx, key: string): P
 
 /** POST /spaces/:id/restore（REQ-SPACE-007）：仅工作区 owner/admin（空间也只有他们能删）。 */
 export async function restoreSpace(db: DbOrTx, ctx: SpaceCtx, key: string): Promise<SpaceView> {
-  assertCan(ctx.actor, 'workspace.manage', null)
-  const { row } = await loadSpace(db, ctx, key, { allowDeleted: true })
-  if (!row.deletedAt) throw new AppError(409, 'CONFLICT_STALE', '空间未被删除')
+  const row = await checkRestore(db, ctx, key)
   await db
     .update(spaces)
     .set({ deletedAt: null, updatedAt: new Date() })
@@ -509,10 +549,7 @@ export async function restoreSpace(db: DbOrTx, ctx: SpaceCtx, key: string): Prom
  * 未软删的空间也可直接永久删（02 §5 未要求先进回收站）；任务 / 记录 / 评论 / 附件一并清除，记审计。
  */
 export async function permanentlyDeleteSpace(db: Db, ctx: SpaceCtx, key: string): Promise<void> {
-  // 先判权限再查对象：member 对任何 id 都是 403（REQ-SPACE-007 验收）
-  assertCan(ctx.actor, 'workspace.manage', null)
-  const { row } = await loadSpace(db, ctx, key, { allowDeleted: true })
-  if (row.isPersonal) throw AppError.forbidden('个人空间不可删除')
+  const row = await checkPurge(db, ctx, key)
   if (!ctx.dataDir) throw new Error('permanentlyDeleteSpace 需要 dataDir（删除附件文件）')
   const counts = await purgeSpace({ db, dataDir: ctx.dataDir }, row.id)
   await audit(db, {
@@ -526,6 +563,113 @@ export async function permanentlyDeleteSpace(db: Db, ctx: SpaceCtx, key: string)
     meta: { name: row.name, slug: row.slug, wasDeleted: !!row.deletedAt, ...counts },
   })
   accessChanged(ctx, { spaceId: row.id })
+}
+
+// ---------- 批量（ADR-0021） ----------
+
+export interface SpaceBatchResult {
+  ok: string[]
+  failed: { id: string; code: string; message: string }[]
+  /** ok 里的空间当前未删除的记录 / 任务数（删除确认弹层据此提示影响面） */
+  counts: { entries: number; tasks: number }
+}
+
+async function contentCounts(db: DbOrTx, ids: string[]) {
+  if (!ids.length) return { entries: 0, tasks: 0 }
+  const count = async (t: typeof entries | typeof tasks) => {
+    const [r] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(t)
+      .where(and(inArray(t.spaceId, ids), isNull(t.deletedAt)))
+    return r?.n ?? 0
+  }
+  return { entries: await count(entries), tasks: await count(tasks) }
+}
+
+/**
+ * POST /spaces/batch（REQ-SPACE-010 ~ 012）：逐个走与单个接口相同的 check*（鉴权 / 个人空间 / 回收站状态），
+ * 单个失败进 failed 不影响其它；dryRun 只跑 check 与计数。purge 只接受已在回收站的空间，防止误把正常空间彻底删掉。
+ */
+export async function batchSpaces(
+  db: Db,
+  ctx: SpaceCtx,
+  input: z.infer<typeof batchSpacesSchema>,
+): Promise<SpaceBatchResult> {
+  const groupId =
+    input.op === 'move' && input.groupId
+      ? await requireGroupId(db, ctx.workspaceId, input.groupId)
+      : null
+  const ok: string[] = []
+  const failed: SpaceBatchResult['failed'] = []
+  const ids = [...new Set(input.ids)]
+  // 计数在写之前：删除 / 彻底删除之后就查不到了
+  const pending: string[] = []
+  for (const id of ids) {
+    try {
+      switch (input.op) {
+        case 'archive':
+        case 'unarchive':
+          await checkArchive(db, ctx, id, input.op === 'archive')
+          break
+        case 'move': {
+          const { row, ref } = await loadSpace(db, ctx, id)
+          assertCan(ctx.actor, 'space.manage', ref)
+          if (row.isPersonal && groupId) throw AppError.forbidden('个人空间不归入大类')
+          break
+        }
+        case 'delete':
+          await checkSoftDelete(db, ctx, id)
+          break
+        case 'restore':
+          await checkRestore(db, ctx, id)
+          break
+        case 'purge': {
+          const row = await checkPurge(db, ctx, id)
+          if (!row.deletedAt)
+            throw new AppError(409, 'CONFLICT_STALE', '只能彻底删除回收站里的空间')
+          break
+        }
+      }
+      pending.push(id)
+    } catch (err) {
+      failed.push(batchFailure(id, err))
+    }
+  }
+  const counts = await contentCounts(db, pending)
+  if (input.dryRun) return { ok: pending, failed, counts }
+  for (const id of pending) {
+    try {
+      switch (input.op) {
+        case 'archive':
+        case 'unarchive':
+          await setSpaceArchived(db, ctx, id, input.op === 'archive')
+          break
+        case 'move':
+          await db.update(spaces).set({ groupId, updatedAt: new Date() }).where(eq(spaces.id, id))
+          break
+        case 'delete':
+          await softDeleteSpace(db, ctx, id)
+          break
+        case 'restore':
+          await restoreSpace(db, ctx, id)
+          break
+        case 'purge':
+          await permanentlyDeleteSpace(db, ctx, id)
+          break
+      }
+      ok.push(id)
+    } catch (err) {
+      failed.push(batchFailure(id, err))
+    }
+  }
+  return { ok, failed, counts }
+}
+
+function batchFailure(id: string, err: unknown) {
+  if (err instanceof AppError) return { id, code: err.code, message: err.message }
+  // assertCan 抛 ForbiddenError（由 app.onError 映射成 403）；批量里逐条收集，这里同样归为 FORBIDDEN
+  if (err instanceof ForbiddenError) return { id, code: 'FORBIDDEN', message: '无权操作此空间' }
+  return { id, code: 'INTERNAL', message: '' }
 }
 
 // ---------- 排序 ----------
