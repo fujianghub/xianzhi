@@ -110,6 +110,7 @@
 | 看板（记录） | Entry board / `view=board` | — | 看板 | `entry.board.label` | 按 `fields.status` 分列的记录视图（ADR-0014） | 08 §2.8 |
 | 时间线 | Timeline / `view=timeline` | — | 时间线 | `entry.timeline.label` | 迭代 / 变更按日期的视图（ADR-0014） | 08 §2.8 |
 | 合并标签 | Merge tag | — | 合并到… | `settings.tags.merge` | 源标签关联并入目标后删除源（ADR-0014） | 02 §9 |
+| 合并空间 | Merge space / `POST /spaces/:id/merge` | — | 合并到… | `space.merge.*` | 源空间记录 / 任务 / 成员并入目标，源进回收站；审计 `space.merged`（ADR-0022） | 02 §9 |
 | 归档 | Archive / `archivedAt` | `archived_at` | 归档 | `ui.action.archive` | 隐藏但不删除；**与删除不同** | 01 §3.1 |
 | 乐观锁 | Optimistic lock / `ifUpdatedAt` | PATCH body | — | — | 不匹配 409 `CONFLICT_STALE` | 02 §5 |
 | 幂等键 | Idempotency key | `Idempotency-Key` 头 / `idempotency_keys` | — | — | 24h 回放 | 02 §5 |

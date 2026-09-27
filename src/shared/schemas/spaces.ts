@@ -101,3 +101,9 @@ export const batchSpacesSchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('restore'), ids: spaceBatchIds, dryRun }),
   z.object({ op: z.literal('purge'), ids: spaceBatchIds, dryRun }),
 ])
+
+/**
+ * POST /spaces/:id/merge（ADR-0022、REQ-SPACE-013 ~ 015）：把本空间（源）整体并入 `into`（目标）。
+ * `dryRun`：只校验并返回将搬移的记录 / 任务数、将并入的成员数、是否扩大可见范围，不写库（确认弹层用）。
+ */
+export const mergeSpaceSchema = z.object({ into: uuidSchema, dryRun: z.boolean().optional() })

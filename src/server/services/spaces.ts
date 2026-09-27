@@ -186,7 +186,7 @@ async function memberRoleOf(db: DbOrTx, spaceId: string, userId: string) {
  * 按 id 或 slug 取空间并判读权限；不存在 / 不可读 → 404。
  * `allowDeleted`：回收站操作（restore / permanent），软删对象只对工作区 owner/admin 放行。
  */
-async function loadSpace(
+export async function loadSpace(
   db: DbOrTx,
   ctx: SpaceCtx,
   key: string,
@@ -251,7 +251,7 @@ function toView(
   return v
 }
 
-async function viewOf(db: DbOrTx, ctx: SpaceCtx, id: string): Promise<SpaceView> {
+export async function viewOf(db: DbOrTx, ctx: SpaceCtx, id: string): Promise<SpaceView> {
   const [r] = await db
     .select({ s: spaces, role: spaceMembers.role, n: memberCountSql })
     .from(spaces)
@@ -264,7 +264,7 @@ async function viewOf(db: DbOrTx, ctx: SpaceCtx, id: string): Promise<SpaceView>
   return toView(ctx.actor, r.s, (r.role as SpaceRole | null) ?? null, r.n)
 }
 
-const accessChanged = (ctx: SpaceCtx, payload: { spaceId: string; userIds?: string[] }) =>
+export const accessChanged = (ctx: SpaceCtx, payload: { spaceId: string; userIds?: string[] }) =>
   (ctx.bus ?? getEventBus()).publish('entry.access_changed', payload)
 
 // ---------- 列表 / 详情 ----------
