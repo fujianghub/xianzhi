@@ -3,6 +3,8 @@
  * 拖动排序乐观更新：先改缓存顺序，发一条 `PATCH /spaces/reorder`，失败回滚并提示（REQ-SPACE-005）。
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { z } from 'zod'
+import type { batchSpacesSchema } from '../../shared/schemas/spaces.ts'
 import { api, unwrap } from '../lib/api.ts'
 import {
   type Space,
@@ -130,6 +132,30 @@ export function useArchiveSpace() {
       return qc.invalidateQueries({ queryKey: ['spaces'] })
     },
   })
+}
+
+export type SpaceBatchInput = z.infer<typeof batchSpacesSchema>
+export interface SpaceBatchResult {
+  ok: string[]
+  failed: { id: string; code: string; message: string }[]
+  counts: { entries: number; tasks: number }
+}
+
+/**
+ * 空间批量操作（ADR-0021、REQ-SPACE-010 ~ 012）：`POST /spaces/batch`；dryRun 只取可操作项与影响计数。
+ * 真正执行后刷新空间列表、侧栏与回收站。
+ */
+export function useSpaceBatch() {
+  const qc = useQueryClient()
+  return async (input: SpaceBatchInput): Promise<SpaceBatchResult> => {
+    const r = await unwrap<SpaceBatchResult>(api.spaces.batch.$post({ json: input as never }))
+    if (!input.dryRun)
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['spaces'] }),
+        qc.invalidateQueries({ queryKey: ['space'] }),
+      ])
+    return r
+  }
 }
 
 /**

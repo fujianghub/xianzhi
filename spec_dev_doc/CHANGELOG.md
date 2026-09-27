@@ -4,6 +4,9 @@
 
 ## 2026-09-27
 
+**空间批量管理（ADR-0021）**
+- 新增 ADR-0021。00：+REQ-SPACE-010 ~ 012。02 §9 +`POST /spaces/batch`。08 §2.5 · §2.14 注。
+
 **验证实例端口可覆盖**
 - 05 §3 `pnpm dev:verify` 行加注：`CLIENT_PORT` / `API_PORT` / `COLLAB_PORT` 可覆盖，`APP_URL` 默认随 `CLIENT_PORT`。
 

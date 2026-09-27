@@ -2,6 +2,7 @@
 import { Hono } from 'hono'
 import {
   addSpaceMemberSchema,
+  batchSpacesSchema,
   createSpaceSchema,
   listSpacesQuery,
   patchSpaceMemberSchema,
@@ -51,6 +52,10 @@ export function spaceRoutes(deps: { db: Db; dataDir: string }) {
       // 字面路径须在 /:id 之前注册
       .patch('/reorder', requireScope('write'), validate('json', reorderSpaceSchema), async (c) =>
         c.json(await svc.reorderSpace(deps.db, ctxOf(c), c.req.valid('json'))),
+      )
+      // 批量（ADR-0021、REQ-SPACE-010 ~ 012）：逐个鉴权，返回 ok / failed / counts
+      .post('/batch', requireScope('write'), validate('json', batchSpacesSchema), async (c) =>
+        c.json(await svc.batchSpaces(deps.db, ctxOf(c), c.req.valid('json'))),
       )
       .get('/:id', validate('param', spaceKeyParam), async (c) =>
         c.json(await svc.getSpace(deps.db, ctxOf(c), c.req.valid('param').id)),

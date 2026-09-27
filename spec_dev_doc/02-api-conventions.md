@@ -213,6 +213,7 @@
 | PATCH | `/spaces/:id/members/:userId` | 改空间角色 | REQ-SPACE-003 |
 | DELETE | `/spaces/:id/members/:userId` | 移出空间；广播 `entry.access_changed` | REQ-SPACE-003 |
 | PATCH | `/spaces/reorder` | `{ id, after, groupId? }` 只改一行 `sortKey`；带 `groupId` 同时移入该大类（ADR-0012） | REQ-SPACE-005 · REQ-KB-002 |
+| POST | `/spaces/batch` | `{ op: archive\|unarchive\|move\|delete\|restore\|purge, ids ≤ 100, groupId?, dryRun? }` 逐个鉴权 → `{ ok, failed[{id, code, message}], counts{entries, tasks} }`；`purge` 只收回收站里的；`dryRun` 只校验与计数（ADR-0021） | REQ-SPACE-010 ~ 012 |
 | GET | `/space-groups` | 大类列表（全员可读） | REQ-KB-001 |
 | POST | `/space-groups` | `{ name, color?, icon?, description? }`；`group.manage`；同名 409 | REQ-KB-001 |
 | PATCH | `/space-groups/reorder` | `{ id, after }` | REQ-KB-001 |
