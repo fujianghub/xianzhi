@@ -12,7 +12,6 @@ import {
   LogOut,
   type LucideIcon,
   Menu,
-  Palette,
   PanelLeft,
   PanelRight,
   Search,
@@ -26,7 +25,7 @@ import { lazy, Suspense, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { hotkeyParts, useCommands } from '../../hooks/useCommands.ts'
 import { useHotkeys } from '../../hooks/useHotkeys.ts'
-import { isAdmin, type Me } from '../../hooks/useMe.ts'
+import type { Me } from '../../hooks/useMe.ts'
 import { useScrolled } from '../../hooks/useScrolled.ts'
 import { authClient } from '../../lib/auth-client.ts'
 import { cn } from '../../lib/cn.ts'
@@ -81,7 +80,7 @@ export function NavIcon({ icon: Icon, hue }: { icon: LucideIcon; hue?: Hue }) {
   )
 }
 
-function NavList({ me, onNavigate }: { me: Me; onNavigate?: () => void }) {
+function NavList({ onNavigate }: { onNavigate?: () => void }) {
   const { t } = useTranslation()
   const path = useRouterState({ select: (s) => s.location.pathname })
   const items: {
@@ -164,18 +163,6 @@ function NavList({ me, onNavigate }: { me: Me; onNavigate?: () => void }) {
           </Link>
         ),
       )}
-      {isAdmin(me) ? (
-        <Link
-          to="/design"
-          onClick={onNavigate}
-          className="xz-nav-item mt-1"
-          data-active={path.startsWith('/design') || undefined}
-          aria-current={path.startsWith('/design') ? 'page' : undefined}
-        >
-          <NavIcon icon={Palette} hue="lime" />
-          {t('ui.page.design')}
-        </Link>
-      ) : null}
       <Link
         to="/settings"
         onClick={onNavigate}
@@ -243,7 +230,7 @@ export function AppShell({
       >
         <Brand />
         <div className="min-h-0 flex-1 overflow-y-auto pb-4">
-          <NavList me={me} />
+          <NavList />
           <SpaceSwitcher me={me} />
         </div>
       </aside>
@@ -253,7 +240,7 @@ export function AppShell({
           <SheetTitle className="sr-only">{t('ui.nav.spaces')}</SheetTitle>
           <Brand />
           <div className="min-h-0 flex-1 overflow-y-auto pb-4">
-            <NavList me={me} onNavigate={() => setDrawer(false)} />
+            <NavList onNavigate={() => setDrawer(false)} />
             <SpaceSwitcher me={me} onNavigate={() => setDrawer(false)} />
           </div>
         </SheetContent>

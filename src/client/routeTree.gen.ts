@@ -27,6 +27,7 @@ import { Route as AppEntriesIndexRouteImport } from './routes/_app.entries.index
 import { Route as AppEntriesEntryIdRouteImport } from './routes/_app.entries.$entryId'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app.settings.index'
 import { Route as AppSettingsApiKeysRouteImport } from './routes/_app.settings.api-keys'
+import { Route as AppSettingsDesignRouteImport } from './routes/_app.settings.design'
 import { Route as AppSettingsNotificationsRouteImport } from './routes/_app.settings.notifications'
 import { Route as AppSettingsSecurityRouteImport } from './routes/_app.settings.security'
 import { Route as AppSettingsTagsRouteImport } from './routes/_app.settings.tags'
@@ -132,6 +133,11 @@ const AppSettingsApiKeysRoute = AppSettingsApiKeysRouteImport.update({
   path: '/api-keys',
   getParentRoute: () => AppSettingsRoute,
 } as any)
+const AppSettingsDesignRoute = AppSettingsDesignRouteImport.update({
+  id: '/design',
+  path: '/design',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppSettingsNotificationsRoute =
   AppSettingsNotificationsRouteImport.update({
     id: '/notifications',
@@ -231,6 +237,7 @@ export interface FileRoutesByFullPath {
   '/login/2fa': typeof Login2faRoute
   '/entries/$entryId': typeof AppEntriesEntryIdRoute
   '/settings/api-keys': typeof AppSettingsApiKeysRoute
+  '/settings/design': typeof AppSettingsDesignRoute
   '/settings/notifications': typeof AppSettingsNotificationsRoute
   '/settings/security': typeof AppSettingsSecurityRoute
   '/settings/tags': typeof AppSettingsTagsRoute
@@ -264,6 +271,7 @@ export interface FileRoutesByTo {
   '/login/2fa': typeof Login2faRoute
   '/entries/$entryId': typeof AppEntriesEntryIdRoute
   '/settings/api-keys': typeof AppSettingsApiKeysRoute
+  '/settings/design': typeof AppSettingsDesignRoute
   '/settings/notifications': typeof AppSettingsNotificationsRoute
   '/settings/security': typeof AppSettingsSecurityRoute
   '/settings/tags': typeof AppSettingsTagsRoute
@@ -300,6 +308,7 @@ export interface FileRoutesById {
   '/login_/2fa': typeof Login2faRoute
   '/_app/entries/$entryId': typeof AppEntriesEntryIdRoute
   '/_app/settings/api-keys': typeof AppSettingsApiKeysRoute
+  '/_app/settings/design': typeof AppSettingsDesignRoute
   '/_app/settings/notifications': typeof AppSettingsNotificationsRoute
   '/_app/settings/security': typeof AppSettingsSecurityRoute
   '/_app/settings/tags': typeof AppSettingsTagsRoute
@@ -336,6 +345,7 @@ export interface FileRouteTypes {
     | '/login/2fa'
     | '/entries/$entryId'
     | '/settings/api-keys'
+    | '/settings/design'
     | '/settings/notifications'
     | '/settings/security'
     | '/settings/tags'
@@ -369,6 +379,7 @@ export interface FileRouteTypes {
     | '/login/2fa'
     | '/entries/$entryId'
     | '/settings/api-keys'
+    | '/settings/design'
     | '/settings/notifications'
     | '/settings/security'
     | '/settings/tags'
@@ -404,6 +415,7 @@ export interface FileRouteTypes {
     | '/login_/2fa'
     | '/_app/entries/$entryId'
     | '/_app/settings/api-keys'
+    | '/_app/settings/design'
     | '/_app/settings/notifications'
     | '/_app/settings/security'
     | '/_app/settings/tags'
@@ -560,6 +572,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsApiKeysRouteImport
       parentRoute: typeof AppSettingsRoute
     }
+    '/_app/settings/design': {
+      id: '/_app/settings/design'
+      path: '/design'
+      fullPath: '/settings/design'
+      preLoaderRoute: typeof AppSettingsDesignRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/_app/settings/notifications': {
       id: '/_app/settings/notifications'
       path: '/notifications'
@@ -670,6 +689,7 @@ declare module '@tanstack/react-router' {
 
 interface AppSettingsRouteChildren {
   AppSettingsApiKeysRoute: typeof AppSettingsApiKeysRoute
+  AppSettingsDesignRoute: typeof AppSettingsDesignRoute
   AppSettingsNotificationsRoute: typeof AppSettingsNotificationsRoute
   AppSettingsSecurityRoute: typeof AppSettingsSecurityRoute
   AppSettingsTagsRoute: typeof AppSettingsTagsRoute
@@ -684,6 +704,7 @@ interface AppSettingsRouteChildren {
 
 const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsApiKeysRoute: AppSettingsApiKeysRoute,
+  AppSettingsDesignRoute: AppSettingsDesignRoute,
   AppSettingsNotificationsRoute: AppSettingsNotificationsRoute,
   AppSettingsSecurityRoute: AppSettingsSecurityRoute,
   AppSettingsTagsRoute: AppSettingsTagsRoute,

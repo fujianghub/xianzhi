@@ -172,6 +172,7 @@
 - 每个原语/复合/领域组件一页：所有 variant × size × state（默认/hover/focus/disabled/loading/error）矩阵，深浅色并排。
 - token 页：色板（含对比度值）、字体、间距、动效示例（可切档位）。
 - 视觉回归：Playwright 对 `/design` 每页截图，比对基线（`e2e/__screenshots__/`），阈值 0.1%。
+- 注（2026-09-27，ADR-0020）：路由改为 `/settings/design`（设置「工作区」组），旧地址跳转；工具栏可切主题 / 动效档位 / 降低透明度，token 页色板对比度以运行时对比度表呈现。
 
 ---
 

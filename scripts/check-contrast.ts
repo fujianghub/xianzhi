@@ -8,9 +8,14 @@
  * 代码高亮 token on code-bg ≥ 4.5。
  */
 import { readFileSync } from 'node:fs'
+import {
+  over,
+  parseColor as parse,
+  type RGBA,
+  contrastRatio as ratio,
+} from '../src/shared/contrast.ts'
 import { PALETTE_COLORS } from '../src/shared/schemas/enums.ts'
 
-type RGBA = [number, number, number, number]
 const FILE = new URL('../src/client/styles/tokens.css', import.meta.url)
 const css = readFileSync(FILE, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
 
@@ -24,41 +29,6 @@ function block(selector: string): Map<string, string> {
   for (const d of body.matchAll(/(--xz-[\w-]+)\s*:\s*([^;]+);/g))
     m.set(d[1] as string, (d[2] as string).trim())
   return m
-}
-
-function parse(v: string): RGBA {
-  const s = v.trim().toLowerCase()
-  let m = /^#([0-9a-f]{6})$/.exec(s)
-  if (m) {
-    const n = Number.parseInt(m[1] as string, 16)
-    return [(n >> 16) & 255, (n >> 8) & 255, n & 255, 1]
-  }
-  m = /^rgba?\(([^)]+)\)$/.exec(s)
-  if (m) {
-    const p = (m[1] as string).split(',').map((x) => Number.parseFloat(x))
-    return [p[0] ?? 0, p[1] ?? 0, p[2] ?? 0, p[3] ?? 1]
-  }
-  throw new Error(`无法解析颜色：${v}`)
-}
-const over = (top: RGBA, bottom: RGBA): RGBA => {
-  const a = top[3]
-  return [
-    top[0] * a + bottom[0] * (1 - a),
-    top[1] * a + bottom[1] * (1 - a),
-    top[2] * a + bottom[2] * (1 - a),
-    1,
-  ]
-}
-const lum = ([r, g, b]: RGBA) => {
-  const f = (c: number) => {
-    const x = c / 255
-    return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4
-  }
-  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
-}
-const ratio = (a: RGBA, b: RGBA) => {
-  const [l1, l2] = [lum(a), lum(b)].sort((x, y) => y - x) as [number, number]
-  return (l1 + 0.05) / (l2 + 0.05)
 }
 
 const light = block("[data-theme='light']")

@@ -333,6 +333,7 @@ export function setTheme(next: 'light' | 'dark' | 'system', origin?: { x: number
 - **深度页**：三级阴影 + 棱线在两主题的并排；一个可拖拽卡片演示静止 → hover → 拖拽三态。
 - **切换页**：按钮触发圆形揭幕 / 整页溶解，可勾选 `reduced-motion` / `reduced-transparency` 模拟。
 - 视觉回归：以上三页纳入 Playwright 截图基线，阈值 0.1%。
+- 注（2026-09-27，ADR-0020）：画廊路由改为 `/settings/design`；「降低透明度」「减弱动效」模拟改由 search params `transparency` / `motion` 驱动，切换页的两个勾选框与画廊工具栏同源。
 
 ---
 

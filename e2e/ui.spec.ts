@@ -70,7 +70,7 @@ test('REQ-UI-014 1280 三栏（Topbar / Sidebar / Aside）；1024 侧栏改抽�
 test('REQ-UI-023 浮层（Popover / Dialog / Tooltip）portal 到 body，不在 backdrop-filter 元素内', async ({
   page,
 }) => {
-  await page.goto('/design?page=components')
+  await page.goto('/settings/design?page=components')
   await page.getByTestId('open-popover').click()
   const pop = page.getByTestId('popover-content')
   await expect(pop).toBeVisible()
@@ -102,15 +102,15 @@ test('REQ-UI-023 浮层（Popover / Dialog / Tooltip）portal 到 body，不在 
   expect(d.topParent).toBe('BODY')
 })
 
-test('REQ-UI-016 同屏 backdrop-filter ≤ 6（/design 各页、记录页、Dialog 打开态）；reduced-transparency 下玻璃无 blur', async ({
+test('REQ-UI-016 同屏 backdrop-filter ≤ 6（画廊各页、记录页、Dialog 打开态）；reduced-transparency 下玻璃无 blur', async ({
   page,
   request,
 }) => {
   for (const p of ['tokens', 'materials', 'depth', 'switch', 'components']) {
-    await page.goto(`/design?page=${p}`)
+    await page.goto(`/settings/design?page=${p}`)
     await expect(page.getByTestId('design')).toHaveAttribute('data-page', p)
     const n = await countBlur(page)
-    expect(n, `/design?page=${p}`).toBeLessThanOrEqual(6)
+    expect(n, `/settings/design?page=${p}`).toBeLessThanOrEqual(6)
   }
   await page.getByTestId('open-dialog').click()
   await expect(page.getByTestId('dialog-content')).toBeVisible()
