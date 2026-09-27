@@ -19,7 +19,7 @@
 pnpm i                 # .npmrc 已指 npmmirror；直连 npmjs 会超时
 pnpm db:up             # pg + mailpit 容器
 pnpm dev               # 三服务并行
-pnpm dev:verify        # 验证实例 3011/8012/8013 + xz_e2e；从局域网访问加 APP_URL=http://<ip>:3011
+pnpm dev:verify        # 验证实例 3011/8012/8013 + xz_e2e；从局域网访问加 APP_URL=http://<ip>:3011；worktree 另起一套加 CLIENT_PORT/API_PORT/COLLAB_PORT
 pnpm db:generate / db:migrate / auth:generate
 pnpm test / e2e / lint / lint:drift / build   # lint 含裸色值/对比度/i18n；build 含性能预算
 pnpm start / start:collab        # 生产：app 容器（migrate+api+worker）/ collab 容器，一一对应
