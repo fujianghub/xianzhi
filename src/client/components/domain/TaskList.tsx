@@ -3,6 +3,8 @@
  * - 窗口虚拟化（1 万行滚动不掉帧）；行高随密度。
  * - 键盘：j / k（↓ / ↑）移动、x 多选、Space 完成 / 取消、Enter / e 打开、p Peek、Esc 清空选择；`c` 留给全局新任务。
  * - 完成：变灰 + 删除线 → 400ms 后行高折叠移出 → 8s 行内撤销（撤销 = POST /uncomplete 回到 prevStatus）。
+ *   淡出 / 折叠期间行由 `leaving` 保住原位：列表查询按状态过滤（不含 done），完成后几十毫秒内的重取就会把它从数据里拿掉，
+ *   不保住的话动画被跳过、行直接消失（debug/2026-09-27-task-complete-fade-skipped）。
  * - 多选：底部批量条（改状态 / 删除），一条 POST /tasks/batch。
  */
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
@@ -69,11 +71,34 @@ export function TaskList({
   const [completing, setCompleting] = useState<Set<string>>(new Set())
   const [collapsing, setCollapsing] = useState<Set<string>>(new Set())
   const [hidden, setHidden] = useState<Set<string>>(new Set())
+  /** 正在淡出 / 折叠的任务：勾选时的快照与所在位置；数据里已没有它时仍按原位显示，折叠完成后移除 */
+  const [leaving, setLeaving] = useState<Map<string, { task: Task; index: number }>>(new Map())
   const [undo, setUndo] = useState<Pending[]>([])
   const listRef = useRef<HTMLDivElement>(null)
   const [offset, setOffset] = useState(0)
 
-  const visible = useMemo(() => tasks.filter((x) => !hidden.has(x.id)), [tasks, hidden])
+  const visible = useMemo(() => {
+    const list = tasks.filter((x) => !hidden.has(x.id))
+    if (!leaving.size) return list
+    const ids = new Set(list.map((x) => x.id))
+    // 按原位置从小到大插回，前面的插入不会打乱后面的位置
+    for (const { task, index } of [...leaving.values()].sort((a, b) => a.index - b.index))
+      if (!ids.has(task.id) && !hidden.has(task.id))
+        list.splice(Math.min(index, list.length), 0, task)
+    return list
+  }, [tasks, hidden, leaving])
+  const visibleRef = useRef(visible)
+  visibleRef.current = visible
+  const dropLeaving = useCallback(
+    (id: string) =>
+      setLeaving((m) => {
+        if (!m.has(id)) return m
+        const n = new Map(m)
+        n.delete(id)
+        return n
+      }),
+    [],
+  )
   // 服务端列表里已不存在的任务（撤销后又出现等）从 hidden 里去掉，避免永久隐藏
   useEffect(() => {
     setHidden((h) => {
@@ -132,11 +157,16 @@ export function TaskList({
         return
       }
       setCompleting((s) => new Set(s).add(task.id))
+      const index = visibleRef.current.findIndex((x) => x.id === task.id)
+      // 快照存为已完成态：请求返回后 completing 会清掉，行仍须保持变灰 + 删除线直到折叠
+      const done: Task = { ...task, status: 'done', completedAt: new Date().toISOString() }
+      setLeaving((m) => new Map(m).set(task.id, { task: done, index: Math.max(0, index) }))
       const req = actions.complete(task)
       setTimeout(() => {
         setCollapsing((s) => new Set(s).add(task.id))
         setTimeout(() => {
           setHidden((s) => new Set(s).add(task.id))
+          dropLeaving(task.id)
           setCollapsing((s) => {
             const n = new Set(s)
             n.delete(task.id)
@@ -152,6 +182,7 @@ export function TaskList({
         await req
       } catch {
         // 失败：optimisticPatch 已回滚并提示，这里把行放回
+        dropLeaving(task.id)
         setHidden((s) => {
           const n = new Set(s)
           n.delete(task.id)
@@ -166,7 +197,7 @@ export function TaskList({
         })
       }
     },
-    [actions, t],
+    [actions, t, dropLeaving],
   )
 
   const revert = async (p: Pending) => {
