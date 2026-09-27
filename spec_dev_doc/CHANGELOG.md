@@ -4,6 +4,9 @@
 
 ## 2026-09-27
 
+**验证实例端口可覆盖**
+- 05 §3 `pnpm dev:verify` 行加注：`CLIENT_PORT` / `API_PORT` / `COLLAB_PORT` 可覆盖，`APP_URL` 默认随 `CLIENT_PORT`。
+
 **设计画廊挪进设置并自带用法（ADR-0020）**
 - 新增 ADR-0020。00：+REQ-UI-039 · 040；REQ-UI-004 加注（路由改 `/settings/design`）。08 §1 路由表、§2.16 注。04 §8、06 §10 注。
 
