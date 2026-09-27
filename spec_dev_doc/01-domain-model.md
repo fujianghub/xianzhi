@@ -68,6 +68,8 @@
 | is_personal | bool | 个人空间，默认 false；见下 |
 | description | text? | |
 | group_id | uuid? | FK space_groups（on delete set null）；null = 未分类；个人空间恒为 null（ADR-0012） |
+| default_kind | text? | 在此空间新建记录的默认类型（仅内置，check；ADR-0019） |
+| default_template_id | text? | 默认模板：`builtin:*` 或工作区模板 uuid（个人模板不可；ADR-0019） |
 | sort_key | text | fractional indexing；列级 `COLLATE "C"`（注 2026-09-24：键须按字节序比较，库默认 en_US.utf8 大小写不敏感会排错，迁移 0003） |
 | archived_at | timestamptz? | 归档后空间只读：其任务与记录的写操作 403；列表默认隐藏（`?archived=1` 显示） |
 | deleted_at | timestamptz? | 软删 |

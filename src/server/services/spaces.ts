@@ -35,6 +35,7 @@ import { type EventBus, getEventBus } from '../lib/event-bus.ts'
 import { audit } from './audit.ts'
 import { emit } from './events.ts'
 import { requireGroupId } from './space-groups.ts'
+import { assertSharedTemplate } from './templates.ts'
 
 export const PERSONAL_SPACE_NAME = '个人'
 /** 软删保留天数（01 §1、07 §3 gc.soft_deleted）。 */
@@ -66,6 +67,9 @@ export interface SpaceView {
   description: string | null
   /** 所属大类（ADR-0012）；null = 未分类 */
   groupId: string | null
+  /** 在此空间新建记录的默认类型 / 模板（ADR-0019） */
+  defaultKind: string | null
+  defaultTemplateId: string | null
   sortKey: string
   /** 当前用户的有效空间角色（01 §5，取较高者）；前端据此显示管理入口。 */
   myRole: SpaceRole | null
@@ -213,6 +217,8 @@ function toView(
     isPersonal: row.isPersonal,
     description: row.description,
     groupId: row.groupId,
+    defaultKind: row.defaultKind,
+    defaultTemplateId: row.defaultTemplateId,
     sortKey: row.sortKey,
     myRole: effectiveSpaceRole(actor, toRef(row, memberRole)),
     isMember: memberRole !== null,
@@ -425,6 +431,12 @@ export async function patchSpace(
   if (patch.visibility !== undefined) set.visibility = patch.visibility
   if (patch.description !== undefined) set.description = patch.description
   if (patch.kind !== undefined) set.kind = patch.kind
+  if (patch.defaultKind !== undefined) set.defaultKind = patch.defaultKind
+  if (patch.defaultTemplateId !== undefined) {
+    if (patch.defaultTemplateId)
+      await assertSharedTemplate(db, ctx.workspaceId, patch.defaultTemplateId)
+    set.defaultTemplateId = patch.defaultTemplateId
+  }
   if (patch.groupId !== undefined) {
     if (row.isPersonal && patch.groupId) throw AppError.forbidden('个人空间不归入大类')
     set.groupId = patch.groupId ? await requireGroupId(db, ctx.workspaceId, patch.groupId) : null

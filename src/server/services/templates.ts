@@ -207,6 +207,23 @@ export async function deleteTemplate(db: Db, ctx: EntryCtx, id: string): Promise
 }
 
 /**
+ * 空间默认模板只能是大家都用得了的（ADR-0019）：内置模板，或本工作区的「工作区」模板；个人模板 / 不存在 → 422。
+ */
+export async function assertSharedTemplate(db: DbOrTx, workspaceId: string, id: string) {
+  const bad = () =>
+    AppError.validation([{ path: 'defaultTemplateId', message: '只能选内置模板或工作区模板' }])
+  if (id.startsWith('builtin:')) {
+    if (id !== 'builtin:blank' && !builtinTemplate(id)) throw bad()
+    return
+  }
+  const [r] = await db
+    .select({ scope: entryTemplates.scope })
+    .from(entryTemplates)
+    .where(and(eq(entryTemplates.id, id), eq(entryTemplates.workspaceId, workspaceId)))
+  if (r?.scope !== 'workspace') throw bad()
+}
+
+/**
  * 新建记录时取模板正文（占位符已替换）。`builtin:blank` = 明确的空白（不注入 kind 默认骨架）。
  * 返回 null 表示未选模板（沿用首次打开按 kind 注入，03 §6）。
  */

@@ -82,7 +82,8 @@ async function view(db: DbOrTx, ctx: LinkCtx, r: Row): Promise<LinkView | null> 
   return { id: r.id, kind: r.kind as LinkKind, from, to, createdAt: r.createdAt.toISOString() }
 }
 
-async function assertWritable(db: DbOrTx, ctx: LinkCtx, type: string, id: string) {
+/** 关联的源端须可读（否则 404）且可写（否则 403）；POST /links 与新建并关联（ADR-0018）共用。 */
+export async function assertLinkSource(db: DbOrTx, ctx: LinkCtx, type: string, id: string) {
   if (type === 'entry') {
     const e = await loadEntryRef(db, ctx.actor, ctx.workspaceId, id)
     if (!e || !can(ctx.actor, 'entry.read', e.ref)) throw AppError.notFound('记录不存在')
@@ -150,7 +151,7 @@ export async function createLink(
   ctx: LinkCtx,
   input: z.infer<typeof createLinkSchema>,
 ): Promise<LinkView> {
-  await assertWritable(db, ctx, input.fromType, input.fromId)
+  await assertLinkSource(db, ctx, input.fromType, input.fromId)
   if (input.toType !== 'external') {
     if (input.toType === input.fromType && input.toId === input.fromId)
       throw AppError.validation([{ path: 'toId', message: '不能链接自己' }])
@@ -193,7 +194,7 @@ export async function deleteLink(db: DbOrTx, ctx: LinkCtx, id: string): Promise<
   const writable = async (type: string, oid: string | null) => {
     if (!oid) return false
     try {
-      await assertWritable(db, ctx, type, oid)
+      await assertLinkSource(db, ctx, type, oid)
       return true
     } catch {
       return false

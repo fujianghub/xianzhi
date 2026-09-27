@@ -52,6 +52,8 @@ export function useEntryActions() {
     fields?: Record<string, unknown>
     templateId?: string
     parentId?: string | null
+    /** 新建并关联（ADR-0018）：由 entryId 指向新记录 */
+    linkFrom?: { entryId: string; kind: 'relates' | 'blocks' | 'caused_by' | 'resolves' }
   }) => {
     const r = await unwrap<{ id: string }>(
       api.entries.$post({ json: input as never }, { headers: { 'idempotency-key': newId() } }),

@@ -4,6 +4,13 @@
 
 ## 2026-09-27
 
+**`[[` 找不到就新建、侧栏 / 目录「+」、空间默认类型与模板（ADR-0019）**
+- 新增 ADR-0019。00：+REQ-EDITOR-023、REQ-KB-009 · 010。01 §3.1 spaces +`default_kind` `default_template_id`（迁移 0017）。02 §9 `PATCH /spaces/:id` 两字段。08 §2.5b · §2.9 注。
+
+**大类就地管理、在空间里就地新建、新建并关联（ADR-0018）**
+- 新增 ADR-0018。00：+REQ-KB-008、REQ-ENTRY-021 ~ 023、REQ-LINK-006；REQ-KB-001 · 002 加注。
+- 02 §9：`POST /entries` +`linkFrom`。08：§2.5 补大类（原文缺失）；§2.8 位置行与 `e` 规则；§2.9 新建子页面 / 新建并关联。glossary：+新建上下文、新建并关联。
+
 **标签与自定义类型按人隔离、内置类型由所有者维护、改称「类型」（ADR-0017）**
 - 新增 ADR-0017。00：+REQ-ENTRY-020、REQ-TAG-007；REQ-TAG-001 ~ 004 · 006、REQ-ENTRY-018 · 019 加注。
 - 01：§3.7 tags 唯一约束改 `(workspace_id, created_by, name)`、读写按本人过滤；§3.4c `hidden_entry_kinds` → `entry_kind_overrides`，entry_types 唯一约束按人（迁移 0014 · 0015 · 0016）；§5 `tag.*` / `entry_type.*` 改为本人、+`entry_kind.manage`（仅 owner）。

@@ -40,6 +40,7 @@ import { Input } from '../components/ui/input.tsx'
 import { RelativeTime } from '../components/ui/relative-time.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
 import { staggerIndex, TreeGuides, treeLevelClass } from '../components/ui/tree-guides.tsx'
+import { useNewEntryContext } from '../hooks/useNewEntryContext.ts'
 import { ApiError, api, unwrap } from '../lib/api.ts'
 import { cn } from '../lib/cn.ts'
 import { type EntryPage, treeQuery } from '../lib/entry-queries.ts'
@@ -99,6 +100,7 @@ function TreeBody({ space }: { space: Space }) {
   const qc = useQueryClient()
   const openNew = useNewEntry((s) => s.setOpen)
   const tree = useQuery(treeQuery(space.id))
+  useNewEntryContext({ spaceId: space.id, parentId: null }) // 在目录页按 e = 目录根（ADR-0018）
   const unfiled = useQuery({
     queryKey: ['entries', { spaceId: space.id, inTree: '0' }, 'unfiled'],
     queryFn: () =>

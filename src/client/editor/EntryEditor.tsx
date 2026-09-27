@@ -6,6 +6,7 @@
  * 3) 连接状态 → StatusPill；关闭码按 reason 前缀处理（03 §4.2 注）。Y.Doc gc:false（CLAUDE.md 不变量 7）。
  */
 import { HocuspocusProvider, WebSocketStatus } from '@hocuspocus/provider'
+import { useQueryClient } from '@tanstack/react-query'
 import { DragHandle } from '@tiptap/extension-drag-handle-react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { FileCode, GripVertical } from 'lucide-react'
@@ -21,7 +22,7 @@ import { api, unwrap } from '../lib/api.ts'
 import { type OutlineItem, useCommentDraft, useOutline, useStatus } from '../lib/stores.ts'
 import { newId } from '../lib/uuid.ts'
 import { BubbleBar } from './BubbleBar.tsx'
-import { EntryPicker } from './EntryPicker.tsx'
+import { EntryPicker, type PickerRow } from './EntryPicker.tsx'
 import { SOURCE_EVENT, TEMPLATE_EVENT } from './extensions.ts'
 import { fullKit } from './kit.ts'
 import { MobileToolbar } from './MobileToolbar.tsx'
@@ -61,13 +62,17 @@ export default function EntryEditor({
   kind,
   user,
   canWrite,
+  place,
 }: {
   entryId: string
   kind: EntryKind
   user: { id: string; name: string }
   canWrite: boolean
+  /** 本篇所在空间与目录位置：`[[` 新建的记录建在本空间、作为本篇子页（不在目录 → 也不进目录，ADR-0019） */
+  place?: { spaceId: string; treeOrder: string | null }
 }) {
   const { t } = useTranslation()
+  const qc = useQueryClient()
   const setStatus = useStatus((s) => s.set)
   const [block, setBlock] = useState<Block>(null)
   const [noStorage, setNoStorage] = useState(false)
@@ -437,6 +442,28 @@ export default function EntryEditor({
           if (!v) setPicker(null)
         }}
         excludeId={entryId}
+        preferSpaceId={place?.spaceId}
+        onCreate={
+          place && canWrite
+            ? async (title): Promise<PickerRow> => {
+                const r = await unwrap<{ id: string }>(
+                  api.entries.$post(
+                    {
+                      json: {
+                        kind: 'note',
+                        title,
+                        spaceId: place.spaceId,
+                        ...(place.treeOrder !== null ? { parentId: entryId } : {}),
+                      } as never,
+                    },
+                    { headers: { 'idempotency-key': newId() } },
+                  ),
+                )
+                void qc.invalidateQueries({ queryKey: ['entries'] })
+                return { id: r.id, title, kind: 'note' }
+              }
+            : undefined
+        }
         onPick={(e) => {
           if (!editor || !picker) return
           const node =

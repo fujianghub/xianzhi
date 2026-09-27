@@ -203,7 +203,7 @@
 | POST | `/spaces` | 创建，创建者为 space admin | REQ-SPACE-001 |
 | GET | `/spaces/:id` | 详情（不可见 → 404）；含 `groupId` | REQ-SPACE-002 |
 | GET | `/spaces/:id/tree` | 目录树：目录内全部可见记录的 `{ id, title, kind, parentId, treeOrder }`（扁平，前端组树；读不到的父页连同子树不出现） | REQ-KB-005 |
-| PATCH | `/spaces/:id` | 改名、可见性、颜色、图标（space admin+） | REQ-SPACE-003 |
+| PATCH | `/spaces/:id` | 改名、可见性、颜色、图标（space admin+）（注 ADR-0019：+`defaultKind`（内置类型）、`defaultTemplateId`（内置 / 工作区模板，个人模板 422）） | REQ-SPACE-003 · REQ-KB-010 |
 | DELETE | `/spaces/:id` | 软删；`?permanent=1` 永久；仅工作区 owner/admin | REQ-SPACE-003 · 007 |
 | POST | `/spaces/:id/archive` | 归档（只读） | REQ-SPACE-004 |
 | POST | `/spaces/:id/unarchive` | 取消归档 | REQ-SPACE-004 |
@@ -263,7 +263,7 @@
 | PUT | `/entries/:id/favorite` | 收藏（个人；需可读；幂等）（ADR-0014） | REQ-ENTRY-012 |
 | DELETE | `/entries/:id/favorite` | 取消收藏（ADR-0014） | REQ-ENTRY-012 |
 | PATCH | `/entries/:id/move` | `{ parentId, after }` 移到目录某处 / `{ detach: true }` 移出目录；需 entry.write；防环、after 须同级 | REQ-KB-005 |
-| POST | `/entries` | `{ kind, title, spaceId?, fields, visibility, templateId? }` → `{ id }`；正文经 collab；`templateId`（`builtin:<key>` / uuid / `builtin:blank`）→ 模板正文写成初始 ydoc（ADR-0011 §2） | REQ-ENTRY-001 · REQ-TPL-003 |
+| POST | `/entries` | `{ kind, title, spaceId?, fields, visibility, templateId? }` → `{ id }`；正文经 collab；`templateId`（`builtin:<key>` / uuid / `builtin:blank`）→ 模板正文写成初始 ydoc（ADR-0011 §2）（注 ADR-0018：+`linkFrom?: { entryId, kind ∈ relates\|blocks\|caused_by\|resolves }`，源端按 `POST /links` 同一套 can() 校验，同事务建关联） | REQ-ENTRY-001 · REQ-TPL-003 |
 | GET | `/entries/:id` | 元数据详情（无 `ydoc`；`pmJson` 仅 `?withBody=1`） | REQ-ENTRY-003 |
 | PATCH | `/entries/:id` | 标题、fields、可见性、`spaceId`（移动）、`pinned`；带 `ifUpdatedAt`（注 ADR-0016：可改 `kind`（自定义再给 `typeId`），未给 fields 时按目标类型重建） | REQ-ENTRY-004 · 006 · 011 · 017 |
 | DELETE | `/entries/:id` | 软删；`?permanent=1` | REQ-ENTRY-007 |

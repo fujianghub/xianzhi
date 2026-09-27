@@ -1,6 +1,6 @@
 # 00 需求规范
 
-> 状态：已采纳 · 版本：v2 · 更新：2026-09-27（ADR-0016：REQ-CAL-012 · 013、REQ-ENTRY-016 ~ 019、REQ-UI-038；ADR-0017：REQ-ENTRY-020、REQ-TAG-007）· 最后对照代码：2026-09-25（鲜艳色板 / 用户管理 / 个人资料，ADR-0010：REQ-CAL-010、REQ-UI-035、REQ-WS-018 ~ 023、REQ-AUTH-021；注册审批 / 用户名 / 日程 / 宽屏：REQ-AUTH-017 ~ 020、REQ-CAL-001 ~ 009、REQ-UI-034；此前 2026-09-24：REQ-AUTH-016、REQ-TASK-024、REQ-UI-024 ~ 032） · 依据 ADR-0001 §1、§7、§9、ADR-0003。
+> 状态：已采纳 · 版本：v2 · 更新：2026-09-27（ADR-0016：REQ-CAL-012 · 013、REQ-ENTRY-016 ~ 019、REQ-UI-038；ADR-0017：REQ-ENTRY-020、REQ-TAG-007；ADR-0018：REQ-KB-008、REQ-ENTRY-021 ~ 023、REQ-LINK-006；ADR-0019：REQ-KB-009 · 010、REQ-EDITOR-023）· 最后对照代码：2026-09-25（鲜艳色板 / 用户管理 / 个人资料，ADR-0010：REQ-CAL-010、REQ-UI-035、REQ-WS-018 ~ 023、REQ-AUTH-021；注册审批 / 用户名 / 日程 / 宽屏：REQ-AUTH-017 ~ 020、REQ-CAL-001 ~ 009、REQ-UI-034；此前 2026-09-24：REQ-AUTH-016、REQ-TASK-024、REQ-UI-024 ~ 032） · 依据 ADR-0001 §1、§7、§9、ADR-0003。
 > 本文是**所有测试与任务的追溯源头**：每条需求有唯一 `REQ-<AREA>-<NNN>` 编号；`05` §5 的测试、`tasks/` 的任务、PR 描述都引用这里的编号。设计如何实现在 01–06；本文只写「做什么、验收什么」。
 > 分期：一期 = Phase 0–2（本文编号范围）；二期 = Phase 3（文末只列标题，不编号、不验收）。
 
@@ -168,6 +168,9 @@
 | REQ-ENTRY-018 | P1 | 2 | （ADR-0016）自定义记录类型：`/entry-types` 增删改（名唯一、9 色、有序状态 0–12、状态名不含 `,（注 2026-09-27 ADR-0017：自定义类型归个人——只有本人能用来新建 / 改类型与管理，读者可见名 / 色 / 状态；名字同一人名下唯一） | =`），创建 = 非 guest，改删 = 管理员或创建者；记录 `kind=custom` + `typeId`，status 须在其状态列表内（新建默认第一项）；列表 `typeId=` 筛选，与 `kind` 同给为任一命中；改状态列表时 `renames` 同步记录、被移除的状态改为第一项 | When 建「读书笔记」[想读, 在读, 读完] 并新建该类型记录 Then `fields.status = 想读`；When `renames {在读: 阅读中}` Then 原「在读」的记录变「阅读中」；When member 改 owner 建的类型 Then 403 | ADR-0016 · 01 §3.4c | api · e2e |
 | REQ-ENTRY-019 | P1 | 2 | （ADR-0016）删除自定义类型：其下全部记录（含回收站）转为随笔、清空 fields，同事务写审计 `entry_type.deleted`；内置类型不可删，管理员可隐藏（只影响筛选条与新建菜单）（注 2026-09-27 ADR-0017：内置类型「隐藏」改为所有者删除 / 恢复；删除可选 `moveTo`，见 REQ-ENTRY-020） | When 删类型 Then `GET /entries?kind=custom` 为空、审计含该类型名；When member `PUT /entry-types/builtin/review {hidden:true}` Then 403 | ADR-0016 | api · e2e |
 | REQ-ENTRY-020 | P1 | 2 | （2026-09-27 新增，ADR-0017）内置类型由所有者统一维护：改名 / 改色（`null` = 恢复默认，与本人自定义类型重名 409）、删除（全员该类型记录含回收站转到另一内置类型 `moveTo`，缺省随笔，删随笔须给出）、恢复；已删除的内置类型不能新建或改成该类型；删自定义类型可选 `moveTo`（内置或本人的其它类型） | When owner 删「优化」`moveTo=plan` Then 其下记录变学习计划、`POST /entries {kind:optimize}` 422；When 恢复 Then 可再建；When member `PATCH /entry-types/builtin/optimize` Then 403；When 删内置类型 `moveTo=<自定义类型>` Then 422 | ADR-0017 · 01 §3.4c | api · e2e |
+| REQ-ENTRY-021 | P1 | 2 | （2026-09-27 新增，ADR-0018）新建对话框顶部显示并可改「建在」：空间（可写的空间，含个人空间）› 目录位置（目录顶层 / 不放进目录 / 某页之下）；换空间回到目录顶层；模板推荐按所选空间 | When 在空间概览按 e Then 空间 = 该空间、位置 = 目录顶层；When 改为「不放进目录」再建 Then 新记录不在目录树 | ADR-0018 · 08 §2.8 | e2e |
+| REQ-ENTRY-022 | P1 | 2 | （ADR-0018）按 `e` / 新建跟随当前页面：空间概览 / 目录 / 任务页 = 本空间目录顶层；空间记录页签 = 目录顶层或所选节点之下；记录页 = 同级（不在目录 → 不进目录）；按钮传入的一次性默认值只作用一次，不被记住；打开期间默认值冻结 | Given 在子页 C（父 P）When 按 e Then 位置 = P 之下；When 离开空间到 /entries 再按 e Then 位置 = 不放进目录（不沿用旧位置） | ADR-0018 | unit · e2e |
+| REQ-ENTRY-023 | P1 | 2 | （ADR-0018）记录 ⋯ 菜单「新建子页面」（仅当本篇在目录里）与「新建关联记录」（同级 + 相关）；父页不在目录时服务端 422 | When 在目录里的 A 上「新建子页面」Then 新记录 parentId = A；When `POST /entries {parentId: 不在目录的记录}` Then 422 | ADR-0018 · REQ-KB-005 | api · e2e |
 
 ---
 
@@ -185,13 +188,16 @@
 
 | ID | P | Phase | 需求（EARS） | 验收（GWT） | 规范 | 层 |
 |---|---|---|---|---|---|---|
-| REQ-KB-001 | P1 | 2 | 大类：工作区预置「产品开发 / 技术学习规划 / 生活」；owner / admin 可增 / 改名 / 改色 / 排序 / 删除（同名 409）；删除大类不删空间 | When 新工作区 `GET /space-groups` Then 三个预置大类有序；When member `POST /space-groups` Then 403 | ADR-0012 · 01 §3.0 · 02 §9 | api · unit |
-| REQ-KB-002 | P1 | 2 | 界面沿用「空间」（注 2026-09-26：曾改称「知识库」「分类」，ADR-0013 改回）；空间可归入大类（新建时选择 / 编辑 / 侧栏拖到另一大类）；侧栏与列表按大类分区（未分类最后、空大类可「在此新建」、分区可折叠）；空间类型可改；个人空间不入大类 | When 在「生活」分区「在此新建」Then 新空间 `groupId` = 生活，侧栏出现在该分区；When 把空间拖到另一分区头 Then 一条 `PATCH /spaces/reorder {groupId}` | ADR-0012 · 08 §2.5 | api · unit · e2e |
+| REQ-KB-001 | P1 | 2 | 大类：工作区预置「产品开发 / 技术学习规划 / 生活」；owner / admin 可增 / 改名 / 改色 / 排序 / 删除（同名 409）；删除大类不删空间（注 2026-09-27 ADR-0018：侧栏分区 ⋯ 与「管理大类」入口，见 REQ-KB-008） | When 新工作区 `GET /space-groups` Then 三个预置大类有序；When member `POST /space-groups` Then 403 | ADR-0012 · 01 §3.0 · 02 §9 | api · unit |
+| REQ-KB-002 | P1 | 2 | 界面沿用「空间」（注 2026-09-26：曾改称「知识库」「分类」，ADR-0013 改回）；空间可归入大类（新建时选择 / 编辑 / 侧栏拖到另一大类）；侧栏与列表按大类分区（未分类最后、空大类可「在此新建」、分区可折叠）；空间类型可改；个人空间不入大类（注 2026-09-27 ADR-0018：空间卡片 ⋯ 也可移到大类；拖动时「未分类」始终可放） | When 在「生活」分区「在此新建」Then 新空间 `groupId` = 生活，侧栏出现在该分区；When 把空间拖到另一分区头 Then 一条 `PATCH /spaces/reorder {groupId}` | ADR-0012 · 08 §2.5 | api · unit · e2e |
 | REQ-KB-003 | P1 | 2 | 进入空间默认为概览：产品型显示未关闭 Bug（按严重度计数）· 最近迭代 · 最新版本 · 决策与优化 · 最近更新；学习型显示学习计划进度 · 最近笔记；快捷新建带好类型与内置模板（注 2026-09-26：个人空间改为个人工作台，见 REQ-KB-007） | When 空间有 critical 未关闭 Bug 与已修复 Bug Then Bug 面板只列未关闭的、critical 计数 1；点「Bug」快捷 Then 新建对话框预选「产品 Bug 修复与迭代」 | ADR-0012 · 08 §2.5b | e2e |
 | REQ-KB-004 | P1 | 2 | 记录列表：类型多选；按 fields 过滤（`fields=`）；卡片 / 表格视图；表格列为所选类型 fields 且可排序；卡片显示关键字段与标签；记录可编辑标签 | When `?kind=bug&view=table` 选严重度 high Then URL 带 `fields=severity=high` 且只剩 high；When `GET /entries?kind=bug,iteration` Then 两类都返回 | ADR-0012 · 02 §9 | api · e2e |
 | REQ-KB-005 | P1 | 2 | 目录树：记录可嵌套（同空间）、拖拽 / 按钮移动（上移 / 下移 / 缩进 / 取消缩进 / 移出目录）、防环；不在目录的记录列在「其余记录」可加入；软删父页或移到别的空间时子页上移一级；记录页面包屑显示完整路径 | When A 移到自己的孙页下 Then 422；When 软删父页 Then 子页上移到其父级；When 在目录「新建子页」Then 新记录面包屑含父页 | ADR-0012 · 01 §3.4 · 02 §9 | api · unit · e2e |
 | REQ-KB-006 | P1 | 2 | 目录层级表达（ADR-0015，参照简斋）：目录页 / 位置导航 / 个人首页空间目录的每级祖先有 1px 竖向引导线（位于该级展开指示中心，最近一级更深，当前行的最近一级为主色）；侧栏空间行在大类下缩进一级并带分区引导线；字重 L0 600 · L1 500 · 其余 400；折叠且有子项时行尾显示直接子项数；新展开子行淡入（减弱档无动画） | When 目录页展开三层 Then 第 2 级行有 2 条 `.xz-guide`、`data-depth=2`；When 折叠有 2 个子页的节点 Then 行尾计数为 2 | ADR-0015 · 04 §2.4 | unit · 手工 |
 | REQ-KB-007 | P1 | 2 | 个人空间概览为个人工作台：主面板「空间目录」= 大类 → 空间 → 目录树（空间展开时才请求目录，状态本机保存），侧列个人记录与各空间最近更新，快捷新建随笔 / 笔记 / 计划；不显示 Bug / 迭代 / 版本面板 | When 打开 `/spaces/me-…/home` Then 出现「产品开发」「技术学习规划」大类及其空间；展开某空间 Then 请求 `GET /spaces/:id/tree` 并显示其目录；页面无 `kb-panel-bugs` | ADR-0015 · 08 §2.5b | e2e |
+| REQ-KB-008 | P1 | 2 | （2026-09-27 新增，ADR-0018）大类就地管理：owner / admin 在侧栏「空间」标题旁打开「管理大类」，每个大类分区标题 ⋯ 可改名（Enter 保存）/ 改色（色块）/ 在此新建空间 / 删除；管理弹窗色块选色、Enter 保存；空间卡片 ⋯ 可移到任一大类或未分类；侧栏拖动时「未分类」始终可放 | When 分区 ⋯ 改名并回车 Then `PATCH /space-groups/:id` 且侧栏显示新名；When 卡片 ⋯ 选某大类 Then 该空间出现在该分区；When member Then 看不到「管理大类」与 ⋯ | ADR-0018 | e2e |
+| REQ-KB-009 | P1 | 2 | （2026-09-27 新增，ADR-0019）就地「+」：侧栏空间行悬停「+」= 在该空间目录顶层新建；记录页位置导航与个人首页空间目录的节点悬停「+」= 作为该页子页新建；只对可写空间显示，窄屏常显 | When 点侧栏空间行「+」Then 新建对话框空间 = 该空间、位置 = 目录顶层；When 点目录节点「+」Then 位置 = 该节点之下 | ADR-0019 | e2e |
+| REQ-KB-010 | P1 | 2 | （ADR-0019）空间默认类型（仅内置）与默认模板（内置或工作区模板；个人模板 422）；在「编辑空间」设置；新建对话框打开时与切换空间时按目标空间预选，显式传入的类型 / 模板不被覆盖，已删除的内置类型不预选 | When `PATCH /spaces/:id {defaultTemplateId: 个人模板}` Then 422；When 设默认类型「决策」后在该空间按 e Then 类型预选决策 | ADR-0019 · 01 §3.1 | api · e2e |
 
 ## 7. EDITOR —— 编辑器交互
 
@@ -219,6 +225,7 @@
 | REQ-EDITOR-020 | P1 | 2 | Markdown 源码编辑（2026-09-25，ADR-0011 §1）：CodeMirror 编辑正文源码，保存为一次性导入——逐块序列化、LCS 合并（未改块沿用原节点）、表达不了的块以 `⟦xz-keep⟧` 占位；保存前自动存「源码编辑前」标记快照；有其他协作者在线时禁用；正文含 Markdown 不能表达的格式时提示 | When 源码末尾加 `## 标题` 并保存 Then 正文出现 h2，未改段落的下划线仍在，快照多一条「源码编辑前」 | 03 §8 · ADR-0011 | unit · e2e |
 | REQ-EDITOR-021 | P1 | 2 | 图片展示（2026-09-25）：选中图片浮出宽度 25/50/75/100% 与左 / 中 / 右对齐；图下可写图注（≤ 200 字，参与检索）；HTML 导出为 `figure` + `figcaption` | When 选中图片点 50% 与靠左并写图注 Then 节点 `displayWidth=50, align=left, caption` 落库 | 03 §3.2 | e2e |
 | REQ-EDITOR-022 | P2 | 2 | 拖入 / 粘贴 `.md` 文件时询问「插入内容」或「作为附件」；插入走与粘贴同一 Markdown 管线 | When 粘贴 `note.md` 选「插入内容」Then 正文出现其标题与任务项 | 03 §11.3 | e2e |
+| REQ-EDITOR-023 | P1 | 2 | （2026-09-27 新增，ADR-0019）`[[` 记录选择器：有输入、结果已到齐且无同名时出现「新建《q》并插入」→ 在当前空间新建随笔（作为当前记录子页；当前记录不在目录则也不进目录）并插入链接；搜索当前空间优先（先查本空间再查全部，合并去重） | When 在目录里的 A 正文输入 `[[新概念` 并选「新建」Then 正文出现该链接、新记录 parentId = A | ADR-0019 | e2e |
 
 ---
 
@@ -254,6 +261,7 @@
 | REQ-LINK-003 | P1 | 2 | 手动链接应支持 5 种 kind，重复返回 409（注 2026-09-26：已实现；约定「迭代 / 变更 → Bug」`resolves` = 本期修复） | When `POST /links` 同五元组两次 Then 第二次 409 `CONFLICT_UNIQUE` | 01 §3.6 | api |
 | REQ-LINK-004 | P2 | 2 | 外链应仅存 URL 与用户填写标题，一期不抓取远端内容 | When `POST /links {toType:'external', externalUrl}` Then 无出站请求 | 01 §3.6 · ADR §5 · 07 §2.5（抓取属二期） | api |
 | REQ-LINK-005 | P1 | 2 | 任务与记录的互链应在 Aside 显示，点击可 Peek（注 2026-09-26：记录侧「关联」页签已实现；任务详情侧未做） | When 任务链接记录 Then 任务详情 Aside 列出记录卡片 | 04 §4 | e2e |
+| REQ-LINK-006 | P1 | 2 | （2026-09-27 新增，ADR-0018）新建并关联：`POST /entries {linkFrom: {entryId, kind}}` 同事务建 `links(entryId → 新记录)`；kind ∈ relates / blocks / caused_by / resolves（mentions 422）；源不可读 404、不可写 403 且记录不落库；关联面板「+ 新建并关联」按所选类型打开对话框 | When owner 以 `linkFrom {A, blocks}` 新建 B Then `GET /links?fromId=A` 含 → B（blocks）；When member 对只读的 A 这样做 Then 403 且空间记录数不变 | ADR-0018 · 02 §9 | api · e2e |
 
 ---
 

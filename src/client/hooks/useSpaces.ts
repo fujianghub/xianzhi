@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, unwrap } from '../lib/api.ts'
 import {
   type Space,
+  type SpaceGroup,
   type SpaceKind,
   type SpaceVisibility,
   spacesKey,
@@ -123,6 +124,65 @@ export function useArchiveSpace() {
         archived
           ? api.spaces[':id'].archive.$post({ param: { id } })
           : api.spaces[':id'].unarchive.$post({ param: { id } }),
+      ),
+    onSuccess: (s) => {
+      qc.setQueryData(['space', s.slug], s)
+      return qc.invalidateQueries({ queryKey: ['spaces'] })
+    },
+  })
+}
+
+/**
+ * 大类增改删排（ADR-0012 · 0018、REQ-KB-001 · 008）：侧栏分区菜单与「管理大类」弹窗共用；
+ * 权限在服务端 `can('group.manage')`（owner / admin），前端只决定是否显示入口。
+ */
+export function useSpaceGroupActions() {
+  const qc = useQueryClient()
+  const refresh = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: ['space-groups'] }),
+      qc.invalidateQueries({ queryKey: ['spaces'] }),
+    ])
+  const create = useMutation({
+    mutationFn: (json: { name: string; color?: string | null }) =>
+      unwrap<SpaceGroup>(api['space-groups'].$post({ json: json as never })),
+    onSuccess: refresh,
+  })
+  const patch = useMutation({
+    mutationFn: (v: { id: string; name?: string; color?: string | null }) =>
+      unwrap<SpaceGroup>(
+        api['space-groups'][':id'].$patch({
+          param: { id: v.id },
+          json: {
+            ...(v.name ? { name: v.name } : {}),
+            ...(v.color !== undefined ? { color: v.color } : {}),
+          } as never,
+        }),
+      ),
+    onSuccess: refresh,
+  })
+  const move = useMutation({
+    mutationFn: (v: { id: string; after: string | null }) =>
+      unwrap<SpaceGroup>(api['space-groups'].reorder.$patch({ json: v })),
+    onSuccess: refresh,
+  })
+  const remove = useMutation({
+    mutationFn: (id: string) => unwrap<void>(api['space-groups'][':id'].$delete({ param: { id } })),
+    onSuccess: refresh,
+  })
+  return { create, patch, move, remove }
+}
+
+/** 把空间移到某大类（null = 未分类）：`PATCH /spaces/:id { groupId, ifUpdatedAt }`，需 space.manage。 */
+export function useMoveSpaceToGroup() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ space, groupId }: { space: Space; groupId: string | null }) =>
+      unwrap<Space>(
+        api.spaces[':id'].$patch({
+          param: { id: space.id },
+          json: { groupId, ifUpdatedAt: space.updatedAt } as never,
+        }),
       ),
     onSuccess: (s) => {
       qc.setQueryData(['space', s.slug], s)

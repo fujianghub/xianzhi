@@ -22,10 +22,12 @@ import { Disclosure } from '../components/ui/disclosure.tsx'
 import { RelativeTime } from '../components/ui/relative-time.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
 import { TreeGuides } from '../components/ui/tree-guides.tsx'
+import { useNewEntryContext } from '../hooks/useNewEntryContext.ts'
 import { ApiError, api, unwrap } from '../lib/api.ts'
 import { cn } from '../lib/cn.ts'
 import type { Entry, EntryKind, EntryPage } from '../lib/entry-queries.ts'
 import {
+  canCreateIn,
   groupSpaces,
   type Space,
   spaceGroupsQuery,
@@ -162,6 +164,7 @@ function SpaceHome({ space }: { space: Space }) {
   const spaceSlug = space.slug
   const openNew = useNewEntry((s) => s.setOpen)
   const id = space.id
+  useNewEntryContext({ spaceId: id, parentId: null }) // 在概览按 e = 建在本空间目录根（ADR-0018）
   const learning = space.kind === 'learning'
   const bugs = useEntryList(id, { kind: 'bug', fields: 'status=open' }, 100)
   const iterations = useEntryList(id, { kind: 'iteration', sort: '-createdAt' }, 3)
@@ -187,7 +190,7 @@ function SpaceHome({ space }: { space: Space }) {
       size="sm"
       variant="ghost"
       className="group"
-      onClick={() => openNew(true, { spaceId: space.id, kind, templateId })}
+      onClick={() => openNew(true, { spaceId: space.id, kind, templateId, parentId: null })}
       data-testid={`kb-quick-${kind}`}
     >
       <KindIcon kind={kind} size="sm" />
@@ -436,6 +439,7 @@ function PersonalHome({ space }: { space: Space }) {
   const { t } = useTranslation()
   const openNew = useNewEntry((s) => s.setOpen)
   const mine = useEntryList(space.id, {}, 8)
+  useNewEntryContext({ spaceId: space.id, parentId: null })
   const all = useEntryList('', {}, 8)
   const quick = (kind: EntryKind, templateId?: string) => (
     <Button
@@ -443,7 +447,7 @@ function PersonalHome({ space }: { space: Space }) {
       size="sm"
       variant="ghost"
       className="group"
-      onClick={() => openNew(true, { spaceId: space.id, kind, templateId })}
+      onClick={() => openNew(true, { spaceId: space.id, kind, templateId, parentId: null })}
       data-testid={`kb-quick-${kind}`}
     >
       <KindIcon kind={kind} size="sm" />
@@ -599,6 +603,7 @@ function DirSpaceRow({
   onToggle: () => void
 }) {
   const { t } = useTranslation()
+  const openNew = useNewEntry((s) => s.setOpen)
   return (
     <li className="relative" data-testid="space-dir-space" data-space-id={space.id}>
       <TreeGuides depth={1} x0={TWISTY_CENTER} indent={DIR_INDENT} />
@@ -628,7 +633,17 @@ function DirSpaceRow({
         </Link>
       </div>
       {open ? (
-        <DirTree spaceId={space.id} level={2} indent={DIR_INDENT} testId="space-dir-tree" />
+        <DirTree
+          spaceId={space.id}
+          level={2}
+          indent={DIR_INDENT}
+          testId="space-dir-tree"
+          onNewChild={
+            canCreateIn(space)
+              ? (id) => openNew(true, { spaceId: space.id, parentId: id })
+              : undefined
+          }
+        />
       ) : null}
     </li>
   )

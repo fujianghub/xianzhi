@@ -48,6 +48,8 @@ export const LINK_FROM_TYPES = ['entry', 'task', 'cycle'] as const
 export const LINK_TO_TYPES = ['entry', 'task', 'cycle', 'external'] as const
 export const LINK_KINDS = ['relates', 'blocks', 'caused_by', 'resolves', 'mentions'] as const
 export type LinkKind = (typeof LINK_KINDS)[number]
+/** 可手动建的关联类型（mentions 只由正文派生，REQ-LINK-001） */
+export const MANUAL_LINK_KINDS = ['relates', 'blocks', 'caused_by', 'resolves'] as const
 export type LinkFromType = (typeof LINK_FROM_TYPES)[number]
 
 export const ATTACHMENT_TARGET_TYPES = ['entry', 'task', 'comment', 'user'] as const

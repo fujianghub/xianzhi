@@ -15,6 +15,7 @@ import { InlineEdit } from '../components/ui/inline-edit.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
 import { useEntryActions } from '../hooks/useEntries.ts'
 import type { Me } from '../hooks/useMe.ts'
+import { entryPageContext, useNewEntryContext } from '../hooks/useNewEntryContext.ts'
 import { useSharedTarget } from '../hooks/useSharedElement.ts'
 import { ApiError } from '../lib/api.ts'
 import { cn } from '../lib/cn.ts'
@@ -60,6 +61,8 @@ function EntryPage() {
   const [fieldsOpen, setFieldsOpen] = useState(false)
   // 写权限由服务端票据最终判定（onAuthenticated scope）；此处按角色给乐观值
   const canWrite = !!e && (e.authorId === me.id || me.workspaceRole !== 'guest')
+  // 在记录页按 e = 建同级页（语雀式，ADR-0018）；对话框里可改为子页
+  useNewEntryContext(e ? entryPageContext(e) : null)
   const tab: AsideTab = search.aside ?? 'outline'
   const tabRef = useRef(tab)
   tabRef.current = tab
@@ -195,6 +198,7 @@ function EntryPage() {
               kind={e.kind}
               user={{ id: me.id, name: me.displayName || me.name }}
               canWrite={canWrite}
+              place={{ spaceId: e.spaceId, treeOrder: e.treeOrder }}
             />
           </Suspense>
         </>
