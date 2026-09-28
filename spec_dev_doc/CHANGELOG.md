@@ -4,6 +4,11 @@
 
 ## 2026-09-29
 
+**文档对照代码（ADR-0023 ~ 0032 收尾）**
+- 04：头部版本行；§2.2 +`--xz-font-song` `--xz-font-system`、阅读偏好说明、KaTeX `text-wrap` 注；§4 版心注 + 记录页纵向结构（文档栏 / 格式栏）；§6 新快捷键（专注 / 保存版本 / useHotkeys Shift）。
+- 05：头部版本行；§3 验证实例 api / collab 不带 watch 须重启、IP 同源、mermaid / katex 懒加载与字体不内联；§5 偏好类 e2e 复位约定。
+- 06：头部版本行；§3 +阅读纸张 token 与对比度覆盖注。CLAUDE.md 规范索引补 ADR-0022 ~ 0032，命令与坑位补验证实例重启、偏好复位、mermaid / katex、KaTeX text-wrap、onStateless。
+
 **表头行 / 表头列 · 代码块折叠 · 插入时间（ADR-0032）**
 - 新增 ADR-0032。00：+REQ-EDITOR-033 ~ 035。01 `user_preferences.reading` 键列表补 `tocNumbers` `codeFold`。
 
