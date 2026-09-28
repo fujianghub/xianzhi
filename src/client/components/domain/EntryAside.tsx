@@ -593,6 +593,8 @@ function History({ entry, canWrite }: { entry: Entry; canWrite: boolean }) {
       unwrap<{ items: SnapshotMeta[] }>(
         api.entries[':id'].snapshots.$get({ param: { id: entry.id } }),
       ),
+    // 文档栏「上次保存」与此同 key、在进入记录页时已取过；打开历史必须拿最新（他处 / 协作者 / 自动留版）
+    refetchOnMount: 'always',
   })
   const groups = useMemo(() => {
     const fmt = new Intl.DateTimeFormat(i18n.language, {
