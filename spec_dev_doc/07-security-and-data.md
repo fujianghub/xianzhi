@@ -148,7 +148,8 @@ pg-boss worker（xz-app 进程内）──▶ SMTP(腾讯云 SES) / WebPush 端�
 | 数据 | 保留 | 清理动作 | 执行者（pg-boss） | 出处 |
 |---|---|---|---|---|
 | 软删对象（space / task / entry / comment） | 30 天 | 硬删行 + 关联附件文件 | `gc.soft-deleted` 每日 03:30 | 01 §1 |
-| 未标记快照 | 最近 100 个 + 每天最后一个保留 90 天 | 删多余行 | `gc.snapshots` 每日 | 03 §5 |
+| 未标记快照（自动） | 最近 100 个 + 每天最后一个保留 90 天 | 删多余行 | `gc.snapshots` 每日 | 03 §5 |
+| 手动保存的版本（Ctrl+S，`created_by` 非空，ADR-0026） | 永久 | — | — | 03 §5 |
 | 标记快照 | 永久 | — | — | 03 §5 |
 | 幂等键 | 24 h | 删行 | `gc.idempotency` 每小时 | 01 §3.13 |
 | 孤儿附件（无 target） | 7 天 | 删行 + 文件 | `gc.attachments` 每日 | 01 §3.8 |
@@ -186,7 +187,7 @@ pg-boss worker（xz-app 进程内）──▶ SMTP(腾讯云 SES) / WebPush 端�
 | 停用（封禁） | admin | `POST /workspace/members/:userId/suspend`（内部调 Better Auth `admin.banUser`） | **保留**，仍可见于他人 | 全部会话删除；API Key 全部禁用 | `user.revoked` 广播，立即断开全部 WS（4403）与 SSE | 停止扇出给该用户 | `member.suspended` |
 | 恢复 | admin | `POST /workspace/members/:userId/unsuspend` | — | 需重新登录 | — | 恢复 | `member.unsuspended` |
 | 移除（退出工作区） | admin，或本人退出 | `DELETE /workspace/members/:userId`；本人退出 `DELETE /workspace/members/me` | 内容**保留**；作者名显示「已离开的成员」；其未完成任务的 `assignee_id` 置空并发 `task.unassigned`（接收者：该任务所在空间的 admin，01 §4.1）；admin 可批量转移作者（`POST /workspace/members/:userId/transfer-content { toUserId }`） | 同停用 | 同停用 | 删除其偏好、push 订阅 | `member.removed`；转移时 `member.content_transferred` |
-| 注销（删除账号） | 本人（需 2FA 或密码确认）或 owner | `DELETE /me`（本人）/ `DELETE /workspace/members/:userId?purge=1`（owner） | **匿名化**：`user` 行保留 id，`email/name/avatar` 清空为 `deleted-<短id>`；内容保留 | 全部删除 | 全部断开 | 删除通知与偏好 | `user.deleted` |
+| 注销（删除账号） | 本人（需 2FA 或密码确认）或 owner | `DELETE /me`（本人）/ `DELETE /workspace/members/:userId?purge=1`（owner） | **匿名化**：`user` 行保留 id，`email/name/avatar` 清空为 `deleted-<短id>`；内容保留 | 全部删除 | 全部断开 | 删除通知与偏好（含阅读偏好 `user_preferences`，ADR-0024） | `user.deleted` |
 | 直建（ADR-0010） | owner | `POST /workspace/users` | 建 `user` + credential + `member(role)` + 个人空间，立即可登录（跳过审批） | — | — | `member.joined` → admin in_app | `user.created` |
 | 改资料（ADR-0010） | owner（他人）/ 本人 | `PATCH /workspace/users/:userId` / `PATCH /me/account`（改邮箱须当前密码） | 显示名 / 用户名 / 邮箱（唯一性同注册，存小写） | 不变 | — | — | `user.updated` |
 | 改密 / 重置（ADR-0010） | 本人 / owner | `POST /me/password`（须当前密码）/ `POST /workspace/users/:userId/password` | — | 本人改：删除**其他**会话、保留当前（不广播，免得踢掉当前页）；owner 重置：全部会话删除 | owner 重置时 `user.revoked` 广播 | — | `auth.password_changed` / `auth.password_reset`（`byAdmin`） |

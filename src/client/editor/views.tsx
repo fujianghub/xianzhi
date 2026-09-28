@@ -1,4 +1,4 @@
-/** 编辑器节点视图（03 §3.2 · §3.3 · §9）：代码块语言选择、附件卡片、记录卡片、目录、未知块。 */
+/** 编辑器节点视图（03 §3.2 · §3.3 · §9）：代码块头部条（语言 / 行数 / 复制，ADR-0025 §5）、附件卡片、记录卡片、目录、未知块。 */
 import { useQuery } from '@tanstack/react-query'
 import { NodeViewContent, type NodeViewProps, NodeViewWrapper, useEditorState } from '@tiptap/react'
 import { decode as decodeBlurhash } from 'blurhash'
@@ -6,6 +6,9 @@ import {
   AlignCenter,
   AlignLeft,
   AlignRight,
+  Check,
+  ChevronRight,
+  Copy,
   Download,
   Eye,
   File,
@@ -17,14 +20,20 @@ import {
   FileText,
   FileType,
   HelpCircle,
+  ListTree,
   Presentation,
 } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { type FileKind, fileKind, PREVIEWABLE } from '../../shared/editor/file-kind.ts'
+import { collectHeadings } from '../../shared/editor/headings.ts'
+import { CODE_FOLD_AUTO_LINES } from '../../shared/schemas/preferences.ts'
 import { api, unwrap } from '../lib/api.ts'
+import { copyText } from '../lib/clipboard.ts'
 import { cn } from '../lib/cn.ts'
 import { useKindLabel } from '../lib/entry-types.ts'
+import { useReading } from '../lib/reading.ts'
 import { ALL_LANGUAGES, ensureLanguage, lowlight } from './lowlight.ts'
 
 const AttachmentPreview = lazy(() => import('./AttachmentPreview.tsx'))
@@ -32,6 +41,15 @@ const AttachmentPreview = lazy(() => import('./AttachmentPreview.tsx'))
 export function CodeBlockView({ node, updateAttributes, editor }: NodeViewProps) {
   const { t } = useTranslation()
   const lang = String(node.attrs.language ?? '')
+  const [copied, setCopied] = useState(false)
+  const lines = node.textContent ? node.textContent.split('\n').length : 1
+  // 折叠（ADR-0032）：只影响本人视图、不写正文；初值按阅读偏好（展开 / 折叠 / 超过阈值自动折叠），偏好改变时重置
+  const fold = useReading((st) => st.prefs.codeFold)
+  const initial = () => fold === 'collapsed' || (fold === 'auto' && lines > CODE_FOLD_AUTO_LINES)
+  const [collapsed, setCollapsed] = useState(initial)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 只随偏好变化重置，不随行数变化
+  useEffect(() => setCollapsed(initial()), [fold])
+  const canFold = lines > 3
   // 远端 / 历史内容里的按需语言：挂载时加载，完成后重设属性触发重新高亮
   // biome-ignore lint/correctness/useExhaustiveDependencies: 只随语言变化
   useEffect(() => {
@@ -40,31 +58,86 @@ export function CodeBlockView({ node, updateAttributes, editor }: NodeViewProps)
         if (ok) updateAttributes({ language: lang })
       })
   }, [lang])
+  useEffect(() => {
+    if (!copied) return
+    const id = setTimeout(() => setCopied(false), 1500)
+    return () => clearTimeout(id)
+  }, [copied])
+  const copy = async () => {
+    // copyText 在局域网 HTTP（无 navigator.clipboard）下退回 execCommand（ADR-0025 §5）
+    if (await copyText(node.textContent)) setCopied(true)
+    else toast.error(t('editor.code.copyFailed'))
+  }
   return (
-    <NodeViewWrapper as="div" className="xz-code relative">
-      <select
-        contentEditable={false}
-        disabled={!editor.isEditable}
-        value={lang}
-        aria-label={t('editor.language')}
-        className="absolute top-2 right-2 h-7 rounded-md border border-(--xz-code-border) bg-(--xz-code-bar) px-1 text-(--xz-code-fg) text-xs"
-        data-testid="code-language"
-        onChange={async (e) => {
-          const next = e.target.value
-          await ensureLanguage(next) // 按需语言：一次 chunk 请求（REQ-EDITOR-003）
-          updateAttributes({ language: next || null })
-        }}
-      >
-        <option value="">{t('editor.plainText')}</option>
-        {ALL_LANGUAGES.map((l) => (
-          <option key={l} value={l}>
-            {l}
-          </option>
-        ))}
-      </select>
+    <NodeViewWrapper
+      as="div"
+      className="xz-code"
+      data-testid="code-block"
+      data-collapsed={(collapsed && canFold) || undefined}
+    >
+      {/* 头部条（ADR-0025 §5）：折叠 · 语言 · 行数 · 复制；不覆盖代码区 */}
+      <div className="xz-code-head" contentEditable={false}>
+        <button
+          type="button"
+          onClick={() => setCollapsed((v) => !v)}
+          disabled={!canFold}
+          aria-expanded={!collapsed || !canFold}
+          aria-label={collapsed ? t('editor.code.expand') : t('editor.code.collapse')}
+          title={collapsed ? t('editor.code.expand') : t('editor.code.collapse')}
+          data-testid="code-fold"
+          className="xz-code-fold"
+        >
+          <ChevronRight className="size-3.5" />
+        </button>
+        <select
+          disabled={!editor.isEditable}
+          value={lang}
+          aria-label={t('editor.language')}
+          className="h-7 rounded-md border border-(--xz-code-border) bg-(--xz-code-bar) px-1 text-(--xz-code-fg) text-xs"
+          data-testid="code-language"
+          onChange={async (e) => {
+            const next = e.target.value
+            await ensureLanguage(next) // 按需语言：一次 chunk 请求（REQ-EDITOR-003）
+            updateAttributes({ language: next || null })
+          }}
+        >
+          <option value="">{t('editor.plainText')}</option>
+          {ALL_LANGUAGES.map((l) => (
+            <option key={l} value={l}>
+              {l}
+            </option>
+          ))}
+        </select>
+        <span className="text-(--xz-code-comment) text-xs" data-testid="code-lines">
+          {t('editor.code.lines', { n: lines })}
+        </span>
+        <button
+          type="button"
+          onClick={() => void copy()}
+          aria-label={copied ? t('editor.code.copied') : t('editor.code.copy')}
+          title={copied ? t('editor.code.copied') : t('editor.code.copy')}
+          data-testid="code-copy"
+          data-copied={copied || undefined}
+          className="ms-auto inline-flex h-7 items-center gap-1 rounded-md px-2 text-(--xz-code-fg) text-xs hover:bg-(--xz-code-border)"
+        >
+          {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+          {copied ? t('editor.code.copied') : t('editor.code.copy')}
+        </button>
+      </div>
       <pre>
         <NodeViewContent<'code'> as="code" className={lang ? `language-${lang}` : undefined} />
       </pre>
+      {collapsed && canFold ? (
+        <button
+          type="button"
+          contentEditable={false}
+          className="xz-code-more"
+          onClick={() => setCollapsed(false)}
+          data-testid="code-expand"
+        >
+          {t('editor.code.expandN', { n: lines })}
+        </button>
+      ) : null}
     </NodeViewWrapper>
   )
 }
@@ -188,31 +261,37 @@ export function EntryCardView({ node }: NodeViewProps) {
 
 export function TocView({ editor }: NodeViewProps) {
   const { t } = useTranslation()
-  const headings = useEditorState({
+  const depth = useReading((s) => s.prefs.tocDepth)
+  const numbered = useReading((s) => s.prefs.tocNumbers)
+  const all = useEditorState({
     editor,
-    selector: ({ editor: ed }) => {
-      const out: { level: number; text: string; pos: number }[] = []
-      ed?.state.doc.descendants((n, pos) => {
-        if (n.type.name === 'heading')
-          out.push({ level: Number(n.attrs.level), text: n.textContent, pos })
-      })
-      return out
-    },
+    selector: ({ editor: ed }) => (ed ? collectHeadings(ed.state.doc) : []),
   })
+  const headings = all?.filter((h) => h.depth <= depth)
+  // 目录块（ADR-0027，参考简斋 [TOC] 卡片）：主色浅底细边卡片 + 标题行 + 主色编号；
+  // 列表不用浏览器序号（.xz-prose ol 的 decimal 会和章节编号叠成两遍）
   return (
     <NodeViewWrapper
       as="nav"
-      className="paper my-3 rounded-md border border-divider p-3 text-sm"
+      className="xz-toc-card"
       contentEditable={false}
       data-testid="toc"
+      aria-label={t('editor.toc.title')}
     >
+      <div className="xz-toc-card-head">
+        <ListTree className="size-4" aria-hidden />
+        <span>{t('editor.toc.title')}</span>
+        {headings?.length ? (
+          <span className="xz-toc-card-count">{t('editor.toc.count', { n: headings.length })}</span>
+        ) : null}
+      </div>
       {headings?.length ? (
-        <ol className="flex flex-col gap-1">
+        <ol className="xz-toc-card-list">
           {headings.map((h) => (
-            <li key={h.pos} style={{ paddingInlineStart: `${(h.level - 1) * 12}px` }}>
+            <li key={h.pos} data-depth={h.depth} data-testid="toc-item">
               <button
                 type="button"
-                className="text-left hover:underline"
+                className="xz-toc-card-link"
                 onClick={() =>
                   editor
                     .chain()
@@ -222,13 +301,18 @@ export function TocView({ editor }: NodeViewProps) {
                     .run()
                 }
               >
+                {numbered ? (
+                  <span className="xz-toc-num" data-testid="toc-num">
+                    {h.num}
+                  </span>
+                ) : null}
                 {h.text || '…'}
               </button>
             </li>
           ))}
         </ol>
       ) : (
-        <p className="text-fg-muted">{t('editor.tocEmpty')}</p>
+        <p className="xz-toc-card-empty">{t('editor.tocEmpty')}</p>
       )}
     </NodeViewWrapper>
   )

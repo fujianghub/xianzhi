@@ -31,7 +31,7 @@
 ### 2. 模板：内置 + 用户自定义（`entry_templates` 表）
 
 - 内置 6 个为代码常量（`src/shared/editor/builtin-templates.ts`，id `builtin:<key>`），不入表：开发「产品 Bug 修复与迭代」（bug）、「产品优化」（optimize）；学习「学习计划」（plan）、「学习笔记」（note）、「学习周复盘」（journal）、「读书笔记」（note）。
-- 用户模板入表：`personal`（仅本人）/ `workspace`（全员可用，管理员创建）；创建者或管理员可改名 / 改范围 / 删除（`can('template.read|create|manage')`）。「另存为模板」取记录已落库 ydoc 即时派生的正文（只读，不写派生列）。
+- 用户模板入表：`personal`（仅本人）/ `workspace`（全员可用，~~管理员创建~~ 注 2026-09-28：非 guest 均可共享，见 ADR-0023）；创建者或管理员可改名 / 改范围 / 删除（`can('template.read|create|manage')`）。「另存为模板」取记录已落库 ydoc 即时派生的正文（只读，不写派生列）。
 - 新建记录可带 `templateId`：模板 PM JSON（占位符 `{{date}}` `{{user}}` `{{space}}` 已替换）**只在创建时**写成初始 ydoc；`builtin:blank` 为明确空白；未选模板则沿用首次打开按 kind 注入（03 §6）。模板 body 是种子，不是第二份正文真源。
 - 入口：新建对话框的模板选择（按当前空间类型推荐）、斜杠 `/模板`（在光标处插入）、设置 → 模板（预览 / 用此模板新建 / 管理）、记录「属性」→ 另存为模板。
 

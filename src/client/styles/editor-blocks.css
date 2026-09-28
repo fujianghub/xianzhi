@@ -1,0 +1,296 @@
+/* 编辑器块级样式（ADR-0025 §4–§6）：表格、代码块头、提示块、折叠块、块手柄菜单。色值只取 tokens.css。 */
+
+/* ---- 表格（REQ-EDITOR-028）：外框圆角、表头底色 + 加粗下边线、斑马纹、选中格、列宽拖柄 ---- */
+.xz-prose .tableWrapper {
+  overflow-x: auto;
+  margin-block: 0.5em;
+}
+/* 编辑态与只读态都有 .tableWrapper（TableView / renderHTML）；更高特异性以盖过 app.css 的 .xz-prose table */
+.xz-prose .tableWrapper > table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--xz-border);
+  border-radius: var(--xz-radius-md);
+  overflow: hidden;
+}
+.xz-prose table :is(th, td) {
+  position: relative;
+  border: 0;
+  border-inline-end: 1px solid var(--xz-border);
+  border-block-end: 1px solid var(--xz-border);
+}
+.xz-prose table :is(th, td):last-child {
+  border-inline-end: 0;
+}
+.xz-prose table tr:last-child > :is(th, td) {
+  border-block-end: 0;
+}
+.xz-prose table th {
+  background: var(--xz-surface-solid-2);
+}
+/* 表头行：首行 th 加粗下边线；表头列（ADR-0032）：各行首格 th 右侧加深竖线，不画横向粗线 */
+.xz-prose table tr:first-child > th {
+  border-block-end: 2px solid color-mix(in srgb, var(--xz-fg) 18%, transparent);
+}
+.xz-prose table tr > th:first-child:not(:only-child) {
+  border-inline-end: 2px solid color-mix(in srgb, var(--xz-fg) 14%, transparent);
+}
+.xz-prose table tr:first-child > th:not(:first-child) {
+  border-inline-end-width: 1px;
+}
+.xz-prose table tr:nth-child(even) > td {
+  background: color-mix(in srgb, var(--xz-surface-solid-2) 55%, transparent);
+}
+.xz-prose table .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--xz-selected-bg);
+  pointer-events: none;
+}
+.xz-prose table .column-resize-handle {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: -2px;
+  width: 4px;
+  background: var(--xz-primary);
+  pointer-events: none;
+}
+.xz-prose.resize-cursor,
+.resize-cursor .xz-prose {
+  cursor: col-resize;
+}
+
+/* ---- 代码块头部条（REQ-EDITOR-029）：语言 · 行数 · 复制，与代码区同框 ---- */
+.xz-prose .xz-code {
+  border: 1px solid var(--xz-code-border);
+  border-radius: var(--xz-radius-md);
+  overflow: hidden;
+  background: var(--xz-code-bg);
+}
+.xz-prose .xz-code-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  background: var(--xz-code-bar);
+  border-block-end: 1px solid var(--xz-code-border);
+  font-family: var(--xz-font-sans);
+  line-height: 1.4;
+  user-select: none;
+}
+.xz-prose .xz-code pre {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+/* ---- 代码块折叠（ADR-0032）：折叠时仍露出前 3 行，下沿渐隐 + 「展开 N 行」 ---- */
+.xz-prose .xz-code-fold {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--xz-radius-sm);
+  color: var(--xz-code-comment);
+}
+.xz-prose .xz-code-fold:hover:not(:disabled) {
+  background: var(--xz-code-border);
+  color: var(--xz-code-fg);
+}
+.xz-prose .xz-code-fold:disabled {
+  opacity: 0.35;
+}
+.xz-prose .xz-code-fold svg {
+  transform: rotate(90deg);
+  transition: transform var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-prose .xz-code[data-collapsed] .xz-code-fold svg {
+  transform: rotate(0deg);
+}
+.xz-prose .xz-code[data-collapsed] pre {
+  position: relative;
+  max-height: calc(3 * 1.6em + 1.5em);
+  overflow: hidden;
+}
+.xz-prose .xz-code[data-collapsed] pre::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 2.5em;
+  background: linear-gradient(transparent, var(--xz-code-bg));
+  pointer-events: none;
+}
+.xz-prose .xz-code-more {
+  display: block;
+  width: 100%;
+  padding: 0.3rem 0;
+  border-top: 1px dashed var(--xz-code-border);
+  background: var(--xz-code-bg);
+  color: var(--xz-code-comment);
+  font-family: var(--xz-font-sans);
+  font-size: 0.75rem;
+  text-align: center;
+}
+.xz-prose .xz-code-more:hover {
+  color: var(--xz-code-fg);
+}
+
+/* ---- 提示块（REQ-EDITOR-030）：按 kind 分色，左色条 + 图标 ---- */
+.xz-prose .xz-callout[data-callout] {
+  --xz-callout-fg: var(--xz-info);
+  --xz-callout-bg: var(--xz-info-soft);
+  position: relative;
+  background: var(--xz-callout-bg);
+  border-radius: var(--xz-radius-md);
+  box-shadow: inset 4px 0 var(--xz-callout-fg);
+  padding: 0.75em 1em 0.75em 2.75em;
+}
+.xz-prose .xz-callout[data-callout="tip"] {
+  --xz-callout-fg: var(--xz-success);
+  --xz-callout-bg: var(--xz-success-soft);
+}
+.xz-prose .xz-callout[data-callout="warn"] {
+  --xz-callout-fg: var(--xz-warning);
+  --xz-callout-bg: var(--xz-warning-soft);
+}
+.xz-prose .xz-callout[data-callout="danger"] {
+  --xz-callout-fg: var(--xz-danger);
+  --xz-callout-bg: var(--xz-danger-soft);
+}
+.xz-prose .xz-callout-icon {
+  position: absolute;
+  top: 0.95em;
+  inset-inline-start: 1em;
+  color: var(--xz-callout-fg);
+  line-height: 0;
+}
+.xz-prose .xz-callout-tools {
+  position: absolute;
+  top: 0.4em;
+  inset-inline-end: 0.4em;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-prose .xz-callout:is(:hover, :focus-within) > .xz-callout-tools {
+  opacity: 1;
+}
+.xz-prose .xz-callout-body > * + * {
+  margin-top: var(--xz-read-gap, 0.75em);
+}
+
+/* ---- 目录块卡片（ADR-0027，参考简斋 [TOC]）：主色浅底 + 细边 + 标题行分隔线；编号主色；按层级缩进 ---- */
+.xz-prose .xz-toc-card {
+  margin-block: 1em;
+  padding: 0.75rem 1rem 0.625rem;
+  border: 1px solid color-mix(in srgb, var(--xz-primary) 26%, var(--xz-border));
+  border-radius: var(--xz-radius-lg);
+  background: color-mix(in srgb, var(--xz-primary) 5%, var(--xz-surface-solid));
+  box-shadow:
+    inset 3px 0 color-mix(in srgb, var(--xz-primary) 55%, transparent),
+    0 1px 0 color-mix(in srgb, var(--xz-primary) 18%, transparent);
+  font-size: 0.9375em;
+  line-height: 1.6;
+}
+.xz-prose .xz-toc-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--xz-primary) 30%, var(--xz-divider));
+  color: var(--xz-primary-text);
+  font-weight: 600;
+}
+.xz-prose .xz-toc-card-count {
+  margin-inline-start: auto;
+  color: var(--xz-fg-muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+.xz-prose .xz-toc-card-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.xz-prose .xz-toc-card-list > li {
+  margin: 0.125rem 0;
+}
+.xz-prose .xz-toc-card-list > li + li {
+  margin-top: 0.125rem;
+}
+.xz-prose .xz-toc-card-list > li[data-depth="2"] {
+  padding-inline-start: 1.2em;
+}
+.xz-prose .xz-toc-card-list > li[data-depth="3"] {
+  padding-inline-start: 2.4em;
+}
+.xz-prose .xz-toc-card-list > li[data-depth="4"] {
+  padding-inline-start: 3.6em;
+}
+.xz-prose .xz-toc-card-list > li[data-depth="1"] {
+  font-weight: 500;
+}
+.xz-prose .xz-toc-card-link {
+  text-align: start;
+  color: var(--xz-fg);
+  border-radius: var(--xz-radius-sm);
+  transition: color var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-prose .xz-toc-card-link:hover {
+  color: var(--xz-primary-text);
+}
+.xz-prose .xz-toc-num {
+  margin-inline-end: 0.4em;
+  color: var(--xz-primary-text);
+  font-variant-numeric: tabular-nums;
+}
+.xz-prose .xz-toc-card-empty {
+  margin: 0;
+  color: var(--xz-fg-muted);
+}
+
+/* ---- 折叠块：边框圆角，按钮为展开箭头 ---- */
+.xz-prose [data-type="details"] {
+  display: flex;
+  gap: 0.25rem;
+  border: 1px solid var(--xz-border);
+  border-radius: var(--xz-radius-md);
+  padding: 0.5em 0.75em;
+}
+.xz-prose [data-type="details"] > button {
+  flex: none;
+  width: 1.25rem;
+  height: 1.75em;
+  display: grid;
+  place-items: center;
+  color: var(--xz-fg-muted);
+  border-radius: var(--xz-radius-sm);
+}
+.xz-prose [data-type="details"] > button::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-block: 4px solid transparent;
+  border-inline-start: 6px solid currentColor;
+  transition: transform var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-prose [data-type="details"].is-open > button::before {
+  transform: rotate(90deg);
+}
+.xz-prose [data-type="details"] > button:hover {
+  background: var(--xz-hover-bg);
+}
+.xz-prose [data-type="details"] > div {
+  flex: 1;
+  min-width: 0;
+}
+.xz-prose [data-type="detailsSummary"] {
+  font-weight: 600;
+}
+.xz-prose [data-type="detailsContent"] {
+  margin-top: 0.5em;
+}

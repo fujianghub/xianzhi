@@ -157,7 +157,7 @@ expectMatrix('member.approve', ADMIN_ONLY, (a) => can(a, 'member.approve', null)
 // ADR-0012：大类由管理员维护
 expectMatrix('group.manage', ADMIN_ONLY, (a) => can(a, 'group.manage', null))
 
-// ADR-0011 §2 模板：personal 仅本人；workspace 全员可读、管理员创建 / 管理，创建者可管自己的
+// ADR-0011 §2 模板：personal 仅本人；workspace 全员可读；非 guest 可建 / 共享（ADR-0023），管理员可管全部工作区模板，创建者可管自己的
 const NON_GUEST: Matrix = {
   owner: [T, T, T, T],
   admin: [T, T, T, T],
@@ -178,7 +178,7 @@ expectMatrix('template.read(workspace, other)', SELF_ONLY, (a) =>
 expectMatrix('template.create(personal)', NON_GUEST, (a) =>
   can(a, 'template.create', tpl('personal', ME)),
 )
-expectMatrix('template.create(workspace)', ADMIN_ONLY, (a) =>
+expectMatrix('template.create(workspace)', NON_GUEST, (a) =>
   can(a, 'template.create', tpl('workspace', ME)),
 )
 expectMatrix('template.manage(personal, own)', NON_GUEST, (a) =>

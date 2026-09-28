@@ -9,7 +9,6 @@ import { CodeBlockLowlight } from '@tiptap/extension-code-block-lowlight'
 import { Collaboration } from '@tiptap/extension-collaboration'
 import { CollaborationCaret } from '@tiptap/extension-collaboration-caret'
 import { Details, DetailsContent, DetailsSummary } from '@tiptap/extension-details'
-import { Highlight } from '@tiptap/extension-highlight'
 import { TaskItem, TaskList } from '@tiptap/extension-list'
 import { Mention } from '@tiptap/extension-mention'
 import { Placeholder } from '@tiptap/extension-placeholder'
@@ -21,8 +20,16 @@ import { ReactNodeViewRenderer } from '@tiptap/react'
 import { StarterKit } from '@tiptap/starter-kit'
 import type * as Y from 'yjs'
 import { isAllowedLink } from '../../shared/editor/links.ts'
-import { createEntryLinkTrigger, createPastePlugin, GiKeymap, UnknownGuard } from './extensions.ts'
+import { CalloutView } from './CalloutView.tsx'
+import {
+  createEntryLinkTrigger,
+  createPastePlugin,
+  GiKeymap,
+  HeadingNumbers,
+  UnknownGuard,
+} from './extensions.ts'
 import { lowlight } from './lowlight.ts'
+import { TextColor, XzHighlight } from './marks.ts'
 import {
   AttachmentImage,
   AttachmentNode,
@@ -38,6 +45,16 @@ import {
 } from './nodes.ts'
 import { createSlash, type SlashCtx } from './slash.tsx'
 import { UploadPlaceholder } from './upload.ts'
+import { MathBlockView, MathInlineView } from './views/MathView.tsx'
+import { MermaidView } from './views/MermaidView.tsx'
+
+/** 节点视图内的源码编辑区（data-stop-pm）与表单控件自己处理事件，不交给 ProseMirror。 */
+const stopInEditor = ({ event }: { event: Event }) => {
+  const el = event.target as HTMLElement | null
+  if (!el || typeof el.closest !== 'function') return false
+  return !!el.closest('[data-stop-pm]') || /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(el.tagName)
+}
+
 import {
   AttachmentView,
   CodeBlockView,
@@ -70,11 +87,12 @@ export function schemaKit(opts: { placeholder?: string } = {}): AnyExtension[] {
     }).configure({ lowlight, defaultLanguage: null }),
     TaskList,
     TaskItem.configure({ nested: true }),
-    TableKit.configure({ table: { resizable: false } }),
+    TableKit.configure({ table: { resizable: true } }),
     Details.configure({ persist: true }),
     DetailsSummary,
     DetailsContent,
-    Highlight,
+    XzHighlight,
+    TextColor,
     Subscript,
     Superscript,
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
@@ -86,10 +104,18 @@ export function schemaKit(opts: { placeholder?: string } = {}): AnyExtension[] {
     AttachmentNode.extend({ addNodeView: () => ReactNodeViewRenderer(AttachmentView) }),
     EntryLink,
     EntryCard.extend({ addNodeView: () => ReactNodeViewRenderer(EntryCardView) }),
-    Callout,
-    Mermaid,
-    MathBlock,
-    MathInline,
+    Callout.extend({ addNodeView: () => ReactNodeViewRenderer(CalloutView) }),
+    // 图表 / 公式（ADR-0025 §8）：视图内部再懒加载 mermaid / katex / CodeMirror；编辑区里的按键不交给 ProseMirror
+    Mermaid.extend({
+      addNodeView: () => ReactNodeViewRenderer(MermaidView, { stopEvent: stopInEditor }),
+    }),
+    MathBlock.extend({
+      addNodeView: () => ReactNodeViewRenderer(MathBlockView, { stopEvent: stopInEditor }),
+    }),
+    MathInline.extend({
+      addNodeView: () =>
+        ReactNodeViewRenderer(MathInlineView, { as: 'span', stopEvent: stopInEditor }),
+    }),
     Toc.extend({ addNodeView: () => ReactNodeViewRenderer(TocView) }),
     UnknownBlock.extend({ addNodeView: () => ReactNodeViewRenderer(UnknownBlockView) }),
     CommentMark,
@@ -111,6 +137,7 @@ export function fullKit(opts: {
     ...schemaKit({ placeholder: opts.placeholder }),
     Collaboration.configure({ document: opts.ydoc, field: YDOC_FIELD }),
     UploadPlaceholder,
+    HeadingNumbers,
     createPastePlugin({ onFiles: opts.onFiles }),
     createSlash(opts.slash),
     createEntryLinkTrigger((at) => opts.slash().pickEntry('link', at)),

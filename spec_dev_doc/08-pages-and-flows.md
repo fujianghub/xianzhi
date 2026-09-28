@@ -36,7 +36,9 @@
 | `/spaces/$slug/tree` | `routes/_app.spaces.$spaceSlug_.tree.tsx` | 空间目录 + 其余记录（ADR-0012） | guest+ | 2 | REQ-KB-005 |
 | `/settings/types` | `routes/_app.settings.types.tsx` | 类型（ADR-0017 起称「类型」）：内置类型（所有者）改名 / 改色 / 删除（记录转到另一内置类型）/ 恢复；「我的自定义类型」本人新建（色 + 状态）/ 改名改色 / 编辑状态 / 删除（选转入目标）；用量、查看记录（ADR-0016 · 0017） | guest+（自定义类型 member+ 管本人的；内置类型仅 owner） | 2 | REQ-ENTRY-018 ~ 020 |
 | `/settings/tags` | `routes/_app.settings.tags.tsx` | 标签：新建选色、改名 / 改色 / 合并 / 删除（~~管理员或创建者~~ ADR-0017：标签是个人的，只列 / 只管本人的）、用量、查看记录（ADR-0014） | guest+（member+ 管本人的，ADR-0017） | 2 | REQ-TAG-004 · 005 · 007 |
-| `/settings/templates` | `routes/_app.settings.templates.tsx` | 模板：内置 / 我的 / 工作区，预览、用此模板新建、改名 / 范围 / 删除（ADR-0011） | guest+（管理需 member+） | 2 | REQ-TPL-001 · 004 |
+| `/settings/templates` | `routes/_app.settings.templates.tsx` | 模板：内置 / 我的 / 工作区共享，预览（`?preview=<id>` 直达）、用此模板新建、复制到我的、复制链接、共享开关、编辑 / 删除（ADR-0011 · 0023） | guest+（管理需 member+） | 2 | REQ-TPL-001 · 004 · 010 |
+| `/settings/templates/new` · `/settings/templates/$templateId` | `routes/_app.settings.templates_.new.tsx` · `_app.settings.templates_.$templateId.tsx` | 新建 / 编辑模板：名称、说明、类型、适用空间、共享、正文编辑器（ADR-0023）；不可管的模板只读 +「复制到我的」 | member+（只读 guest+） | 2 | REQ-TPL-010 |
+| `/settings/reading` | `routes/_app.settings.reading.tsx` | 阅读与写作：字体 / 字号 / 行距 / 段距 / 版心 / 纸张 / 缩进 / 对齐 / 章节编号 / 目录深度 + 示例预览（ADR-0024） | guest+ | 2 | REQ-READ-006 |
 | `/settings/workspace` | `routes/settings.workspace.index.tsx` | 工作区设置 | admin+ | ~~0~~ 1 | REQ-WS-001 |
 | `/settings/workspace/members` | `routes/settings.workspace.members.tsx` | 成员与邀请 | admin+ | ~~0~~ 1 | REQ-AUTH-003 · REQ-WS-002 · 004 |
 | `/settings/workspace/users` | `routes/_app.settings.workspace.users.tsx` | 用户管理（ADR-0010） | **仅 owner** | 2 | REQ-WS-018 ~ 021 |
@@ -159,10 +161,13 @@
 - **显示**：`paper` 纸面 760px 居中（可切 1080）；顶部标题 + kind 徽章 + fields 表单（按 kind 的 Zod schema 生成）+ 可见性；正文 Tiptap fullKit；Aside：大纲 / 反链 / 评论 / 属性；Topbar 右侧 StatusPill 显示 `synced / connecting / offline / readOnly`。数据：`GET /entries/:id` + collab WebSocket。
 - **search params**：`{ aside?: 'outline'|'backlinks'|'comments'|'props'|'history'; wide?: '1'; c?: uuid /* 评论锚点 */ }`；`#c-:commentId` `#m-:mentionId` 由 01 §4.1 深链使用；`/entries/$entryId/history` 只是重定向到 `?aside=history` 的可分享短链（§1）。
 - **三态**：新建空文档注入模板（REQ-ENTRY-005）；加载先渲染 IndexedDB 内容再等 `synced`（REQ-COLLAB-005）；票据失败 → 只读 + 「重新连接」按钮；404 退回列表。
-- **主操作**：编辑器快捷键（03 §11.2）；`Mod+S` 无效（自动保存，显示「已同步」）；「标记版本」在 Aside 属性页。
+- **主操作**：编辑器快捷键（03 §11.2）；~~`Mod+S` 无效（自动保存，显示「已同步」）~~ 注 2026-09-28（ADR-0026）：`Mod+S` / 工具栏「保存版本」生成以「年月日-时分秒」命名的版本，历史里可回退、打标记；「标记版本」在 Aside 属性页。
 - **REQ**：REQ-EDITOR-001 ~ 018 · REQ-COLLAB-001 ~ 015 · REQ-ENTRY-005。
 - **注 2026-09-27（ADR-0018）**：页头 ⋯ 菜单 +「新建子页面」（本篇在目录里时）·「新建关联记录」；Aside 关联页「+ 新建并关联」按所选关联类型一步建好（`POST /entries {linkFrom}`）。REQ-ENTRY-023 · REQ-LINK-006。
 - **注 2026-09-27（ADR-0019）**：正文 `[[` 选择器找不到时可「新建《q》并插入」（本空间、本篇子页），搜索当前空间优先。REQ-EDITOR-023。
+- **注 2026-09-29（ADR-0029）**：标题下「文档栏」（字数 · 上次保存版本｜阅读胶囊 + 专注｜保存 + Markdown），不吸顶；吸顶的只剩格式工具栏（放不下收进「…」）。REQ-READ-007。
+- **注 2026-09-28（ADR-0025）**：正文上方吸顶工具栏（+ 插入面板、格式、颜色、列表、对齐、链接；右侧阅读胶囊 / 专注 / Markdown / 字数），替代页头「Aa」与单独的「Markdown」行；块手柄菜单、表格工具条、代码块复制、提示块切换、Mermaid / 公式渲染与编辑。REQ-EDITOR-024 ~ 031、REQ-READ-007。
+- **注 2026-09-28（ADR-0024）**：纸面宽度、字体、字号、行距、段距、缩进、对齐、纸张取本人阅读偏好（默认 = 原 760 / MiSans / 1.75），`?wide=1` 仍强制 1080；页头「Aa」弹层改偏好、「专注」进入专注写作（`mod+shift+enter`，Esc 退出，隐藏外框与面包屑 / 元信息 / fields）；开章节编号时正文、大纲、目录块显示 1 / 1.1，目录深度过滤大纲与目录块。REQ-READ-002 ~ 005。
 
 ### 2.10 周期列表 `/cycles`、周期详情 `/cycles/$cycleId`
 - **显示**：列表按年分组，每行「第 N 程 · 标题 · 完成 x/y · 状态」；详情：页头（「第 N 程」命名，REQ-CYCLE-007）、目标清单（可勾、可关联任务）、本周期任务列表、复盘记录入口（`review_entry_id`）。数据：`GET /cycles?kind=&year=`、`GET /cycles/:id`、`GET /cycles/current?kind=`。
@@ -192,6 +197,7 @@
 - **三态**：表单页无空态；审计空态「还没有记录」；保存后显示「已保存 · 刚刚」。
 - **主操作**：API Key 创建后明文只显示一次并可复制（REQ-AUTH-010）；2FA 开启显示 10 个恢复码并要求确认已保存。
 - **REQ**：REQ-WS-001 · 002 · 005 · 010 · REQ-AUTH-006 · 009 · 010 · REQ-NOTIF-006。
+- 注 2026-09-28：导航加「阅读与写作」（ADR-0024，REQ-READ-006）；模板页加新建 / 编辑子页、共享开关、复制到我的、复制链接（ADR-0023，REQ-TPL-010）。
 - 注 2026-09-24（T1-033 · T1-043 实现）：布局路由 `/settings` 左侧二级导航；个人页含本机偏好（主题 / 密度；注 2026-09-24 加「动效」档位 标准 / 丰富 / 减弱，REQ-UI-028）；工作区页只改名称，slug 只读，Logo 顺延到后续版本（REQ 未要求）；工作区三页非 owner/admin 在 `beforeLoad` 抛 notFound（404 页）；成员页含邀请、改角色、停用 / 恢复、移除、所有权转让。
 - 注 2026-09-25（ADR-0010）：
   - **个人页**顶部加「头像 + 账号」：头像 64px，上传 / 更换 / 移除（PNG / JPG / WebP / GIF / SVG，服务端方形裁切）；用户名可改（回车或「保存」）；邮箱只读 +「修改」→ 行内表单（新邮箱 + 当前密码）。REQ-WS-022 · 023。

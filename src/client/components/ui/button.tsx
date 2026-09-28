@@ -40,7 +40,19 @@ export function Button({
   children,
   ...props
 }: ButtonProps) {
-  const Comp = asChild ? Slot.Root : 'button'
+  // asChild：Slot 只接受单个子元素，不能再并排渲染加载圈（否则整页崩 "Slot failed to slot"，见 debug/2026-09-28-button-aschild-slot）
+  if (asChild)
+    return (
+      <Slot.Root
+        className={cn(buttonVariants({ variant, size }), className)}
+        aria-busy={loading || undefined}
+        data-variant={variant ?? 'secondary'}
+        {...props}
+      >
+        {children}
+      </Slot.Root>
+    )
+  const Comp = 'button'
   return (
     <Comp
       className={cn(buttonVariants({ variant, size }), className)}

@@ -673,6 +673,70 @@ describe('collab', () => {
     expect(before2).toBeDefined()
   })
 
+  it('REQ-COLLAB-017 保存版本（stateless）：落库并同事务打快照（快照版本 ≤ 当前版本、内容已落库）；5s 内再存 throttled；无改动 unchanged；只删字也算改动；viewer readonly；坏请求 invalid 且进程不倒', async () => {
+    const created = await app.request('/api/v1/entries', {
+      method: 'POST',
+      headers: jsonHeaders({ cookie: ownerCookie }),
+      body: JSON.stringify({ kind: 'note', title: '保存版本', spaceId, visibility: 'workspace' }),
+    })
+    const id = ((await created.json()) as { id: string }).id
+    const c = open(id, signCollabToken(SECRET, ownerId, id).token)
+    await until(() => c.state.synced)
+    const replies: Record<string, unknown>[] = []
+    c.provider.on('stateless', ({ payload }: { payload: string }) => {
+      replies.push(JSON.parse(payload) as Record<string, unknown>)
+    })
+    const save = async (rid: string, raw?: string) => {
+      c.provider.sendStateless(raw ?? JSON.stringify({ t: 'save-version', id: rid }))
+      await until(() => replies.some((r) => r.id === rid), 5000, rid)
+      return replies.find((r) => r.id === rid) as Record<string, unknown>
+    }
+    typeText(c.doc, '第一版正文')
+    const r1 = await save('r1')
+    expect(r1).toMatchObject({ t: 'save-version:reply', ok: true })
+    const [snap] = await db()
+      .select()
+      .from(entrySnapshots)
+      .where(eq(entrySnapshots.id, String(r1.snapshotId)))
+    const [row] = await db()
+      .select({ v: entries.ydocVersion, ydoc: entries.ydoc })
+      .from(entries)
+      .where(eq(entries.id, id))
+    expect(snap).toMatchObject({ entryId: id, createdBy: ownerId, label: null })
+    // 保存版本在 saveMutex 内先落库（版本 n），排队中的防抖落库随后可能再 +1
+    expect(snap?.ydocVersion).toBeGreaterThanOrEqual(1)
+    expect(snap?.ydocVersion).toBeLessThanOrEqual(row?.v ?? 0)
+    // 快照指向的内容已在落库 ydoc 里（不因 10s 落库节流而滞后）
+    expect(deriveFromYdoc(row?.ydoc ?? new Uint8Array()).plain).toContain('第一版正文')
+
+    expect(await save('r2')).toMatchObject({ ok: false, reason: 'throttled' })
+    await sleep(5200)
+    expect(await save('r3')).toMatchObject({ ok: false, reason: 'unchanged' })
+    await sleep(5200)
+    // 只删字：状态向量不变、删除集变 → 仍算改动
+    const text = c.doc.getXmlFragment(YDOC_FRAGMENT).get(0) as Y.XmlElement
+    ;(text.get(0) as Y.XmlText).delete(0, 2)
+    expect(await save('r4')).toMatchObject({ ok: true })
+
+    const viewer = open(id, signCollabToken(SECRET, guestId, id).token)
+    await until(() => viewer.state.synced)
+    const vr: Record<string, unknown>[] = []
+    viewer.provider.on('stateless', ({ payload }: { payload: string }) => {
+      vr.push(JSON.parse(payload) as Record<string, unknown>)
+    })
+    viewer.provider.sendStateless(JSON.stringify({ t: 'save-version', id: 'v1' }))
+    await until(() => vr.length > 0)
+    expect(vr[0]).toMatchObject({ id: 'v1', ok: false, reason: 'readonly' })
+
+    c.provider.sendStateless(JSON.stringify({ t: 'save-version', id: 'bad', extra: 1 }))
+    await until(() => replies.some((r) => r.reason === 'invalid'), 3000, 'invalid')
+    c.provider.sendStateless('x'.repeat(2000))
+    c.provider.sendStateless('not json')
+    await sleep(300)
+    const res = await fetch(`http://127.0.0.1:${port}/collab/health`)
+    expect(res.status).toBe(200)
+  }, 40_000)
+
   it('/collab/health 公开只回 ok', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/collab/health`)
     expect(res.status).toBe(200)

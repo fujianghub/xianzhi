@@ -44,7 +44,14 @@ export function toSource(doc: PmNode): string {
 /** 编辑中出现、且 Markdown 会丢掉的格式（提示用）。 */
 export function lossyMarks(doc: PmNode): string[] {
   const found = new Set<string>()
-  const LOSSY_MARKS = new Set(['underline', 'highlight', 'subscript', 'superscript', 'comment'])
+  const LOSSY_MARKS = new Set([
+    'underline',
+    'highlight',
+    'textColor',
+    'subscript',
+    'superscript',
+    'comment',
+  ])
   const LOSSY_NODES = new Set(['mention', 'mathInline'])
   const walk = (n: PmNode) => {
     for (const m of n.marks ?? []) if (LOSSY_MARKS.has(m.type)) found.add(m.type)

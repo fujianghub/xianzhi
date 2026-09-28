@@ -9,8 +9,10 @@
 import { type Editor, Extension, InputRule } from '@tiptap/core'
 import type { Schema } from '@tiptap/pm/model'
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import i18n from 'i18next'
 import { toast } from 'sonner'
+import { collectHeadings } from '../../shared/editor/headings.ts'
 import { UNKNOWN_BLOCK } from '../../shared/editor/unknown.ts'
 import { CALLOUT_KINDS } from './nodes.ts'
 import {
@@ -22,6 +24,42 @@ import {
   plainParagraphs,
   sanitizePastedHtml,
 } from './paste.ts'
+
+/**
+ * 章节编号装饰（ADR-0024 §4、REQ-READ-004）：给每个标题节点加 `data-num`（跳级压缩编号），只在文档变化时重算。
+ * 是否显示由外层 `.xz-reading[data-numbered]` 的 CSS 决定，编号从不写进正文。
+ */
+export const HeadingNumbers = Extension.create({
+  name: 'xzHeadingNumbers',
+  addProseMirrorPlugins() {
+    const build = (
+      doc: Parameters<typeof collectHeadings>[0] & {
+        nodeAt: (p: number) => { nodeSize: number } | null
+      },
+    ) =>
+      DecorationSet.create(
+        doc as never,
+        collectHeadings(doc).flatMap((h) => {
+          const node = doc.nodeAt(h.pos)
+          return node ? [Decoration.node(h.pos, h.pos + node.nodeSize, { 'data-num': h.num })] : []
+        }),
+      )
+    return [
+      new Plugin({
+        key: new PluginKey('xzHeadingNumbers'),
+        state: {
+          init: (_, state) => build(state.doc),
+          apply: (tr, old) => (tr.docChanged ? build(tr.doc) : old),
+        },
+        props: {
+          decorations(state) {
+            return this.getState(state)
+          },
+        },
+      }),
+    ]
+  },
+})
 
 /** `[[` → 打开记录选择器，选中后插入 entryLink（03 §11.2、REQ-EDITOR-011）。 */
 export function createEntryLinkTrigger(pick: (at: number) => void) {

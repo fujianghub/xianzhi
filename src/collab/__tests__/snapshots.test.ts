@@ -112,4 +112,47 @@ describe('snapshots', () => {
       (await app.request(`/api/v1/entries/${v7()}/snapshots`, { headers: { cookie } })).status,
     ).toBe(404)
   })
+  it('REQ-COLLAB-018 手动保存的版本（created_by 非空、无 label）永久保留，gc 不删', async () => {
+    const id = await mkEntry()
+    const old = new Date(Date.now() - 200 * 86_400_000)
+    await insertSnapshot(db(), id, emptyYdoc(), 1, { createdBy: userId })
+    for (let i = 0; i < 130; i++) await insertSnapshot(db(), id, emptyYdoc(), i + 2)
+    await db()
+      .update(entrySnapshots)
+      .set({
+        createdAt: sql`${old}::timestamptz + (${entrySnapshots.ydocVersion} || ' seconds')::interval`,
+      })
+      .where(eq(entrySnapshots.entryId, id))
+    await gcSnapshots(db())
+    const left = await db().select().from(entrySnapshots).where(eq(entrySnapshots.entryId, id))
+    expect(left.some((r) => r.ydocVersion === 1 && r.createdBy === userId)).toBe(true)
+  })
+
+  it('REQ-COLLAB-018 PATCH /entries/:id/snapshots/:sid {label} 打标记 / 改标记 / 清除；非法 422；他人快照 404', async () => {
+    const app = buildApp().app
+    const cookie = (await signIn(app, OWNER.email, OWNER.password)).cookie
+    const created = await app.request('/api/v1/entries', {
+      method: 'POST',
+      headers: jsonHeaders({ cookie }),
+      body: JSON.stringify({ kind: 'note', title: '打标记' }),
+    })
+    const id = ((await created.json()) as { id: string }).id
+    const s = await insertSnapshot(db(), id, emptyYdoc(), 1)
+    const patch = (body: unknown, sid = s.id) =>
+      app.request(`/api/v1/entries/${id}/snapshots/${sid}`, {
+        method: 'PATCH',
+        headers: jsonHeaders({ cookie }),
+        body: JSON.stringify(body),
+      })
+    let r = await patch({ label: '发布前' })
+    expect(r.status).toBe(200)
+    expect(((await r.json()) as { label: string }).label).toBe('发布前')
+    r = await patch({ label: '发布版 v1' })
+    expect(((await r.json()) as { label: string }).label).toBe('发布版 v1')
+    r = await patch({ label: null })
+    expect(((await r.json()) as { label: string | null }).label).toBeNull()
+    expect((await patch({ label: '' })).status).toBe(422)
+    expect((await patch({ label: 'x'.repeat(81) })).status).toBe(422)
+    expect((await patch({ label: 'a' }, v7())).status).toBe(404)
+  })
 })

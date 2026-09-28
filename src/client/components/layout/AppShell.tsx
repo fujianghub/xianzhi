@@ -1,6 +1,7 @@
 /**
  * 布局骨架（04 §4、06 §4、REQ-UI-014 · REQ-MOBILE-001）：Topbar 56 / Sidebar 240 / Aside 320 可折；
  * < lg：Sidebar 抽屉（Sheet left）、底部导航（safe-area）。`[` / `]` 折叠侧栏 / Aside。
+ * 专注写作（ADR-0024 §5）：隐藏侧栏 / 顶栏 / Aside / 底部导航，右上角浮动「退出专注」；Esc 退出（弹层 / 编辑器已处理的 Esc 除外）。
  * 同屏 blur：≥ lg 时 Topbar + Sidebar + Aside = 3（L1 ≤ 4）；底部导航 < lg 才显示。
  */
 import { Link, useRouterState } from '@tanstack/react-router'
@@ -12,6 +13,7 @@ import {
   LogOut,
   type LucideIcon,
   Menu,
+  Minimize2,
   PanelLeft,
   PanelRight,
   Search,
@@ -21,7 +23,7 @@ import {
   User,
 } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
-import { lazy, Suspense, useMemo } from 'react'
+import { lazy, Suspense, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { hotkeyParts, useCommands } from '../../hooks/useCommands.ts'
 import { useHotkeys } from '../../hooks/useHotkeys.ts'
@@ -29,6 +31,7 @@ import type { Me } from '../../hooks/useMe.ts'
 import { useScrolled } from '../../hooks/useScrolled.ts'
 import { authClient } from '../../lib/auth-client.ts'
 import { cn } from '../../lib/cn.ts'
+import { useFocusMode } from '../../lib/reading.ts'
 import { useLayout, useNewEntry, usePalette, usePeek } from '../../lib/stores.ts'
 import { CreateSpaceDialog } from '../domain/CreateSpaceDialog.tsx'
 import { NewTaskDialog } from '../domain/NewTaskDialog.tsx'
@@ -193,6 +196,19 @@ export function AppShell({
   const helpOpen = usePalette((s) => s.help)
   const setPalette = usePalette((s) => s.setOpen)
   const peeking = usePeek((s) => !!s.target)
+  const focus = useFocusMode((s) => s.on)
+  const setFocus = useFocusMode((s) => s.set)
+  useEffect(() => {
+    if (!focus) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing) return
+      // 对话框 / 弹层打开时 Esc 归它们
+      if (document.querySelector('[role="dialog"], [data-radix-popper-content-wrapper]')) return
+      setFocus(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [focus, setFocus])
   // 全局热键与 ⌘K 共用命令注册表（REQ-UI-006）
   const { commands } = useCommands()
   const hotkeys = useMemo(
@@ -224,7 +240,7 @@ export function AppShell({
         data-testid="sidebar"
         className={cn(
           'xz-sidebar fixed inset-y-0 left-0 z-(--xz-z-sticky) hidden w-(--xz-sidebar-w) flex-col lg:flex',
-          !sidebarOpen && 'lg:hidden',
+          (!sidebarOpen || focus) && 'lg:hidden',
         )}
         aria-label={t('ui.nav.spaces')}
       >
@@ -246,10 +262,14 @@ export function AppShell({
         </SheetContent>
       </Sheet>
 
-      <div className={cn('flex min-h-dvh flex-col', sidebarOpen && 'lg:pl-(--xz-sidebar-w)')}>
+      <div
+        className={cn('flex min-h-dvh flex-col', sidebarOpen && !focus && 'lg:pl-(--xz-sidebar-w)')}
+        data-focus={focus || undefined}
+      >
         <header
           data-testid="topbar"
           data-scrolled={scrolled || undefined}
+          hidden={focus}
           className="glass xz-topbar sticky top-0 z-(--xz-z-sticky) flex h-(--xz-topbar-h) items-center gap-2 rounded-none border-x-0 border-t-0 px-3"
         >
           <Button
@@ -308,14 +328,29 @@ export function AppShell({
           className={cn(
             'xz-main flex-1 px-4 py-6 pb-[calc(var(--xz-bottomnav-h)+env(safe-area-inset-bottom)+1rem)] lg:px-10 lg:pt-8 lg:pb-10',
             // Aside 让位只作用于正文：顶栏铺满整行，Aside 从顶栏下方开始（fixed top = topbar-h），右上角不再留白
-            aside && asideOpen && 'xl:pr-[calc(var(--xz-aside-w)+2.5rem)]',
+            aside && asideOpen && !focus && 'xl:pr-[calc(var(--xz-aside-w)+2.5rem)]',
+            focus && 'pb-16 lg:pt-16',
           )}
         >
           {children}
         </main>
       </div>
 
-      {aside && asideOpen ? (
+      {focus ? (
+        <Tooltip content={t('reading.focusExitHint')}>
+          <Button
+            variant="icon"
+            className="glass fixed top-3 right-3 z-(--xz-z-sticky)"
+            aria-label={t('reading.focusExit')}
+            onClick={() => setFocus(false)}
+            data-testid="focus-exit"
+          >
+            <Minimize2 />
+          </Button>
+        </Tooltip>
+      ) : null}
+
+      {aside && asideOpen && !focus ? (
         <aside
           data-testid="aside"
           className="glass fixed top-(--xz-topbar-h) right-0 bottom-0 z-(--xz-z-sticky) hidden w-(--xz-aside-w) overflow-y-auto rounded-l-xl border-r-0 p-4 xl:block [html[data-dialog-open]_&]:hidden"
@@ -351,6 +386,7 @@ export function AppShell({
       <nav
         data-testid="bottom-nav"
         aria-label={t('ui.nav.mainNav')}
+        hidden={focus}
         className="glass fixed inset-x-0 bottom-0 z-(--xz-z-sticky) grid h-[calc(var(--xz-bottomnav-h)+env(safe-area-inset-bottom))] grid-cols-5 rounded-t-xl border-x-0 border-b-0 pb-[env(safe-area-inset-bottom)] lg:hidden"
       >
         <Link

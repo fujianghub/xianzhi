@@ -51,7 +51,8 @@
 | 正文 | Body / `ydoc` | `entries.ydoc` bytea | 正文 | `entry.body` | Yjs 二进制，唯一真源 | 01 §3.4 |
 | 派生列 | Derived columns | `pm_json` `plain` `tsv` `word_count` | — | — | 只由 `onStoreDocument` 生成，可重建 | 01 §3.4 |
 | 快照 | Snapshot / `snapshot` | `entry_snapshots` | 版本 | `collab.snapshot` | `Y.encodeSnapshot` 结果 | 03 §5 |
-| 标记版本 | Label / `label` | `entry_snapshots.label` | 标记版本 | `collab.label` | 用户手动命名的快照，永久保留 | 03 §5 |
+| 标记版本 | Label / `label` | `entry_snapshots.label` | 标记版本 · 打标记 | `collab.label` · `entry.history.tag` | 用户手动命名的快照，永久保留（ADR-0026：历史里可给任一版本打标记 / 改 / 清除） | 03 §5 |
+| 保存版本 | Save version / `saveVersion` · stateless `save-version` | `entry_snapshots`（`created_by` 非空、无 label） | 保存版本 | `editor.version.*` | Ctrl/⌘+S 生成的手动版本，以本地时间「年月日-时分秒」命名，永久保留 | ADR-0026 §4 |
 | 模板 | Template | `src/shared/editor/templates.ts` | 模板 | `entry.template` | 按 kind 注入的正文骨架 | 03 §6 |
 | 编辑器 schema 版本 | `editorSchemaVersion` | `entries.editor_schema_version` | — | — | 节点结构迁移用 | 03 §3.3 |
 | 链接 | Link / `link` | `links` | 链接 | `link.link` | 对象间有向关系 | 01 §3.6 |
@@ -128,6 +129,18 @@
 | 浮动工具条 | BubbleBar | 组件 | — | `editor.bubble.*` | 选中文字时出现的 glass-thick 工具条 | 03 §11 · 06 §4 |
 | 斜杠菜单 | slash menu / `SLASH_ITEMS` | 组件 | 输入 / 唤起命令 | `editor.slash.*` | 编辑器内 `/` 命令列表 | 03 §11.1 |
 | 大纲 | outline / `useOutline` | 组件 | 大纲 | `entry.aside.outline` | Aside 中按标题生成的目录，点击跳转 | 04 §4 · 08 §2.9 |
+| 共享模板 | shared template / `scope: 'workspace'` | `entry_templates.scope` | 工作区共享 · 共享给工作区成员 | `template.groups.workspace` · `template.share` | 非 guest 成员共享给全工作区的模板；作者与管理员可管，其他人可用、可复制到我的 | ADR-0023 |
+| 阅读偏好 | reading prefs / `ReadingPrefs` | `user_preferences.reading` | 阅读与写作 · 阅读与排版 | `reading.*` | 本人看记录正文的显示方式（字体 / 字号 / 行距 / 段距 / 版心 / 纸张 / 缩进 / 对齐 / 编号 / 目录深度），不改正文 | ADR-0024 |
+| 版心 | measure / `width` | `reading.width` | 版心宽度 | `reading.width` | 记录纸面的宽度档位：窄 680 / 标准 760 / 宽 1080 / 满栏 | ADR-0024 |
+| 纸张 | paper / `paper` | `reading.paper` · `--xz-paper-*` | 纸张 | `reading.papers.*` | 记录纸面的底纹：素纸 / 宣纸 / 方格 / 横线 / 点阵 / 牛皮纸；按人生效 | ADR-0024 |
+| 章节编号 | heading numbers / `headingNumbers` · `numberHeadings` | `reading.headingNumbers` | 章节编号 | `reading.headingNumbers` | 标题前显示的 1 / 1.1 编号（跳级压缩），只是显示，不写进正文 | ADR-0024 §5 |
+| 吸顶工具栏 | editor toolbar / `EditorToolbar` | 组件 | 编辑工具栏 | `editor.toolbar.*` | 记录正文上方、吸顶在顶栏下的格式 / 插入 / 阅读设置条 | ADR-0025 §1 |
+| 阅读胶囊 | reading capsule / `ReadingCapsule` | 组件 | 正文字体 · 纸张样式 · 排版 · 目录格式 | `reading.capsule.*` | 吸顶工具栏右侧四个阅读设置按钮组成的胶囊 | ADR-0025 §1 |
+| 插入面板 | insert panel / `InsertPanel` | 组件 | 插入内容块 | `editor.toolbar.insert` | 「+」打开的可搜索分区插入菜单，与斜杠菜单共用注册表 | ADR-0025 §2 |
+| 块手柄菜单 | block menu / `BlockHandle` | 组件 | 转换为 · 包裹为 · 复制此块 · 删除此块 | `editor.block.*` | 单击拖动把手打开的块操作菜单 | ADR-0025 §3 |
+| 表格工具条 | table menu / `TableMenu` | 组件 | 表格工具条 | `editor.table.*` | 光标在表格内浮出的行列增删 / 合并拆分 / 表头 / 删除表格 | ADR-0025 §4 |
+| 文字色 / 背景色 | text color / `textColor` · highlight `color` | mark | 文字颜色 · 背景颜色 | `editor.toolbar.textColor` · `editor.toolbar.bgColor` | 只存 9 色板 key 的颜色标记，夜场随 token 变 | ADR-0025 §7 |
+| 专注写作 | focus mode / `useFocusMode` | 会话态 | 专注写作 · 退出专注 | `reading.focus` | 记录页隐藏外框只留正文的状态，`mod+shift+enter` / Esc | ADR-0024 §6 |
 | 快捷键面板 | ShortcutsDialog | 组件 | 快捷键 | `cmd.help` | `?` 打开，列出全局热键与列表按键 | 04 §6 |
 | 实时失效 | data.changed → `invalidate` 帧 | EventBus + SSE | — | — | 数据写提交后按空间可读性推送 Query key 失效；不是通知 | 02 §6 注 |
 | 记录卡片 | entryCard | PM 节点 | 记录卡片 | `editor.slash.card` | 正文里以卡片形式引用另一篇记录 | 03 §3.2 |

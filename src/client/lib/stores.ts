@@ -1,5 +1,6 @@
 /** 本地 UI 状态（Zustand，ADR §3：仅主题、布局）：侧栏 / Aside 折叠、密度、动效档位、StatusPill 状态。 */
 import { create } from 'zustand'
+import type { HeadingItem } from '../../shared/editor/headings.ts'
 import type { EntryKind } from '../../shared/schemas/enums.ts'
 import { type MotionLevel, setMotion as persistMotion, storedMotion } from './motion.ts'
 
@@ -181,11 +182,8 @@ export const useNewEntry = create<{
 }))
 
 /** 当前编辑器的大纲（Aside 大纲页读取；EntryEditor 在每次更新后写入，REQ-EDITOR-012）。 */
-export interface OutlineItem {
-  level: number
-  text: string
-  pos: number
-}
+/** 标题项（含章节编号 num 与层级 depth，与正文装饰 / 目录块同一算法，ADR-0024） */
+export type OutlineItem = HeadingItem
 export const useOutline = create<{
   items: OutlineItem[]
   jump: ((pos: number) => void) | null

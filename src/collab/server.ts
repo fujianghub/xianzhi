@@ -21,11 +21,19 @@ import { loadEntry } from '../server/services/entries.ts'
 import { emit } from '../server/services/events.ts'
 import { entryTemplate } from '../shared/editor/templates.ts'
 import type { EntryKind } from '../shared/schemas/enums.ts'
+import {
+  SAVE_VERSION_MAX_BYTES,
+  SAVE_VERSION_REPLY,
+  SAVE_VERSION_THROTTLE_MS,
+  type SaveVersionResult,
+  saveVersionRequestSchema,
+} from '../shared/schemas/versions.ts'
 import { EDITOR_SCHEMA_VERSION, YDOC_FRAGMENT } from './derive.ts'
 import { restoreFragment } from './history.ts'
 import {
   getSnapshotRow,
   insertSnapshot,
+  latestManualSnapshot,
   maybeAutoSnapshot,
   RESTORE_BEFORE_LABEL,
 } from './snapshots.ts'
@@ -187,16 +195,22 @@ export function createCollabServer(deps: CollabDeps) {
     restoreSnapshot(p).catch((err) => log.error({ err, ...p }, 'snapshot restore failed'))
   })
 
+  /**
+   * 落库 + 派生；`saveVersion` 时在同一事务里用同一份字节打手动快照（ADR-0026：快照 ydocVersion = 落库版本，
+   * 预览读到的就是这份 ydoc），并跳过自动快照。调用方须持有 document.saveMutex（与 Hocuspocus 防抖落库串行）。
+   */
   async function storeDocument(
     documentName: string,
     document: Y.Doc,
     ctx: Partial<CollabContext> | undefined,
-  ): Promise<void> {
+    opts: { saveVersion?: { createdBy: string } } = {},
+  ): Promise<{ snapshotId: string; createdAt: Date } | null> {
     const entryId = entryIdOf(documentName)
-    if (!entryId) return
+    if (!entryId) return null
     const bytes = Buffer.from(Y.encodeStateAsUpdate(document))
     docSize.set(documentName, bytes.length)
     let failedDerive = false
+    let saved: { snapshotId: string; createdAt: Date } | null = null
     await deps.db.transaction(async (tx) => {
       const [row] = await tx
         .update(entries)
@@ -232,12 +246,79 @@ export function createCollabServer(deps: CollabDeps) {
         failedDerive = true
       }
       if (ctx?.userId) await recordEntryUpdated(tx, entryId, ctx.userId, ctx.name ?? '', row)
-      await maybeAutoSnapshot(tx, entryId, bytes, row.version)
+      if (opts.saveVersion) {
+        const s = await insertSnapshot(tx, entryId, bytes, row.version, {
+          createdBy: opts.saveVersion.createdBy,
+        })
+        saved = { snapshotId: s.id, createdAt: s.createdAt }
+      } else await maybeAutoSnapshot(tx, entryId, bytes, row.version)
     })
     if (failedDerive)
       await deps
         .enqueueRetry?.(entryId)
         .catch((err) => log.error({ err, entryId }, 'enqueue derive.retry failed'))
+    return saved
+  }
+
+  /** 保存版本节流：`userId:entryId` → 上次成功时间。 */
+  const lastSave = new Map<string, number>()
+
+  /**
+   * 保存版本（ADR-0026、REQ-COLLAB-017）：stateless 请求。只回执、绝不抛出（Hocuspocus 不 await 本钩子，抛错会让进程退出）。
+   * 校验体积 / 格式 → 只读连接拒绝 → 重跑 can('entry.write') → 5s 节流 → 与上一个手动 / 带标记快照完全相同（状态向量 +
+   * 删除集，equalSnapshots）则回 unchanged → 否则在 saveMutex 内落库并同事务打快照。
+   */
+  async function saveVersion(
+    connection: Connection,
+    documentName: string,
+    document: Y.Doc & { saveMutex?: { runExclusive: <T>(f: () => Promise<T>) => Promise<T> } },
+    payload: string,
+  ): Promise<void> {
+    let id = ''
+    const reply = (r: SaveVersionResult) =>
+      connection.sendStateless(JSON.stringify({ t: SAVE_VERSION_REPLY, id, ...r }))
+    try {
+      if (payload.length > SAVE_VERSION_MAX_BYTES) return reply({ ok: false, reason: 'invalid' })
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(payload)
+      } catch {
+        return // 不是保存版本请求（其它 stateless 用途）：忽略
+      }
+      if ((parsed as { t?: unknown })?.t !== 'save-version') return
+      const req = saveVersionRequestSchema.safeParse(parsed)
+      if (!req.success) return reply({ ok: false, reason: 'invalid' })
+      id = req.data.id
+      const ctx = connection.context as CollabContext
+      const entryId = entryIdOf(documentName)
+      if (!entryId || connection.readOnly) return reply({ ok: false, reason: 'readonly' })
+      const r = await resolve(ctx.userId, entryId)
+      if (!r?.write) return reply({ ok: false, reason: 'readonly' })
+      const key = `${ctx.userId}:${entryId}`
+      if (Date.now() - (lastSave.get(key) ?? 0) < SAVE_VERSION_THROTTLE_MS)
+        return reply({ ok: false, reason: 'throttled' })
+      const last = await latestManualSnapshot(deps.db, entryId)
+      if (last && Y.equalSnapshots(Y.decodeSnapshot(last.snapshot), Y.snapshot(document)))
+        return reply({ ok: false, reason: 'unchanged' })
+      const run = () =>
+        storeDocument(documentName, document, ctx, { saveVersion: { createdBy: ctx.userId } })
+      const saved = document.saveMutex ? await document.saveMutex.runExclusive(run) : await run()
+      if (!saved) return reply({ ok: false, reason: 'error' })
+      lastSave.set(key, Date.now())
+      log.info({ entryId, snapshotId: saved.snapshotId }, 'version saved')
+      return reply({
+        ok: true,
+        snapshotId: saved.snapshotId,
+        createdAt: saved.createdAt.toISOString(),
+      })
+    } catch (err) {
+      log.error({ err, documentName }, 'save version failed')
+      try {
+        reply({ ok: false, reason: 'error' })
+      } catch {
+        /* 连接已断 */
+      }
+    }
   }
 
   /** entry.updated 5 分钟合并（01 §4.1）：同 entry 同 actor 未处理的行则 UPDATE payload。 */
@@ -383,6 +464,10 @@ export function createCollabServer(deps: CollabDeps) {
 
     async onStoreDocument({ documentName, document, lastContext }) {
       await storeDocument(documentName, document, lastContext)
+    },
+
+    async onStateless({ connection, documentName, document, payload }) {
+      await saveVersion(connection, documentName, document as never, payload)
     },
 
     async afterUnloadDocument({ documentName }) {

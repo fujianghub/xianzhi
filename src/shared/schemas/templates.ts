@@ -1,6 +1,6 @@
 /** 记录模板（ADR-0011 §2、02 §9 /templates）。 */
 import { z } from 'zod'
-import { uuidSchema } from './common.ts'
+import { isoDateTime, uuidSchema } from './common.ts'
 import { entryFieldsIssues } from './entryFields.ts'
 import { BUILTIN_ENTRY_KINDS, SPACE_KINDS, TEMPLATE_SCOPES } from './enums.ts'
 import { fullDocSchema } from './pm.ts'
@@ -23,7 +23,10 @@ const meta = {
   spaceKind: z.enum(SPACE_KINDS).nullable().optional(),
 }
 
-/** 新建：正文二选一——直接给 `body`，或 `fromEntryId`（另存为模板：取该记录当前正文与 kind / fields）。 */
+/**
+ * 新建：正文三选一——直接给 `body`；`fromEntryId`（另存为模板：取该记录当前正文与 kind / fields）；
+ * `fromTemplateId`（复制到我的，ADR-0023：内置或可见模板 → 新模板，未给 kind / fields 时沿用原模板）。
+ */
 export const createTemplateSchema = z
   .object({
     ...meta,
@@ -31,19 +34,32 @@ export const createTemplateSchema = z
     fields: z.record(z.string(), z.unknown()).optional(),
     body: fullDocSchema.optional(),
     fromEntryId: uuidSchema.optional(),
+    fromTemplateId: templateIdSchema.optional(),
   })
   .superRefine((v, ctx) => {
-    if (!v.body === !v.fromEntryId)
-      ctx.addIssue({ code: 'custom', message: 'body 与 fromEntryId 二选一', path: ['body'] })
+    if ([v.body, v.fromEntryId, v.fromTemplateId].filter(Boolean).length !== 1)
+      ctx.addIssue({
+        code: 'custom',
+        message: 'body / fromEntryId / fromTemplateId 三选一',
+        path: ['body'],
+      })
     if (v.body && !v.kind) ctx.addIssue({ code: 'custom', message: '需要 kind', path: ['kind'] })
     if (v.kind && v.fields) entryFieldsIssues(v.kind, v.fields, ctx)
   })
 
+/**
+ * 修改（ADR-0023）：元信息 + 正文 / 类型 / fields；乐观锁 `ifUpdatedAt`（02 §4，不匹配 409 CONFLICT_STALE）。
+ * fields 按「新 kind ?? 原 kind」在 service 内校验；只改 kind 不给 fields → 重置为该 kind 默认值。
+ */
 export const patchTemplateSchema = z
   .object({
     name: meta.name.optional(),
     description: z.string().trim().max(200).optional(),
     scope: z.enum(TEMPLATE_SCOPES).optional(),
     spaceKind: z.enum(SPACE_KINDS).nullable().optional(),
+    kind: z.enum(BUILTIN_ENTRY_KINDS).optional(),
+    fields: z.record(z.string(), z.unknown()).optional(),
+    body: fullDocSchema.optional(),
+    ifUpdatedAt: isoDateTime,
   })
-  .refine((v) => Object.keys(v).length > 0, { message: '至少一个字段', path: ['name'] })
+  .refine((v) => Object.keys(v).length > 1, { message: '至少一个字段', path: ['name'] })

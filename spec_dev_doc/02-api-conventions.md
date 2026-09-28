@@ -167,6 +167,8 @@
 | DELETE | `/me/avatar` | 移除头像（回到首字母）；204 | REQ-WS-023 |
 | PATCH | `/me/account` | `{ username?, email?, currentPassword? }`；改邮箱须当前密码（错 422 `currentPassword`）；占用 409（字段级）；仅会话；返回新 `/me` | REQ-WS-022 |
 | POST | `/me/password` | `{ currentPassword, newPassword }`；删本人其他会话、保留当前；审计 `auth.password_changed`；仅会话；返回 `{ sessions }` | REQ-AUTH-021 |
+| GET | `/me/preferences` | 阅读与写作偏好 `{ reading }`（补齐默认值，ADR-0024） | REQ-READ-001 |
+| PATCH | `/me/preferences` | `{ reading: Partial }` 按键合并（jsonb `\|\|`），可交换、幂等，**不要求 `ifUpdatedAt`**（§4 例外）；需 write scope；非法值 / 未知键 422 | REQ-READ-001 |
 | GET | `/me/keys` | API Key 列表（只含前缀、scope、expiresAt、lastUsedAt） | REQ-AUTH-010 |
 | POST | `/me/keys` | `{ name, scope, expiresAt? }` → 明文只返回一次 | REQ-AUTH-010 |
 | DELETE | `/me/keys/:id` | 吊销 | REQ-AUTH-010 |
@@ -284,6 +286,7 @@
 | POST | `/entries/:id/snapshots` | `{ label }` 手动标记版本 | REQ-COLLAB-007 |
 | GET | `/entries/:id/snapshots/:sid` | 单个快照二进制（历史面板） | REQ-COLLAB-008 |
 | GET | `/entries/:id/snapshots/:sid/content` | 快照时刻正文 `pmJson` + 当前 `currentPmJson`（服务端以 gc:false ydoc 重建；预览 / 对比） | REQ-COLLAB-008 |
+| PATCH | `/entries/:id/snapshots/:sid` | `{ label: string(1–80) \| null }` 打标记 / 改标记 / 清除（ADR-0026）；需 `entry.write`；按值覆盖幂等，**不要求 `ifUpdatedAt`**（§4 例外） | REQ-COLLAB-018 |
 | POST | `/entries/:id/snapshots/:sid/restore` | 恢复：需 `entry.write`；审计 `entry.restored` 后经总线 `entry.restore` 请 collab 以一次修改写回在线文档；**202**（异步生效） | REQ-COLLAB-008 |
 | POST | `/entries/:id/export` | `format=md\|html` 单篇导出（同步返回文件） | REQ-EXPORT-003 · 006 |
 | GET | `/comments` | `targetType targetId`；含软删占位 | REQ-COMMENT-001 · 007 |
@@ -304,11 +307,11 @@
 | PATCH | `/tags/:id` | 改名 / 颜色 | REQ-TAG-001 |
 | DELETE | `/tags/:id` | 删除并解除关联 | REQ-TAG-001 |
 | POST | `/tags/:id/merge` | `{ intoId }` 关联并入目标（去重）后删源；需两者 `tag.manage`（ADR-0014） | REQ-TAG-005 |
-| GET | `/templates` | 内置 + 本人个人 + 工作区模板（`?kind=&spaceKind=`）；不返回正文 | REQ-TPL-001 · 004 |
-| POST | `/templates` | `{ name, scope, description?, spaceKind?, body+kind \| fromEntryId }`；workspace 范围需管理员；幂等 | REQ-TPL-004 |
+| GET | `/templates` | 内置 + 本人个人 + 工作区模板（`?kind=&spaceKind=`）；不返回正文；另返回 `canShare`，每行 `ownerName` `spaceDefaults`（ADR-0023） | REQ-TPL-001 · 004 · 006 · 009 |
+| POST | `/templates` | `{ name, scope, description?, spaceKind?, body+kind \| fromEntryId \| fromTemplateId }`（三选一；fromTemplateId = 复制到我的）；workspace 范围需非 guest（~~需管理员~~，ADR-0023）；幂等 | REQ-TPL-004 · 006 · 008 |
 | GET | `/templates/:id` | 详情带 `body`（id 可为 `builtin:<key>`） | REQ-TPL-001 · 005 |
-| PATCH | `/templates/:id` | 改名 / 说明 / 范围 / 推荐空间类型；内置 403 | REQ-TPL-004 |
-| DELETE | `/templates/:id` | 删除；内置 403；已建记录不受影响 | REQ-TPL-004 |
+| PATCH | `/templates/:id` | 改名 / 说明 / 范围 / 推荐空间类型 / 正文 `body` / `kind` / `fields`（ADR-0023）；必带 `ifUpdatedAt`（409 `CONFLICT_STALE`）；改回 personal 时清掉引用它的空间默认模板；内置 403 | REQ-TPL-004 · 007 · 009 |
+| DELETE | `/templates/:id` | 删除；内置 403；已建记录不受影响；同事务清掉引用它的空间默认模板 | REQ-TPL-004 · 009 |
 
 注（2026-09-24，T1-021 / T1-022）：
 - 标签：创建为非 guest（authz `tag.create`，供 TagPicker 输入即创建）；改名、改色、删除限 owner/admin（`tag.manage`，影响全工作区；注 2026-09-26 ADR-0014：创建者也可，`tags.created_by`，列表每项带 `canManage`）。`GET /tags` 不分页，附 `usage { tasks, entries }` 计数。`?tag=a,b` 为逗号多值，任一命中，最多 20 个。

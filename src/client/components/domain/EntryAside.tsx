@@ -4,19 +4,32 @@
  * 历史：快照列表 → 预览 / 对比 / 恢复（REQ-COLLAB-008）；关联：出链 / 反链 / Bug ↔ 迭代（ADR-0012）；评论随 T1-023 接入。
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { type FormEvent, lazy, Suspense, useMemo, useState } from 'react'
+import { Tag } from 'lucide-react'
+import {
+  type CSSProperties,
+  type FormEvent,
+  lazy,
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { versionStamp } from '../../../shared/schemas/versions.ts'
 import { useEntryActions } from '../../hooks/useEntries.ts'
 import { ApiError, api, unwrap } from '../../lib/api.ts'
 import { cn } from '../../lib/cn.ts'
 import { type Entry, type EntryKind, treeQuery } from '../../lib/entry-queries.ts'
 import { kindKey, useKindLabel, useKindOptions } from '../../lib/entry-types.ts'
+import { useReading } from '../../lib/reading.ts'
 import { type Space, spacesQuery } from '../../lib/space-queries.ts'
 import { useCommentDraft, useOutline } from '../../lib/stores.ts'
+import { templateListQuery } from '../../lib/template-queries.ts'
 import { childrenMap, flatten } from '../../lib/tree.ts'
 import { newId } from '../../lib/uuid.ts'
 import { Button } from '../ui/button.tsx'
+import { Checkbox } from '../ui/checkbox.tsx'
 import { ConfirmDialog } from '../ui/confirm-dialog.tsx'
 import { Input } from '../ui/input.tsx'
 import { RelativeTime } from '../ui/relative-time.tsx'
@@ -82,24 +95,102 @@ export function EntryAside({
   )
 }
 
+/** 正文里标题的 DOM（与 collectHeadings 同序：h1–h4，含提示块 / 折叠块里的）。 */
+const headingEls = () =>
+  Array.from(document.querySelectorAll<HTMLElement>('[data-testid="editor"] :is(h1, h2, h3, h4)'))
+
+/** 当前阅读位置对应的标题下标（顶栏 + 吸顶工具栏之下第一屏；rAF 节流）。 */
+function useActiveHeading(count: number): number {
+  const [active, setActive] = useState(-1)
+  useEffect(() => {
+    if (!count) return
+    let raf = 0
+    const compute = () => {
+      raf = 0
+      const bar = document.querySelector('[data-testid="editor-toolbar"]')
+      const line = (bar?.getBoundingClientRect().bottom ?? 120) + 16
+      const els = headingEls()
+      let idx = els.length ? 0 : -1
+      for (let i = 0; i < els.length; i++) {
+        const el = els[i] as HTMLElement
+        if (el.offsetParent === null) continue // 折叠块里隐藏的标题不参与
+        if (el.getBoundingClientRect().top <= line) idx = i
+        else break
+      }
+      // 已滚到页底：末尾几个标题永远到不了顶部，直接算最后一个可见标题
+      const doc = document.documentElement
+      if (window.innerHeight + window.scrollY >= doc.scrollHeight - 2) {
+        for (let i = els.length - 1; i >= 0; i--)
+          if ((els[i] as HTMLElement).offsetParent !== null) {
+            idx = i
+            break
+          }
+      }
+      setActive(idx)
+    }
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(compute)
+    }
+    compute()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [count])
+  return active
+}
+
+/**
+ * 右侧目录（ADR-0026，参考简斋 TocPanel）：自动编号（tocNumbers，默认开；与正文编号分开）、
+ * 按编号层级缩进并画层级引导线、当前标题高亮（随滚动）、目录深度过滤。
+ */
 function Outline() {
   const { t } = useTranslation()
-  const items = useOutline((s) => s.items)
+  const all = useOutline((s) => s.items)
   const jump = useOutline((s) => s.jump)
-  if (!items.length) return <p className="text-fg-muted text-sm">{t('entry.aside.outlineEmpty')}</p>
+  const depth = useReading((s) => s.prefs.tocDepth)
+  const numbered = useReading((s) => s.prefs.tocNumbers)
+  const active = useActiveHeading(all.length)
+  const activePos = all[active]?.pos
+  // 当前项滚进 Aside 可视区（长目录）
+  useEffect(() => {
+    if (activePos === undefined) return
+    document
+      .querySelector('[data-testid="outline"] [data-active]')
+      ?.scrollIntoView({ block: 'nearest' })
+  }, [activePos])
+  if (!all.some((h) => h.depth <= depth))
+    return <p className="text-fg-muted text-sm">{t('entry.aside.outlineEmpty')}</p>
   return (
-    <ol className="flex flex-col gap-0.5 text-sm" data-testid="outline">
-      {items.map((h) => (
-        <li key={h.pos} style={{ paddingInlineStart: `${(h.level - 1) * 12}px` }}>
-          <button
-            type="button"
-            className="w-full truncate rounded px-1.5 py-1 text-left hover:bg-hover"
-            onClick={() => jump?.(h.pos)}
+    <ol className="xz-outline flex flex-col gap-0.5 text-sm" data-testid="outline">
+      {all.map((h) =>
+        h.depth > depth ? null : (
+          <li
+            key={h.pos}
+            className="xz-outline-item"
+            style={{ '--xz-outline-depth': h.depth - 1 } as CSSProperties}
+            data-depth={h.depth}
+            data-active={h.pos === activePos || undefined}
           >
-            {h.text || '…'}
-          </button>
-        </li>
-      ))}
+            <button
+              type="button"
+              className="w-full truncate rounded px-1.5 py-1 text-left hover:bg-hover"
+              onClick={() => jump?.(h.pos)}
+              aria-current={h.pos === activePos ? 'location' : undefined}
+            >
+              {numbered ? (
+                <span className="me-1.5 text-fg-muted tabular-nums" data-testid="outline-num">
+                  {h.num}
+                </span>
+              ) : null}
+              {h.text || '…'}
+            </button>
+          </li>
+        ),
+      )}
     </ol>
   )
 }
@@ -320,12 +411,7 @@ function Props({
             ))}
         </ul>
       ) : null}
-      {me.workspaceRole !== 'guest' ? (
-        <SaveAsTemplate
-          entry={entry}
-          admin={me.workspaceRole === 'owner' || me.workspaceRole === 'admin'}
-        />
-      ) : null}
+      {me.workspaceRole !== 'guest' ? <SaveAsTemplate entry={entry} /> : null}
     </div>
   )
 }
@@ -392,18 +478,30 @@ function TreePosition({ entry, disabled }: { entry: Entry; disabled: boolean }) 
 }
 const ROOT = '__root'
 
-/** 另存为模板（ADR-0011 §2、REQ-TPL-004）：取本篇当前正文 + kind / fields；工作区范围仅管理员（服务端判定）。 */
-function SaveAsTemplate({ entry, admin }: { entry: Entry; admin: boolean }) {
+/**
+ * 另存为模板（ADR-0011 §2 · ADR-0023、REQ-TPL-004）：取本篇当前正文 + kind / fields；可写描述；
+ * 「共享给工作区成员」按服务端 canShare 显示（前端不比较角色）。
+ */
+function SaveAsTemplate({ entry }: { entry: Entry }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState(entry.title)
-  const [scope, setScope] = useState<'personal' | 'workspace'>('personal')
+  const [description, setDescription] = useState('')
+  const [shared, setShared] = useState(false)
+  const list = useQuery({ ...templateListQuery, enabled: open })
   const save = useMutation({
     mutationFn: () =>
       unwrap<{ id: string; name: string }>(
         api.templates.$post(
-          { json: { name: name.trim(), scope, fromEntryId: entry.id, description: '' } },
+          {
+            json: {
+              name: name.trim(),
+              scope: shared ? 'workspace' : 'personal',
+              fromEntryId: entry.id,
+              description: description.trim(),
+            },
+          },
           { headers: { 'idempotency-key': newId() } },
         ),
       ),
@@ -444,16 +542,23 @@ function SaveAsTemplate({ entry, admin }: { entry: Entry; admin: boolean }) {
         autoFocus
         data-testid="save-as-template-name"
       />
-      {admin ? (
-        <select
-          value={scope}
-          onChange={(e) => setScope(e.target.value as 'personal' | 'workspace')}
-          aria-label={t('template.saveAsScope')}
-          className="h-8 rounded-md border border-border bg-surface px-2 text-sm"
-        >
-          <option value="personal">{t('template.scope.personal')}</option>
-          <option value="workspace">{t('template.scope.workspace')}</option>
-        </select>
+      <Input
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        aria-label={t('template.description')}
+        placeholder={t('template.descriptionPlaceholder')}
+        maxLength={200}
+        data-testid="save-as-template-description"
+      />
+      {list.data?.canShare ? (
+        <label className="flex cursor-pointer items-center gap-2 text-fg-muted text-xs">
+          <Checkbox
+            checked={shared}
+            onCheckedChange={(v) => setShared(v === true)}
+            data-testid="save-as-template-share"
+          />
+          {t('template.share')}
+        </label>
       ) : null}
       <div className="flex justify-end gap-2">
         <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
@@ -519,20 +624,13 @@ function History({ entry, canWrite }: { entry: Entry; canWrite: boolean }) {
           <h3 className="text-fg-muted text-xs">{g.day}</h3>
           <ul className="flex flex-col">
             {g.items.map((s) => (
-              <li key={s.id}>
-                <button
-                  type="button"
-                  data-testid="history-item"
-                  data-snapshot-id={s.id}
-                  onClick={() => setOpen(s)}
-                  className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-hover"
-                >
-                  <span className={cn('truncate', s.label ? 'font-medium' : 'text-fg-muted')}>
-                    {s.label ?? t('entry.history.auto', { version: s.ydocVersion })}
-                  </span>
-                  <RelativeTime date={s.createdAt} className="shrink-0 text-fg-muted text-xs" />
-                </button>
-              </li>
+              <HistoryItem
+                key={s.id}
+                entryId={entry.id}
+                snap={s}
+                canWrite={canWrite}
+                onOpen={() => setOpen(s)}
+              />
             ))}
           </ul>
         </section>
@@ -556,6 +654,128 @@ function History({ entry, canWrite }: { entry: Entry; canWrite: boolean }) {
         </Suspense>
       ) : null}
     </div>
+  )
+}
+
+/**
+ * 历史一项（ADR-0026、REQ-COLLAB-017 · 018）：手动保存的版本以本地时间 `YYYYMMDD-HHmmss` 命名，自动快照显示「自动保存」；
+ * 带标记的显示标记名（时间戳作副标题）。可写者可打标记 / 改标记 / 清除（PATCH label；带标记永久保留）。
+ */
+function HistoryItem({
+  entryId,
+  snap: s,
+  canWrite,
+  onOpen,
+}: {
+  entryId: string
+  snap: SnapshotMeta
+  canWrite: boolean
+  onOpen: () => void
+}) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(s.label ?? '')
+  const stamp = versionStamp(new Date(s.createdAt))
+  const name =
+    s.label ?? (s.createdBy ? stamp : t('entry.history.auto', { version: s.ydocVersion }))
+  const save = useMutation({
+    mutationFn: (label: string | null) =>
+      unwrap<SnapshotMeta>(
+        api.entries[':id'].snapshots[':sid'].$patch({
+          param: { id: entryId, sid: s.id },
+          json: { label },
+        }),
+      ),
+    onSuccess: () => {
+      setEditing(false)
+      void qc.invalidateQueries({ queryKey: ['entry', entryId, 'snapshots'] })
+    },
+    onError: () => toast.error(t('task.saveFailed')),
+  })
+  if (editing)
+    return (
+      <li>
+        <form
+          className="flex items-center gap-1 px-1 py-1"
+          onSubmit={(e) => {
+            e.preventDefault()
+            const v = value.trim()
+            save.mutate(v ? v : null)
+          }}
+        >
+          <Input
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            maxLength={80}
+            placeholder={t('entry.history.tagPlaceholder')}
+            aria-label={t('entry.history.tag')}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setEditing(false)
+            }}
+            autoFocus
+            className="h-8 text-sm"
+            data-testid="history-tag-input"
+          />
+          <Button size="sm" type="submit" loading={save.isPending} data-testid="history-tag-save">
+            {t('entry.history.tagSave')}
+          </Button>
+          {s.label ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              type="button"
+              onClick={() => save.mutate(null)}
+              data-testid="history-tag-clear"
+            >
+              {t('entry.history.tagClear')}
+            </Button>
+          ) : null}
+        </form>
+      </li>
+    )
+  return (
+    <li className="group flex items-center gap-1">
+      <button
+        type="button"
+        data-testid="history-item"
+        data-snapshot-id={s.id}
+        onClick={onOpen}
+        className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-hover"
+      >
+        <span className="flex min-w-0 flex-col">
+          <span
+            className={cn(
+              'truncate',
+              s.label || s.createdBy ? 'font-medium' : 'text-fg-muted',
+              !s.label && s.createdBy && 'font-mono tabular-nums',
+            )}
+          >
+            {s.label ? <Tag className="me-1 inline size-3 text-primary-text" aria-hidden /> : null}
+            {name}
+          </span>
+          {s.label ? (
+            <span className="font-mono text-fg-muted text-xs tabular-nums">{stamp}</span>
+          ) : null}
+        </span>
+        <RelativeTime date={s.createdAt} className="shrink-0 text-fg-muted text-xs" />
+      </button>
+      {canWrite ? (
+        <button
+          type="button"
+          aria-label={t('entry.history.tag')}
+          title={t('entry.history.tag')}
+          data-testid="history-tag"
+          onClick={() => {
+            setValue(s.label ?? '')
+            setEditing(true)
+          }}
+          className="grid size-7 shrink-0 place-items-center rounded-md text-fg-muted opacity-60 hover:bg-hover hover:opacity-100 group-hover:opacity-100"
+        >
+          <Tag className="size-3.5" />
+        </button>
+      ) : null}
+    </li>
   )
 }
 

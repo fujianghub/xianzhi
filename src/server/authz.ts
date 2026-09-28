@@ -390,10 +390,9 @@ export function can<A extends Action>(
       const t = resource as TemplateRef
       return t.scope === 'workspace' || t.ownerId === actor.id
     }
-    case 'template.create': {
-      const t = resource as TemplateRef
-      return t.scope === 'workspace' ? admin : actor.workspaceRole !== 'guest'
-    }
+    // 注 ADR-0023：共享到工作区不再限管理员，非 guest 成员都可（原 ADR-0011 §2 仅管理员）
+    case 'template.create':
+      return actor.workspaceRole !== 'guest'
     case 'template.manage': {
       const t = resource as TemplateRef
       if (t.scope === 'workspace' && admin) return true

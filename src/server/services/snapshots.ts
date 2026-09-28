@@ -1,11 +1,11 @@
 /** 快照 API service（02 §9 /entries/:id/snapshots*；REQ-COLLAB-007 · 008）：鉴权后调 collab/snapshots.ts / history.ts。 */
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { snapshotPmJson } from '../../collab/history.ts'
 import { getSnapshotRow, insertSnapshot, listSnapshotRows } from '../../collab/snapshots.ts'
 import type { PmNode } from '../../shared/schemas/pm.ts'
 import { assertCan, can } from '../authz.ts'
 import type { Db } from '../db/index.ts'
-import { entries } from '../db/schema/business.ts'
+import { entries, entrySnapshots } from '../db/schema/business.ts'
 import { AppError } from '../lib/errors.ts'
 import { getEventBus } from '../lib/event-bus.ts'
 import { audit } from './audit.ts'
@@ -40,6 +40,34 @@ export async function markSnapshot(db: Db, ctx: EntryCtx, id: string, label: str
     createdBy: ctx.actor.id,
     createdAt: s.createdAt.toISOString(),
   }
+}
+
+/**
+ * 版本打标记（ADR-0026、REQ-COLLAB-018）：改 label（带 label 永久保留）；需 entry.write。
+ * 快照无 updated_at，按值覆盖是幂等的——不要求 ifUpdatedAt（02 §4 例外，同 /me/preferences）。
+ */
+export async function labelSnapshot(
+  db: Db,
+  ctx: EntryCtx,
+  id: string,
+  sid: string,
+  label: string | null,
+) {
+  const loaded = await readable(db, ctx, id)
+  assertCan(ctx.actor, 'entry.write', loaded.ref)
+  const [row] = await db
+    .update(entrySnapshots)
+    .set({ label })
+    .where(and(eq(entrySnapshots.entryId, id), eq(entrySnapshots.id, sid)))
+    .returning({
+      id: entrySnapshots.id,
+      ydocVersion: entrySnapshots.ydocVersion,
+      label: entrySnapshots.label,
+      createdBy: entrySnapshots.createdBy,
+      createdAt: entrySnapshots.createdAt,
+    })
+  if (!row) throw AppError.notFound('快照不存在')
+  return { ...row, createdAt: row.createdAt.toISOString() }
 }
 
 /**

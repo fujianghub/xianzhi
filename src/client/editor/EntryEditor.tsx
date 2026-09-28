@@ -9,25 +9,36 @@ import { HocuspocusProvider, WebSocketStatus } from '@hocuspocus/provider'
 import { useQueryClient } from '@tanstack/react-query'
 import { DragHandle } from '@tiptap/extension-drag-handle-react'
 import { EditorContent, useEditor } from '@tiptap/react'
-import { FileCode, GripVertical } from 'lucide-react'
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { IndexeddbPersistence } from 'y-indexeddb'
 import * as Y from 'yjs'
+import { collectHeadings } from '../../shared/editor/headings.ts'
 import type { EntryKind } from '../../shared/schemas/enums.ts'
+import {
+  SAVE_VERSION,
+  SAVE_VERSION_REPLY,
+  type SaveVersionReply,
+  versionStamp,
+} from '../../shared/schemas/versions.ts'
 import { paletteOf } from '../components/ui/avatar.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../components/ui/dialog.tsx'
 import { api, unwrap } from '../lib/api.ts'
-import { type OutlineItem, useCommentDraft, useOutline, useStatus } from '../lib/stores.ts'
+import { useCommentDraft, useOutline, useStatus } from '../lib/stores.ts'
 import { newId } from '../lib/uuid.ts'
+import { BlockHandle, onBlockNodeChange } from './BlockMenu.tsx'
 import { BubbleBar } from './BubbleBar.tsx'
+import { DocBar, EditorToolbar } from './EditorToolbar.tsx'
 import { EntryPicker, type PickerRow } from './EntryPicker.tsx'
 import { SOURCE_EVENT, TEMPLATE_EVENT } from './extensions.ts'
 import { fullKit } from './kit.ts'
 import { MobileToolbar } from './MobileToolbar.tsx'
 import { markdownToHtml } from './paste.ts'
 import type { SlashCtx } from './slash.tsx'
+import { TableMenu } from './TableMenu.tsx'
 import { pickFiles, uploadFiles } from './upload.ts'
 
 type Block = null | 'noAccess' | 'tooLarge' | 'tooMany'
@@ -63,6 +74,7 @@ export default function EntryEditor({
   user,
   canWrite,
   place,
+  docBarSlot,
 }: {
   entryId: string
   kind: EntryKind
@@ -70,6 +82,8 @@ export default function EntryEditor({
   canWrite: boolean
   /** 本篇所在空间与目录位置：`[[` 新建的记录建在本空间、作为本篇子页（不在目录 → 也不进目录，ADR-0019） */
   place?: { spaceId: string; treeOrder: string | null }
+  /** 文档栏插槽（标题下方，由记录页提供，ADR-0029） */
+  docBarSlot?: HTMLElement | null
 }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -94,6 +108,81 @@ export default function EntryEditor({
     return () => aw.off('change', update)
   }, [provider])
   const [tplAt, setTplAt] = useState<number | null>(null)
+
+  /**
+   * 保存版本（ADR-0026、REQ-COLLAB-017）：Ctrl/⌘+S 或工具栏按钮。只在已连接且已同步时发 stateless 请求
+   * （重连中的离线编辑要等 SyncStep2 才到服务端，排队的请求会抢先），按请求 id 等回执，10s 超时。
+   */
+  const pendingSave = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  const saveVersion = useCallback(() => {
+    if (readOnlyRef.current) {
+      toast.info(t('editor.version.readonly'))
+      return
+    }
+    const p = provider
+    if (!p?.isSynced || p.configuration.websocketProvider.status !== WebSocketStatus.Connected) {
+      toast.error(t('editor.version.offline'))
+      return
+    }
+    const id = newId()
+    pendingSave.current.set(
+      id,
+      setTimeout(() => {
+        pendingSave.current.delete(id)
+        toast.error(t('editor.version.timeout'))
+      }, 10_000),
+    )
+    p.sendStateless(JSON.stringify({ t: SAVE_VERSION, id }))
+  }, [provider, t])
+  const saveRef = useRef(saveVersion)
+  saveRef.current = saveVersion
+  // 回执：按 id 配对，成功提示版本名（本地时间 YYYYMMDD-HHmmss）并刷新历史列表
+  useEffect(() => {
+    if (!provider) return
+    const onStateless = ({ payload }: { payload: string }) => {
+      let r: SaveVersionReply
+      try {
+        r = JSON.parse(payload) as SaveVersionReply
+      } catch {
+        return
+      }
+      if (r?.t !== SAVE_VERSION_REPLY) return
+      const timer = pendingSave.current.get(r.id)
+      if (!timer) return
+      clearTimeout(timer)
+      pendingSave.current.delete(r.id)
+      if (r.ok) {
+        toast.success(t('editor.version.saved', { name: versionStamp(new Date(r.createdAt)) }))
+        void qc.invalidateQueries({ queryKey: ['entry', entryId, 'snapshots'] })
+      } else if (r.reason === 'unchanged') toast.info(t('editor.version.unchanged'))
+      else if (r.reason === 'throttled') toast.info(t('editor.version.throttled'))
+      else if (r.reason === 'readonly') toast.info(t('editor.version.readonly'))
+      else toast.error(t('editor.version.failed'))
+    }
+    provider.on('stateless', onStateless)
+    return () => {
+      provider.off('stateless', onStateless)
+    }
+  }, [provider, qc, entryId, t])
+  useEffect(
+    () => () => {
+      for (const timer of pendingSave.current.values()) clearTimeout(timer)
+      pendingSave.current.clear()
+    },
+    [],
+  )
+  // Ctrl/⌘+S：捕获阶段先于编辑器（GiKeymap 的「已同步」提示）拦下，阻止浏览器另存为；对话框打开时不处理
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 's') return
+      if (e.isComposing || document.documentElement.hasAttribute('data-dialog-open')) return
+      e.preventDefault()
+      e.stopPropagation()
+      saveRef.current()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [])
   useEffect(() => {
     const onSource = () => setSourceOpen(true)
     const onTemplate = (e: Event) => setTplAt((e as CustomEvent<{ at: number }>).detail.at)
@@ -233,6 +322,9 @@ export default function EntryEditor({
           'data-testid': 'editor',
           'aria-label': t('entry.placeholder'),
         },
+        // 目录跳转 / 光标滚动时让出顶栏 + 吸顶工具栏（ADR-0026），不把标题藏在工具栏下
+        scrollMargin: { top: 140, bottom: 48, left: 0, right: 0 },
+        scrollThreshold: { top: 140, bottom: 48, left: 0, right: 0 },
       },
     },
     [provider, ydoc],
@@ -247,15 +339,7 @@ export default function EntryEditor({
   const setOutline = useOutline((s) => s.set)
   useEffect(() => {
     if (!editor || editor.isDestroyed) return
-    const compute = () => {
-      const items: OutlineItem[] = []
-      editor.state.doc.descendants((n, pos) => {
-        if (n.type.name === 'heading')
-          items.push({ level: Number(n.attrs.level), text: n.textContent, pos })
-        return n.type.name !== 'heading'
-      })
-      setOutline(items)
-    }
+    const compute = () => setOutline(collectHeadings(editor.state.doc))
     compute()
     setOutline(useOutline.getState().items, (pos) => {
       if (editor.isDestroyed) return
@@ -324,33 +408,27 @@ export default function EntryEditor({
           {t('editor.offlineStorage')}
         </div>
       ) : null}
+      {docBarSlot
+        ? createPortal(
+            <DocBar
+              editor={editor}
+              entryId={entryId}
+              readOnly={readOnly}
+              others={others}
+              onSource={() => setSourceOpen(true)}
+              onSaveVersion={saveVersion}
+            />,
+            docBarSlot,
+          )
+        : null}
+      <EditorToolbar editor={editor} readOnly={readOnly} getCtx={() => ctxRef.current} />
       {editor && !readOnly ? (
         <>
-          <div className="mb-2 flex justify-end">
-            <Button
-              size="sm"
-              variant="ghost"
-              data-testid="source-open"
-              disabled={others > 0}
-              title={others > 0 ? t('editor.source.busy') : t('editor.source.title')}
-              onClick={() => setSourceOpen(true)}
-              className="text-fg-muted"
-            >
-              <FileCode className="size-4" />
-              {t('editor.source.open')}
-            </Button>
-          </div>
-          <DragHandle editor={editor}>
-            <span
-              role="img"
-              className="grid size-6 cursor-grab place-items-center rounded text-fg-faint hover:bg-hover"
-              aria-label={t('editor.dragHandle')}
-              title={t('editor.dragHandle')}
-            >
-              <GripVertical className="size-4" />
-            </span>
+          <DragHandle editor={editor} onNodeChange={onBlockNodeChange}>
+            <BlockHandle editor={editor} />
           </DragHandle>
           <BubbleBar editor={editor} onComment={startComment} />
+          <TableMenu editor={editor} />
           <MobileToolbar
             editor={editor}
             onImage={() =>

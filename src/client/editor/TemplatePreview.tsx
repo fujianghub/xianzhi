@@ -1,4 +1,4 @@
-/** 模板正文预览（REQ-TPL-004）：只读渲染模板 body；可「用此模板新建」。随编辑器 chunk 懒加载。 */
+/** 模板正文预览（REQ-TPL-004 · 010）：只读渲染模板 body；可「用此模板新建」；看不到 / 不存在时提示。随编辑器 chunk 懒加载。 */
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Button } from '../components/ui/button.tsx'
@@ -49,6 +49,10 @@ export default function TemplatePreview({
         <div className="mt-3 min-h-40 flex-1 overflow-y-auto rounded-md border border-border p-4">
           {q.data ? (
             <ReadOnlyDoc doc={q.data.body} testId="template-doc" />
+          ) : q.isError ? (
+            <p className="text-fg-muted text-sm" data-testid="template-preview-missing">
+              {t('template.notFound')}
+            </p>
           ) : (
             <Skeleton className="h-40 w-full" />
           )}

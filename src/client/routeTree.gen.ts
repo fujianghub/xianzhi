@@ -29,12 +29,15 @@ import { Route as AppSettingsIndexRouteImport } from './routes/_app.settings.ind
 import { Route as AppSettingsApiKeysRouteImport } from './routes/_app.settings.api-keys'
 import { Route as AppSettingsDesignRouteImport } from './routes/_app.settings.design'
 import { Route as AppSettingsNotificationsRouteImport } from './routes/_app.settings.notifications'
+import { Route as AppSettingsReadingRouteImport } from './routes/_app.settings.reading'
 import { Route as AppSettingsSecurityRouteImport } from './routes/_app.settings.security'
 import { Route as AppSettingsTagsRouteImport } from './routes/_app.settings.tags'
 import { Route as AppSettingsTemplatesRouteImport } from './routes/_app.settings.templates'
 import { Route as AppSettingsTypesRouteImport } from './routes/_app.settings.types'
 import { Route as AppSpacesIndexRouteImport } from './routes/_app.spaces.index'
 import { Route as AppSpacesSpaceSlugRouteImport } from './routes/_app.spaces.$spaceSlug'
+import { Route as AppSettingsTemplatesTemplateIdRouteImport } from './routes/_app.settings.templates_.$templateId'
+import { Route as AppSettingsTemplatesNewRouteImport } from './routes/_app.settings.templates_.new'
 import { Route as AppSettingsWorkspaceIndexRouteImport } from './routes/_app.settings.workspace.index'
 import { Route as AppSettingsWorkspaceAuditRouteImport } from './routes/_app.settings.workspace.audit'
 import { Route as AppSettingsWorkspaceMembersRouteImport } from './routes/_app.settings.workspace.members'
@@ -144,6 +147,11 @@ const AppSettingsNotificationsRoute =
     path: '/notifications',
     getParentRoute: () => AppSettingsRoute,
   } as any)
+const AppSettingsReadingRoute = AppSettingsReadingRouteImport.update({
+  id: '/reading',
+  path: '/reading',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppSettingsSecurityRoute = AppSettingsSecurityRouteImport.update({
   id: '/security',
   path: '/security',
@@ -173,6 +181,17 @@ const AppSpacesSpaceSlugRoute = AppSpacesSpaceSlugRouteImport.update({
   id: '/spaces/$spaceSlug',
   path: '/spaces/$spaceSlug',
   getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsTemplatesTemplateIdRoute =
+  AppSettingsTemplatesTemplateIdRouteImport.update({
+    id: '/templates_/$templateId',
+    path: '/templates/$templateId',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
+const AppSettingsTemplatesNewRoute = AppSettingsTemplatesNewRouteImport.update({
+  id: '/templates_/new',
+  path: '/templates/new',
+  getParentRoute: () => AppSettingsRoute,
 } as any)
 const AppSettingsWorkspaceIndexRoute =
   AppSettingsWorkspaceIndexRouteImport.update({
@@ -239,6 +258,7 @@ export interface FileRoutesByFullPath {
   '/settings/api-keys': typeof AppSettingsApiKeysRoute
   '/settings/design': typeof AppSettingsDesignRoute
   '/settings/notifications': typeof AppSettingsNotificationsRoute
+  '/settings/reading': typeof AppSettingsReadingRoute
   '/settings/security': typeof AppSettingsSecurityRoute
   '/settings/tags': typeof AppSettingsTagsRoute
   '/settings/templates': typeof AppSettingsTemplatesRoute
@@ -247,6 +267,8 @@ export interface FileRoutesByFullPath {
   '/entries/': typeof AppEntriesIndexRoute
   '/settings/': typeof AppSettingsIndexRoute
   '/spaces/': typeof AppSpacesIndexRoute
+  '/settings/templates/$templateId': typeof AppSettingsTemplatesTemplateIdRoute
+  '/settings/templates/new': typeof AppSettingsTemplatesNewRoute
   '/settings/workspace/audit': typeof AppSettingsWorkspaceAuditRoute
   '/settings/workspace/members': typeof AppSettingsWorkspaceMembersRoute
   '/settings/workspace/users': typeof AppSettingsWorkspaceUsersRoute
@@ -273,6 +295,7 @@ export interface FileRoutesByTo {
   '/settings/api-keys': typeof AppSettingsApiKeysRoute
   '/settings/design': typeof AppSettingsDesignRoute
   '/settings/notifications': typeof AppSettingsNotificationsRoute
+  '/settings/reading': typeof AppSettingsReadingRoute
   '/settings/security': typeof AppSettingsSecurityRoute
   '/settings/tags': typeof AppSettingsTagsRoute
   '/settings/templates': typeof AppSettingsTemplatesRoute
@@ -281,6 +304,8 @@ export interface FileRoutesByTo {
   '/entries': typeof AppEntriesIndexRoute
   '/settings': typeof AppSettingsIndexRoute
   '/spaces': typeof AppSpacesIndexRoute
+  '/settings/templates/$templateId': typeof AppSettingsTemplatesTemplateIdRoute
+  '/settings/templates/new': typeof AppSettingsTemplatesNewRoute
   '/settings/workspace/audit': typeof AppSettingsWorkspaceAuditRoute
   '/settings/workspace/members': typeof AppSettingsWorkspaceMembersRoute
   '/settings/workspace/users': typeof AppSettingsWorkspaceUsersRoute
@@ -310,6 +335,7 @@ export interface FileRoutesById {
   '/_app/settings/api-keys': typeof AppSettingsApiKeysRoute
   '/_app/settings/design': typeof AppSettingsDesignRoute
   '/_app/settings/notifications': typeof AppSettingsNotificationsRoute
+  '/_app/settings/reading': typeof AppSettingsReadingRoute
   '/_app/settings/security': typeof AppSettingsSecurityRoute
   '/_app/settings/tags': typeof AppSettingsTagsRoute
   '/_app/settings/templates': typeof AppSettingsTemplatesRoute
@@ -318,6 +344,8 @@ export interface FileRoutesById {
   '/_app/entries/': typeof AppEntriesIndexRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
   '/_app/spaces/': typeof AppSpacesIndexRoute
+  '/_app/settings/templates_/$templateId': typeof AppSettingsTemplatesTemplateIdRoute
+  '/_app/settings/templates_/new': typeof AppSettingsTemplatesNewRoute
   '/_app/settings/workspace/audit': typeof AppSettingsWorkspaceAuditRoute
   '/_app/settings/workspace/members': typeof AppSettingsWorkspaceMembersRoute
   '/_app/settings/workspace/users': typeof AppSettingsWorkspaceUsersRoute
@@ -347,6 +375,7 @@ export interface FileRouteTypes {
     | '/settings/api-keys'
     | '/settings/design'
     | '/settings/notifications'
+    | '/settings/reading'
     | '/settings/security'
     | '/settings/tags'
     | '/settings/templates'
@@ -355,6 +384,8 @@ export interface FileRouteTypes {
     | '/entries/'
     | '/settings/'
     | '/spaces/'
+    | '/settings/templates/$templateId'
+    | '/settings/templates/new'
     | '/settings/workspace/audit'
     | '/settings/workspace/members'
     | '/settings/workspace/users'
@@ -381,6 +412,7 @@ export interface FileRouteTypes {
     | '/settings/api-keys'
     | '/settings/design'
     | '/settings/notifications'
+    | '/settings/reading'
     | '/settings/security'
     | '/settings/tags'
     | '/settings/templates'
@@ -389,6 +421,8 @@ export interface FileRouteTypes {
     | '/entries'
     | '/settings'
     | '/spaces'
+    | '/settings/templates/$templateId'
+    | '/settings/templates/new'
     | '/settings/workspace/audit'
     | '/settings/workspace/members'
     | '/settings/workspace/users'
@@ -417,6 +451,7 @@ export interface FileRouteTypes {
     | '/_app/settings/api-keys'
     | '/_app/settings/design'
     | '/_app/settings/notifications'
+    | '/_app/settings/reading'
     | '/_app/settings/security'
     | '/_app/settings/tags'
     | '/_app/settings/templates'
@@ -425,6 +460,8 @@ export interface FileRouteTypes {
     | '/_app/entries/'
     | '/_app/settings/'
     | '/_app/spaces/'
+    | '/_app/settings/templates_/$templateId'
+    | '/_app/settings/templates_/new'
     | '/_app/settings/workspace/audit'
     | '/_app/settings/workspace/members'
     | '/_app/settings/workspace/users'
@@ -586,6 +623,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsNotificationsRouteImport
       parentRoute: typeof AppSettingsRoute
     }
+    '/_app/settings/reading': {
+      id: '/_app/settings/reading'
+      path: '/reading'
+      fullPath: '/settings/reading'
+      preLoaderRoute: typeof AppSettingsReadingRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/_app/settings/security': {
       id: '/_app/settings/security'
       path: '/security'
@@ -627,6 +671,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/spaces/$spaceSlug'
       preLoaderRoute: typeof AppSpacesSpaceSlugRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/_app/settings/templates_/$templateId': {
+      id: '/_app/settings/templates_/$templateId'
+      path: '/templates/$templateId'
+      fullPath: '/settings/templates/$templateId'
+      preLoaderRoute: typeof AppSettingsTemplatesTemplateIdRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/templates_/new': {
+      id: '/_app/settings/templates_/new'
+      path: '/templates/new'
+      fullPath: '/settings/templates/new'
+      preLoaderRoute: typeof AppSettingsTemplatesNewRouteImport
+      parentRoute: typeof AppSettingsRoute
     }
     '/_app/settings/workspace/': {
       id: '/_app/settings/workspace/'
@@ -691,11 +749,14 @@ interface AppSettingsRouteChildren {
   AppSettingsApiKeysRoute: typeof AppSettingsApiKeysRoute
   AppSettingsDesignRoute: typeof AppSettingsDesignRoute
   AppSettingsNotificationsRoute: typeof AppSettingsNotificationsRoute
+  AppSettingsReadingRoute: typeof AppSettingsReadingRoute
   AppSettingsSecurityRoute: typeof AppSettingsSecurityRoute
   AppSettingsTagsRoute: typeof AppSettingsTagsRoute
   AppSettingsTemplatesRoute: typeof AppSettingsTemplatesRoute
   AppSettingsTypesRoute: typeof AppSettingsTypesRoute
   AppSettingsIndexRoute: typeof AppSettingsIndexRoute
+  AppSettingsTemplatesTemplateIdRoute: typeof AppSettingsTemplatesTemplateIdRoute
+  AppSettingsTemplatesNewRoute: typeof AppSettingsTemplatesNewRoute
   AppSettingsWorkspaceAuditRoute: typeof AppSettingsWorkspaceAuditRoute
   AppSettingsWorkspaceMembersRoute: typeof AppSettingsWorkspaceMembersRoute
   AppSettingsWorkspaceUsersRoute: typeof AppSettingsWorkspaceUsersRoute
@@ -706,11 +767,14 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsApiKeysRoute: AppSettingsApiKeysRoute,
   AppSettingsDesignRoute: AppSettingsDesignRoute,
   AppSettingsNotificationsRoute: AppSettingsNotificationsRoute,
+  AppSettingsReadingRoute: AppSettingsReadingRoute,
   AppSettingsSecurityRoute: AppSettingsSecurityRoute,
   AppSettingsTagsRoute: AppSettingsTagsRoute,
   AppSettingsTemplatesRoute: AppSettingsTemplatesRoute,
   AppSettingsTypesRoute: AppSettingsTypesRoute,
   AppSettingsIndexRoute: AppSettingsIndexRoute,
+  AppSettingsTemplatesTemplateIdRoute: AppSettingsTemplatesTemplateIdRoute,
+  AppSettingsTemplatesNewRoute: AppSettingsTemplatesNewRoute,
   AppSettingsWorkspaceAuditRoute: AppSettingsWorkspaceAuditRoute,
   AppSettingsWorkspaceMembersRoute: AppSettingsWorkspaceMembersRoute,
   AppSettingsWorkspaceUsersRoute: AppSettingsWorkspaceUsersRoute,
