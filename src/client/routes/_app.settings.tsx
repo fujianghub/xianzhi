@@ -1,7 +1,8 @@
-/** 设置布局（08 §2.13、T1-033 · T1-043）：左侧二级导航（个人 / 通知 / 安全 / API Key / 模板 / 类型（ADR-0016 · 0017）/ 标签；admin 多出工作区 / 成员 / 审计 / 设计画廊（ADR-0020）；owner 再多用户管理，ADR-0010）。 */
+/** 设置布局（08 §2.13、T1-033 · T1-043）：左侧二级导航（个人 / 阅读与写作（ADR-0024）/ 通知 / 安全 / API Key / 模板 / 类型（ADR-0016 · 0017）/ 标签；admin 多出工作区 / 成员 / 审计 / 设计画廊（ADR-0020）；owner 再多用户管理，ADR-0010）。 */
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router'
 import {
   Bell,
+  BookOpenText,
   Building2,
   KeyRound,
   LayoutTemplate,
@@ -45,6 +46,9 @@ function SettingsLayout() {
       >
         <Link to="/settings" activeOptions={{ exact: true }} className={link}>
           <Item icon={UserRound}>{t('settings.nav.profile')}</Item>
+        </Link>
+        <Link to="/settings/reading" className={link} data-testid="nav-reading">
+          <Item icon={BookOpenText}>{t('settings.nav.reading')}</Item>
         </Link>
         <Link to="/settings/notifications" className={link}>
           <Item icon={Bell}>{t('settings.nav.notifications')}</Item>

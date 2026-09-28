@@ -10,6 +10,7 @@ import {
   listEntriesQuery,
   moveEntrySchema,
   patchEntrySchema,
+  patchSnapshotSchema,
 } from '../../shared/schemas/entries.ts'
 import type { Actor } from '../authz.ts'
 import type { Db } from '../db/index.ts'
@@ -135,6 +136,18 @@ export function entryRoutes(deps: { db: Db }) {
             ),
             201,
           ),
+      )
+      .patch(
+        '/:id/snapshots/:sid',
+        requireScope('write'),
+        validate('param', snapParam),
+        validate('json', patchSnapshotSchema),
+        async (c) => {
+          const { id, sid } = c.req.valid('param')
+          return c.json(
+            await snap.labelSnapshot(deps.db, ctxOf(c), id, sid, c.req.valid('json').label),
+          )
+        },
       )
       .get('/:id/snapshots/:sid/content', validate('param', snapParam), async (c) => {
         const { id, sid } = c.req.valid('param')

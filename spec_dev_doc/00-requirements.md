@@ -1,6 +1,6 @@
 # 00 需求规范
 
-> 状态：已采纳 · 版本：v2 · 更新：2026-09-27（ADR-0022：REQ-SPACE-013 ~ 015；ADR-0021：REQ-SPACE-010 ~ 012；ADR-0016：REQ-CAL-012 · 013、REQ-ENTRY-016 ~ 019、REQ-UI-038；ADR-0017：REQ-ENTRY-020、REQ-TAG-007；ADR-0018：REQ-KB-008、REQ-ENTRY-021 ~ 023、REQ-LINK-006；ADR-0019：REQ-KB-009 · 010、REQ-EDITOR-023）· 最后对照代码：2026-09-25（鲜艳色板 / 用户管理 / 个人资料，ADR-0010：REQ-CAL-010、REQ-UI-035、REQ-WS-018 ~ 023、REQ-AUTH-021；注册审批 / 用户名 / 日程 / 宽屏：REQ-AUTH-017 ~ 020、REQ-CAL-001 ~ 009、REQ-UI-034；此前 2026-09-24：REQ-AUTH-016、REQ-TASK-024、REQ-UI-024 ~ 032） · 依据 ADR-0001 §1、§7、§9、ADR-0003。
+> 状态：已采纳 · 版本：v2 · 更新：2026-09-29（ADR-0032：REQ-EDITOR-033 ~ 035；ADR-0029：REQ-READ-007、REQ-EDITOR-024 注）· 2026-09-28（ADR-0028：REQ-EDITOR-032 改；ADR-0027：REQ-READ-009；ADR-0026：REQ-READ-008、REQ-EDITOR-032、REQ-COLLAB-017 · 018，REQ-READ-002 注；ADR-0025：REQ-EDITOR-024 ~ 031、REQ-READ-007，REQ-EDITOR-001 · 002 · 007 · 008、REQ-READ-002 注；ADR-0023：REQ-TPL-006 ~ 010、REQ-TPL-004 改；ADR-0024：REQ-READ-001 ~ 006）· 2026-09-27（ADR-0022：REQ-SPACE-013 ~ 015；ADR-0021：REQ-SPACE-010 ~ 012；ADR-0016：REQ-CAL-012 · 013、REQ-ENTRY-016 ~ 019、REQ-UI-038；ADR-0017：REQ-ENTRY-020、REQ-TAG-007；ADR-0018：REQ-KB-008、REQ-ENTRY-021 ~ 023、REQ-LINK-006；ADR-0019：REQ-KB-009 · 010、REQ-EDITOR-023）· 最后对照代码：2026-09-25（鲜艳色板 / 用户管理 / 个人资料，ADR-0010：REQ-CAL-010、REQ-UI-035、REQ-WS-018 ~ 023、REQ-AUTH-021；注册审批 / 用户名 / 日程 / 宽屏：REQ-AUTH-017 ~ 020、REQ-CAL-001 ~ 009、REQ-UI-034；此前 2026-09-24：REQ-AUTH-016、REQ-TASK-024、REQ-UI-024 ~ 032） · 依据 ADR-0001 §1、§7、§9、ADR-0003。
 > 本文是**所有测试与任务的追溯源头**：每条需求有唯一 `REQ-<AREA>-<NNN>` 编号；`05` §5 的测试、`tasks/` 的任务、PR 描述都引用这里的编号。设计如何实现在 01–06；本文只写「做什么、验收什么」。
 > 分期：一期 = Phase 0–2（本文编号范围）；二期 = Phase 3（文末只列标题，不编号、不验收）。
 
@@ -16,7 +16,7 @@
 - Markdown 作正文真源；正文经 Markdown 往返。
 - SSR / SEO；移动原生 App（只做 PWA + 响应式）。
 - 二期功能（MCP、git / `debug/` 导入、AI、pgvector、Web Push 以外的 PWA 打磨）不在本文验收。
-- 字体家族 / 字号 / 颜色标记、多列布局、内嵌 iframe（03 §3.1）。
+- 字体家族 / 字号 / 颜色标记、多列布局、内嵌 iframe（03 §3.1）。（注 2026-09-28，ADR-0024：此处指写进正文的内容标记；读者自己的阅读显示偏好——字体 / 字号 / 行距 / 版心 / 纸张——见 REQ-READ-*，不改正文）
 
 **优先级**：P0 必须（Phase 验收门槛）· P1 应该（该 Phase 内完成，可延一个 Phase）· P2 可以（有余力再做）。
 **角色**：工作区 owner / admin / member / guest，未登录 anon；空间 admin / member / viewer（01 §5）。
@@ -187,7 +187,12 @@
 | REQ-TPL-001 | P1 | 2 | 系统应提供 6 个内置模板：开发「产品 Bug 修复与迭代」（bug）、「产品优化」（optimize）；学习「学习计划」（plan）、「学习笔记」（note）、「学习周复盘」（journal）、「读书笔记」（note）；`GET /templates` 列出内置 + 本人个人 + 工作区模板，可按 `kind` / `spaceKind` 过滤，列表不含正文 | When `GET /templates` Then 含 6 个 `builtin:*`（dev 2 / learning 4）且无 `body`；`?spaceKind=learning` 不含 `builtin:bug-fix` | ADR-0011 §2 · 02 §9 | api |
 | REQ-TPL-002 | P1 | 2 | 新增记录类型 `optimize`（优化）与 `plan`（学习计划），fields 严格校验（01 §3.5）；首次打开的默认骨架取对应内置模板 | When `POST /entries {kind:'optimize', fields:{status:'maybe'}}` Then 422；`plan` 合法 fields Then 201 | ADR-0011 §3 · 01 §3.5 | unit · api |
 | REQ-TPL-003 | P1 | 2 | 新建记录可带 `templateId`：模板正文（占位符 `{{date}}` `{{user}}` `{{space}}` 已替换）一次性写成初始 ydoc；`builtin:blank` 为明确空白（不注入 kind 骨架）；不可见 / 不存在的模板 422。新建对话框提供模板选择，按当前空间类型推荐 | When 用 `builtin:bug-fix` 新建 Then 正文含「复现步骤」「迭代跟进」且无 `{{date}}`；When 在「学习」空间按 `e` Then 学习模板带「推荐」 | ADR-0011 §2 · 08 §3.2 | api · e2e |
-| REQ-TPL-004 | P1 | 2 | 自定义模板：记录「属性」页「另存为模板」（取当前正文 + kind / fields）；个人模板仅本人可见可用；工作区模板全员可用、仅管理员可建；创建者或管理员可改名 / 改范围 / 删除；内置不可改删；设置 → 模板 页可预览与「用此模板新建」 | Given member 另存个人模板 When owner 列表 Then 不含；owner `GET` Then 404；When member 建 workspace 模板 Then 403；删内置 Then 403 | ADR-0011 §2 · 01 §5 | api · unit · e2e |
+| REQ-TPL-004 | P1 | 2 | 自定义模板：记录「属性」页「另存为模板」（取当前正文 + kind / fields）；个人模板仅本人可见可用；工作区模板全员可用、仅管理员可建；创建者或管理员可改名 / 改范围 / 删除；内置不可改删；设置 → 模板 页可预览与「用此模板新建」（改于 2026-09-28，ADR-0023：工作区模板改为非 guest 均可共享，见 REQ-TPL-006；验收「member 建 workspace 模板 403」作废） | Given member 另存个人模板 When owner 列表 Then 不含；owner `GET` Then 404；~~When member 建 workspace 模板 Then 403~~；删内置 Then 403 | ADR-0011 §2 · 01 §5 | api · unit · e2e |
+| REQ-TPL-006 | P1 | 2 | （2026-09-28 新增，ADR-0023）非 guest 成员可把模板共享到工作区（新建时选或 `PATCH scope`），共享模板全员可见可用、只有作者与管理员可管；guest 不能共享；列表返回 `canShare` 与每行作者 `ownerName` | When member `POST /templates {scope:'workspace'}` Then 201，owner 列表中该行 `ownerName` = member 名、`canManage` = true；guest 同操作 Then 403，列表 `canShare` = false | ADR-0023 · 01 §5 | api · unit |
+| REQ-TPL-007 | P1 | 2 | （ADR-0023）可直接改模板正文 / 类型 / fields / 说明，`PATCH` 必带 `ifUpdatedAt`；只改 kind 时 fields 重置为该 kind 默认；fields 按 kind 严格校验 | When 旧 `ifUpdatedAt` Then 409 `CONFLICT_STALE`；缺 `ifUpdatedAt` Then 422；`{kind:'bug'}` Then fields = `{severity:'medium',status:'open'}`；`{fields:{severity:'huge'}}` Then 422 | ADR-0023 · 02 §9 | api |
+| REQ-TPL-008 | P1 | 2 | （ADR-0023）「复制到我的」：`POST /templates {fromTemplateId}` 把内置或可见模板复制成本人个人模板；看不到的 404；body / fromEntryId / fromTemplateId 三选一 | When 复制 `builtin:bug-fix` Then 201 个人模板、kind = bug、正文同源；复制他人个人模板 Then 404；同时给 body 与 fromTemplateId Then 422 | ADR-0023 | api |
+| REQ-TPL-009 | P1 | 2 | （ADR-0023）共享模板被改回个人或删除时，同事务清掉引用它的空间默认模板；列表给 `spaceDefaults`，界面确认框写明受影响空间数 | Given 空间 A 默认模板 = T When T 改为 personal Then A.`defaultTemplateId` = null；删除同理 | ADR-0023 · ADR-0019 | api |
+| REQ-TPL-010 | P1 | 2 | （ADR-0023）设置 → 模板：「新建模板」/「编辑」页（名称、说明、类型、适用空间、共享开关、正文编辑器，`Mod+S` 保存）；共享行显示「由 X 共享」；「复制到我的」「复制链接」（`/settings/templates?preview=<id>` 打开预览，需登录）；另存为模板可填说明与勾选共享 | When member 新建模板写入标题并共享 Then owner 在「工作区共享」组看到作者；owner「复制到我的」Then 「我的模板」出现副本；打开 `?preview=` 链接 Then 预览对话框显示正文 | ADR-0023 · 08 §2.13 | e2e |
 | REQ-TPL-005 | P2 | 2 | 斜杠 `/模板` 打开模板选择（首项「按类型默认」），在光标处插入所选模板正文，不替换已有内容 | When 在正文输入 `/模板` 选「学习笔记」Then 光标处出现「核心概念」等标题，原有内容仍在 | 03 §11.1 | e2e |
 
 ## 6c. KB —— 空间（2026-09-26 新增，ADR-0012）
@@ -209,14 +214,14 @@
 
 | ID | P | Phase | 需求（EARS） | 验收（GWT） | 依据 | 测试层 |
 |---|---|---|---|---|---|---|
-| REQ-EDITOR-001 | P0 | 1 | 编辑器应支持 03 §3.1 全部节点与标记，且不提供字体 / 字号 / 颜色标记 | When 遍历斜杠菜单插入每种节点 Then 序列化 JSON 含对应 type；无颜色命令 | 03 §3.1 | unit · e2e |
-| REQ-EDITOR-002 | P0 | 1 | 输入 `/` 应打开斜杠菜单，含：标题 1–4、列表、任务列表、代码块、表格、图片、附件、callout×4、mermaid、公式、分割线、目录、记录链接 | When 输入 `/表` Then 过滤出「表格」；Enter 插入 3×3 表 | 03 §3.2 · 04 §6 | e2e |
+| REQ-EDITOR-001 | P0 | 1 | 编辑器应支持 03 §3.1 全部节点与标记，且不提供字体 / 字号 / 颜色标记（注 2026-09-28，ADR-0025：放开 9 色板文字色 / 背景色，见 REQ-EDITOR-031；任意色值、字号、字体仍不提供） | When 遍历斜杠菜单插入每种节点 Then 序列化 JSON 含对应 type；无颜色命令 | 03 §3.1 | unit · e2e |
+| REQ-EDITOR-002 | P0 | 1 | 输入 `/` 应打开斜杠菜单，含：标题 1–4、列表、任务列表、代码块、表格、图片、附件、callout×4、mermaid、公式、分割线、目录、记录链接（注 2026-09-28，ADR-0025：空查询按分组给全部，有查询最多 8 条，见 REQ-EDITOR-026） | When 输入 `/表` Then 过滤出「表格」；Enter 插入 3×3 表 | 03 §3.2 · 04 §6 | e2e |
 | REQ-EDITOR-003 | P0 | 1 | 代码块应预注册 20 种常用语言，其他语言按需加载 | When 选 `rust` Then 高亮出现且网络面板出现一次语言 chunk 请求 | 03 §9 | e2e |
 | REQ-EDITOR-004 | P0 | 1 | 当粘贴或拖入图片时，系统应上传为附件并插入 `src=xz:attachment/<id>`，显示 `md` 变体与 blurhash 占位 | When 粘贴 PNG Then `POST /attachments` 201，节点 `src` 为 `xz:` 协议，渲染请求 `/attachments/:id/md` | 03 §3.2 · 03 §9 · 02 §7 | e2e |
 | REQ-EDITOR-005 | P1 | 1 | 粘贴 Markdown 文本应转为节点；粘贴 HTML 只保留 schema 内节点；粘贴纯文本保持段落 | When 粘贴 `## 标题\n- a` Then heading + bulletList<br>When 粘贴含 `<font color>` HTML Then 无颜色标记 | 03 §1.3 · 03 §8 | unit · e2e |
 | REQ-EDITOR-006 | P0 | 1 | IME 组合输入期间 inputRule 不得触发 | When CDP `Input.imeSetComposition` 输入「1.」Then 不转为有序列表，直到 commit | 03 §12 | e2e |
-| REQ-EDITOR-007 | P1 | 2 | mermaid 节点应显示只读预览，点击进入 CM6 源码编辑；渲染失败显示错误；`securityLevel: 'strict'`；note 列表用 U+2060 规避 | When 源码含错误 Then 显示错误框非空白<br>When note 内 3 条列表 Then 图正常渲染 | 03 §3.2 · 03 §12 | e2e |
-| REQ-EDITOR-008 | P1 | 2 | 行内与块级公式应用 KaTeX 渲染，渲染在 idle 回调（注 2026-09-25：`$x$` / `$$ ` 输入规则已实现，KaTeX 渲染未做） | When 输入 `$E=mc^2$` Then 渲染为公式 | 03 §3.1 · 03 §9 | e2e |
+| REQ-EDITOR-007 | P1 | 2 | mermaid 节点应显示只读预览，点击进入 CM6 源码编辑；渲染失败显示错误；`securityLevel: 'strict'`；note 列表用 U+2060 规避（注 2026-09-28：ADR-0025 已实现，源码失焦 / 停顿 800ms 写回） | When 源码含错误 Then 显示错误框非空白<br>When note 内 3 条列表 Then 图正常渲染 | 03 §3.2 · 03 §12 | e2e |
+| REQ-EDITOR-008 | P1 | 2 | 行内与块级公式应用 KaTeX 渲染，渲染在 idle 回调（注 2026-09-25：`$x$` / `$$ ` 输入规则已实现，KaTeX 渲染未做；注 2026-09-28：ADR-0025 已实现，含点击编辑） | When 输入 `$E=mc^2$` Then 渲染为公式 | 03 §3.1 · 03 §9 | e2e |
 | REQ-EDITOR-009 | P1 | 2 | callout 应支持 `info/tip/warn/danger`，`:::warn` 快捷转换 | When 行首输入 `:::warn ` Then 变为 warn callout | 03 §3.2 | e2e |
 | REQ-EDITOR-010 | P1 | 2 | 输入 `@` 应弹出当前空间可见成员候选；落库后写 `mentions` 并发 `mention.created` | When 选中成员 Then 节点 `mention(userId)`；2s 落库后 `mentions` 有行、`events` 有 kind | 03 §3.2 · 01 §3.9 | e2e · collab |
 | REQ-EDITOR-011 | P1 | 2 | 输入 `[[` 应弹出记录候选，插入 entryLink，支持行内 / 标题 / 卡片三形态切换（注 2026-09-25：`[[` 触发候选已实现，三形态切换未做） | When 选中记录 Then `entryLink(entryId, mode:'inline')`；切卡片 Then `entryCard` 并请求 preview | 03 §3.2 | e2e |
@@ -231,6 +236,18 @@
 | REQ-EDITOR-020 | P1 | 2 | Markdown 源码编辑（2026-09-25，ADR-0011 §1）：CodeMirror 编辑正文源码，保存为一次性导入——逐块序列化、LCS 合并（未改块沿用原节点）、表达不了的块以 `⟦xz-keep⟧` 占位；保存前自动存「源码编辑前」标记快照；有其他协作者在线时禁用；正文含 Markdown 不能表达的格式时提示 | When 源码末尾加 `## 标题` 并保存 Then 正文出现 h2，未改段落的下划线仍在，快照多一条「源码编辑前」 | 03 §8 · ADR-0011 | unit · e2e |
 | REQ-EDITOR-021 | P1 | 2 | 图片展示（2026-09-25）：选中图片浮出宽度 25/50/75/100% 与左 / 中 / 右对齐；图下可写图注（≤ 200 字，参与检索）；HTML 导出为 `figure` + `figcaption` | When 选中图片点 50% 与靠左并写图注 Then 节点 `displayWidth=50, align=left, caption` 落库 | 03 §3.2 | e2e |
 | REQ-EDITOR-022 | P2 | 2 | 拖入 / 粘贴 `.md` 文件时询问「插入内容」或「作为附件」；插入走与粘贴同一 Markdown 管线 | When 粘贴 `note.md` 选「插入内容」Then 正文出现其标题与任务项 | 03 §11.3 | e2e |
+| REQ-EDITOR-024 | P1 | 2 | （2026-09-28 新增，ADR-0025；注 2026-09-29，ADR-0029：右侧阅读胶囊 / 专注 / Markdown / 字数移到标题下文档栏，吸顶的只剩格式）记录正文上方应有吸顶工具栏：+ 插入、撤销 / 重做、清除格式（保留评论锚点）、段落格式（正文 / 标题 1–4）、加粗 / 斜体 / 下划线 / 删除线、更多（行内代码 / 上下标）、文字色 / 背景色、三种列表、引用、对齐、链接；右侧阅读胶囊、专注、Markdown 源码、字数；只读者只有右侧 | When 选段落格式「标题 2」Then 当前块变 h2 且按钮显示「标题 2」；When 清除格式 Then 选区无加粗；滚动长文 Then 工具栏仍在视口 | ADR-0025 §1 | e2e |
+| REQ-EDITOR-025 | P1 | 2 | （ADR-0025）「+」插入面板：搜索 + 分区；表格为 8×8 尺寸网格；含链接、行内公式、Mermaid 五种预设 | When 选表格 2×4 Then 插入 2 行 4 列（首行表头）；搜「时序」Then 只剩时序图 | ADR-0025 §2 | e2e |
+| REQ-EDITOR-026 | P1 | 2 | （ADR-0025）斜杠菜单空查询按分组列出全部命令（分组标题、可滚动、键盘跟随），有查询扁平最多 8 条 | When 输入 `/` Then 首个分组标题「基础」、命令数 > 20；再输入「表」Then ≤ 8 条且无分组标题 | ADR-0025 §2 · 03 §11.1 | unit · e2e |
+| REQ-EDITOR-027 | P1 | 2 | （ADR-0025）块手柄单击打开菜单：转换为 / 包裹为 / 复制此块（去评论锚点）/ 删除此块 | When 段落「转为标题 2」Then 变 h2；复制 Then 两个；删除 Then 一个 | ADR-0025 §3 | e2e |
+| REQ-EDITOR-028 | P1 | 2 | （ADR-0025）表格：列宽可拖；光标在表格内浮出表格工具条（插入 / 删除行列、合并拆分、表头行、删除表格） | When 表格工具条「下方插入行」Then 行数 +1；「删除表格」Then 无表格 | ADR-0025 §4 | e2e |
+| REQ-EDITOR-029 | P1 | 2 | （ADR-0025）代码块头部：语言、行数、复制（HTTP 局域网可用） | When 点复制 Then 按钮显示已复制 | ADR-0025 §5 | e2e |
+| REQ-EDITOR-030 | P1 | 2 | （ADR-0025）提示块按 kind 分色 + 图标；编辑态可切换类型、取消提示块 | When 切换为 warn Then `data-callout=warn`；取消 Then 内容回到普通段落 | ADR-0025 §6 | e2e |
+| REQ-EDITOR-033 | P1 | 2 | （2026-09-29 新增，ADR-0032）表格工具条可分别开关表头行与表头列，按钮按下状态反映整表；表头列首格为 th（右侧加深竖线） | When 开表头列 Then 除首行外各行首格为 th 且按钮按下；关表头行 Then 首行其余格回到 td | ADR-0032 §1 | e2e |
+| REQ-EDITOR-034 | P1 | 2 | （ADR-0032）代码块可折叠（露出前 3 行 +「展开全部 N 行」），只影响本人视图；默认行为为阅读偏好 `codeFold`：默认展开 / 默认折叠 / 超过 15 行自动折叠 | When 点折叠 Then `data-collapsed`；偏好「默认折叠」刷新 Then 初始折叠；「长代码折叠」且 7 行 Then 展开 | ADR-0032 §2 | e2e |
+| REQ-EDITOR-035 | P1 | 2 | （ADR-0032）斜杠与「+」面板「时间」分组：今天日期 / 当前时间 / 日期时间，按本地时间插入普通文字 | When `/今天日期` Then 段落文本 `YYYY-MM-DD`；「当前时间」Then `HH:mm`；「日期时间」Then `YYYY-MM-DD HH:mm` | ADR-0032 §3 | unit · e2e |
+| REQ-EDITOR-032 | P1 | 2 | （2026-09-28 新增，ADR-0026）吸顶工具栏放不下时换行，任何宽度下按钮都不被裁切（满栏 + 侧栏 + Aside 的 1280 宽也完整可见）（改于 2026-09-28，ADR-0028：改为两行固定——第一行格式始终一行、放不下整组收进「…」且可用，第二行阅读 / 保存；行数与高度不随版心宽度变化） | Given 1280 宽、满栏 Then 对齐 / 链接 / 颜色 / 引用 / 保存版本按钮完全在视口与工具栏内 | ADR-0026 §2 | e2e |
+| REQ-EDITOR-031 | P1 | 2 | （ADR-0025）文字色 / 背景色只存 9 色板 key、渲染 `data-*`；非法值不落地；HTML 导出查表；工具栏与气泡条都可设；刷新后保留 | When 设文字色红 Then `[data-text-color=red]` 且无 style；toDOM 传 `hotpink` Then 不输出 | ADR-0025 §7 | unit · e2e |
 | REQ-EDITOR-023 | P1 | 2 | （2026-09-27 新增，ADR-0019）`[[` 记录选择器：有输入、结果已到齐且无同名时出现「新建《q》并插入」→ 在当前空间新建随笔（作为当前记录子页；当前记录不在目录则也不进目录）并插入链接；搜索当前空间优先（先查本空间再查全部，合并去重） | When 在目录里的 A 正文输入 `[[新概念` 并选「新建」Then 正文出现该链接、新记录 parentId = A | ADR-0019 | e2e |
 
 ---
@@ -254,6 +271,8 @@
 | REQ-COLLAB-013 | P1 | 1 | 同一浏览器多标签页打开同一记录应共享 IndexedDB 并合并，不出现重复内容 | When 两标签各输入 Then 两标签内容一致且无重复段 | 03 §4.1 | e2e |
 | REQ-COLLAB-014 | P0 | 0 | 加载文档时应执行 schema 迁移并 bump `editor_schema_version` | Given 旧版本文档 When `onLoadDocument` Then 列值 = `EDITOR_SCHEMA_VERSION` | 03 §3.3 · 01 §3.4 | collab |
 | REQ-COLLAB-015 | P0 | 0 | 落库应发出 `entry.updated`；5 分钟内同 entry 同 actor 已有未处理行时 UPDATE 其 payload 而非新增；仅进活动流不通知 | When 10 分钟内同一人 100 次落库 Then `events(entry.updated)` ≤ 2 行且最新一行 `payload.ydocVersion` 为最终值，`notifications` 0 行 | 03 §4.2 · 01 §4.1 | collab |
+| REQ-COLLAB-017 | P1 | 2 | （2026-09-28 新增，ADR-0026）Ctrl/⌘+S 或工具栏「保存版本」：经协同连接请服务端以当前权威文档落库并同事务打快照；版本以本地时间 `YYYYMMDD-HHmmss` 命名、永久保留；与上一手动 / 带标记版本相同则提示没有新改动；5s 节流；只读 / 离线提示；坏请求不影响服务 | When 输入后按 Ctrl+S Then 提示「已保存版本 20260928-143025」且历史出现同名项；再按 Then「没有新改动」；只删字 Then 仍生成；viewer Then 只读 | ADR-0026 §4 · 03 §5 | collab · e2e |
+| REQ-COLLAB-018 | P1 | 2 | （ADR-0026）给任一版本打标记 / 改标记 / 清除（`PATCH /entries/:id/snapshots/:sid {label}`，需 entry.write）；带标记显示标记名与时间戳；手动保存与带标记的版本 gc 不删 | When 打标记「发布前」Then 历史显示「发布前」+ 时间戳；清除 Then 回到时间戳名；label 空 / > 80 Then 422 | ADR-0026 §6 · 07 §3 | api · e2e |
 | REQ-COLLAB-016 | P0 | 1 | 当记录可见性、空间成员或成员状态变化使某连接失去 `entry.read` 时，collab 应在收到 `entry.access_changed` / `user.revoked` 广播后 1s 内以 4403 断开该连接 | Given U 正在编辑 E When 作者把 E 改为 `private` Then U 的 WS 1s 内以 4403 关闭；U 重取票据 Then `POST /collab/token` 404 | 03 §4.2 · 07 §2.3 | collab |
 
 ---
@@ -472,6 +491,20 @@
 | REQ-CAL-013 | P1 | 2 | （ADR-0016）任务可拖动改期：月视图拖到别的日期、周 / 日视图拖动改时刻（15 分钟吸附），平移其定位字段（截止优先，否则计划开始）并保留时刻；定时任务不落到 00:00 / 23:59（会被当全天），夹到 00:15 / 23:45；不能拖底边改时长 | When 周视图把 16:00 的任务向下拖 1 小时 Then `dueAt` 本地 17:00 | ADR-0016 | e2e |
 
 ---
+
+## 18c. READ —— 阅读与写作偏好（2026-09-28 新增，ADR-0024）
+
+| ID | P | Phase | 需求（EARS） | 验收（GWT） | 依据 | 测试层 |
+|---|---|---|---|---|---|---|
+| REQ-READ-001 | P1 | 2 | 阅读偏好按人存服务端：`GET /me/preferences` 返回补齐默认值的 `{reading}`；`PATCH` 按键合并、非法值 / 未知键 / 空补丁 422、需 write scope；读取逐键校验坏值回落默认；删号时删除 | When 先后 PATCH `{font}` `{paper,tocDepth}` Then 三键都在；`{font:'comic'}` Then 422；read Key PATCH Then 403；他人 GET Then 默认值；purge 后 `user_preferences` 无该行 | ADR-0024 · 02 §9 | api · unit |
+| REQ-READ-002 | P1 | 2 | 记录页「Aa」弹层（注 2026-09-28，ADR-0026：版心默认改为满栏，验收中「回到 MiSans / 760」改为「回到 MiSans / 满栏」；ADR-0025：改为吸顶工具栏里的阅读胶囊四个弹层，见 REQ-READ-007）可改字体（MiSans / 文楷 / 宋体 / 系统 / 等宽）、字号、行距、段距、版心（窄 / 标准 / 宽 / 满栏）、首行缩进、两端对齐，即时生效并跨刷新保留；`?wide=1` 仍强制宽版心；默认值与改版前外观一致 | When 选「文楷」「宽」Then 正文计算字体含 LXGW WenKai、纸面宽 1080；刷新后仍是；When「恢复默认」Then 回到 MiSans / 760 | ADR-0024 · 08 §2.9 | e2e |
+| REQ-READ-003 | P1 | 2 | 纸张 6 种（素纸 / 宣纸 / 方格 / 横线 / 点阵 / 牛皮纸）按人生效；色值只在 tokens.css，日场 / 夜场各一套；宣纸 / 牛皮纸上文字对比度达标（check-contrast） | When 选「方格」Then 纸面 `data-paper=grid` 且有背景纹；`pnpm lint` 的 check-contrast 含宣纸 / 牛皮纸行且全部达标 | ADR-0024 · 06 §3 | e2e |
+| REQ-READ-004 | P1 | 2 | 章节编号（显示层，不写正文）：正文、Aside 大纲、目录块同一跳级压缩算法；目录深度 2 / 3 / 4 按编号层级过滤大纲与目录块 | Given 标题 h2 背景 / h3 细节 When 开编号 Then 正文与大纲分别显示「1」「1.1」；When 目录深度 = 2… Then h3 仍显示（第 2 层）；h2 h4 h3 编为 1 / 1.1 / 1.2 | ADR-0024 §5 | unit · e2e |
+| REQ-READ-005 | P1 | 2 | 专注写作：记录页「专注」按钮或 `mod+shift+enter`、⌘K「进入专注写作」进入；隐藏侧栏 / 顶栏 / Aside / 底部导航与面包屑 / 元信息；右上角「退出专注」或 Esc 退出；离开记录页自动退出 | When 点「专注」Then 顶栏与侧栏不可见、`focus-exit` 可见；按 Esc Then 顶栏可见 | ADR-0024 §6 | e2e |
+| REQ-READ-009 | P1 | 2 | （2026-09-28 新增，ADR-0027）`/toc` 目录块渲染为主色卡片（标题行「目录 · N 个标题」、层级缩进、主色编号），编号只出现一次（不叠浏览器列表序号）；插入后光标落到其下、继续打字不会替换目录；正文章节编号默认开且用主色 | Given h2 背景 / h3 细节 When 插入 /toc Then 卡片编号 1 / 1.1、`ol` 的 list-style 为 none、条目文本「1背景」；继续打字 Then 目录仍在；正文 h2 `data-num=1` 且显示编号 | ADR-0027 | e2e |
+| REQ-READ-008 | P1 | 2 | （2026-09-28 新增，ADR-0026）右侧目录默认自动编号（`tocNumbers`，与正文编号分开，可关）；按编号层级缩进 + 引导线；滚动时高亮当前标题（滚到页底取最后一个），高亮项滚进可视区；跳转不被吸顶工具栏遮住 | Given h2 背景 / h3 细节 / h2 结论 Then 目录显示 1 / 1.1 / 2；滚到文末 Then 「结论」高亮；关闭自动编号 Then 无编号 | ADR-0026 §3 | e2e |
+| REQ-READ-007 | P1 | 2 | （2026-09-28 新增，ADR-0025；改于 2026-09-29，ADR-0029：胶囊移到标题下的文档栏，不吸顶，与专注 / 保存 / Markdown / 字数同一行）阅读设置以「阅读胶囊」放在正文上方吸顶工具栏：字体 / 纸张 / 排版（字号、行距、段距、版心、缩进、对齐、恢复默认）/ 目录（章节编号、目录深度）各一个弹层；只读者也可用 | When 依次打开四个弹层 Then 各显示对应面板；长文滚动后胶囊仍在视口 | ADR-0025 §1 | e2e |
+| REQ-READ-006 | P1 | 2 | 设置 → 阅读与写作（`/settings/reading`）：同一面板 + 示例文段实时预览；⌘K「阅读与写作设置」可达 | When 在设置页选「横线」Then 预览纸面 `data-paper=lines`；打开记录页 Then 同样生效 | ADR-0024 · 08 §2.13 | e2e |
 
 ## 19. 二期范围（Phase 3，不在本文验收，不编号）
 

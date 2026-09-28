@@ -1,5 +1,6 @@
 /**
- * 全局快捷键（04 §6、REQ-UI-006）：单键（`c`、`?`）、组合键（`mod+k`）与序列（`g t`，前缀 1s 内有效）。
+ * 全局快捷键（04 §6、REQ-UI-006）：单键（`c`、`?`）、组合键（`mod+k`、`mod+shift+enter`）与序列（`g t`，前缀 1s 内有效）。
+ * Shift 只在按住 mod 时编进组合（`mod+shift+x`）；单键里的 Shift 属于字符本身（`?`）。
  * 输入框 / 编辑器聚焦时只响应 mod 组合；已被下层（ProseMirror 等）处理（defaultPrevented）的按键不再响应，
  * 例如编辑器里的 Mod+K 是链接而不是命令面板。
  */
@@ -28,7 +29,7 @@ export function useHotkeys(map: Record<string, (e: KeyboardEvent) => void>): voi
       if (e.defaultPrevented || e.isComposing) return
       const mod = e.metaKey || e.ctrlKey
       const key = e.key.length === 1 ? e.key.toLowerCase() : e.key.toLowerCase()
-      const combo = `${mod ? 'mod+' : ''}${e.key === '?' ? '?' : key}`
+      const combo = `${mod ? 'mod+' : ''}${mod && e.shiftKey ? 'shift+' : ''}${e.key === '?' ? '?' : key}`
       if (!mod && editable(e.target)) return
       if (pending && !mod) {
         const seq = `${pending} ${combo}`

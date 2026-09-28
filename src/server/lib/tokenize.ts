@@ -81,10 +81,5 @@ export function tsvText(text: string): string {
   return tokenize(text).join(' ')
 }
 
-/** 字数：CJK 每字计 1，其余按空白分词计 1（01 §3.4 word_count）。 */
-export function wordCount(text: string): number {
-  const cjk = (text.match(/[㐀-鿿豈-﫿]/gu) ?? []).length
-  const rest = text.replace(/[㐀-鿿豈-﫿]/gu, ' ')
-  const words = rest.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length
-  return cjk + words
-}
+/** 字数（01 §3.4 word_count）：实现移到 shared，编辑器工具栏同一算法。 */
+export { wordCount } from '../../shared/editor/word-count.ts'

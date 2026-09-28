@@ -207,7 +207,7 @@
 | id | uuid | PK |
 | workspace_id | text | FK organization |
 | owner_id | text | FK user；创建者（删号时其 personal 模板随之删除） |
-| scope | text | `personal`（仅本人）\| `workspace`（全员可用，管理员创建） |
+| scope | text | `personal`（仅本人）\| `workspace`（全员可用；~~管理员创建~~ 非 guest 可共享，ADR-0023） |
 | name | text | ≤ 60 |
 | description | text | ≤ 200，默认 '' |
 | kind | text | 同 entries.kind |
@@ -218,6 +218,7 @@
 | updated_at | timestamptz | |
 
 - 索引：`(workspace_id, scope)`、`(owner_id)`。内置模板（`builtin:<key>`）是代码常量（`src/shared/editor/builtin-templates.ts`），不入表。
+- 注 2026-09-28（ADR-0023）：`body` / `kind` / `fields` 可经 `PATCH`（带 `ifUpdatedAt`）直接修改；workspace 模板改回 personal 或删除时，同事务置空引用它的 `spaces.default_template_id`。
 
 ### 3.4c entry_types / entry_kind_overrides —— 类型（2026-09-27 ADR-0016 · 0017）
 
@@ -449,6 +450,18 @@ plan     : { status: 'planning'|'active'|'paused'|'done', startDate?: date, endD
 
 - PK `(user_id, event_kind)`；缺行时用默认表（§4）。
 
+**user_preferences**
+
+阅读与写作偏好（ADR-0024，2026-09-28，迁移 0019）。一人一行，只能读写本人的。
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| user_id | text | PK，FK user |
+| reading | jsonb | 只存改过的键（font / size / lineHeight / width / paragraph / indent / justify / paper / headingNumbers / tocNumbers / tocDepth / codeFold），读取逐键校验并补默认；`PATCH` 按键合并 |
+| updated_at | timestamptz | |
+
+- 删号（purge）时删除（07 §4）；移除成员不删（同一账号再加入时沿用）。
+
 **push_subscriptions**
 
 | 列 | 类型 | 说明 |
@@ -663,7 +676,7 @@ Workspace 角色 × Space 角色 → 有效角色取**较高者**，`guest` 只�
 | entry_type.create / entry_type.manage（自定义类型个人所有，ADR-0017：新建 = 非 guest；管理 = 本人） | 建 ✓ / 管本人的 | 建 ✓ / 管本人的 | ✗ |
 | entry_kind.manage（内置类型改名 / 改色 / 删除 / 恢复，ADR-0017） | 仅 owner | ✗ | ✗ |
 | template.read（记录模板，ADR-0011） | personal 仅本人；workspace 全员 | 同左 | 同左 |
-| template.create | personal：非 guest；workspace：仅 owner / admin | personal ✓ | ✗ |
+| template.create | 非 guest（personal 与 workspace；~~workspace 仅 owner / admin~~，ADR-0023 共享模板） | ✓ | ✗ |
 | template.manage（改名 / 范围 / 删除） | 本人的（非 guest）；workspace 模板管理员可管 | 本人的 | ✗ |
 | notification.* | 仅本人 | | |
 

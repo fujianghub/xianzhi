@@ -1,4 +1,4 @@
-/** /api/v1/templates（ADR-0011 §2、02 §9）：内置 + 个人 + 工作区模板；路由只做校验 → service → 序列化。 */
+/** /api/v1/templates（ADR-0011 §2 · ADR-0023、02 §9）：内置 + 个人 + 工作区模板；路由只做校验 → service → 序列化。 */
 import { Hono } from 'hono'
 import { z } from 'zod'
 import {
@@ -39,6 +39,7 @@ export function templateRoutes(deps: { db: Db }) {
       c.json({
         items: await svc.listTemplates(deps.db, ctxOf(c), c.req.valid('query')),
         nextCursor: null,
+        canShare: svc.canShareTemplate(ctxOf(c)),
       }),
     )
     .post(

@@ -1,5 +1,6 @@
-/** /api/v1/me*（02 §9；REQ-WS-010、REQ-AUTH-009 · 010）。Key 与会话管理只对 Cookie 会话开放（API Key 请求 403 SCOPE）。 */
+/** /api/v1/me*（02 §9；REQ-WS-010、REQ-AUTH-009 · 010、REQ-READ-001 偏好）。Key 与会话管理只对 Cookie 会话开放（API Key 请求 403 SCOPE）。 */
 import { Hono, type MiddlewareHandler } from 'hono'
+import { patchPreferencesSchema } from '../../shared/schemas/preferences.ts'
 import {
   createKeySchema,
   idParam,
@@ -13,8 +14,9 @@ import type { Db } from '../db/index.ts'
 import { AppError } from '../lib/errors.ts'
 import { validate } from '../lib/validate.ts'
 import { clientIp } from '../middleware/request-context.ts'
-import { requireAuth } from '../middleware/session.ts'
+import { requireAuth, requireScope } from '../middleware/session.ts'
 import * as me from '../services/me.ts'
+import * as prefs from '../services/preferences.ts'
 import * as users from '../services/users.ts'
 import type { AppEnv } from '../types.ts'
 
@@ -46,6 +48,17 @@ export function meRoutes(deps: { db: Db; auth: Auth }) {
       .get('/', (c) => c.json(me.meView(ctxOf(c))))
       .patch('/', validate('json', mePatchSchema), async (c) =>
         c.json(await me.updateMe(deps.db, ctxOf(c), c.req.valid('json'))),
+      )
+      // 阅读与写作偏好（ADR-0024）：按键合并
+      .get('/preferences', async (c) =>
+        c.json(await prefs.getPreferences(deps.db, ctxOf(c).actor.id)),
+      )
+      .patch(
+        '/preferences',
+        requireScope('write'),
+        validate('json', patchPreferencesSchema),
+        async (c) =>
+          c.json(await prefs.patchPreferences(deps.db, ctxOf(c).actor.id, c.req.valid('json'))),
       )
       // 改用户名 / 邮箱（REQ-WS-022）、改密码（REQ-AUTH-021）：仅登录会话
       .patch('/account', sessionOnly, validate('json', meAccountPatchSchema), async (c) => {

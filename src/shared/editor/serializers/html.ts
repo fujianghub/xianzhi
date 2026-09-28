@@ -21,6 +21,23 @@ pre{background:#f0ece4;padding:12px 16px;border-radius:8px;overflow:auto}pre cod
 img{max-width:100%;border-radius:6px}.callout{border-radius:8px;padding:10px 14px;background:#eef3f8;margin:1em 0}.task{list-style:none;margin-left:-1.2em}hr{border:0;border-top:1px solid #d5cfc4;margin:2em 0}
 .mention{color:#3b6fb0}`
 
+/**
+ * 颜色标记导出（ADR-0025 §7）：按色板 key 查表（日场 token 取值，导出文件离线可读，允许色值）；
+ * 未知 key 直接丢弃，绝不把属性原样拼进 style（Y 里的属性可被任意客户端写入）。
+ */
+export const EXPORT_PALETTE: Record<string, { fg: string; bg: string }> = {
+  blue: { fg: '#0063cf', bg: '#d9ebff' },
+  orange: { fg: '#9c5b00', bg: '#ffefd9' },
+  yellow: { fg: '#826800', bg: '#fff4c7' },
+  red: { fg: '#bf2c24', bg: '#ffe2e0' },
+  green: { fg: '#207936', bg: '#e1f7e6' },
+  purple: { fg: '#8f43b6', bg: '#f3e5fa' },
+  pink: { fg: '#c22241', bg: '#ffe0e6' },
+  cyan: { fg: '#207095', bg: '#e0f3fb' },
+  gray: { fg: '#69696d', bg: '#eeeeef' },
+}
+const DEFAULT_HIGHLIGHT = '#fff4c7'
+
 function text(n: PmNode): string {
   let out = esc(n.text ?? '')
   for (const m of n.marks ?? []) {
@@ -29,7 +46,15 @@ function text(n: PmNode): string {
     else if (m.type === 'strike') out = `<s>${out}</s>`
     else if (m.type === 'underline') out = `<u>${out}</u>`
     else if (m.type === 'code') out = `<code>${out}</code>`
-    else if (m.type === 'link')
+    else if (m.type === 'subscript') out = `<sub>${out}</sub>`
+    else if (m.type === 'superscript') out = `<sup>${out}</sup>`
+    else if (m.type === 'highlight') {
+      const c = EXPORT_PALETTE[String(m.attrs?.color ?? '')]
+      out = `<mark style="background:${c ? c.bg : DEFAULT_HIGHLIGHT}">${out}</mark>`
+    } else if (m.type === 'textColor') {
+      const c = EXPORT_PALETTE[String(m.attrs?.color ?? '')]
+      if (c) out = `<span style="color:${c.fg}">${out}</span>`
+    } else if (m.type === 'link')
       out = `<a href="${esc(safeHref(String(m.attrs?.href ?? '')))}">${out}</a>`
   }
   return out

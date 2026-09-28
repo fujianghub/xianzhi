@@ -1,6 +1,7 @@
 /**
- * 记录编辑（08 §2.9）：paper 纸面 760 居中（`?wide=1` 1080）；标题就地编辑 + kind 徽章 + 固定 + fields 表单（自动保存）；
- * 正文走协同（编辑器 chunk 懒加载）；Aside 由 `?aside=` 选页（T1-017）。
+ * 记录编辑（08 §2.9）：paper 纸面居中，版心 / 字体 / 行距 / 纸张等取阅读偏好（ADR-0024；`?wide=1` 仍强制 1080）；
+ * 标题就地编辑 + kind 徽章 + 固定 + fields 表单（自动保存）；正文走协同（编辑器 chunk 懒加载）；Aside 由 `?aside=` 选页（T1-017）。
+ * 阅读胶囊（字体 / 纸张 / 排版 / 目录）与「专注」在正文上方的吸顶工具栏里（ADR-0025）；⌘⇧↵ 在此捕获。
  */
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound, useNavigate } from '@tanstack/react-router'
@@ -20,6 +21,7 @@ import { useSharedTarget } from '../hooks/useSharedElement.ts'
 import { ApiError } from '../lib/api.ts'
 import { cn } from '../lib/cn.ts'
 import { type Entry, entryQuery } from '../lib/entry-queries.ts'
+import { readingAttrs, useFocusMode, useReading } from '../lib/reading.ts'
 import { pushRecent } from '../lib/recent.ts'
 import { optOneOf, optUuid } from '../lib/search.ts'
 import { spaceQuery } from '../lib/space-queries.ts'
@@ -59,10 +61,28 @@ function EntryPage() {
   const sharedTarget = useSharedTarget(entryId)
   const setAside = useAsideSlot((s) => s.set)
   const [fieldsOpen, setFieldsOpen] = useState(false)
+  const [docBarSlot, setDocBarSlot] = useState<HTMLDivElement | null>(null)
   // 写权限由服务端票据最终判定（onAuthenticated scope）；此处按角色给乐观值
   const canWrite = !!e && (e.authorId === me.id || me.workspaceRole !== 'guest')
   // 在记录页按 e = 建同级页（语雀式，ADR-0018）；对话框里可改为子页
   useNewEntryContext(e ? entryPageContext(e) : null)
+  const prefs = useReading((s) => s.prefs)
+  const focus = useFocusMode((s) => s.on)
+  const setFocus = useFocusMode((s) => s.set)
+  // 专注只属于当前记录页：离开即退出
+  useEffect(() => () => setFocus(false), [setFocus])
+  // mod+shift+enter 在正文里会先被编辑器当作换行吃掉：捕获阶段先拦下（全局热键表里的同名项只作 ⌘K 提示）
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key !== 'Enter' || !ev.shiftKey || !(ev.metaKey || ev.ctrlKey) || ev.isComposing)
+        return
+      ev.preventDefault()
+      ev.stopPropagation()
+      setFocus(!useFocusMode.getState().on)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [setFocus])
   const tab: AsideTab = search.aside ?? 'outline'
   const tabRef = useRef(tab)
   tabRef.current = tab
@@ -102,16 +122,14 @@ function EntryPage() {
 
   return (
     <article
-      className={cn(
-        'paper mx-auto rounded-xl px-6 py-8 shadow-card sm:px-10',
-        search.wide ? 'max-w-[1080px]' : 'max-w-[760px]',
-      )}
+      className="paper xz-reading mx-auto rounded-xl px-6 py-8 shadow-card sm:px-10"
+      {...readingAttrs(prefs, search.wide ? 'full' : prefs.width)}
       data-testid="entry-page"
     >
       {e ? (
         <>
-          <Breadcrumb entry={e} />
-          <div className="mb-2 flex items-center gap-2 text-xs">
+          {focus ? null : <Breadcrumb entry={e} />}
+          <div className={cn('mb-2 flex items-center gap-2 text-xs', focus && 'hidden')}>
             <KindBadge kind={e.kind} typeId={e.typeId} size="md" />
             <span className="text-fg-muted">{t(`entry.visibility.${e.visibility}`)}</span>
             {e.archivedAt ? (
@@ -171,7 +189,9 @@ function EntryPage() {
               </h1>
             )}
           </div>
-          {e.kind !== 'note' ? (
+          {/* 文档栏插槽（ADR-0029）：阅读 / 保存 / 字数，由编辑器 portal 进来；预留高度避免加载时跳动 */}
+          <div ref={setDocBarSlot} className="xz-doc-bar-slot" />
+          {e.kind !== 'note' && !focus ? (
             <div className="mb-6">
               <button
                 type="button"
@@ -199,6 +219,7 @@ function EntryPage() {
               user={{ id: me.id, name: me.displayName || me.name }}
               canWrite={canWrite}
               place={{ spaceId: e.spaceId, treeOrder: e.treeOrder }}
+              docBarSlot={docBarSlot}
             />
           </Suspense>
         </>

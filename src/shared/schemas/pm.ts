@@ -64,6 +64,7 @@ export const FULL_MARKS = [
   'strike',
   'code',
   'highlight',
+  'textColor',
   'link',
   'subscript',
   'superscript',

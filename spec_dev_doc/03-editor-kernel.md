@@ -43,7 +43,9 @@
 | 行内 | text, hardBreak, mathInline, **mention**(`userId`) , **entryLink**(`entryId`, `mode: inline\|title`) , emoji（原生 unicode，不引扩展） | |
 | 标记 | bold, italic, underline, strike, code, highlight, link(`href`, 协议白名单 `http https mailto xz:`), subscript, superscript, textAlign（属性）, **comment**(`threadId`) | |
 
-不做：字体家族/字号/颜色标记（设计体系统一排版，见 04）；多列布局；内嵌 iframe（安全）。
+不做：字体家族/字号/~~颜色标记~~（设计体系统一排版，见 04）；多列布局；内嵌 iframe（安全）。
+
+注 2026-09-28（ADR-0025）：放开**色板颜色**——`textColor { color }` 与 highlight 的 `color`，只存 9 色板 key、渲染 `data-*`、CSS 取 `--xz-palette-*`；任意色值、字号、字体仍不做。
 
 ### 3.2 自定义节点规格
 
@@ -60,6 +62,7 @@
 > - `mermaid` 属性名沿用 `code`，与 seed、导出一致，未改为 `source`。
 > - callout 渲染为 `<aside data-callout>`，不是 `<div>`，解析规则只认 `data-callout`。
 > - toc 自绘节点视图，实时读当前文档标题，没有引入 `table-of-contents` 扩展；Aside 大纲共用同一份数据（`useOutline`）。
+> - 注 2026-09-28（ADR-0027）：渲染为主色卡片（标题行 + 跳级压缩编号，不用浏览器列表序号）；插入后光标落到其下的段落。
 
 ### 3.3 Schema 版本
 
@@ -121,6 +124,7 @@
 - 触发：每 50 次 `onStoreDocument` 或 距上次 ≥ 30 分钟 或 用户手动「标记版本」（带 label）。
 - 存储：`entry_snapshots.snapshot = Y.encodeSnapshot(Y.snapshot(doc))`，附 `ydoc_version`。
 - 保留：未标记快照保留最近 100 个 + 每天最后一个保留 90 天；标记快照永久。
+- 注 2026-09-28（ADR-0026）：Ctrl/⌘+S「保存版本」经协同 stateless 消息在 collab 内存权威文档上落库并同事务打快照（`created_by` = 操作者、无 label，版本名由 createdAt 本地格式化 `YYYYMMDD-HHmmss`），手动保存的版本永久保留；「打标记」= PATCH label。
 - ~~前端历史面板：选择两个快照 → `y-prosemirror` 的 `ySyncPluginKey` snapshot 模式渲染 diff（增删着色）~~；「恢复到此版本」= 在当前文档上应用反向变更（**不是**覆盖 ydoc，历史仍连续）。
   > 注 2026-09-25（REQ-COLLAB-008 实现）：
   > - 预览：`GET /entries/:id/snapshots/:sid/content` 服务端以已落库 ydoc（gc:false）`Y.createDocFromSnapshot` 重建快照正文；前端用只读 schemaKit 编辑器渲染（不进入在线编辑器的 snapshot 模式——schema 无 `ychange` 标记，且会中断编辑）。
@@ -194,6 +198,8 @@
 
 ### 11.1 斜杠菜单（`/` 触发，`@tiptap/suggestion`）
 
+注 2026-09-28（ADR-0025）：空查询按分组列出全部命令（分组标题、可滚动），有查询扁平最多 8 条；与文档上方「+」插入面板共用同一注册表（`SLASH_ITEMS` + `insert-meta.tsx`）。
+
 | 分组 | 命令 | 触发词（zh / en） | 插入 |
 |---|---|---|---|
 | 基础 | 标题 1–4 | 标题1 / h1 … | `heading{level}` |
@@ -231,7 +237,7 @@
 | Tab / Shift+Tab | 列表缩进 / 反缩进；表格内移动单元格 |
 | Mod+Z / Mod+Shift+Z | 撤销 / 重做（**Yjs 撤销栈**，只回退本人操作，§4.3） |
 | Mod+Enter | 评论输入框提交；任务描述保存 |
-| Mod+S | 无操作，吞掉（自动保存，显示「已同步」提示 1s） |
+| Mod+S | ~~无操作，吞掉（自动保存，显示「已同步」提示 1s）~~ 注 2026-09-28（ADR-0026）：保存版本（记录页捕获阶段拦截；模板编辑器里仍是保存模板） |
 | `/` | 斜杠菜单 |
 | `@` | 提及（§3.2） |
 | `[[` | 双链选择器 → `entryLink` |

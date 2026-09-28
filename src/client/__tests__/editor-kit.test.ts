@@ -4,7 +4,7 @@ import { Node as PmNodeClass } from '@tiptap/pm/model'
 import { describe, expect, it } from 'vitest'
 import { yXmlFragmentToProseMirrorRootNode } from 'y-prosemirror'
 import * as Y from 'yjs'
-import { pmToHtmlDocument } from '../../shared/editor/serializers/html.ts'
+import { EXPORT_PALETTE, pmToHtmlDocument } from '../../shared/editor/serializers/html.ts'
 import { pmToMarkdown } from '../../shared/editor/serializers/markdown.ts'
 import { FULL_MARKS, FULL_NODES, type PmNode } from '../../shared/schemas/pm.ts'
 import { guardUnknownNodes, MATH_INLINE_RULE } from '../editor/extensions.ts'
@@ -16,7 +16,7 @@ import {
   markdownToHtml,
   sanitizePastedHtml,
 } from '../editor/paste.ts'
-import { filterSlash, SLASH_ITEMS } from '../editor/slash.tsx'
+import { filterSlash, nowText, SLASH_ITEMS } from '../editor/slash.tsx'
 
 const schema = getSchema(schemaKit())
 const p = (text: string): PmNode => ({ type: 'paragraph', content: [{ type: 'text', text }] })
@@ -39,7 +39,11 @@ const SAMPLE: PmNode = {
                 ? { href: 'https://x.dev' }
                 : m === 'comment'
                   ? { threadId: 't1' }
-                  : undefined,
+                  : m === 'textColor'
+                    ? { color: 'red' }
+                    : m === 'highlight'
+                      ? { color: 'blue' }
+                      : undefined,
           }))
             .filter((m) => m.type !== 'code')
             .map((m) => (m.attrs ? m : { type: m.type })),
@@ -92,12 +96,42 @@ const SAMPLE: PmNode = {
 }
 
 describe('editor fullKit', () => {
-  it('REQ-EDITOR-001 schema 含 03 §3.1 全部节点与标记，且无字体 / 字号 / 颜色标记', () => {
+  it('REQ-EDITOR-001 schema 含 03 §3.1 全部节点与标记，且无字体 / 字号 / 任意色值标记（颜色只走色板 textColor，ADR-0025）', () => {
     const nodes = Object.keys(schema.nodes)
     const marks = Object.keys(schema.marks)
     for (const n of FULL_NODES) expect(nodes, n).toContain(n)
     for (const m of FULL_MARKS) expect(marks, m).toContain(m)
     for (const m of ['textStyle', 'color', 'fontFamily', 'fontSize']) expect(marks).not.toContain(m)
+  })
+
+  it('REQ-EDITOR-031 颜色标记只认 9 色板 key：toDOM 只写 data-*，非法值不落地；HTML 导出查表、丢未知 key', () => {
+    const dom = (type: 'textColor' | 'highlight', color: unknown) =>
+      JSON.stringify(schema.marks[type]?.spec.toDOM?.(schema.marks[type]!.create({ color }), true))
+    expect(dom('textColor', 'red')).toContain('"data-text-color":"red"')
+    expect(dom('textColor', 'hotpink')).not.toContain('hotpink')
+    expect(dom('highlight', 'blue')).toContain('"data-color":"blue"')
+    expect(dom('highlight', 'url(evil)')).not.toContain('evil')
+    expect(dom('highlight', null)).not.toContain('style')
+    const html = pmToHtmlDocument('t', {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'a', marks: [{ type: 'textColor', attrs: { color: 'red' } }] },
+            {
+              type: 'text',
+              text: 'b',
+              marks: [{ type: 'textColor', attrs: { color: 'x;background:url(evil)' } }],
+            },
+            { type: 'text', text: 'c', marks: [{ type: 'highlight', attrs: { color: 'green' } }] },
+          ],
+        },
+      ],
+    })
+    expect(html).toContain(`<span style="color:${EXPORT_PALETTE.red?.fg}">a</span>`)
+    expect(html).not.toContain('evil')
+    expect(html).toContain(`<mark style="background:${EXPORT_PALETTE.green?.bg}">c</mark>`)
   })
 
   it('REQ-EDITOR-001 每节点 serializer 往返：fromJSON → toJSON 类型不丢，导出 Markdown / HTML 不抛错', () => {
@@ -173,7 +207,7 @@ describe('editor fullKit', () => {
     expect(sanitizePastedHtml(own)).toBe(own)
   })
 
-  it('REQ-EDITOR-002 斜杠菜单：覆盖 03 §11.1 清单；「表」过滤出表格；最多 8 条', () => {
+  it('REQ-EDITOR-002 斜杠菜单：覆盖 03 §11.1 清单；「表」过滤出表格；有查询最多 8 条、空查询按分组给全部（ADR-0025）', () => {
     const ids = SLASH_ITEMS.map((i) => i.id)
     for (const id of [
       'h1',
@@ -204,7 +238,11 @@ describe('editor fullKit', () => {
     const label = (id: string) => ({ table: '表格' })[id] ?? id
     expect(filterSlash('表', label, (id) => (id === 'table' ? ['表格'] : []))[0]?.id).toBe('table')
     expect(filterSlash('table', label, () => [])[0]?.id).toBe('table')
-    expect(filterSlash('', label).length).toBeLessThanOrEqual(8)
+    // 空查询：全部命令按分组顺序（菜单带分组标题可滚动，ADR-0025 §2）；有查询：扁平最多 8 条
+    const all = filterSlash('', label)
+    expect(all).toHaveLength(SLASH_ITEMS.length)
+    const groups = all.map((it) => it.group).filter((g, i, a) => g !== a[i - 1])
+    expect(new Set(groups).size).toBe(groups.length)
     expect(filterSlash('h', label).length).toBeLessThanOrEqual(8)
   })
 
@@ -225,5 +263,17 @@ describe('editor fullKit', () => {
     expect(MATH_INLINE_RULE.exec('$$')).toBeNull()
     expect(MATH_INLINE_RULE.exec('$ a $')).toBeNull()
     expect(MATH_INLINE_RULE.exec('$a$')?.[2]).toBe('a')
+  })
+
+  it('REQ-EDITOR-035 插入时间：本地时间 date / time / datetime 格式；斜杠「时间」分组含三项', () => {
+    const d = new Date(2026, 8, 29, 7, 5)
+    expect(nowText('date', d)).toBe('2026-09-29')
+    expect(nowText('time', d)).toBe('07:05')
+    expect(nowText('datetime', d)).toBe('2026-09-29 07:05')
+    expect(SLASH_ITEMS.filter((i) => i.group === 'time').map((i) => i.id)).toEqual([
+      'date',
+      'time',
+      'datetime',
+    ])
   })
 })

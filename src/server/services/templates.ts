@@ -3,8 +3,10 @@
  * - 列表 = 内置（代码常量）+ 本人个人模板 + 工作区模板；按 kind / spaceKind 过滤；列表不返回正文（02 §4），详情才带 body。
  * - 另存为模板：由记录已落库 ydoc 即时派生正文（已还原 unknownBlock）+ kind / fields；需可读该记录。
  * - 新建记录套模板（`resolveTemplateBody`）：占位符替换后写成初始 ydoc，之后正文只经协同编辑（不变量 1）。
+ * - ADR-0023：非 guest 成员可把模板共享到工作区；可直接改正文 / 类型 / fields（乐观锁）；「复制到我的」；
+ *   取消共享或删除时同事务清掉引用它的空间默认模板（`spaces.default_template_id` 无外键）。
  */
-import { and, desc, eq, or } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, or } from 'drizzle-orm'
 import type { z } from 'zod'
 import { deriveFromYdoc } from '../../collab/derive.ts'
 import {
@@ -13,7 +15,7 @@ import {
   builtinTemplate,
   fillTemplateVars,
 } from '../../shared/editor/builtin-templates.ts'
-import { defaultEntryFields } from '../../shared/schemas/entryFields.ts'
+import { defaultEntryFields, entryFieldsByKind } from '../../shared/schemas/entryFields.ts'
 import type {
   BuiltinEntryKind,
   EntryKind,
@@ -30,7 +32,7 @@ import { formatLocalDate, localDateOf } from '../../shared/tz.ts'
 import { type Actor, assertCan, can, type TemplateRef } from '../authz.ts'
 import type { Db, DbOrTx } from '../db/index.ts'
 import { user } from '../db/schema/auth.ts'
-import { entryTemplates } from '../db/schema/business.ts'
+import { entryTemplates, spaces } from '../db/schema/business.ts'
 import { AppError } from '../lib/errors.ts'
 import { type EntryCtx, loadEntry } from './entries.ts'
 
@@ -44,8 +46,18 @@ export interface TemplateView {
   spaceKinds: SpaceKind[]
   fields: Record<string, unknown>
   ownerId: string | null
+  /** 作者显示名（内置为 null；账号已删为空串，前端显示「已删除的用户」） */
+  ownerName: string | null
   canManage: boolean
+  /** 作为多少个空间的默认模板（取消共享 / 删除前提示，ADR-0023） */
+  spaceDefaults: number
   updatedAt: string | null
+}
+
+/** 作者名 + 空间默认引用数（列表一次批量查，详情单条查）。 */
+interface RowExtra {
+  names: Map<string, string>
+  defaults: Map<string, number>
 }
 
 type Row = typeof entryTemplates.$inferSelect
@@ -65,10 +77,12 @@ const builtinView = (t: BuiltinTemplate): TemplateView => ({
   spaceKinds: t.spaceKinds,
   fields: t.fields ?? { ...defaultEntryFields[t.kind] },
   ownerId: null,
+  ownerName: null,
   canManage: false,
+  spaceDefaults: 0,
   updatedAt: null,
 })
-const rowView = (actor: Actor, r: Row): TemplateView => ({
+const rowView = (actor: Actor, r: Row, x: RowExtra): TemplateView => ({
   id: r.id,
   source: r.scope as TemplateScope,
   group: null,
@@ -78,9 +92,62 @@ const rowView = (actor: Actor, r: Row): TemplateView => ({
   spaceKinds: r.spaceKind ? [r.spaceKind as SpaceKind] : [],
   fields: (r.fields as Record<string, unknown>) ?? {},
   ownerId: r.ownerId,
+  ownerName: x.names.get(r.ownerId) ?? '',
   canManage: can(actor, 'template.manage', refOf(r)),
+  spaceDefaults: x.defaults.get(r.id) ?? 0,
   updatedAt: r.updatedAt.toISOString(),
 })
+
+async function extraOf(db: DbOrTx, ctx: EntryCtx, rows: Row[]): Promise<RowExtra> {
+  const names = new Map<string, string>()
+  const defaults = new Map<string, number>()
+  if (!rows.length) return { names, defaults }
+  const owners = [...new Set(rows.map((r) => r.ownerId))]
+  for (const u of await db
+    .select({ id: user.id, name: user.name, username: user.displayUsername })
+    .from(user)
+    .where(inArray(user.id, owners)))
+    names.set(u.id, u.name || u.username || '')
+  for (const d of await db
+    .select({ id: spaces.defaultTemplateId, n: count() })
+    .from(spaces)
+    .where(
+      and(
+        eq(spaces.workspaceId, ctx.workspaceId),
+        inArray(
+          spaces.defaultTemplateId,
+          rows.map((r) => r.id),
+        ),
+      ),
+    )
+    .groupBy(spaces.defaultTemplateId))
+    if (d.id) defaults.set(d.id, d.n)
+  return { names, defaults }
+}
+
+const viewOne = async (db: DbOrTx, ctx: EntryCtx, r: Row) =>
+  rowView(ctx.actor, r, await extraOf(db, ctx, [r]))
+
+/** 当前用户能否把模板共享到工作区（前端据此显示开关，不自行比较角色）。 */
+export const canShareTemplate = (ctx: EntryCtx) =>
+  can(ctx.actor, 'template.create', { id: '', ownerId: ctx.actor.id, scope: 'workspace' })
+
+/** 清掉引用该模板的空间默认模板，并推进这些空间的 updated_at（打开着的编辑空间对话框会 409 而不是再写回悬空 id）。 */
+async function clearSpaceDefaults(tx: DbOrTx, workspaceId: string, id: string) {
+  await tx
+    .update(spaces)
+    .set({ defaultTemplateId: null, updatedAt: new Date() })
+    .where(and(eq(spaces.workspaceId, workspaceId), eq(spaces.defaultTemplateId, id)))
+}
+
+/** fields 按 kind 严格校验（与 POST /entries 同一 schema）。 */
+function checkFields(kind: BuiltinEntryKind, fields: unknown) {
+  const r = entryFieldsByKind[kind].safeParse(fields)
+  if (!r.success)
+    throw AppError.validation(
+      r.error.issues.map((i) => ({ path: ['fields', ...i.path].join('.'), message: i.message })),
+    )
+}
 
 async function visibleRows(db: DbOrTx, ctx: EntryCtx) {
   return db
@@ -101,7 +168,8 @@ export async function listTemplates(
   q: z.infer<typeof listTemplatesQuery>,
 ): Promise<TemplateView[]> {
   const rows = (await visibleRows(db, ctx)).filter((r) => can(ctx.actor, 'template.read', refOf(r)))
-  const all = [...BUILTIN_TEMPLATES.map(builtinView), ...rows.map((r) => rowView(ctx.actor, r))]
+  const x = await extraOf(db, ctx, rows)
+  const all = [...BUILTIN_TEMPLATES.map(builtinView), ...rows.map((r) => rowView(ctx.actor, r, x))]
   return all.filter(
     (t) =>
       (!q.kind || t.kind === q.kind) &&
@@ -129,7 +197,7 @@ export async function getTemplate(
     return { ...builtinView(t), body: t.body }
   }
   const r = await loadRow(db, ctx, id)
-  return { ...rowView(ctx.actor, r), body: r.body as PmNode }
+  return { ...(await viewOne(db, ctx, r)), body: r.body as PmNode }
 }
 
 export async function createTemplate(
@@ -154,6 +222,14 @@ export async function createTemplate(
     if (JSON.stringify(body).length > 100 * 1024)
       throw AppError.validation([{ path: 'fromEntryId', message: '正文超过 100KB，不能存为模板' }])
   }
+  if (input.fromTemplateId) {
+    // 复制到我的（ADR-0023）：不可见 / 不存在 → 404（与 GET 一致）
+    const src = await getTemplate(db, ctx, input.fromTemplateId)
+    body = src.body
+    kind = kind ?? (src.kind as BuiltinEntryKind)
+    fields = fields ?? (kind === src.kind ? src.fields : undefined)
+  }
+  if (kind && fields && !input.fromEntryId) checkFields(kind, fields)
   if (!body || !kind) throw AppError.validation([{ path: 'body', message: '缺少正文或类型' }])
   const [row] = await db
     .insert(entryTemplates)
@@ -170,7 +246,7 @@ export async function createTemplate(
     })
     .returning()
   if (!row) throw new Error('insert entry_templates failed')
-  return rowView(ctx.actor, row)
+  return viewOne(db, ctx, row)
 }
 
 export async function patchTemplate(
@@ -180,30 +256,48 @@ export async function patchTemplate(
   input: z.infer<typeof patchTemplateSchema>,
 ): Promise<TemplateView> {
   if (id.startsWith('builtin:')) throw AppError.forbidden('内置模板不可修改')
-  const r = await loadRow(db, ctx, id)
-  assertCan(ctx.actor, 'template.manage', refOf(r))
-  if (input.scope && input.scope !== r.scope)
-    assertCan(ctx.actor, 'template.create', { id: r.id, ownerId: r.ownerId, scope: input.scope })
-  const [row] = await db
-    .update(entryTemplates)
-    .set({
-      ...(input.name !== undefined ? { name: input.name } : {}),
-      ...(input.description !== undefined ? { description: input.description } : {}),
-      ...(input.scope !== undefined ? { scope: input.scope } : {}),
-      ...(input.spaceKind !== undefined ? { spaceKind: input.spaceKind } : {}),
-      updatedAt: new Date(),
-    })
-    .where(eq(entryTemplates.id, id))
-    .returning()
-  if (!row) throw AppError.notFound()
-  return rowView(ctx.actor, row)
+  return db.transaction(async (tx) => {
+    const r = await loadRow(tx, ctx, id)
+    assertCan(ctx.actor, 'template.manage', refOf(r))
+    if (input.scope && input.scope !== r.scope)
+      assertCan(ctx.actor, 'template.create', { id: r.id, ownerId: r.ownerId, scope: input.scope })
+    if (r.updatedAt.toISOString() !== new Date(input.ifUpdatedAt).toISOString())
+      throw new AppError(409, 'CONFLICT_STALE', '模板已被他人修改', {
+        current: await viewOne(tx, ctx, r),
+      })
+    const kind = input.kind ?? (r.kind as BuiltinEntryKind)
+    let fields = input.fields
+    if (fields) checkFields(kind, fields)
+    else if (input.kind && input.kind !== r.kind) fields = { ...defaultEntryFields[kind] }
+    const [row] = await tx
+      .update(entryTemplates)
+      .set({
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.description !== undefined ? { description: input.description } : {}),
+        ...(input.scope !== undefined ? { scope: input.scope } : {}),
+        ...(input.spaceKind !== undefined ? { spaceKind: input.spaceKind } : {}),
+        ...(input.kind !== undefined ? { kind: input.kind } : {}),
+        ...(fields !== undefined ? { fields } : {}),
+        ...(input.body !== undefined ? { body: input.body } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(entryTemplates.id, id))
+      .returning()
+    if (!row) throw AppError.notFound()
+    if (r.scope === 'workspace' && row.scope !== 'workspace')
+      await clearSpaceDefaults(tx, ctx.workspaceId, id)
+    return viewOne(tx, ctx, row)
+  })
 }
 
 export async function deleteTemplate(db: Db, ctx: EntryCtx, id: string): Promise<void> {
   if (id.startsWith('builtin:')) throw AppError.forbidden('内置模板不可删除')
-  const r = await loadRow(db, ctx, id)
-  assertCan(ctx.actor, 'template.manage', refOf(r))
-  await db.delete(entryTemplates).where(eq(entryTemplates.id, id))
+  await db.transaction(async (tx) => {
+    const r = await loadRow(tx, ctx, id)
+    assertCan(ctx.actor, 'template.manage', refOf(r))
+    await tx.delete(entryTemplates).where(eq(entryTemplates.id, id))
+    await clearSpaceDefaults(tx, ctx.workspaceId, id)
+  })
 }
 
 /**

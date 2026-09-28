@@ -1,0 +1,170 @@
+/* 图表与公式（ADR-0025 §8、REQ-EDITOR-007 · 008）：Mermaid / KaTeX 节点视图样式。色值只取 tokens.css。 */
+/* KaTeX 不继承 body 的 text-wrap: pretty：两者叠加时 Chromium 渲染块级公式会整页崩溃（debug/2026-09-28-katex-text-wrap-pretty-crash） */
+.xz-math-preview,
+.katex-display,
+.katex,
+.katex * {
+  text-wrap: wrap;
+}
+
+/* ---- Mermaid ---- */
+.xz-prose .xz-diagram {
+  border: 1px solid var(--xz-border);
+  border-radius: var(--xz-radius-md);
+  background: var(--xz-surface-solid);
+  overflow: hidden;
+}
+.xz-prose .xz-diagram.ProseMirror-selectednode,
+.xz-prose .xz-math-block.ProseMirror-selectednode {
+  outline: 2px solid var(--xz-focus-color);
+  outline-offset: 2px;
+}
+.xz-diagram-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2rem;
+  padding: 0.25rem 0.5rem 0.25rem 0.75rem;
+  border-bottom: 1px solid var(--xz-divider);
+  background: var(--xz-surface-solid-2);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--xz-fg-muted);
+}
+.xz-diagram-label {
+  flex: 1;
+  font-family: var(--xz-font-mono);
+}
+.xz-diagram-btn {
+  height: 1.5rem;
+  padding: 0 0.5rem;
+  border-radius: var(--xz-radius-sm);
+  color: var(--xz-primary-text);
+  transition: background-color var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-diagram-btn:hover {
+  background: var(--xz-hover-bg);
+}
+.xz-diagram-preview {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  text-align: center;
+  line-height: 1.5;
+}
+.xz-diagram-click {
+  cursor: pointer;
+  transition: background-color var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-diagram-click:hover {
+  background: var(--xz-hover-bg);
+}
+.xz-diagram-svg svg {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+}
+.xz-diagram-empty {
+  margin: 0;
+  color: var(--xz-fg-muted);
+  font-size: 0.875rem;
+}
+.xz-diagram-error {
+  margin: 0 0 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--xz-radius-sm);
+  background: var(--xz-danger-soft);
+  color: var(--xz-danger);
+  text-align: left;
+  font-size: 0.8125rem;
+}
+.xz-diagram-error pre {
+  margin: 0.25rem 0 0;
+  white-space: pre-wrap;
+  font-family: var(--xz-font-mono);
+  font-size: 0.75rem;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+}
+.xz-diagram-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (width >= 64rem) {
+  .xz-diagram-editor {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .xz-diagram-editor > .xz-diagram-preview {
+    border-left: 1px solid var(--xz-divider);
+  }
+}
+.xz-diagram-source {
+  min-height: 6rem;
+  padding: 0 0.75rem;
+  background: var(--xz-surface-solid);
+  text-align: left;
+}
+
+/* ---- 公式 ---- */
+.xz-prose .xz-math-block {
+  border-radius: var(--xz-radius-md);
+}
+.xz-math-preview {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--xz-radius-md);
+  text-align: center;
+  overflow-x: auto;
+}
+.xz-math-edit {
+  border: 1px solid var(--xz-border);
+  border-radius: var(--xz-radius-md);
+  background: var(--xz-surface-solid);
+  overflow: hidden;
+}
+.xz-math-edit > .xz-math-preview {
+  border-top: 1px solid var(--xz-divider);
+  border-radius: 0;
+}
+.xz-math-input {
+  display: block;
+  width: 100%;
+  resize: vertical;
+  padding: 0.5rem 0.75rem;
+  background: var(--xz-surface-solid-2);
+  color: var(--xz-fg);
+  font-family: var(--xz-font-mono);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  outline: none;
+}
+.xz-math-inline-btn {
+  padding: 0 0.125rem;
+  border-radius: var(--xz-radius-sm);
+  font: inherit;
+  color: inherit;
+}
+.xz-math-inline-btn:hover {
+  background: var(--xz-hover-bg);
+}
+.xz-math-inline-empty {
+  color: var(--xz-fg-muted);
+  font-family: var(--xz-font-mono);
+  font-size: 0.9em;
+}
+.xz-math-inline-input {
+  padding: 0 0.25rem;
+  border: 1px solid var(--xz-selected-border);
+  border-radius: var(--xz-radius-sm);
+  background: var(--xz-surface-solid);
+  color: var(--xz-fg);
+  font-family: var(--xz-font-mono);
+  font-size: 0.9em;
+  outline: none;
+}
+.xz-prose .ProseMirror-selectednode > .xz-math-inline-btn {
+  background: var(--xz-selected-bg);
+}

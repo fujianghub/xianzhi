@@ -66,6 +66,8 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: true,
     target: 'es2023',
+    // 字体不内联成 data: URL（KaTeX 小字重 < 4KB 会被内联，生产 CSP 无 font-src data: 会拦截，ADR-0025）
+    assetsInlineLimit: (file) => (/\.(woff2?|ttf|otf)$/.test(file) ? false : undefined),
     rolldownOptions: {
       output: {
         codeSplitting: {

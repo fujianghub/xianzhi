@@ -322,6 +322,7 @@ export async function purgeUser(db: Db, ctx: UsersCtx, userId: string): Promise<
     await tx.delete(member).where(eq(member.id, target.m.id))
     await tx.execute(sql`delete from space_members where user_id = ${userId}`)
     await tx.execute(sql`delete from notification_preferences where user_id = ${userId}`)
+    await tx.execute(sql`delete from user_preferences where user_id = ${userId}`)
     await tx.execute(sql`delete from push_subscriptions where user_id = ${userId}`)
     // 个人模板随人删除；工作区模板保留（管理员可管，ADR-0011 §2）
     await tx.execute(

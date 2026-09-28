@@ -113,6 +113,10 @@ export const moveEntrySchema = z.union([
   z.object({ detach: z.literal(true) }),
 ])
 export const createSnapshotSchema = z.object({ label: z.string().trim().min(1).max(80) })
+/** 给版本打标记 / 改标记 / 清除（ADR-0026、REQ-COLLAB-018）：null = 清除（自动快照清除后回到保留策略）。 */
+export const patchSnapshotSchema = z
+  .object({ label: z.string().trim().min(1).max(80).nullable() })
+  .strict()
 /** POST /entries/batch（ADR-0014、REQ-ENTRY-013）：逐条鉴权，部分失败不回滚其它条。 */
 export const batchEntriesSchema = z.discriminatedUnion('op', [
   z.object({

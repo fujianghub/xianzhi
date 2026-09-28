@@ -1,7 +1,7 @@
 /**
  * REQ-UI-003 对比度矩阵（06 §7、04 §2.1）：解析 src/client/styles/tokens.css 两主题，在「最坏合成底」上计算 WCAG 对比度。
  * - 日场最坏底：glass-thin 叠在 glow-2 峰值上（再叠 bg）；夜场：glass-thick 叠 glow-3 峰值
- * - 另算纸面 surface-solid
+ * - 另算纸面 surface-solid 与阅读纸张 paper-rice / paper-kraft（ADR-0024）
  * 门槛：燕印 seal-bird / seal-to ≥ 3、/ seal-from ≥ 2、seal-leaf / seal-to ≥ 3（ADR-0007）；fg ≥ 7、fg-muted ≥ 4.5、fg-faint ≥ 3；primary-fg on primary / primary-bright ≥ 4.5；语义色图标 on 纸面 ≥ 3；
  * 危险文字 on danger-soft ≥ 4.5；9 色板 fg on bg ≥ 4.5（AA，ADR-0010）。
  * ADR-0005：primary 只作填充，主色当文字 / 图标由 primary-text 承担（两底 ≥ 4.5）；danger-fg on danger ≥ 4.5；
@@ -57,6 +57,9 @@ for (const [name, t, worstGlass, worstGlow] of [
   for (const [bgName, back] of [
     ['最坏玻璃底', worst],
     ['纸面', paperBg],
+    // ADR-0024 阅读纸张（整片底色的两种；纹理纸张以纸面为底）
+    ['宣纸', get('--xz-paper-rice')],
+    ['牛皮纸', get('--xz-paper-kraft')],
   ] as const) {
     check(`fg / ${bgName}`, get('--xz-fg'), back, 7)
     check(`fg-muted / ${bgName}`, get('--xz-fg-muted'), back, 4.5)
@@ -92,6 +95,14 @@ for (const [name, t, worstGlass, worstGlow] of [
     check(`code-${c} / code-bg`, get(`--xz-code-${c}`), get('--xz-code-bg'), 4.5)
   for (const c of PALETTE_COLORS)
     check(`palette ${c} fg / bg`, get(`--xz-palette-${c}-fg`), get(`--xz-palette-${c}-bg`), 4.5)
+  // ADR-0025 文字色标记直接落在纸面 / 宣纸 / 牛皮纸上：9 色板 fg ≥ 4.5
+  for (const c of PALETTE_COLORS)
+    for (const [bgName, back] of [
+      ['纸面', paperBg],
+      ['宣纸', get('--xz-paper-rice')],
+      ['牛皮纸', get('--xz-paper-kraft')],
+    ] as const)
+      check(`palette ${c} 文字 / ${bgName}`, get(`--xz-palette-${c}-fg`), back, 4.5)
 }
 
 if (process.argv.includes('--verbose') || problems.length) console.info(rows.join('\n'))

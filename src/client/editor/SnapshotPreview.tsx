@@ -23,6 +23,8 @@ export interface SnapshotMeta {
   id: string
   label: string | null
   ydocVersion: number
+  /** 手动保存 / 标记 / 恢复前 = 操作者；自动快照为 null（ADR-0026） */
+  createdBy?: string | null
   createdAt: string
 }
 

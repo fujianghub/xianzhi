@@ -612,6 +612,13 @@ export const notificationPreferences = pgTable(
   ],
 )
 
+/** 阅读与写作偏好（ADR-0024）：一人一行；reading 只存用户改过的键，读取时补默认。 */
+export const userPreferences = pgTable('user_preferences', {
+  userId: userRef().primaryKey(),
+  reading: jsonb().notNull().default({}),
+  updatedAt: updatedAt(),
+})
+
 export const pushSubscriptions = pgTable(
   'push_subscriptions',
   {

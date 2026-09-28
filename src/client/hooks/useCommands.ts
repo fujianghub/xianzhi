@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { downloadEntryExport } from '../lib/entry-export.ts'
 import { entryQuery } from '../lib/entry-queries.ts'
+import { useFocusMode } from '../lib/reading.ts'
 import {
   useCommandContext,
   useLayout,
@@ -44,7 +45,21 @@ export function hotkeyParts(hotkey: string): string[] {
   return hotkey
     .split(' ')
     .flatMap((k) => k.split('+'))
-    .map((k) => (k === 'mod' ? (mac ? '⌘' : 'Ctrl') : k.length === 1 ? k.toUpperCase() : k))
+    .map((k) =>
+      k === 'mod'
+        ? mac
+          ? '⌘'
+          : 'Ctrl'
+        : k === 'shift'
+          ? mac
+            ? '⇧'
+            : 'Shift'
+          : k === 'enter'
+            ? '↵'
+            : k.length === 1
+              ? k.toUpperCase()
+              : k,
+    )
 }
 
 export function useCommands(): { commands: Cmd[]; target: ReturnType<typeof useTarget> } {
@@ -59,6 +74,8 @@ export function useCommands(): { commands: Cmd[]; target: ReturnType<typeof useT
   const setHelp = usePalette((s) => s.setHelp)
   const setPalette = usePalette((s) => s.setOpen)
   const peek = usePeek((s) => s.open)
+  const focusOn = useFocusMode((s) => s.on)
+  const setFocus = useFocusMode((s) => s.set)
   const entryActions = useEntryActions()
 
   const commands = useMemo<Cmd[]>(() => {
@@ -257,6 +274,26 @@ export function useCommands(): { commands: Cmd[]; target: ReturnType<typeof useT
         run: toggleAside,
       },
       {
+        id: 'prefs.reading',
+        group: 'prefs',
+        label: t('cmd.readingSettings'),
+        keywords: ['font', 'paper', 'ziti', 'paiban', 'zhizhang'],
+        run: go('/settings/reading'),
+      },
+      // 专注写作只在记录页（ADR-0024 §5）；放 prefs 组才会注册全局热键
+      ...(target.kind === 'entry'
+        ? [
+            {
+              id: 'prefs.focus',
+              group: 'prefs' as const,
+              label: t(focusOn ? 'cmd.focusExit' : 'cmd.focus'),
+              keywords: ['focus', 'zen', 'zhuanzhu'],
+              hotkey: 'mod+shift+enter',
+              run: () => setFocus(!useFocusMode.getState().on),
+            },
+          ]
+        : []),
+      {
         id: 'ui.palette',
         group: 'prefs',
         label: t('cmd.palette'),
@@ -284,6 +321,8 @@ export function useCommands(): { commands: Cmd[]; target: ReturnType<typeof useT
     toggleAside,
     density,
     setDensity,
+    focusOn,
+    setFocus,
     setHelp,
     setPalette,
     peek,

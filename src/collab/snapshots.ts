@@ -3,7 +3,7 @@
  * 自动触发：距上个快照（无则以版本 0 / 记录创建时间为基准）版本差 ≥ 50，或 ≥ 30 分钟且版本有前进。
  * 保留：标记快照永久；未标记保留最近 100 个 + 每天最后一个 90 天（07 §3 gc.snapshots）。
  */
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, or, sql } from 'drizzle-orm'
 import * as Y from 'yjs'
 import type { DbOrTx } from '../server/db/index.ts'
 import { entries, entrySnapshots } from '../server/db/schema/business.ts'
@@ -88,13 +88,14 @@ export async function gcSnapshots(db: DbOrTx, now = new Date()): Promise<number>
   const cutoff = new Date(now.getTime() - SNAPSHOT_POLICY.keepDailyDays * 86_400_000)
   const r = await db.execute<{ id: string }>(sql`
     with ranked as (
-      select id, label, created_at,
+      select id, label, created_by, created_at,
         row_number() over (partition by entry_id order by created_at desc, id desc) as rn,
         row_number() over (partition by entry_id, date_trunc('day', created_at) order by created_at desc, id desc) as day_rn
       from ${entrySnapshots}
     ), victims as (
       select id from ranked
       where label is null
+        and created_by is null
         and rn > ${SNAPSHOT_POLICY.keepLatest}
         and not (day_rn = 1 and created_at >= ${cutoff})
       limit ${SNAPSHOT_POLICY.gcBatch}
@@ -115,6 +116,22 @@ export async function listSnapshotRows(db: DbOrTx, entryId: string) {
     .from(entrySnapshots)
     .where(eq(entrySnapshots.entryId, entryId))
     .orderBy(desc(entrySnapshots.createdAt))
+}
+
+/** 最近一个手动 / 带标记的快照（保存版本「没有新改动」判定的比较基准，不含自动快照，ADR-0026）。 */
+export async function latestManualSnapshot(db: DbOrTx, entryId: string) {
+  const [row] = await db
+    .select({ snapshot: entrySnapshots.snapshot })
+    .from(entrySnapshots)
+    .where(
+      and(
+        eq(entrySnapshots.entryId, entryId),
+        or(isNotNull(entrySnapshots.label), isNotNull(entrySnapshots.createdBy)),
+      ),
+    )
+    .orderBy(desc(entrySnapshots.createdAt))
+    .limit(1)
+  return row ?? null
 }
 
 export async function getSnapshotRow(db: DbOrTx, entryId: string, sid: string) {
