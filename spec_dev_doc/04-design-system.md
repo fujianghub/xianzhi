@@ -1,6 +1,6 @@
 # 04 设计体系
 
-> 状态：已采纳 · 版本：v3 · 更新：2026-09-25 · 最后对照代码：2026-09-25（REQ-UI-034 宽屏速览栏、日历组件；此前 ADR-0005 / 0006：动效档位、组件清单） · 依据 ADR-0001 §9.3、ADR-0002。组件只消费本文定义的 token；新增视觉决定先改本文再改代码。品牌视觉细节（插画、Logo）在进入 UI 阶段时用设计画布定稿后回填 §2。
+> 状态：已采纳 · 版本：v3 · 更新：2026-09-29（ADR-0024 ~ 0032：阅读字体 / 纸张 token、记录页文档栏与格式栏、专注 / 保存版本快捷键）· 最后对照代码：2026-09-29；此前 2026-09-25（REQ-UI-034 宽屏速览栏、日历组件；此前 ADR-0005 / 0006：动效档位、组件清单） · 依据 ADR-0001 §9.3、ADR-0002。组件只消费本文定义的 token；新增视觉决定先改本文再改代码。品牌视觉细节（插画、Logo）在进入 UI 阶段时用设计画布定稿后回填 §2。
 
 ---
 
@@ -65,10 +65,14 @@
 | `--xz-font-mono` | `"JetBrains Mono", "MiSans", monospace` | 代码；回退到 MiSans 保证中文注释 |
 | `--xz-font-display` | `"LXGW WenKai Screen", "Kaiti SC", …` | 展示字：品牌位、登录标题、页头题记（ADR-0005；只有 400，禁伪加粗） |
 | `--xz-font-brand-en` | `"Cormorant Garamond", Georgia, serif` | 英文品牌字 `Xianzhi`（italic 500） |
+| `--xz-font-song` | `"Songti SC", "STSong", "SimSun", "Noto Serif SC", …, serif` | 阅读偏好「宋体」（ADR-0024；系统字体栈，不新增依赖） |
+| `--xz-font-system` | `system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif` | 阅读偏好「系统」 |
 
 字号（rem，基准 16px）：`xs 0.75 · sm 0.875 · base 1 · lg 1.125 · xl 1.25 · 2xl 1.5 · 3xl 1.875`。
 行高：UI 1.5；正文阅读 1.75；标题 1.25。
-中文排版：`text-wrap: pretty`；标点挤压不做；中英文间不自动加空格（内容层由用户决定）。
+中文排版：`text-wrap: pretty`；标点挤压不做；中英文间不自动加空格（内容层由用户决定）。（注 2026-09-28：KaTeX 公式区域改 `text-wrap: wrap`，否则 Chromium 渲染块级公式整页崩溃，debug/2026-09-28-katex-text-wrap-pretty-crash）
+
+注 2026-09-28（ADR-0024 / 0026 / 0027）：记录正文的字体 / 字号 / 行距 / 段距 / 版心 / 缩进 / 对齐 / 纸张 / 章节编号 / 目录深度由本人**阅读偏好**决定（`.xz-reading[data-*]` → `--xz-read-*`，缺省 = 本节数值；版心默认满栏，正文与目录编号默认开），标题字号用 em 随字号缩放。
 字体加载：`font-display: swap` + 预加载 UI 字重 400/500/600；子集按 `unicode-range` 分块（fontsource 方案）。（注 2026-09-24：已实现于 `src/client/styles/fonts.css`，npm 包 `misans` / `lxgw-wenkai-screen-webfont` / `@fontsource/*`；未做 preload。）
 
 ### 2.3 间距、圆角、阴影、层级
@@ -121,8 +125,9 @@
 < lg：Sidebar 抽屉、Aside 底部 sheet、底部导航（今日 / 收件箱 / 搜索 / 通知 / 我）
 ```
 
-- 内容最大宽：编辑器正文 760px 居中（可切「宽屏」1080）；列表/看板全宽（注 2026-09-25，REQ-UI-034：今日 / 收件箱 / 通知用 `layout/WithRail.tsx`——主列 ≤ 96rem + ≥ xl 的 20rem 速览栏 `GlanceRail`；日历页组件在 `components/calendar/`，色板类取 `parts.tsx` 的 BLOCK / DOT / TEXT）。
+- 内容最大宽：编辑器正文 760px 居中（可切「宽屏」1080；注 2026-09-28，ADR-0026：改由阅读偏好「版心」决定，默认满栏，`?wide=1` 强制满栏）；列表/看板全宽（注 2026-09-25，REQ-UI-034：今日 / 收件箱 / 通知用 `layout/WithRail.tsx`——主列 ≤ 96rem + ≥ xl 的 20rem 速览栏 `GlanceRail`；日历页组件在 `components/calendar/`，色板类取 `parts.tsx` 的 BLOCK / DOT / TEXT）。
 - 密度：`comfortable`（默认）/ `compact`（行高 -20%），用户设置。
+- 注 2026-09-29（ADR-0029 ~ 0031）记录页纵向结构：类型标签行 → 标题 → **文档栏**（不吸顶：左 字数 · 上次保存；右「阅读」胶囊 + 专注 |「文档」保存版本 + Markdown）→ **格式栏**（吸顶在顶栏下，素净一行 + 与正文等宽细线，放不下的组收进「…」，吸住后极淡阴影；< lg 由底部 MobileToolbar 代替）→ 正文（不画焦点框）。
 
 ---
 
@@ -154,6 +159,7 @@
 - **表单**：react-hook-form + Zod；错误就地显示；自动保存的表单显示「已保存 · 刚刚」。
 - **通知**：铃铛未读数；面板分「全部 / 提及 / 未读」；点击跳转并标已读；Toast 仅用于当前操作结果，不用于他人事件（他人事件走铃铛 + 可选桌面 Push）。
 - **移动端**：底部导航；任务行左滑完成、右滑改期；编辑器工具条固定底部随键盘上移；长按进入多选。
+- 注 2026-09-28（ADR-0024 / 0026）新增快捷键：`mod+shift+enter` 专注写作（Esc 退出；记录页捕获阶段处理，编辑器内也有效）；`Mod+S` 在记录页 = 保存版本（捕获阶段拦截浏览器另存为，模板编辑器里 = 保存模板）；`useHotkeys` 仅在按住 mod 时把 Shift 编进组合（`mod+shift+x`）。⌘K 新增「阅读与写作设置」「进入 / 退出专注写作」。
 
 ---
 

@@ -1,6 +1,6 @@
 # 05 开发流程
 
-> 状态：已采纳 · 版本：v4 · 更新：2026-09-24 · 最后对照代码：2026-09-24（拼图 e2e、视觉基线、依赖安装） · 依据 ADR-0001 §6–7。命令、端口、环境、测试、CI、部署、备份、文档纪律的权威来源。CLAUDE.md 只摘录本文的命令段。
+> 状态：已采纳 · 版本：v4 · 更新：2026-09-29（验证实例重启、偏好复位、mermaid / katex 懒加载）· 最后对照代码：2026-09-29；此前 2026-09-24（拼图 e2e、视觉基线、依赖安装） · 依据 ADR-0001 §6–7。命令、端口、环境、测试、CI、部署、备份、文档纪律的权威来源。CLAUDE.md 只摘录本文的命令段。
 > 分期术语（全部规范统一）：**一期 = Phase 0 + 1 + 2**（可用版本；工期计划值见 ADR-0003 与 `tasks/phase-N.md`）；**二期 = Phase 3**（MCP、git / debug 导入、AI、pgvector、PWA 打磨）。不再使用「三期」。
 
 ---
@@ -94,6 +94,11 @@ LOG_LEVEL=info
 
 验证实例（对照简斋教训）：**永远不要**在主 dev server 运行时于同一目录再起一个共享 `.vite` 缓存的实例；`pnpm e2e` 与 `pnpm dev:verify` 使用独立 `cacheDir: node_modules/.vite-verify` 与独立端口。
 
+注 2026-09-29：
+- `pnpm dev:verify` 的 api / collab 是 `tsx` 直跑（**不带 watch**，与 `pnpm dev` 不同）：改了服务端代码（含被服务端引用的 `src/shared/schemas/*`、偏好默认值）必须重启验证实例，否则 e2e 测到的是旧服务端（2026-09-28 保存版本 / 偏好 schema 两次踩中）。
+- 验证实例按 IP 启动时 `XZ_E2E_BASE` 必须与其 `APP_URL` 同源；REQ-COLLAB-011 用例写死杀 8013，只能对 3011 那套跑。
+- 新依赖 `mermaid`、`katex`（与 mermaid 自带版本去重锁 `^0.16`）只允许在编辑器节点视图里动态 `import()`；`vite.config.ts` 构建时字体不内联（生产 CSP 无 `font-src data:`）。
+
 ---
 
 ## 4. 分支、提交、文档纪律
@@ -140,6 +145,8 @@ LOG_LEVEL=info
 | 可访问性 | `@axe-core/playwright` | 每个路由 | 无 serious 以上 |
 
 约定：Playwright 对 sticky/被遮挡元素一律 `page.evaluate` DOM `click()`（简斋教训）；轮询网络时夹空 `page.evaluate`。
+
+注（2026-09-29）：阅读偏好按人存在共享库 `user_preferences`——改偏好的 e2e 必须 `beforeEach` / `afterEach` 复位（手动试用与前序用例都会留下改动；ADR-0028 一次版心未复位导致后续用例按钮被收进「…」）；编辑器相关 e2e 断言吸顶格式栏里的按钮时注意窄版心 / 1280 宽会收纳，宜固定 1920 宽 + 满栏。
 
 注（2026-09-24，登录拼图与视觉基线）：
 - 登录前置服务端拼图（ADR-0006）。API 测试的 `signIn()` 先取 `/api/captcha`（`captcha: { debug: true, minSolveMs: 0 }`）再提交；e2e `login()` 调 `solveCaptcha()`：读 `data-debug-x`（验证实例 `XZ_CAPTCHA_DEBUG=1` 才有，production 服务端强制不回显），等 700 ms（最短解题时间 + 手柄回弹）后真实拖拽。
