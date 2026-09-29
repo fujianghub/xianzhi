@@ -149,6 +149,16 @@ function checkFields(kind: BuiltinEntryKind, fields: unknown) {
     )
 }
 
+/** 模板不带日期（ADR-0033）：Bug 的发现 / 解决日期在用模板新建时由服务端重新补。 */
+const TEMPLATE_DROP_KEYS: Partial<Record<BuiltinEntryKind, string[]>> = {
+  bug: ['foundAt', 'resolvedAt'],
+}
+function templateFields(kind: BuiltinEntryKind, fields: Record<string, unknown>) {
+  const drop = TEMPLATE_DROP_KEYS[kind]
+  if (!drop) return fields
+  return Object.fromEntries(Object.entries(fields).filter(([k]) => !drop.includes(k)))
+}
+
 async function visibleRows(db: DbOrTx, ctx: EntryCtx) {
   return db
     .select()
@@ -242,7 +252,7 @@ export async function createTemplate(
       kind,
       spaceKind: input.spaceKind ?? null,
       body,
-      fields: fields ?? { ...defaultEntryFields[kind] },
+      fields: templateFields(kind, fields ?? { ...defaultEntryFields[kind] }),
     })
     .returning()
   if (!row) throw new Error('insert entry_templates failed')
@@ -277,7 +287,7 @@ export async function patchTemplate(
         ...(input.scope !== undefined ? { scope: input.scope } : {}),
         ...(input.spaceKind !== undefined ? { spaceKind: input.spaceKind } : {}),
         ...(input.kind !== undefined ? { kind: input.kind } : {}),
-        ...(fields !== undefined ? { fields } : {}),
+        ...(fields !== undefined ? { fields: templateFields(kind, fields) } : {}),
         ...(input.body !== undefined ? { body: input.body } : {}),
         updatedAt: new Date(),
       })

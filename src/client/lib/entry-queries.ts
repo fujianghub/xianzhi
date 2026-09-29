@@ -20,6 +20,8 @@ export const ENTRY_KINDS = [
   'plan',
 ] as const satisfies readonly EntryKind[]
 export const ENTRY_SORTS = ['-updatedAt', '-createdAt', 'title'] as const
+/** 只选 Bug 时多出的排序（ADR-0033） */
+export const BUG_SORTS = ['priority', '-foundAt'] as const
 
 /** 与 02 §9 查询参数同名（kind 为 csv，前端按单值逐个请求时直接传）。 */
 export interface EntryListParams {
@@ -90,3 +92,18 @@ export const treeQuery = (spaceId: string) => ({
     ),
   staleTime: 15_000,
 })
+
+/** GET /entries/stats（ADR-0033）：与列表同口径的分组计数。 */
+export interface EntryStats {
+  total: number
+  groups: { values: Record<string, string | null>; n: number }[]
+}
+export type EntryStatsParams = Omit<EntryListParams, 'sort' | 'pinned'> & { groupBy?: string }
+export const entryStatsQuery = (p: EntryStatsParams) => ({
+  queryKey: ['entries', 'stats', clean(p)] as const,
+  queryFn: () => unwrap<EntryStats>(api.entries.stats.$get({ query: clean(p) as never })),
+  staleTime: 15_000,
+})
+/** 分组计数 → { 取值（缺值为 ''）: 条数 }（单个分组键时用）。 */
+export const statsByValue = (s: EntryStats | undefined, key: string): Map<string, number> =>
+  new Map((s?.groups ?? []).map((g) => [g.values[key] ?? '', g.n]))

@@ -87,6 +87,15 @@ const SAMPLE: PmNode = {
     { type: 'mermaid', attrs: { code: 'graph TD;A-->B' } },
     { type: 'entryCard', attrs: { entryId: 'e2' } },
     {
+      type: 'entryQuery',
+      attrs: {
+        title: '未关闭 Bug',
+        query: 'kind=bug&fields=status%3Dnew',
+        view: 'table',
+        limit: 20,
+      },
+    },
+    {
       type: 'attachment',
       attrs: { attachmentId: 'f1', name: 'a.pdf', size: 10, mime: 'application/pdf' },
     },

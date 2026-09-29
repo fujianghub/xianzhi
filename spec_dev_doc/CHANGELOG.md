@@ -4,6 +4,10 @@
 
 ## 2026-09-29
 
+**Bug 跟踪：四态 · 优先级 · 统计 · 保存视图 · 查询块（ADR-0033）**
+- 新增 ADR-0033（计划评审意见已并入）。00：+§6d BUG（REQ-BUG-001 ~ 012）及 open → new 注。01：§3.4d +`entry_field_changes` `entry_views`；§3.5 bug fields 改四态 + 优先级 / 发现 / 解决日期 / 模块。02 §9：+`/entries/stats` `/entries/bug-stats` `/entries/:id/field-changes` `/entry-views`×4，batch `fields.set` +priority。03 §3.2 +entryQuery。07 §5 +保存视图 / Bug 统计限额。08 §2.8 注（统计视图、分组、我的视图、快速提 Bug、流转）。glossary +优先级、待决策、流转、保存视图、查询块。迁移 0020（两表）· 0021（数据：open → new、补 priority / foundAt / resolvedAt、模板剔日期）。
+- 验收跟进：SSE invalidate 帧合并失效（安静 300ms / 最长 2s），避免连续写入时统计页把本人请求放大到 429；debug 记两条（失效放大、e2e collab 端口写死）。
+
 **文档对照代码（ADR-0023 ~ 0032 收尾）**
 - 04：头部版本行；§2.2 +`--xz-font-song` `--xz-font-system`、阅读偏好说明、KaTeX `text-wrap` 注；§4 版心注 + 记录页纵向结构（文档栏 / 格式栏）；§6 新快捷键（专注 / 保存版本 / useHotkeys Shift）。
 - 05：头部版本行；§3 验证实例 api / collab 不带 watch 须重启、IP 同源、mermaid / katex 懒加载与字体不内联；§5 偏好类 e2e 复位约定。

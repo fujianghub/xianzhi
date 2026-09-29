@@ -113,7 +113,7 @@ describe('templates', () => {
       body: JSON.stringify({
         kind: 'bug',
         title: '登录按钮无响应',
-        fields: { severity: 'high', status: 'open' },
+        fields: { severity: 'high', status: 'new' },
         templateId: 'builtin:bug-fix',
       }),
     })
@@ -355,7 +355,7 @@ describe('templates', () => {
       body: JSON.stringify({ kind: 'bug', ifUpdatedAt: t1.updatedAt }),
     })
     const t2 = (await toBug.json()) as { kind: string; fields: object; updatedAt: string }
-    expect(t2).toMatchObject({ kind: 'bug', fields: { severity: 'medium', status: 'open' } })
+    expect(t2).toMatchObject({ kind: 'bug', fields: { severity: 'medium', status: 'new' } })
     // fields 按当前 kind 校验
     const bad = await req(member.cookie, `/api/v1/templates/${t0.id}`, {
       method: 'PATCH',

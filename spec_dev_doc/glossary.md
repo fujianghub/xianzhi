@@ -108,6 +108,11 @@
 | 快速编辑气泡 | Calendar quick edit | — | — | `calendar.quick.*` | 日历里点日程 / 任务在其旁弹出的就地编辑框（ADR-0016） | 08 §2.17 |
 | 新建上下文 | New-entry context | — | 建在 | `entry.location.*` | 页面登记的「在这里新建建在哪」：空间页 = 目录顶层，记录页 = 同级；按钮可传一次性默认值（ADR-0018） | 08 §2.8 |
 | 新建并关联 | Create & link / `linkFrom` | `links` | 新建并关联 | `link.createLinked` | 新建记录同时由当前记录关联到它，同事务（ADR-0018） | 02 §9 |
+| 优先级 | Priority / `fields.priority` | — | 优先级 | `entry.field.priority` | Bug 的修复顺序 P0 紧急 ~ P3 低；与「严重程度」（影响面）不同（ADR-0033） | 01 §3.5 |
+| 待决策 | Pending / `status=pending` | — | 待决策 | `entry.fieldValue.pending` | Bug 四态之一：要不要修、怎么修还没定；与新建同属「未关闭」（ADR-0033） | 01 §3.5 |
+| 流转 | Field changes | `entry_field_changes` | 流转 | `entry.changes.label` | 记录状态 / 优先级 / 严重程度的变化历史（ADR-0033） | 01 §3.4d |
+| 保存视图 / 我的视图 | Saved view | `entry_views` | 保存视图 · 我的视图 | `entry.views.*` | 个人保存的记录页筛选组合，左栏一点即用（ADR-0033） | 01 §3.4d |
+| 查询块 / 查询视图 | Entry query block / `entryQuery` | — | 查询视图 | `editor.slash.query` | 正文里按筛选实时列出记录（表格 / 统计 / 计数）的块，结果不写进正文（ADR-0033） | 03 §3.2 |
 | 看板（记录） | Entry board / `view=board` | — | 看板 | `entry.board.label` | 按 `fields.status` 分列的记录视图（ADR-0014） | 08 §2.8 |
 | 时间线 | Timeline / `view=timeline` | — | 时间线 | `entry.timeline.label` | 迭代 / 变更按日期的视图（ADR-0014） | 08 §2.8 |
 | 合并标签 | Merge tag | — | 合并到… | `settings.tags.merge` | 源标签关联并入目标后删除源（ADR-0014） | 02 §9 |

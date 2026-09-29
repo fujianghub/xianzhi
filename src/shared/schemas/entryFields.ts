@@ -11,12 +11,37 @@ export const decisionFields = z.strictObject({
   supersedesId: uuidSchema.optional(),
   decidedAt: isoDate.optional(),
 })
-export const bugFields = z.strictObject({
-  severity: z.enum(['low', 'medium', 'high', 'critical']),
-  status: z.enum(['open', 'fixed', 'wontfix']),
-  commit: z.string().trim().min(1).max(64).optional(),
-  debugDir: z.string().trim().min(1).max(200).optional(),
-})
+/** Bug 状态（ADR-0033）：新建 · 待决策 · 已修复 · 不修复；定义顺序 = 看板列顺序。 */
+export const BUG_STATUSES = ['new', 'pending', 'fixed', 'wontfix'] as const
+/** 已关闭（进入即写 resolvedAt）；其余为未关闭。 */
+export const BUG_CLOSED_STATUSES: readonly string[] = ['fixed', 'wontfix']
+export const BUG_PRIORITIES = ['p0', 'p1', 'p2', 'p3'] as const
+/** 可作分组 / 统计的文本属性值：不含 `, | =`（列表筛选参数的分隔符）。 */
+const filterableText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .min(1)
+    .max(max)
+    .regex(/^[^,|=]+$/, '不能含 , | =')
+export const bugFields = z
+  .strictObject({
+    status: z.enum(BUG_STATUSES),
+    /** 优先级；缺省由服务端补 p2（旧客户端 / MCP 不传也不 422） */
+    priority: z.enum(BUG_PRIORITIES).optional(),
+    severity: z.enum(['low', 'medium', 'high', 'critical']),
+    /** 发现日期；缺省由服务端补为操作者时区的今天（ADR-0033） */
+    foundAt: isoDate.optional(),
+    /** 解决日期；服务端维护：进入已关闭写入，回到未关闭清除 */
+    resolvedAt: isoDate.optional(),
+    module: filterableText(40).optional(),
+    commit: z.string().trim().min(1).max(64).optional(),
+    debugDir: z.string().trim().min(1).max(200).optional(),
+  })
+  .refine((v) => !v.foundAt || !v.resolvedAt || v.foundAt <= v.resolvedAt, {
+    message: '解决日期不能早于发现日期',
+    path: ['resolvedAt'],
+  })
 export const iterationFields = z
   .strictObject({
     periodStart: isoDate,
@@ -113,7 +138,7 @@ export const kindWithFieldsSchema = z
 /** 每种 kind 的空默认 fields（新建记录未填时用）。 */
 export const defaultEntryFields: Record<EntryKind, Record<string, unknown>> = {
   decision: { status: 'proposed' },
-  bug: { severity: 'medium', status: 'open' },
+  bug: { status: 'new', priority: 'p2', severity: 'medium' },
   iteration: {}, // 必填 periodStart/periodEnd 由前端补
   changelog: {},
   review: {},

@@ -43,6 +43,7 @@ import {
   SPACE_VISIBILITIES,
   TASK_STATUSES,
   TEMPLATE_SCOPES,
+  TRACKED_ENTRY_FIELDS,
 } from '../../../shared/schemas/enums.ts'
 import { createdAt, inList, pk, timestamptz, updatedAt } from './_helpers.ts'
 import { bytea, tsvector, vector } from './_types.ts'
@@ -377,6 +378,49 @@ export const entryFavorites = pgTable(
     primaryKey({ columns: [t.userId, t.entryId] }),
     index('entry_favorites_user_idx').on(t.userId, sql`${t.createdAt} desc`),
   ],
+)
+
+// ---------- 3.5d entry_field_changes（ADR-0033 流转）----------
+/** 记录 status / priority / severity 的变化：entries service 同事务写入；记录硬删时级联。 */
+export const entryFieldChanges = pgTable(
+  'entry_field_changes',
+  {
+    id: pk(),
+    workspaceId: orgRef(),
+    entryId: uuid()
+      .notNull()
+      .references(() => entries.id, { onDelete: 'cascade' }),
+    actorId: userRef(),
+    field: text().notNull(),
+    fromValue: text(),
+    toValue: text(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('entry_field_changes_entry_idx').on(t.entryId, t.createdAt),
+    index('entry_field_changes_ws_field_idx').on(t.workspaceId, t.field, t.createdAt),
+    check('entry_field_changes_field_ck', inList(t.field, TRACKED_ENTRY_FIELDS)),
+  ],
+)
+
+// ---------- 3.5e entry_views（ADR-0033 保存视图）----------
+/** 个人保存的记录页筛选（同标签：只有本人看得到、管得了）；spaceId 非空 = 在该空间记录页打开。 */
+export const entryViews = pgTable(
+  'entry_views',
+  {
+    id: pk(),
+    workspaceId: orgRef(),
+    ownerId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    spaceId: uuid().references(() => spaces.id, { onDelete: 'cascade' }),
+    name: text().notNull(),
+    search: jsonb().notNull().default({}),
+    sortKey: text().notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index('entry_views_owner_idx').on(t.workspaceId, t.ownerId, t.sortKey)],
 )
 
 // ---------- 3.6 links ----------

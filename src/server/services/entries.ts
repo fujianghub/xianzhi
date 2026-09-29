@@ -21,6 +21,7 @@ import { emptyYdoc } from '../../collab/derive.ts'
 import { ydocFromPm } from '../../collab/ydoc-json.ts'
 import type {
   createEntrySchema,
+  entryStatsQuery,
   listEntriesQuery,
   patchEntrySchema,
 } from '../../shared/schemas/entries.ts'
@@ -49,6 +50,7 @@ import { decodeCursor, encodeCursor } from '../lib/cursor.ts'
 import { AppError } from '../lib/errors.ts'
 import { type EventBus, getEventBus } from '../lib/event-bus.ts'
 import { audit } from './audit.ts'
+import { localDay, normalizeBugFields, timezoneOf } from './bug-fields.ts'
 import { weightedTsv } from './derived.ts'
 import { entryPath, entryPaths, liftChildren, placeNew } from './entry-tree.ts'
 import {
@@ -57,6 +59,7 @@ import {
   loadOwnEntryType,
   normalizeCustomFields,
 } from './entry-types.ts'
+import { type FieldChangeView, listFieldChanges, recordFieldChanges } from './field-changes.ts'
 import { assertLinkSource, purgeLinksOf } from './links.ts'
 import { publishChange } from './realtime.ts'
 import { assertOwnTags, ownTagIdsSql } from './tags.ts'
@@ -68,6 +71,8 @@ export interface EntryCtx {
   ip?: string | null
   userAgent?: string | null
   bus?: EventBus
+  /** 操作者时区（路由从会话注入；缺省按 actor 查 user.timezone），Bug 发现 / 解决日期用（ADR-0033） */
+  timezone?: string
 }
 
 type EntryRow = typeof entries.$inferSelect
@@ -231,13 +236,25 @@ function entryChanged(ctx: EntryCtx, spaceIds: string[], id: string, visibility:
 
 // ---------- 列表 ----------
 
-const SORT_COL = {
-  updatedAt: entries.updatedAt,
-  createdAt: entries.createdAt,
-  title: entries.title,
-} as const
+/**
+ * 排序键（ADR-0033 +priority / foundAt）：表达式不含 null（游标的行值比较遇 null 会丢行）；
+ * `cursor` 标明游标值的类型（时间 / 数字 / 字符串）。
+ */
+const SORT_KEY = {
+  updatedAt: { expr: sql`${entries.updatedAt}`, cursor: 'date' },
+  createdAt: { expr: sql`${entries.createdAt}`, cursor: 'date' },
+  title: { expr: sql`${entries.title}`, cursor: 'text' },
+  priority: {
+    expr: sql`coalesce(case ${entries.fields} ->> 'priority' when 'p0' then 0 when 'p1' then 1 when 'p2' then 2 when 'p3' then 3 end, 9)`,
+    cursor: 'int',
+  },
+  foundAt: { expr: sql`coalesce(${entries.fields} ->> 'foundAt', '')`, cursor: 'text' },
+} as const satisfies Record<string, { expr: SQL; cursor: 'date' | 'int' | 'text' }>
 
-export async function listEntries(db: Db, ctx: EntryCtx, q: z.infer<typeof listEntriesQuery>) {
+type ListFilter = Omit<z.infer<typeof listEntriesQuery>, 'cursor' | 'limit' | 'withTotal' | 'sort'>
+
+/** 列表 / 统计共用的筛选条件（02 §9；ADR-0033 统计与列表同口径）。不可见的空间筛选 → 404。 */
+export async function entryListConds(db: DbOrTx, ctx: EntryCtx, q: ListFilter): Promise<SQL[]> {
   const conds: SQL[] = [eq(entries.workspaceId, ctx.workspaceId)]
   if (q.deleted) {
     // 回收站：本人可恢复的（作者）；owner/admin 全部（02 §5）
@@ -295,14 +312,24 @@ export async function listEntries(db: Db, ctx: EntryCtx, q: z.infer<typeof listE
     )
   }
   if (q.q) conds.push(or(ilike(entries.title, `%${q.q}%`), ilike(entries.plain, `%${q.q}%`))!)
+  return conds
+}
 
+export async function listEntries(db: Db, ctx: EntryCtx, q: z.infer<typeof listEntriesQuery>) {
+  const conds = await entryListConds(db, ctx, q)
   const primary = q.sort[0] ?? { field: 'updatedAt' as const, dir: 'desc' as const }
-  const col = SORT_COL[primary.field]
+  const key = SORT_KEY[primary.field]
+  const col = key.expr
   const c = decodeCursor(q.cursor, 2)
   if (q.cursor && !c) throw AppError.validation([{ path: 'cursor', message: '游标无效' }])
   if (c) {
     const [v, id] = c
-    const val = primary.field === 'title' ? String(v) : new Date(String(v))
+    const val =
+      key.cursor === 'date'
+        ? sql`${new Date(String(v)).toISOString()}::timestamptz`
+        : key.cursor === 'int'
+          ? sql`${Number(v)}::int`
+          : sql`${String(v)}`
     conds.push(
       primary.dir === 'desc'
         ? sql`(${col}, ${entries.id}) < (${val}, ${String(id)}::uuid)`
@@ -317,20 +344,25 @@ export async function listEntries(db: Db, ctx: EntryCtx, q: z.infer<typeof listE
       .select({
         e: { ...listCols, plain: sql<string | null>`left(${entries.plain}, ${EXCERPT_LEN})` },
         s: spaces,
+        k: sql<unknown>`${col}`.as('sort_key'),
       })
       .from(entries)
       .innerJoin(spaces, eq(spaces.id, entries.spaceId))
       .where(and(...conds))
       .orderBy(...order)
       .limit(q.limit + 1)
-  ).map((r) => ({ e: r.e as unknown as EntryRow, s: r.s }))
+  ).map((r) => ({ e: r.e as unknown as EntryRow, s: r.s, k: r.k }))
   const page = rows.slice(0, q.limit)
   const names = await authorNames(db, [...new Set(page.map((r) => r.e.authorId))])
   const last = page[page.length - 1]
   const nextCursor =
     rows.length > q.limit && last
       ? encodeCursor([
-          primary.field === 'title' ? last.e.title : (last.e[primary.field] as Date).toISOString(),
+          key.cursor === 'date'
+            ? (last.e[primary.field as 'updatedAt' | 'createdAt'] as Date).toISOString()
+            : key.cursor === 'int'
+              ? Number(last.k)
+              : String(last.k),
           last.e.id,
         ])
       : null
@@ -391,6 +423,45 @@ export async function listEntries(db: Db, ctx: EntryCtx, q: z.infer<typeof listE
       )[0]?.n ?? 0)
     : undefined
   return total === undefined ? { items, nextCursor } : { items, nextCursor, total }
+}
+
+// ---------- 统计（ADR-0033、REQ-BUG-004）----------
+
+export interface EntryStats {
+  total: number
+  /** 每组的分组键取值（缺值 = null）与条数，按条数降序 */
+  groups: { values: Record<string, string | null>; n: number }[]
+}
+
+/** GET /entries/stats：与列表同口径的条件，按 fields 键分组计数（权限同列表，走 visibleEntriesWhere）。 */
+export async function entryStats(
+  db: Db,
+  ctx: EntryCtx,
+  q: z.infer<typeof entryStatsQuery>,
+): Promise<EntryStats> {
+  const conds = await entryListConds(db, ctx, q)
+  const keys = q.groupBy ?? []
+  // 键名已按 /^[a-zA-Z]+$/ 校验，直接内联（select 与 group by 须是同一表达式，参数化会被视为不同表达式）
+  const exprs = keys.map((k) => sql<string | null>`${entries.fields} ->> ${sql.raw(`'${k}'`)}`)
+  const rows = await db
+    .select({
+      n: sql<number>`count(*)::int`,
+      ...Object.fromEntries(exprs.map((e, i) => [`g${i}`, e])),
+    })
+    .from(entries)
+    .where(and(...conds))
+    .groupBy(...exprs)
+    .orderBy(sql`count(*) desc`)
+  const r = rows as unknown as ({ n: number } & Record<string, string | null>)[]
+  return {
+    total: r.reduce((a, x) => a + x.n, 0),
+    groups: keys.length
+      ? r.map((x) => ({
+          values: Object.fromEntries(keys.map((k, i) => [k, x[`g${i}`] ?? null])),
+          n: x.n,
+        }))
+      : [],
+  }
 }
 
 // ---------- 创建 / 详情 / 修改 ----------
@@ -502,6 +573,10 @@ export async function createEntry(
   const typed = await resolveKindFields(db, ctx, input.kind, input.typeId, input.fields, {
     fillDefault: true,
   })
+  if (typed.kind === 'bug')
+    typed.fields = normalizeBugFields(null, typed.fields, {
+      today: localDay(await timezoneOf(db, ctx.actor.id, ctx.timezone), new Date()),
+    })
   const body = await resolveTemplateBody(db, ctx, input.templateId, {
     space: sp.row.isPersonal ? '' : sp.row.name,
   })
@@ -522,6 +597,7 @@ export async function createEntry(
       })
       .returning({ id: entries.id })
     if (!row) throw new Error('insert entries failed')
+    await recordFieldChanges(tx, ctx, row.id, null, typed.fields) // 流转起点（ADR-0033）
     if (input.tagIds?.length)
       await tx
         .insert(entryTags)
@@ -604,6 +680,14 @@ export async function patchEntry(
     nextFields = (
       await resolveKindFields(db, ctx, targetKind, targetTypeId, raw, { fillDefault: retype })
     ).fields
+    if (targetKind === 'bug') {
+      const tz = await timezoneOf(db, ctx.actor.id, ctx.timezone)
+      nextFields = normalizeBugFields(
+        loaded.row.kind === 'bug' ? ((loaded.row.fields ?? {}) as Record<string, unknown>) : null,
+        nextFields,
+        { today: localDay(tz, new Date()), createdOn: localDay(tz, loaded.row.createdAt) },
+      )
+    }
   }
   let targetSpaceId = loaded.row.spaceId
   if (patch.spaceId && patch.spaceId !== loaded.row.spaceId) {
@@ -645,6 +729,14 @@ export async function patchEntry(
       set.treeOrder = null
     }
     await tx.update(entries).set(set).where(eq(entries.id, id))
+    if (nextFields !== undefined)
+      await recordFieldChanges(
+        tx,
+        ctx,
+        id,
+        (loaded.row.fields ?? {}) as Record<string, unknown>,
+        nextFields,
+      )
     if (patch.tagIds) {
       // 只替换本人的标签；别人打在这篇上的标签不动（ADR-0017）
       await tx
@@ -663,6 +755,16 @@ export async function patchEntry(
   const view = await getEntry(db, ctx, id)
   entryChanged(ctx, [loaded.row.spaceId, targetSpaceId], id, view.visibility)
   return view
+}
+
+/** GET /entries/:id/field-changes（ADR-0033、REQ-BUG-006）：受 entry.read 约束（不可见 → 404）。 */
+export async function entryFieldChanges(
+  db: Db,
+  ctx: EntryCtx,
+  id: string,
+): Promise<FieldChangeView[]> {
+  await requireEntry(db, ctx, id)
+  return listFieldChanges(db, ctx.workspaceId, id)
 }
 
 // ---------- 软删 / 永久删 / 恢复 / 归档 ----------
@@ -746,7 +848,7 @@ export interface EntryPreview {
 const SUMMARY_KEYS: Record<EntryKind, string[]> = {
   decision: ['status', 'decidedAt'],
   iteration: ['version', 'periodStart', 'periodEnd'],
-  bug: ['severity', 'status'],
+  bug: ['priority', 'status', 'severity'],
   changelog: ['version', 'releasedAt'],
   journal: ['mood'],
   note: [],

@@ -154,6 +154,53 @@ export const EntryCard = Node.create({
   ],
 })
 
+/** 查询块视图（ADR-0033）：表格 / 统计（仅 Bug）/ 计数。 */
+export const ENTRY_QUERY_VIEWS = ['table', 'stats', 'count'] as const
+export type EntryQueryView = (typeof ENTRY_QUERY_VIEWS)[number]
+
+/**
+ * 查询块（ADR-0033 entryQuery）：attrs 只存筛选（记录页 search 的白名单子集，URLSearchParams 串）与展示方式；
+ * 结果始终按读者自己的权限实时查询，不写进正文。
+ */
+export const EntryQuery = Node.create({
+  name: 'entryQuery',
+  group: 'block',
+  atom: true,
+  draggable: true,
+  addAttributes: () => ({
+    title: { default: '', parseHTML: (el: HTMLElement) => el.getAttribute('data-title') ?? '' },
+    query: {
+      default: '',
+      parseHTML: (el: HTMLElement) => el.getAttribute('data-entry-query') ?? '',
+    },
+    view: {
+      default: 'table',
+      parseHTML: (el: HTMLElement) => {
+        const v = el.getAttribute('data-view') ?? 'table'
+        return ENTRY_QUERY_VIEWS.includes(v as EntryQueryView) ? v : 'table'
+      },
+    },
+    limit: {
+      default: 20,
+      parseHTML: (el: HTMLElement) =>
+        Math.min(50, Math.max(1, Number(el.getAttribute('data-limit')) || 20)),
+    },
+  }),
+  parseHTML: () => [{ tag: 'div[data-entry-query]' }],
+  renderHTML: ({ node, HTMLAttributes }) => [
+    'div',
+    mergeAttributes(HTMLAttributes, {
+      'data-entry-query': node.attrs.query,
+      'data-title': node.attrs.title,
+      'data-view': node.attrs.view,
+      'data-limit': String(node.attrs.limit),
+      class: 'xz-atom',
+    }),
+    String(node.attrs.title ?? ''),
+  ],
+  renderText: ({ node }) => String(node.attrs.title ?? ''),
+})
+
 /** 目录（03 §3.2 toc）：atom，渲染时读当前文档标题。 */
 export const Toc = Node.create({
   name: 'toc',

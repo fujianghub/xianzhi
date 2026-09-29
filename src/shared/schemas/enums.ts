@@ -41,6 +41,9 @@ export type BuiltinEntryKind = Exclude<EntryKind, 'custom'>
 /** 用户模板范围（ADR-0011 §2）：个人 / 工作区；内置模板不入表。 */
 export const TEMPLATE_SCOPES = ['personal', 'workspace'] as const
 export type TemplateScope = (typeof TEMPLATE_SCOPES)[number]
+/** 流转记录跟踪的记录属性（ADR-0033）。 */
+export const TRACKED_ENTRY_FIELDS = ['status', 'priority', 'severity'] as const
+export type TrackedEntryField = (typeof TRACKED_ENTRY_FIELDS)[number]
 export const ENTRY_VISIBILITIES = ['private', 'space', 'workspace'] as const
 export type EntryVisibility = (typeof ENTRY_VISIBILITIES)[number]
 

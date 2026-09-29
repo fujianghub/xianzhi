@@ -64,6 +64,10 @@ export function fullPlain(doc: PmNode): string {
       case 'entryLink':
         out.push(String((n.attrs as { title?: unknown } | undefined)?.title ?? ''))
         break
+      case 'entryQuery':
+        // 查询块：只有标题参与检索（ADR-0033）
+        out.push(`${String((n.attrs as { title?: unknown } | undefined)?.title ?? '')}\n`)
+        break
       default:
         break
     }

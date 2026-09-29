@@ -2,16 +2,25 @@
  * ProseMirror JSON → Markdown（03 §8，**有损**，导出对话框需明示）：直接遍历 JSON，不依赖编辑器 schema，前后端共用。
  * 规则：callout → `:::kind`；mermaid → ```mermaid；mathBlock → `$$`；entryLink → `[title](xz://entry/<id>)`；
  * mention → `@label`；image(xz:attachment/<id>) → 由 resolveImage 给出链接（全量导出指向 assets/）；
- * comment 标记丢弃；underline 无 Markdown 语法，保留文字；表格 → GFM 表格。
+ * comment 标记丢弃；underline 无 Markdown 语法，保留文字；表格 → GFM 表格；
+ * entryQuery（查询块，ADR-0033）→ `> [查询：标题](<appUrl>/entries?query)`（结果是实时的，不导出）。
  */
 import type { PmNode } from '../../schemas/pm.ts'
 
 export interface MarkdownOptions {
   /** xz:attachment/<id> → 导出里的相对路径或 URL；缺省为 `/api/v1/attachments/<id>` */
   resolveImage?: (attachmentId: string) => string
+  /** 站点根地址（导出文件离开应用后查询块链接仍可用，ADR-0033）；缺省为相对路径 */
+  appUrl?: string
 }
 
 const ATTACH = /^xz:attachment\/([0-9a-f-]{36})$/i
+
+/** 查询块对应的记录页链接（query 已是白名单清洗后的 URLSearchParams 串）。 */
+export const entryQueryHref = (n: PmNode, appUrl = '') => {
+  const q = String(n.attrs?.query ?? '')
+  return `${appUrl.replace(/\/$/, '')}/entries${q ? `?${q.replace(/[()\s]/g, encodeURIComponent)}` : ''}`
+}
 
 /** 行内 Markdown 转义（只转会被误解析的字符）。 */
 const escInline = (s: string) => s.replace(/([\\`*_[\]<>#|])/g, '\\$1')
@@ -88,6 +97,8 @@ function block(n: PmNode, o: MarkdownOptions): string {
       return `\`\`\`mermaid\n${String(n.attrs?.code ?? '')}\n\`\`\``
     case 'mathBlock':
       return `$$\n${String(n.attrs?.latex ?? '')}\n$$`
+    case 'entryQuery':
+      return `> [${escInline(`查询：${String(n.attrs?.title || '记录')}`)}](${entryQueryHref(n, o.appUrl)})`
     case 'callout':
       return `:::${String(n.attrs?.kind ?? 'info')}\n${blocks(c, o)}\n:::`
     case 'image':

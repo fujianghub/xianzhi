@@ -114,8 +114,8 @@ describe('entry tree', () => {
     expect(await tree()).toEqual(['->A1 安装', '->B 散记'])
   })
 
-  it('REQ-KB-004 类型多选与 fields 过滤：kind=bug,iteration；fields=status=open|fixed,severity=high', async () => {
-    await create('高危', { kind: 'bug', fields: { severity: 'high', status: 'open' } })
+  it('REQ-KB-004 类型多选与 fields 过滤：kind=bug,iteration；fields=status=new|fixed,severity=high', async () => {
+    await create('高危', { kind: 'bug', fields: { severity: 'high', status: 'new' } })
     await create('低危已修', { kind: 'bug', fields: { severity: 'low', status: 'fixed' } })
     await create('迭代 1', {
       kind: 'iteration',
@@ -131,7 +131,7 @@ describe('entry tree', () => {
         .sort()
     expect(await list('kind=bug,iteration')).toEqual(['低危已修', '迭代 1', '高危'].sort())
     expect(await list('kind=bug&fields=severity=high')).toEqual(['高危'])
-    expect(await list('kind=bug&fields=status=open|fixed')).toEqual(['低危已修', '高危'].sort())
+    expect(await list('kind=bug&fields=status=new|fixed')).toEqual(['低危已修', '高危'].sort())
     expect((await req(`/api/v1/entries?fields=bad-format`)).status).toBe(422)
   })
 })

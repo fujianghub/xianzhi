@@ -25,7 +25,13 @@ import { TreeGuides } from '../components/ui/tree-guides.tsx'
 import { useNewEntryContext } from '../hooks/useNewEntryContext.ts'
 import { ApiError, api, unwrap } from '../lib/api.ts'
 import { cn } from '../lib/cn.ts'
-import type { Entry, EntryKind, EntryPage } from '../lib/entry-queries.ts'
+import {
+  type Entry,
+  type EntryKind,
+  type EntryPage,
+  entryStatsQuery,
+  statsByValue,
+} from '../lib/entry-queries.ts'
 import {
   canCreateIn,
   groupSpaces,
@@ -48,6 +54,8 @@ export const Route = createFileRoute('/_app/spaces/$spaceSlug_/home')({
   component: KbHome,
 })
 
+/** 未关闭的 Bug（ADR-0033：新建 / 待决策）。 */
+const OPEN_BUGS = 'status=new|pending'
 /** 严重度排序与色调（Bug 面板）。 */
 export const SEVERITIES = ['critical', 'high', 'medium', 'low'] as const
 const SEVERITY_TONE: Record<string, string> = {
@@ -166,7 +174,11 @@ function SpaceHome({ space }: { space: Space }) {
   const id = space.id
   useNewEntryContext({ spaceId: id, parentId: null }) // 在概览按 e = 建在本空间目录根（ADR-0018）
   const learning = space.kind === 'learning'
-  const bugs = useEntryList(id, { kind: 'bug', fields: 'status=open' }, 100)
+  // 未关闭 Bug（ADR-0033）：计数走服务端统计（不受条数限制），列表按优先级取前 6 条
+  const bugs = useEntryList(id, { kind: 'bug', fields: OPEN_BUGS, sort: 'priority' }, 6)
+  const bugStats = useQuery(
+    entryStatsQuery({ spaceId: id, kind: 'bug', fields: OPEN_BUGS, groupBy: 'severity' }),
+  )
   const iterations = useEntryList(id, { kind: 'iteration', sort: '-createdAt' }, 3)
   const releases = useEntryList(id, { kind: 'changelog', sort: '-createdAt' }, 3)
   const decisions = useEntryList(id, { kind: 'decision,optimize' }, 5)
@@ -197,17 +209,9 @@ function SpaceHome({ space }: { space: Space }) {
       {t(`entry.kind.${kind}`)}
     </Button>
   )
-  const bySeverity = SEVERITIES.map((s) => ({
-    s,
-    n: (bugs.data ?? []).filter((e) => e.fields.severity === s).length,
-  }))
-  const topBugs = [...(bugs.data ?? [])]
-    .sort(
-      (a, b) =>
-        SEVERITIES.indexOf(a.fields.severity as never) -
-          SEVERITIES.indexOf(b.fields.severity as never) || b.updatedAt.localeCompare(a.updatedAt),
-    )
-    .slice(0, 6)
+  const severityCounts = statsByValue(bugStats.data, 'severity')
+  const bySeverity = SEVERITIES.map((s) => ({ s, n: severityCounts.get(s) ?? 0 }))
+  const topBugs = bugs.data
 
   return (
     <section className="mx-auto max-w-[100rem]" data-testid="kb-home">
@@ -295,8 +299,8 @@ function SpaceHome({ space }: { space: Space }) {
             <Panel
               title={t('kb.panel.bugs')}
               icon={<KindIcon kind="bug" />}
-              count={bugs.data?.length}
-              more={more({ kind: 'bug', fields: 'status=open', view: 'table' })}
+              count={bugStats.data?.total}
+              more={more({ kind: 'bug', fields: OPEN_BUGS, view: 'table', sort: 'priority' })}
               testId="kb-panel-bugs"
             >
               <div className="flex flex-wrap gap-1.5" data-testid="kb-bug-severity">
@@ -305,7 +309,7 @@ function SpaceHome({ space }: { space: Space }) {
                     key={s}
                     to="/spaces/$spaceSlug/entries"
                     params={{ spaceSlug }}
-                    search={{ kind: 'bug', fields: `status=open,severity=${s}`, view: 'table' }}
+                    search={{ kind: 'bug', fields: `${OPEN_BUGS},severity=${s}`, view: 'table' }}
                     className={cn(
                       'rounded-full px-2 py-0.5 text-xs tabular-nums',
                       SEVERITY_TONE[s],

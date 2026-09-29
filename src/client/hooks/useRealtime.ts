@@ -10,6 +10,9 @@ import { toast } from 'sonner'
 
 /** 收到即弹 Toast 的通知种类（其余只进铃铛）。 */
 const TOAST_KINDS = new Set(['system.export_done'])
+/** 失效帧合并：安静 300ms 后失效；连续推送时最多每 2s 失效一次 */
+const INVALIDATE_QUIET_MS = 300
+const INVALIDATE_MAX_WAIT_MS = 2000
 
 export type RealtimeStatus = 'connecting' | 'open' | 'closed' | 'evicted'
 
@@ -36,6 +39,25 @@ export function useRealtime(enabled: boolean, onStatus?: (s: RealtimeStatus) => 
     let timer: ReturnType<typeof setTimeout> | undefined
     let stopped = false
     let evicted = false
+    // 失效合并（ADR-0033 跟进）：invalidate 帧按 key 去重，防抖后一次失效（带最长等待）。
+    // 批量改 / 连续新建会逐条推送变更，逐帧失效会让开着统计 / 查询块的页面每帧重取一整组查询，放大成限流 429
+    const pending = new Map<string, unknown[]>()
+    let flushTimer: ReturnType<typeof setTimeout> | undefined
+    let batchStart = 0
+    const flush = () => {
+      flushTimer = undefined
+      batchStart = 0
+      const keys = [...pending.values()]
+      pending.clear()
+      for (const key of keys) void qc.invalidateQueries({ queryKey: key })
+    }
+    const schedule = () => {
+      const now = Date.now()
+      batchStart ||= now
+      clearTimeout(flushTimer)
+      const wait = Math.min(INVALIDATE_QUIET_MS, batchStart + INVALIDATE_MAX_WAIT_MS - now)
+      flushTimer = setTimeout(flush, Math.max(0, wait))
+    }
     const dbg: RealtimeDebug = {
       status: 'connecting',
       lastEventId: null,
@@ -85,7 +107,8 @@ export function useRealtime(enabled: boolean, onStatus?: (s: RealtimeStatus) => 
         track(e)
         try {
           const { keys } = JSON.parse((e as MessageEvent).data) as { keys: unknown[][] }
-          for (const key of keys) void qc.invalidateQueries({ queryKey: key })
+          for (const key of keys) pending.set(JSON.stringify(key), key)
+          schedule()
         } catch {
           /* 忽略坏帧 */
         }
@@ -122,6 +145,7 @@ export function useRealtime(enabled: boolean, onStatus?: (s: RealtimeStatus) => 
     return () => {
       stopped = true
       clearTimeout(timer)
+      clearTimeout(flushTimer)
       es?.close()
       document.removeEventListener('visibilitychange', onVisible)
     }

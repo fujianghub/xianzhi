@@ -20,7 +20,7 @@ export type BatchInput =
   | { op: 'tags'; ids: string[]; add: string[]; remove: string[] }
   | { op: 'archive' | 'unarchive' | 'delete' | 'pin' | 'unpin'; ids: string[] }
   | { op: 'retype'; ids: string[]; kind: EntryKind; typeId?: string }
-  | { op: 'fields'; ids: string[]; set: { status?: string; progress?: number } }
+  | { op: 'fields'; ids: string[]; set: { status?: string; progress?: number; priority?: string } }
 
 export function useEntryActions() {
   const qc = useQueryClient()

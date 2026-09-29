@@ -28,7 +28,7 @@ import { flatten } from '../../lib/tree.ts'
 import { Button } from '../ui/button.tsx'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../ui/dialog.tsx'
 import { Input } from '../ui/input.tsx'
-import { EntryFieldsForm, fieldErrors } from './EntryFieldsForm.tsx'
+import { EntryFieldsForm, fieldErrors, QUICK_FIELDS } from './EntryFieldsForm.tsx'
 
 export default function NewEntryDialog() {
   const { t } = useTranslation()
@@ -312,6 +312,7 @@ export default function NewEntryDialog() {
             value={fields}
             onChange={setFields}
             errors={errors}
+            only={QUICK_FIELDS[kind]}
           />
           <div className="flex justify-end">
             <Button

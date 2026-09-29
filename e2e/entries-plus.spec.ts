@@ -112,13 +112,13 @@ test('REQ-ENTRY-015 Bug 看板：拖到「已修复」列 = 改状态', async ({
     kind: 'bug',
     title: '看板里的 Bug',
     spaceId: s.id,
-    fields: { severity: 'high', status: 'open' },
+    fields: { severity: 'high', status: 'new' },
   })
   await page.goto(`/entries?spaceId=${s.id}&kind=bug&view=board`)
   const card = page
     .locator(`[data-testid="entry-board-card"][data-entry-id="${id}"]`)
     .getByTestId('entry-board-handle')
-  const open = page.locator('[data-testid="entry-board-column"][data-status="open"]')
+  const open = page.locator('[data-testid="entry-board-column"][data-status="new"]')
   const fixed = page.locator('[data-testid="entry-board-column"][data-status="fixed"]')
   await expect(open.locator(`[data-entry-id="${id}"]`)).toBeVisible()
   const a = await card.boundingBox()
@@ -199,8 +199,8 @@ test('REQ-ENTRY-016 · 017 默认列表：显示状态 / 进度；勾选两篇�
   await expect(page.getByTestId('batch-count')).toContainText('2')
   await bar.getByTestId('batch-retype').click()
   await page.locator('[data-testid="batch-retype-target"][data-kind="bug"]').click()
-  await expect(row('列表·随笔甲').locator('[data-field="status"]')).toContainText('待处理')
-  await expect(row('列表·随笔乙').locator('[data-field="status"]')).toContainText('待处理')
+  await expect(row('列表·随笔甲').locator('[data-field="status"]')).toContainText('新建')
+  await expect(row('列表·随笔乙').locator('[data-field="status"]')).toContainText('新建')
   // 仍选中两篇：改状态为「已修复」
   await expect(page.getByTestId('batch-count')).toContainText('2')
   await bar.getByTestId('batch-status').click()

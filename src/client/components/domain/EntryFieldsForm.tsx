@@ -3,10 +3,11 @@
  * enum / 字面量联合 → 下拉；日期 → date 输入；数字 → number 输入；其余 → 文本。前端不重复校验，422 的 `fields.x` 错误就地显示（REQ-ENTRY-001）。
  * 自定义类型（ADR-0016）：状态下拉的选项 = 该类型的状态列表（原样显示，不翻译）；列表为空则不出状态项。
  */
+import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import type { z } from 'zod'
-import { entryFieldsByKind } from '../../../shared/schemas/entryFields.ts'
-import type { EntryKind } from '../../lib/entry-queries.ts'
+import { BUG_CLOSED_STATUSES, entryFieldsByKind } from '../../../shared/schemas/entryFields.ts'
+import { type EntryKind, entryStatsQuery } from '../../lib/entry-queries.ts'
 import { useKindLabel } from '../../lib/entry-types.ts'
 import { Input } from '../ui/input.tsx'
 
@@ -73,6 +74,11 @@ export function fieldSpecs(kind: EntryKind, statuses?: string[] | null): Spec[] 
   })
 }
 
+/** 新建对话框里 Bug 只填这些（ADR-0033 快速提 Bug）；状态默认新建、发现日期服务端补，其余在属性栏补。 */
+export const QUICK_FIELDS: Partial<Record<EntryKind, string[]>> = {
+  bug: ['priority', 'severity', 'module'],
+}
+
 export function EntryFieldsForm({
   kind,
   typeId,
@@ -80,6 +86,7 @@ export function EntryFieldsForm({
   onChange,
   errors,
   disabled,
+  only,
 }: {
   kind: EntryKind
   typeId?: string | null
@@ -87,9 +94,17 @@ export function EntryFieldsForm({
   onChange: (next: Record<string, unknown>) => void
   errors?: Record<string, string>
   disabled?: boolean
+  /** 只显示这些字段（新建对话框的精简属性） */
+  only?: string[]
 }) {
   const { t } = useTranslation()
-  const specs = fieldSpecs(kind, useKindLabel()(kind, typeId).statuses)
+  const specs = fieldSpecs(kind, useKindLabel()(kind, typeId).statuses).filter(
+    (f) =>
+      (!only || only.includes(f.name)) &&
+      // 解决日期只在已关闭时显示（服务端维护，ADR-0033）
+      !(kind === 'bug' && f.name === 'resolvedAt' && !isBugClosed(value.status)),
+  )
+  const modules = useBugModules(kind === 'bug' && specs.some((f) => f.name === 'module'))
   if (!specs.length) return null
   const set = (name: string, v: unknown) => {
     const next = { ...value }
@@ -134,6 +149,7 @@ export function EntryFieldsForm({
             ) : (
               <Input
                 id={id}
+                list={f.name === 'module' && modules.length ? 'bug-modules' : undefined}
                 type={f.kind === 'text' ? 'text' : f.kind}
                 disabled={disabled}
                 value={cur === undefined ? '' : String(cur)}
@@ -160,8 +176,27 @@ export function EntryFieldsForm({
           </label>
         )
       })}
+      {modules.length ? (
+        <datalist id="bug-modules">
+          {modules.map((m) => (
+            <option key={m} value={m} />
+          ))}
+        </datalist>
+      ) : null}
     </div>
   )
+}
+
+const isBugClosed = (s: unknown) => BUG_CLOSED_STATUSES.includes(String(s))
+
+/** 本人可见 Bug 已用过的模块（按使用次数），作输入候选。 */
+function useBugModules(enabled: boolean): string[] {
+  const { data } = useQuery({
+    ...entryStatsQuery({ kind: 'bug', groupBy: 'module' }),
+    enabled,
+    staleTime: 60_000,
+  })
+  return (data?.groups ?? []).flatMap((g) => (g.values.module ? [g.values.module] : []))
 }
 
 /** ApiError.problem.errors → { 字段名: 消息 }（只取 fields.* 路径）。 */

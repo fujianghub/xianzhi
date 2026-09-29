@@ -293,6 +293,7 @@ export default function EntryEditor({
     kind,
     ydoc,
     pickEntry: (mode, at) => setPicker({ mode, at }),
+    spaceId: place?.spaceId,
   }
   const editor = useEditor(
     {

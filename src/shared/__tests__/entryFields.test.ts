@@ -23,13 +23,13 @@ const cases: Record<
   },
   bug: {
     ok: [
-      { severity: 'high', status: 'open' },
+      { severity: 'high', status: 'new' },
       { severity: 'low', status: 'fixed', commit: 'abc123', debugDir: 'debug/2026-09-23-x' },
     ],
     bad: [
-      { v: { severity: 'x', status: 'open' }, path: 'severity' },
+      { v: { severity: 'x', status: 'new' }, path: 'severity' },
       { v: { severity: 'low', status: 'done' }, path: 'status' },
-      { v: { severity: 'low', status: 'open', commit: '' }, path: 'commit' },
+      { v: { severity: 'low', status: 'new', commit: '' }, path: 'commit' },
     ],
   },
   iteration: {

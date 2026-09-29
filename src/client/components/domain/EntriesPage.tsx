@@ -18,6 +18,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
   CalendarRange,
+  ChartColumn,
   CheckSquare,
   Columns3,
   LayoutGrid,
@@ -28,17 +29,25 @@ import {
 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import {
+  ENTRY_GROUP_VALUES,
+  type EntryFilterSearch,
+  type EntryGroup,
+} from '../../../shared/entry-search.ts'
 import { useDelayedFlag } from '../../hooks/useDelayedFlag.ts'
 import { useMe } from '../../hooks/useMe.ts'
 import { useNewEntryContext } from '../../hooks/useNewEntryContext.ts'
 import { cn } from '../../lib/cn.ts'
 import {
+  BUG_SORTS,
   ENTRY_SORTS,
   type Entry,
   type EntryKind,
   type EntryListParams,
   entriesInfiniteQuery,
+  entryStatsQuery,
   flattenEntries,
+  statsByValue,
   treeQuery,
 } from '../../lib/entry-queries.ts'
 import { kindKey, useKindLabel, useKindOptions } from '../../lib/entry-types.ts'
@@ -50,6 +59,7 @@ import { Button } from '../ui/button.tsx'
 import { EmptyState } from '../ui/empty-state.tsx'
 import { Input } from '../ui/input.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
+import { BugStats } from './BugStats.tsx'
 import { type EntriesLocation, EntriesNav, locationPatch } from './EntriesNav.tsx'
 import { EntryBatchBar } from './EntryBatchBar.tsx'
 import { boardStatuses, EntryBoard } from './EntryBoard.tsx'
@@ -57,31 +67,17 @@ import { EntryCard } from './EntryCard.tsx'
 import { fieldSpecs } from './EntryFieldsForm.tsx'
 import { EntryTable } from './EntryTable.tsx'
 import { EntryTimeline, hasTimeline } from './EntryTimeline.tsx'
+import { SavedViewsNav, SaveViewButton } from './SavedViews.tsx'
 import { TagFilter } from './TagFilter.tsx'
 
-export interface EntriesSearch {
-  kind?: string
-  /** 自定义类型（ADR-0016），逗号多值；与 kind 同给 = 任一命中 */
-  typeId?: string
-  fields?: string
-  view?: 'table' | 'cards' | 'board' | 'timeline'
-  authorId?: string
-  tag?: string
-  q?: string
-  pinned?: '1'
-  sort?: string
-  /** 左栏位置（ADR-0014），互斥 */
-  spaceId?: string
-  under?: string
-  groupId?: string
-  favorite?: '1'
+/** 记录页 search：可持久化的筛选（shared 白名单，ADR-0033）+ 只属本机本次的「最近打开」「多选」。 */
+export type EntriesSearch = EntryFilterSearch & {
   recent?: '1'
-  archived?: '1'
   /** 多选（批量）模式 */
   select?: '1'
 }
 
-/** `status=open|fixed,severity=high` ⇄ { status: 'open|fixed', severity: 'high' } */
+/** `status=new|fixed,severity=high` ⇄ { status: 'new|fixed', severity: 'high' } */
 export const parseFieldsParam = (s: string | undefined): Record<string, string> =>
   Object.fromEntries(
     (s ?? '')
@@ -136,9 +132,11 @@ export function EntriesPage({
       ? 'board'
       : search.view === 'timeline' && hasTimeline(kind)
         ? 'timeline'
-        : search.view === 'cards'
-          ? 'cards'
-          : 'table'
+        : search.view === 'stats' && kind === 'bug'
+          ? 'stats'
+          : search.view === 'cards'
+            ? 'cards'
+            : 'table'
   const effSpaceId = spaceId ?? search.spaceId
   const showNav = !spaceId || !!space
   const selecting = search.select === '1'
@@ -183,6 +181,22 @@ export function EntriesPage({
     sort: search.sort ?? '-updatedAt',
   }
   const pageSize = view === 'cards' ? 30 : 200
+  // 表格分组（ADR-0033）：只对单一内置类型；可选键 = 该类型有的枚举属性（Bug 另有模块）
+  const groupOptions: EntryGroup[] =
+    kind && kind !== 'custom'
+      ? ENTRY_GROUP_VALUES.filter((g) =>
+          fieldSpecs(kind).some((f) => f.name === g && (f.kind === 'select' || g === 'module')),
+        )
+      : []
+  const group =
+    view === 'table' && search.group && groupOptions.includes(search.group)
+      ? search.group
+      : undefined
+  const { sort: _sort, pinned: _pinned, ...statsBase } = base
+  const groupStats = useQuery({
+    ...entryStatsQuery({ ...statsBase, groupBy: group }),
+    enabled: !!group && !special,
+  })
   const recentEmpty = !!recent && !recent.length
   const pinned = useInfiniteQuery({
     ...entriesInfiniteQuery({ ...base, pinned: '1' }, 50),
@@ -279,6 +293,7 @@ export function EntriesPage({
         {showNav ? (
           <aside className={cn('mb-4 lg:mb-0 lg:block', !navOpen && 'hidden')}>
             <div className="paper rounded-xl p-2 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:bg-transparent lg:p-0 lg:shadow-none">
+              <SavedViewsNav current={search} spaceId={space?.id} />
               <EntriesNav search={search} onSelect={selectLoc} fixedSpace={space} />
             </div>
           </aside>
@@ -322,6 +337,14 @@ export function EntriesPage({
                       <Columns3 className="size-4" />,
                       t('entry.board.label'),
                       'view-board',
+                    )
+                  : null}
+                {kind === 'bug'
+                  ? viewBtn(
+                      'stats',
+                      <ChartColumn className="size-4" />,
+                      t('bug.stats.label'),
+                      'view-stats',
                     )
                   : null}
                 {hasTimeline(kind)
@@ -414,6 +437,10 @@ export function EntriesPage({
               ) : null,
             )}
             <TagFilter value={search.tag} onChange={(tag) => setSearch({ tag })} />
+            <SaveViewButton
+              current={{ ...search, ...(spaceId ? { spaceId: undefined } : {}) }}
+              spaceId={spaceId}
+            />
             <Link
               to="/settings/tags"
               className="inline-grid size-8 shrink-0 place-items-center rounded-full text-fg-muted hover:bg-hover hover:text-fg"
@@ -442,18 +469,41 @@ export function EntriesPage({
               <select
                 value={search.sort ?? '-updatedAt'}
                 onChange={(e) =>
-                  setSearch({ sort: e.target.value === '-updatedAt' ? undefined : e.target.value })
+                  setSearch({
+                    sort:
+                      e.target.value === '-updatedAt'
+                        ? undefined
+                        : (e.target.value as EntriesSearch['sort']),
+                  })
                 }
                 aria-label={t('entry.sortLabel')}
                 className="h-8 rounded-full border border-border bg-surface px-3 text-sm"
               >
-                {ENTRY_SORTS.map((s) => (
+                {[...ENTRY_SORTS, ...(kind === 'bug' ? BUG_SORTS : [])].map((s) => (
                   <option key={s} value={s}>
                     {t(`entry.sort.${s}`)}
                   </option>
                 ))}
               </select>
             )}
+            {view === 'table' && groupOptions.length ? (
+              <select
+                value={group ?? ''}
+                onChange={(e) =>
+                  setSearch({ group: (e.target.value || undefined) as EntryGroup | undefined })
+                }
+                aria-label={t('entry.group.label')}
+                className="h-8 rounded-full border border-border bg-surface px-3 text-sm"
+                data-testid="entries-group"
+              >
+                <option value="">{t('entry.group.none')}</option>
+                {groupOptions.map((g) => (
+                  <option key={g} value={g}>
+                    {t('entry.group.by', { field: t(`entry.field.${g}`) })}
+                  </option>
+                ))}
+              </select>
+            ) : null}
           </div>
 
           {skeleton ? (
@@ -481,6 +531,16 @@ export function EntriesPage({
               statuses={statuses}
               canWrite={!!me && me.workspaceRole !== 'guest'}
             />
+          ) : view === 'stats' ? (
+            <BugStats
+              params={statsBase}
+              onFilter={(field, value) =>
+                setSearch({
+                  view: undefined,
+                  fields: stringifyFieldsParam({ ...fieldValues, [field]: value }),
+                })
+              }
+            />
           ) : view === 'timeline' ? (
             <EntryTimeline items={items} />
           ) : view === 'table' ? (
@@ -489,6 +549,9 @@ export function EntriesPage({
               kinds={kinds}
               typeId={typeId}
               showSpace={!effSpaceId}
+              group={
+                group ? { key: group, counts: statsByValue(groupStats.data, group) } : undefined
+              }
               select={{
                 has: (id) => selSet.has(id),
                 toggle: toggleSel,

@@ -3,6 +3,7 @@
  * 所有文本转义；链接只保留 http(s) / mailto / 站内相对地址。
  */
 import type { PmNode } from '../../schemas/pm.ts'
+import { entryQueryHref } from './markdown.ts'
 
 export interface HtmlOptions {
   resolveImage?: (attachmentId: string) => string
@@ -95,6 +96,8 @@ function node(n: PmNode, o: HtmlOptions): string {
       return `<pre><code>${esc(String(n.attrs?.code ?? ''))}</code></pre>`
     case 'mathBlock':
       return `<pre><code>${esc(String(n.attrs?.latex ?? ''))}</code></pre>`
+    case 'entryQuery':
+      return `<blockquote><a href="${esc(entryQueryHref(n))}">${esc(`查询：${String(n.attrs?.title || '记录')}`)}</a></blockquote>`
     case 'callout':
       return `<div class="callout" data-kind="${esc(String(n.attrs?.kind ?? 'info'))}">${inner()}</div>`
     case 'mention':

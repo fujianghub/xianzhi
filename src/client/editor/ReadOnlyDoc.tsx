@@ -49,6 +49,15 @@ const DiffDecorations = Extension.create<{ ops: BlockOp[] }>({
   },
 })
 
+/**
+ * 静态文档标记（ADR-0033）：历史版本 / 模板预览里挂上它，查询块等「实时数据」节点只显示占位，不请求数据
+ * （预览的是过去的正文，实时结果会误导）。只读访客看记录仍走编辑器，不带这个标记。
+ */
+export const StaticDoc = Extension.create({
+  name: 'xzStaticDoc',
+  addStorage: () => ({ on: true }),
+})
+
 export function ReadOnlyDoc({
   doc,
   ops = NO_OPS,
@@ -60,7 +69,7 @@ export function ReadOnlyDoc({
 }) {
   const editor = useEditor(
     {
-      extensions: [...schemaKit(), DiffDecorations.configure({ ops })],
+      extensions: [...schemaKit(), DiffDecorations.configure({ ops }), StaticDoc],
       content: wrapUnknownPm(doc, knownNodes()),
       editable: false,
       immediatelyRender: true,

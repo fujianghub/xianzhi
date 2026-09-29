@@ -37,6 +37,7 @@ import {
   Sigma,
   SquareStack,
   Table,
+  TableProperties,
   TriangleAlert,
   Waypoints,
   Workflow,
@@ -85,6 +86,7 @@ export const INSERT_META: Record<string, Meta> = {
   image: { icon: Image, tone: 'pink' },
   file: { icon: Paperclip, tone: 'orange' },
   card: { icon: SquareStack, tone: 'purple' },
+  query: { icon: TableProperties, tone: 'blue' },
   entryLink: { icon: Link2, tone: 'purple' },
   source: { icon: FileCode, tone: 'gray' },
   template: { icon: LayoutTemplate, tone: 'green' },
@@ -102,7 +104,7 @@ export const INSERT_SECTIONS: { key: string; ids: string[]; grid?: boolean }[] =
     ids: ['mermaid', 'mermaidFlow', 'mermaidSeq', 'mermaidClass', 'mermaidState', 'mermaidGantt'],
   },
   { key: 'time', ids: ['date', 'time', 'datetime'] },
-  { key: 'relate', ids: ['card', 'entryLink', 'template', 'source'] },
+  { key: 'relate', ids: ['card', 'entryLink', 'query', 'template', 'source'] },
 ]
 
 export function InsertIcon({ id, size = 'sm' }: { id: string; size?: 'sm' | 'md' }) {

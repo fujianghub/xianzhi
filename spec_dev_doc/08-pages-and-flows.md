@@ -157,6 +157,8 @@
 
 - **注 2026-09-27（ADR-0018）**：新建对话框顶部「建在」= 空间 › 目录位置（目录顶层 / 不放进目录 / 某页之下），可改；`e` 跟随当前页面：空间各页签 = 本空间目录顶层（记录页签选中节点时 = 其子页），记录页 = 同级；一次性默认值不被记住。REQ-ENTRY-021 · 022。
 
+- **注 2026-09-29（ADR-0033）**：search params 追加 `view?: 'stats'`（只选 Bug 时：概要 / 分布 / 趋势 / 修复时长 / 账龄，点分布条 = 按该值筛选并回到列表）、`group?: 'status'|'priority'|'severity'|'module'`（单一内置类型的表格分组，已加载行内分组、组头显示总数）、`sort` 增 `priority` `-foundAt`（只选 Bug 时出现）；search 白名单移到 `src/shared/entry-search.ts`（路由 / 保存视图 / 查询块共用）。左栏顶部「我的视图」（个人保存的筛选，点击套用，⋯ 改名 / 覆盖 / 删除），筛选行「保存视图」。新建对话框对 Bug 只填 优先级 / 严重度 / 模块；批量条对 Bug 多「改优先级」；表格不列 进度（该类型无进度时）与 提交 / 踩坑目录。记录页属性栏「流转」（状态 / 优先级 / 严重度变化，默认收起），解决日期只在已关闭时出现。空间概览 Bug 面板计数改用 `/entries/stats`，未关闭 = 新建 + 待决策，列表按优先级。REQ-BUG-003 ~ 009。
+
 ### 2.9 记录编辑 `/entries/$entryId`
 - **显示**：`paper` 纸面 760px 居中（可切 1080）；顶部标题 + kind 徽章 + fields 表单（按 kind 的 Zod schema 生成）+ 可见性；正文 Tiptap fullKit；Aside：大纲 / 反链 / 评论 / 属性；Topbar 右侧 StatusPill 显示 `synced / connecting / offline / readOnly`。数据：`GET /entries/:id` + collab WebSocket。
 - **search params**：`{ aside?: 'outline'|'backlinks'|'comments'|'props'|'history'; wide?: '1'; c?: uuid /* 评论锚点 */ }`；`#c-:commentId` `#m-:mentionId` 由 01 §4.1 深链使用；`/entries/$entryId/history` 只是重定向到 `?aside=history` 的可分享短链（§1）。

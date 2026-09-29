@@ -37,6 +37,7 @@ import {
   CommentMark,
   EntryCard,
   EntryLink,
+  EntryQuery,
   MathBlock,
   MathInline,
   Mermaid,
@@ -55,6 +56,7 @@ const stopInEditor = ({ event }: { event: Event }) => {
   return !!el.closest('[data-stop-pm]') || /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(el.tagName)
 }
 
+import { EntryQueryView } from './EntryQueryView.tsx'
 import {
   AttachmentView,
   CodeBlockView,
@@ -104,6 +106,10 @@ export function schemaKit(opts: { placeholder?: string } = {}): AnyExtension[] {
     AttachmentNode.extend({ addNodeView: () => ReactNodeViewRenderer(AttachmentView) }),
     EntryLink,
     EntryCard.extend({ addNodeView: () => ReactNodeViewRenderer(EntryCardView) }),
+    // 查询块（ADR-0033）：标题栏的按钮 / 下拉交给节点视图，不交给 ProseMirror
+    EntryQuery.extend({
+      addNodeView: () => ReactNodeViewRenderer(EntryQueryView, { stopEvent: stopInEditor }),
+    }),
     Callout.extend({ addNodeView: () => ReactNodeViewRenderer(CalloutView) }),
     // 图表 / 公式（ADR-0025 §8）：视图内部再懒加载 mermaid / katex / CodeMirror；编辑区里的按键不交给 ProseMirror
     Mermaid.extend({

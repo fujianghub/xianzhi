@@ -193,7 +193,7 @@ describe('T1-012 entries', () => {
       title: '崩溃',
       spaceId,
       visibility: 'space',
-      fields: { severity: 'high', status: 'open' },
+      fields: { severity: 'high', status: 'new' },
     })
     const { id } = (await r.json()) as { id: string }
     const p = await req(u.other, 'GET', `/entries/${id}/preview`)
@@ -204,7 +204,7 @@ describe('T1-012 entries', () => {
       kind: 'bug',
       title: '崩溃',
       author: { id: u.author.id },
-      fieldsSummary: { severity: 'high', status: 'open' },
+      fieldsSummary: { priority: 'p2', status: 'new', severity: 'high' },
     })
     expect(body).not.toHaveProperty('pmJson')
     expect((await req(u.outsider, 'GET', `/entries/${id}/preview`)).status).toBe(404)
