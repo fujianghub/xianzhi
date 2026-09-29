@@ -1,17 +1,17 @@
-/** 接受邀请（08 §2.2、REQ-AUTH-003 · 004）：读公开邀请信息 → 设显示名与密码 → 自动登录 → /today。 */
+/** 接受邀请（08 §2.2、REQ-AUTH-003 · 004）：读公开邀请信息 → 设显示名与密码 → 自动登录 → /today；外壳与小燕见 `AuthShell`（ADR-0034）。 */
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PASSWORD_MIN } from '../../shared/schemas/workspace.ts'
-import { ThemeMenu } from '../components/layout/ThemeMenu.tsx'
+import { AuthShell, birdPause, useBirdFlash } from '../components/auth/AuthShell.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { Input } from '../components/ui/input.tsx'
 import { FieldError, Label } from '../components/ui/label.tsx'
+import { Seal } from '../components/ui/seal.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
 import { ApiError, api, unwrap } from '../lib/api.ts'
 import { authClient } from '../lib/auth-client.ts'
-import { useLoginBody } from './login.tsx'
 
 export const Route = createFileRoute('/invite/$token')({ component: Invite })
 
@@ -25,7 +25,7 @@ interface PublicInvitation {
 function Invite() {
   const { t } = useTranslation()
   const { token } = Route.useParams()
-  useLoginBody()
+  const [flash, fire] = useBirdFlash()
   const q = useQuery({
     queryKey: ['invitation', token],
     queryFn: () =>
@@ -44,21 +44,25 @@ function Invite() {
         { headers: { 'x-captcha': accepted.captchaPass } },
       )
       if (r.error) throw new ApiError({ status: r.error.status ?? 401, code: 'UNAUTHENTICATED' })
+      fire('success')
+      await birdPause()
     },
     onSuccess: () => window.location.assign('/today'),
+    onError: () => fire('error'),
   })
   const err = (e: unknown) => (e instanceof ApiError ? e : null)
   const loadErr = err(q.error)
   const acceptErr = err(accept.error)
   const gone = loadErr?.status === 410 || acceptErr?.status === 410
   return (
-    <main className="flex min-h-dvh items-center justify-center p-4">
-      <ThemeMenu className="fixed top-4 right-4 z-(--xz-z-sticky)" />
-      <div
-        className="glass-thick w-full max-w-sm rounded-xl p-8 [--xz-edge:var(--xz-edge-login)]"
-        data-testid="invite"
-      >
-        <h1 className="mb-4 text-center font-semibold text-xl">{t('auth.invitation.title')}</h1>
+    <AuthShell greeting={t('auth.bird.hello.invite')} flash={flash}>
+      <div data-testid="invite">
+        <div className="xz-seal-host mb-5 flex flex-col items-center gap-3">
+          <Seal size="md" />
+          <h1 className="font-display text-[26px] leading-none tracking-[.2em]">
+            {t('auth.invitation.title')}
+          </h1>
+        </div>
         {q.isPending ? (
           <Skeleton className="h-24 w-full" />
         ) : gone || loadErr ? (
@@ -121,6 +125,7 @@ function Invite() {
                 id="inv-password"
                 type="password"
                 autoComplete="new-password"
+                data-secret
                 minLength={PASSWORD_MIN}
                 className="mt-1"
                 value={form.password}
@@ -147,6 +152,6 @@ function Invite() {
           </form>
         ) : null}
       </div>
-    </main>
+    </AuthShell>
   )
 }

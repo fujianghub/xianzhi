@@ -1,6 +1,7 @@
 /**
  * 申请注册（ADR-0008、08 §2.1b、REQ-AUTH-017）：邮箱 + 用户名 + 显示名 + 密码 + 拼图 → 提交后待 owner/admin 审批。
  * 字段级 409（邮箱 / 用户名已占用）与 422 就地显示；成功后切到「已提交」状态卡，引导回登录。
+ * 外壳与小燕见 `AuthShell`（ADR-0034）：校验 / 提交失败小燕垂头，提交成功衔枝欢跳。
  */
 import { useMutation } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
@@ -8,14 +9,13 @@ import { AtSign, CheckCircle2, Eye, EyeOff, LockKeyhole, Mail, UserRound } from 
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PASSWORD_MIN, USERNAME_RE } from '../../shared/schemas/workspace.ts'
-import { ThemeMenu } from '../components/layout/ThemeMenu.tsx'
+import { AuthShell, useBirdFlash } from '../components/auth/AuthShell.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { IconField } from '../components/ui/icon-field.tsx'
 import { FieldError } from '../components/ui/label.tsx'
 import { Seal } from '../components/ui/seal.tsx'
 import { SliderCaptcha } from '../components/ui/slider-captcha.tsx'
 import { ApiError, api, unwrap } from '../lib/api.ts'
-import { useLoginBody } from './login.tsx'
 
 export const Route = createFileRoute('/register')({ component: Register })
 
@@ -23,7 +23,7 @@ type Field = 'email' | 'username' | 'name' | 'password'
 
 function Register() {
   const { t } = useTranslation()
-  useLoginBody()
+  const [flash, fire] = useBirdFlash()
   const [form, setForm] = useState({ email: '', username: '', name: '', password: '' })
   const [showPw, setShowPw] = useState(false)
   const [captcha, setCaptcha] = useState<string | null>(null)
@@ -44,8 +44,10 @@ function Register() {
           { headers: { 'x-captcha': captcha ?? '' } },
         ),
       ),
+    onSuccess: () => fire('success'),
     onError: (err) => {
       setCaptchaKey((k) => k + 1)
+      fire('error')
       if (!(err instanceof ApiError)) return setError(t('errors.NETWORK'))
       if (err.code === 'CAPTCHA_INVALID') {
         setCaptchaFailed(true)
@@ -71,7 +73,7 @@ function Register() {
     if (form.password.length < PASSWORD_MIN)
       errs.password = t('auth.register.passwordRule', { n: PASSWORD_MIN })
     setFieldErr(errs)
-    if (Object.keys(errs).length) return
+    if (Object.keys(errs).length) return fire('error')
     if (!captcha) return setError(t('auth.captcha.required'))
     setError(null)
     setCaptchaFailed(false)
@@ -79,12 +81,8 @@ function Register() {
   }
 
   return (
-    <main className="flex min-h-dvh items-center justify-center p-4">
-      <ThemeMenu className="fixed top-4 right-4 z-(--xz-z-sticky)" />
-      <div
-        className="glass-thick w-full max-w-[28rem] rounded-2xl px-6 pt-8 pb-6 sm:px-9 [--xz-edge:var(--xz-edge-login)]"
-        data-testid="register"
-      >
+    <AuthShell greeting={t('auth.bird.hello.register')} flash={flash}>
+      <div data-testid="register">
         <div className="xz-seal-host mb-6 flex flex-col items-center gap-3">
           <Seal size="md" />
           <h1 className="font-display text-[26px] leading-none tracking-[.2em]">
@@ -159,6 +157,7 @@ function Register() {
                 icon={LockKeyhole}
                 type={showPw ? 'text' : 'password'}
                 autoComplete="new-password"
+                data-secret
                 value={form.password}
                 onChange={set('password')}
                 aria-invalid={!!fieldErr.password}
@@ -200,6 +199,6 @@ function Register() {
           </form>
         )}
       </div>
-    </main>
+    </AuthShell>
   )
 }

@@ -167,6 +167,7 @@
 | 巢 Nest | 空间 Space | 仅空状态与引导语；命名保持「空间」 |
 | 燕印 Seal | 品牌标识（`Seal` 组件 / `.xz-seal`） | Sidebar 品牌位、登录页、favicon（ADR-0005 §2；配色造型见 ADR-0007） |
 | 枝线 Branch line | 顶栏滚动态下沿细线（`.xz-topbar[data-scrolled]`、`--xz-branch-line`） | 仅 Topbar（ADR-0005 §2） |
+| 衔枝小院 · 小燕 Swallow courtyard | 认证页插画与吉祥物（`AuthShell` / `SwallowScene` / `SwallowPeek`，情绪 `data-mood`、小动作 `data-behavior`，气泡 `auth.bird.*`） | 仅登录 / 注册 / 2FA / 邀请四页（ADR-0034） |
 
 克制原则（04 §1）：隐喻只出现在**命名、空状态、里程碑动效**三处。（注 2026-09-24：ADR-0005 扩为五处，另加品牌位与顶栏枝线。）数据模型、API、代码标识符一律用英文本名（`cycle` / `review` / `task` / `space`），不用隐喻词。
 
