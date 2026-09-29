@@ -1,0 +1,949 @@
+/*
+ * 认证页「衔枝小院」（ADR-0034、REQ-UI-041 · 042 · 043）：由 AuthShell 引入，随认证路由拆包，不进主包。
+ * 颜色只取 tokens.css 的 `--xz-bird-*` / `--xz-scene-*` / 通用 token；时长只取 `--xz-dur-*`（减弱档归零）。
+ * 引擎写节点的 `transform`；这里的姿态与关键帧一律用独立的 `rotate` / `translate` / `scale`，两者叠加不覆盖。
+ * 状态挂在卡片上：`[data-mood]`（idle / scout / cover / peek / captcha / error / success）与 `[data-behavior]`。
+ * 同屏 blur 仍只有卡片 1 处（插画在卡内，不加 backdrop-filter）；不用 will-change（06 §8）。
+ */
+
+/* ---- 布局 ---- */
+.xz-auth {
+  display: flex;
+  min-height: 100dvh;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.xz-auth-card {
+  position: relative;
+  width: 100%;
+  border-radius: 22px;
+}
+.xz-auth-card.is-narrow {
+  max-width: 27rem;
+  margin-top: 92px;
+}
+.xz-auth-card.is-wide {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 440px;
+  max-width: 980px;
+  min-height: 620px;
+  overflow: hidden;
+}
+.xz-auth-pane {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 32px 24px 24px;
+}
+.is-wide .xz-auth-pane {
+  padding: 44px 44px 36px;
+}
+@media (width >= 40rem) {
+  .is-narrow .xz-auth-pane {
+    padding-inline: 36px;
+  }
+}
+
+/* ---- 左栏插画：晨光 + 翡翠薄雾 + 宣纸颗粒 ---- */
+.xz-auth-art {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 28px 20px 26px;
+  border-right: 1px solid var(--xz-divider);
+  background:
+    radial-gradient(circle at 74% 20%, var(--xz-scene-sun), transparent 52%),
+    linear-gradient(172deg, var(--xz-scene-wash), transparent 72%);
+  contain: paint;
+  isolation: isolate;
+}
+.xz-auth-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.06;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+[data-theme="dark"] .xz-auth-art::after {
+  mix-blend-mode: screen;
+  opacity: 0.05;
+}
+.xz-auth-stage {
+  position: relative;
+  width: 100%;
+  /* 高度跟视口走：插画比 200 : 270，卡片在 800px 高的屏里不溢出 */
+  max-width: min(470px, calc((100dvh - 160px) * 0.74));
+}
+.xz-auth-foot {
+  margin-top: 10px;
+  font-size: 13px;
+  letter-spacing: 0.42em;
+  color: var(--xz-fg-muted);
+}
+
+/* 气泡：贴在小燕头部右上，换文案时弹一下 */
+.xz-auth-bubble {
+  position: absolute;
+  bottom: 57%;
+  left: 50%;
+  z-index: 1;
+  width: max-content;
+  max-width: 250px;
+  margin: 0;
+  padding: 8px 14px;
+  border: 1px solid var(--xz-border);
+  border-radius: 16px 16px 16px 4px;
+  background: var(--xz-surface);
+  box-shadow: var(--xz-shadow-card);
+  color: var(--xz-fg);
+  font-family: var(--xz-font-display);
+  font-size: 15px;
+  line-height: 1.45;
+  transform-origin: 0 100%;
+  animation: xz-bubble-pop var(--xz-dur-slow) var(--xz-ease-spring) both;
+}
+@keyframes xz-bubble-pop {
+  from {
+    opacity: 0;
+    scale: 0.6;
+    translate: -6px 8px;
+  }
+}
+
+/* 探头版：头 + 两只扒卡沿的翅尖压在卡片顶边上 */
+.xz-auth-peek {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 1;
+  width: 132px;
+  translate: -50% -97%;
+}
+
+/* ---- 小燕上色（T1 绒光：不描边，形体全靠光影；渐变色标一律取 token） ---- */
+.xz-bird-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.xz-stop-back-hi {
+  stop-color: var(--xz-bird-back-hi);
+}
+.xz-stop-back {
+  stop-color: var(--xz-bird-back);
+}
+.xz-stop-back-lo {
+  stop-color: var(--xz-bird-back-lo);
+}
+.xz-stop-wing-hi {
+  stop-color: var(--xz-bird-wing-hi);
+}
+.xz-stop-wing-lo {
+  stop-color: var(--xz-bird-wing-lo);
+}
+.xz-stop-belly {
+  stop-color: var(--xz-bird-belly);
+}
+.xz-stop-belly-lo {
+  stop-color: var(--xz-bird-belly-lo);
+}
+.xz-stop-throat {
+  stop-color: var(--xz-bird-throat);
+}
+.xz-stop-throat-lo {
+  stop-color: var(--xz-bird-throat-lo);
+}
+.xz-stop-eye-hi {
+  stop-color: var(--xz-bird-eye-hi);
+}
+.xz-stop-eye {
+  stop-color: var(--xz-bird-eye);
+}
+.xz-stop-rim {
+  stop-color: var(--xz-bird-rim);
+}
+.xz-stop-shadow {
+  stop-color: var(--xz-bird-shadow);
+}
+.xz-stop-branch {
+  stop-color: var(--xz-branch);
+}
+.xz-stop-branch-lo {
+  stop-color: var(--xz-branch-lo);
+}
+.xz-stop-sun {
+  stop-color: var(--xz-scene-sun);
+}
+/* 同色渐隐到透明：比 `transparent` 更干净（不会混出灰边） */
+.xz-stop-clear {
+  stop-opacity: 0;
+}
+.xz-scene-orb {
+  fill: var(--xz-scene-orb);
+}
+.xz-bird-head-fx {
+  transition:
+    scale var(--xz-dur-slow) var(--xz-ease-out),
+    rotate var(--xz-dur-slow) var(--xz-ease-out);
+}
+.xz-bird-forehead {
+  fill: var(--xz-bird-throat);
+}
+.xz-bird-band {
+  fill: var(--xz-bird-band);
+}
+.xz-bird-covert {
+  fill: var(--xz-bird-wing-hi);
+  opacity: 0.45;
+}
+.xz-bird-belly-shade {
+  fill: var(--xz-bird-belly-lo);
+  opacity: 0.45;
+}
+.xz-bird-tail-spot {
+  fill: var(--xz-bird-belly);
+  opacity: 0.7;
+}
+/* 嘴角：紧贴喙根的暖黄小圆角 */
+.xz-bird-gape {
+  fill: var(--xz-bird-gape);
+}
+.xz-bird-iris-ring {
+  fill: none;
+  stroke: var(--xz-bird-reflect);
+  stroke-width: 0.5;
+  opacity: 0.55;
+}
+.xz-bird-wing-shadow {
+  fill: var(--xz-bird-back-lo);
+  opacity: 0.35;
+}
+.xz-bird-shadow {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+.xz-bird-gloss {
+  fill: var(--xz-bird-gloss);
+}
+.xz-bird-wing-far {
+  fill: var(--xz-bird-wing-lo);
+}
+.xz-bird-wing-shine {
+  fill: none;
+  stroke: var(--xz-bird-gloss);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+}
+.xz-bird-feet {
+  fill: none;
+  stroke: var(--xz-bird-feet);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.xz-bird-glint {
+  fill: var(--xz-bird-glint);
+}
+.xz-bird-glint-soft {
+  opacity: 0.8;
+}
+.xz-bird-eye-reflect {
+  fill: none;
+  stroke: var(--xz-bird-reflect);
+  stroke-width: 0.8;
+}
+.xz-bird-eye-happy,
+.xz-bird-eye-closed {
+  fill: none;
+  stroke: var(--xz-bird-eye);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  opacity: 0;
+}
+.xz-bird-eye-open {
+  transition: opacity var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-bird-blush {
+  fill: var(--xz-bird-blush);
+  transition: opacity var(--xz-dur-base) var(--xz-ease-out);
+}
+.xz-bird-blush-lines,
+.xz-bird-brows {
+  fill: none;
+  stroke: var(--xz-bird-brow);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  opacity: 0;
+  transition: opacity var(--xz-dur-base) var(--xz-ease-out);
+}
+.xz-bird-blush-lines {
+  stroke: var(--xz-bird-heart);
+  stroke-width: 1.1;
+}
+.xz-bird-tear {
+  fill: var(--xz-bird-tear);
+  opacity: 0;
+}
+.xz-bird-beak-upper,
+.xz-bird-beak-lower {
+  fill: var(--xz-bird-beak);
+}
+.xz-bird-beak-shine {
+  stroke: var(--xz-bird-gloss);
+  stroke-width: 0.7;
+  stroke-linecap: round;
+}
+.xz-bird-beak-lower {
+  transform-origin: 143.4px 71px;
+  transition: rotate var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-bird-mouth {
+  fill: var(--xz-bird-mouth);
+  opacity: 0; /* 只在张嘴（啾鸣 / 开心）时露出，平时不再露出第二张「嘴」 */
+  transition: opacity var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-bird-twig {
+  opacity: 0;
+  scale: 0.2;
+  transform-origin: 143px 70.5px;
+  transition:
+    opacity var(--xz-dur-fast) var(--xz-ease-out),
+    scale var(--xz-dur-slow) var(--xz-ease-spring);
+}
+.xz-bird-twig-stem {
+  fill: none;
+  stroke: var(--xz-branch);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+.xz-bird-leaf {
+  fill: var(--xz-willow);
+}
+.xz-bird-leaf-2 {
+  fill: var(--xz-willow-2);
+}
+.xz-bird-wing {
+  transition:
+    rotate var(--xz-dur-slow) var(--xz-ease-spring),
+    scale var(--xz-dur-slow) var(--xz-ease-spring),
+    translate var(--xz-dur-slow) var(--xz-ease-spring),
+    opacity var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-bird-hit {
+  fill: transparent;
+  cursor: pointer;
+  pointer-events: all;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 特效符号 */
+.xz-fx {
+  opacity: 0;
+  fill: var(--xz-bird-ink);
+  font-family: var(--xz-font-display);
+  font-size: 17px;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transition: opacity var(--xz-dur-base) var(--xz-ease-out);
+}
+.xz-fx-note {
+  fill: var(--xz-primary-text);
+}
+.xz-fx-sweat {
+  fill: var(--xz-bird-tear);
+}
+.xz-fx-hearts {
+  fill: var(--xz-bird-heart);
+}
+.xz-fx-spark {
+  fill: var(--xz-bird-spark);
+}
+.xz-fx-z {
+  font-size: 12px;
+}
+
+/* 柳枝 */
+
+.xz-branch-twig {
+  fill: none;
+  stroke: var(--xz-branch-lo);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+.xz-branch-light {
+  fill: none;
+  stroke: var(--xz-branch-light);
+  stroke-width: 1;
+}
+.xz-willow-strand {
+  fill: none;
+  stroke: var(--xz-branch);
+  stroke-width: 0.8;
+  stroke-linecap: round;
+  opacity: 0.55;
+}
+.xz-willow-leaf {
+  fill: var(--xz-willow);
+}
+.xz-willow-leaf-2 {
+  fill: var(--xz-willow-2);
+}
+
+.xz-willow {
+  animation: xz-sway 7s var(--xz-ease-in-out) infinite alternate;
+}
+@keyframes xz-sway {
+  from {
+    rotate: -2.2deg;
+  }
+  to {
+    rotate: 2.2deg;
+  }
+}
+.xz-falling {
+  display: none;
+}
+
+/* ================= 情绪 ================= */
+
+/* 探看：凑近输入框，冒一个「!」；盯滑块时尾巴轻摆 */
+[data-mood="scout"] .xz-fx-bang {
+  animation: xz-fx-blip 900ms var(--xz-ease-out) both;
+}
+
+[data-mood="captcha"] .xz-bird-tail {
+  animation: xz-tail-flick 1.4s var(--xz-ease-in-out) infinite;
+}
+
+/*
+ * 捂眼：扭头躲开——头绕颈水平翻转（喙转向背后）并微低、闭眼、脸红；翻转过渡经过「压扁」一瞬，正像转头。
+ * 偷看：同样扭着头，但睁着眼拿余光往回瞄，星星闪。
+ */
+[data-mood="cover"] .xz-bird-head-fx,
+[data-mood="peek"] .xz-bird-head-fx,
+[data-behavior="shy"] .xz-bird-head-fx {
+  scale: -1 1;
+  rotate: 10deg;
+}
+[data-mood="cover"] .xz-bird-eye-open,
+[data-behavior="shy"] .xz-bird-eye-open {
+  opacity: 0;
+}
+[data-mood="cover"] .xz-bird-eye-closed,
+[data-behavior="shy"] .xz-bird-eye-closed {
+  opacity: 1;
+}
+[data-mood="cover"] .xz-bird-wing-l,
+[data-behavior="shy"] .xz-bird-wing-l {
+  rotate: -8deg; /* 近侧翅微微收拢，像缩起肩膀 */
+}
+[data-mood="cover"] .xz-bird-blush-lines,
+[data-mood="peek"] .xz-bird-blush-lines,
+[data-behavior="shy"] .xz-bird-blush-lines {
+  opacity: 1;
+}
+[data-mood="peek"] .xz-fx-spark {
+  opacity: 0.9;
+  animation: xz-twinkle 1.2s var(--xz-ease-in-out) infinite alternate;
+}
+
+/* 出错：垂头、眉眼下垂含泪、冒「?」，摇头 */
+[data-mood="error"] .xz-bird-head-fx {
+  animation: xz-head-shake 800ms 180ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+[data-mood="error"] .xz-bird-brows,
+[data-mood="error"] .xz-bird-tear {
+  opacity: 1;
+}
+[data-mood="error"] .xz-bird-tear {
+  animation: xz-tear 1.6s 300ms var(--xz-ease-in-out) both;
+}
+[data-mood="error"] .xz-bird-blush {
+  opacity: 0.35;
+}
+[data-mood="error"] .xz-fx-q {
+  opacity: 1;
+  animation: xz-fx-wobble 900ms var(--xz-ease-spring) both;
+}
+[data-mood="error"] .xz-bird-wing-l {
+  rotate: 8deg;
+}
+
+/* 成功：眯眼笑、衔上一枝、扑翅跳两下、星星闪 */
+[data-mood="success"] .xz-bird-eye-open,
+[data-behavior="love"] .xz-bird-eye-open {
+  opacity: 0;
+}
+[data-mood="success"] .xz-bird-eye-happy,
+[data-behavior="love"] .xz-bird-eye-happy {
+  opacity: 1;
+}
+[data-mood="success"] .xz-bird-twig {
+  opacity: 1;
+  scale: 1;
+}
+[data-mood="success"] .xz-bird-shadow {
+  animation: xz-shadow-hop 640ms var(--xz-ease-out) 2;
+}
+[data-mood="success"] .xz-bird-hop {
+  animation: xz-bird-hop 640ms var(--xz-ease-out) 2 both;
+}
+[data-mood="success"] .xz-bird-wing-l {
+  animation: xz-flap-l 320ms var(--xz-ease-in-out) 4;
+}
+[data-mood="success"] .xz-fx-spark {
+  opacity: 1;
+  animation: xz-twinkle 600ms var(--xz-ease-in-out) infinite alternate;
+}
+
+/* ================= 小动作 ================= */
+/* 姿态（张望 / 歪头 / 抬头 / 理羽低头）由引擎驱动头部；这里只放身体局部的关键帧，都带预备与回弹 */
+
+/* 啾鸣：头微抬，喙快速开合三下，喉部跟着一鼓一鼓 */
+[data-behavior="chirp"] .xz-bird-beak-lower {
+  animation: xz-beak-chirp 1s var(--xz-ease-out);
+}
+[data-behavior="love"] .xz-bird-beak-lower {
+  rotate: 22deg;
+}
+[data-behavior="chirp"] .xz-bird-mouth,
+[data-behavior="love"] .xz-bird-mouth {
+  opacity: 1;
+}
+.xz-bird-throat {
+  transform-origin: 132px 82px;
+}
+[data-behavior="chirp"] .xz-bird-throat {
+  animation: xz-throat-puff 1s var(--xz-ease-out);
+}
+[data-behavior="chirp"] .xz-bird-head-fx {
+  animation: xz-head-bob 1s var(--xz-ease-in-out);
+}
+[data-behavior="chirp"] .xz-fx-note {
+  animation: xz-fx-float 1s var(--xz-ease-out) both;
+}
+/* 抖羽：先蓬松鼓起，再左右抖两下落回 */
+[data-behavior="ruffle"] .xz-bird-hop {
+  animation: xz-ruffle 750ms var(--xz-ease-out);
+}
+[data-behavior="ruffle"] .xz-bird-head-fx {
+  animation: xz-head-shiver 750ms var(--xz-ease-out);
+}
+/* 翘尾：尾羽快速上下点两下 */
+[data-behavior="tailbob"] .xz-bird-tail {
+  animation: xz-tailbob 650ms var(--xz-ease-out);
+}
+/* 伸翅：先往里收一下（预备），再向后下方舒展、停住、收回 */
+[data-behavior="stretch"] .xz-bird-wing-l,
+[data-behavior="wake"] .xz-bird-wing-l {
+  animation: xz-stretch-l 1.4s var(--xz-ease-in-out);
+}
+[data-behavior="stretch"] .xz-bird-tail {
+  animation: xz-tail-spread 1.4s var(--xz-ease-in-out);
+}
+/* 横挪：燕子腿短，沿枝小碎步横挪两步再挪回，每步一点起伏 */
+[data-behavior="shuffle"] .xz-bird-hop {
+  animation: xz-shuffle 1.5s var(--xz-ease-in-out);
+}
+/* 理羽：翅膀微抬让出肩背，头埋进去蹭（头部姿态在引擎） */
+[data-behavior="preen"] .xz-bird-wing-l {
+  animation: xz-preen-wing 1.6s var(--xz-ease-in-out);
+}
+
+[data-behavior="sleep"] .xz-bird-eye-open {
+  opacity: 0;
+}
+[data-behavior="sleep"] .xz-bird-eye-closed {
+  opacity: 1;
+}
+
+[data-behavior="sleep"] .xz-fx-z {
+  opacity: 1;
+  animation: xz-z-float 2.4s var(--xz-ease-in-out) infinite;
+}
+[data-behavior="shy"] .xz-bird-blush {
+  opacity: 1;
+}
+[data-behavior="shy"] .xz-fx-sweat {
+  opacity: 1;
+  animation: xz-fx-blip 1.4s var(--xz-ease-out) both;
+}
+[data-behavior="love"] .xz-fx-hearts {
+  opacity: 1;
+  animation: xz-fx-float 1.6s var(--xz-ease-out) both;
+}
+[data-behavior="love"] .xz-bird-hop {
+  animation: xz-bird-wiggle 420ms var(--xz-ease-in-out) 3;
+}
+
+/* ================= 关键帧 ================= */
+@keyframes xz-head-shake {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  10% {
+    translate: -4.5px 0;
+  }
+  20% {
+    translate: 3.5px 0;
+  }
+  30% {
+    translate: -3px 0;
+  }
+  40% {
+    translate: 2.5px 0;
+  }
+  50% {
+    translate: -2px 0;
+  }
+  60% {
+    translate: 1.5px 0;
+  }
+  70% {
+    translate: -1px 0;
+  }
+  80% {
+    translate: 0.5px 0;
+  }
+}
+@keyframes xz-head-bob {
+  20%,
+  80% {
+    rotate: -5deg;
+    translate: 0 -0.5px;
+  }
+}
+@keyframes xz-beak-chirp {
+  10%,
+  34%,
+  58% {
+    rotate: 26deg;
+  }
+  22%,
+  46%,
+  70%,
+  100% {
+    rotate: 0deg;
+  }
+}
+@keyframes xz-throat-puff {
+  10%,
+  34%,
+  58% {
+    scale: 1.1;
+  }
+  22%,
+  46%,
+  70%,
+  100% {
+    scale: 1;
+  }
+}
+@keyframes xz-ruffle {
+  22% {
+    scale: 1.07 1.05;
+  }
+  36% {
+    scale: 1.06 1.04;
+    rotate: -2.2deg;
+  }
+  50% {
+    rotate: 2deg;
+  }
+  64% {
+    rotate: -1.4deg;
+    scale: 1.03 1.02;
+  }
+  82% {
+    rotate: 0.6deg;
+    scale: 0.99 1;
+  }
+}
+@keyframes xz-head-shiver {
+  36% {
+    translate: -0.8px 0;
+  }
+  50% {
+    translate: 0.8px 0;
+  }
+  64% {
+    translate: -0.5px 0;
+  }
+}
+@keyframes xz-tailbob {
+  18% {
+    rotate: 7deg;
+  }
+  38% {
+    rotate: -1.5deg;
+  }
+  58% {
+    rotate: 4.5deg;
+  }
+  80% {
+    rotate: -0.5deg;
+  }
+}
+@keyframes xz-tail-spread {
+  30%,
+  70% {
+    rotate: -4deg;
+    scale: 1.05;
+  }
+}
+@keyframes xz-shuffle {
+  12% {
+    translate: -2px -1.4px;
+  }
+  24% {
+    translate: -4px 0;
+  }
+  36% {
+    translate: -6px -1.4px;
+  }
+  48%,
+  60% {
+    translate: -8px 0;
+  }
+  72% {
+    translate: -5px -1.4px;
+  }
+  86% {
+    translate: -2px 0;
+  }
+  94% {
+    translate: -0.6px -0.6px;
+  }
+}
+@keyframes xz-preen-wing {
+  20%,
+  80% {
+    rotate: 12deg;
+  }
+  40% {
+    rotate: 15deg;
+  }
+  60% {
+    rotate: 10deg;
+  }
+}
+@keyframes xz-bird-hop {
+  0%,
+  100% {
+    translate: 0 0;
+    scale: 1 1;
+  }
+  15% {
+    translate: 0 1px;
+    scale: 1.06 0.94;
+  }
+  50% {
+    translate: 0 -11px;
+    scale: 0.96 1.05;
+  }
+  85% {
+    translate: 0 0.5px;
+    scale: 1.04 0.96;
+  }
+}
+@keyframes xz-shadow-hop {
+  50% {
+    scale: 0.7 0.8;
+    opacity: 0.6;
+  }
+}
+@keyframes xz-bird-wiggle {
+  25% {
+    rotate: -4deg;
+  }
+  75% {
+    rotate: 4deg;
+  }
+}
+@keyframes xz-flap-l {
+  50% {
+    rotate: 42deg;
+  }
+}
+@keyframes xz-stretch-l {
+  14% {
+    rotate: -5deg;
+  }
+  34%,
+  68% {
+    rotate: 30deg;
+    translate: -2px 5px;
+    scale: 1.06 1.14;
+  }
+}
+@keyframes xz-tail-flick {
+  30% {
+    rotate: 7deg;
+  }
+  60% {
+    rotate: -5deg;
+  }
+}
+
+@keyframes xz-tear {
+  0% {
+    opacity: 0;
+    translate: 0 -2px;
+  }
+  30% {
+    opacity: 1;
+    translate: 0 0;
+  }
+  100% {
+    opacity: 0.9;
+    translate: 0 3px;
+  }
+}
+@keyframes xz-fx-blip {
+  0% {
+    opacity: 0;
+    scale: 0.3;
+    translate: 0 3px;
+  }
+  30% {
+    opacity: 1;
+    scale: 1.15;
+    translate: 0 0;
+  }
+  75% {
+    opacity: 1;
+    scale: 1;
+  }
+  100% {
+    opacity: 0;
+    scale: 1;
+    translate: 0 -2px;
+  }
+}
+@keyframes xz-fx-wobble {
+  0% {
+    scale: 0.2;
+  }
+  60% {
+    scale: 1.2;
+    rotate: 10deg;
+  }
+  100% {
+    scale: 1;
+    rotate: 0deg;
+  }
+}
+@keyframes xz-fx-float {
+  0% {
+    opacity: 0;
+    translate: 0 4px;
+    scale: 0.6;
+  }
+  25% {
+    opacity: 1;
+    scale: 1.1;
+  }
+  100% {
+    opacity: 0;
+    translate: 3px -13px;
+    scale: 1;
+  }
+}
+@keyframes xz-z-float {
+  0% {
+    opacity: 0;
+    translate: 0 3px;
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    translate: 4px -7px;
+  }
+}
+@keyframes xz-twinkle {
+  from {
+    scale: 0.8;
+    opacity: 0.55;
+  }
+  to {
+    scale: 1.1;
+    opacity: 1;
+  }
+}
+
+/* 丰富档：柳叶飘落（ADR-0005 §3 rich 额外氛围层） */
+:root[data-motion="rich"] .xz-falling {
+  display: inline;
+}
+:root[data-motion="rich"] .xz-falling path {
+  transform-box: fill-box;
+  animation: xz-leaf-fall 11s linear infinite;
+}
+:root[data-motion="rich"] .xz-falling path:nth-child(2) {
+  animation-duration: 13s;
+  animation-delay: -5s;
+}
+:root[data-motion="rich"] .xz-falling path:nth-child(3) {
+  animation-duration: 15s;
+  animation-delay: -9s;
+}
+@keyframes xz-leaf-fall {
+  0% {
+    translate: 0 -30px;
+    rotate: 0deg;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  50% {
+    translate: -30px 190px;
+    rotate: 160deg;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    translate: 10px 400px;
+    rotate: 320deg;
+    opacity: 0;
+  }
+}
+
+/* 转身：目标在背后时头绕颈翻转朝后（与捂眼共用同一机制，捂眼时引擎强制面朝前） */
+.xz-bird-svg[data-facing="back"] .xz-bird-head-fx {
+  scale: -1 1;
+}
+
+/* 探头版：头胸从卡沿探出，胸口以下藏在卡片后面；捂眼同样扭头躲开 */
+.xz-auth-peek .xz-bird-svg {
+  overflow: hidden;
+}
+
+/*
+ * ---- 减弱档：关键帧全停，含义性的符号（? / 泪 / zZ / 心）静态显示；过渡随 token 归零 ----
+ * 须留在文件末尾：`:root .xz-auth *` 与情绪规则同为 (0,2,0)，靠源码顺序压住；系统减弱时 rich 的落叶也收起。
+ */
+:root[data-motion="reduce"] .xz-auth *,
+:root[data-motion="reduce"] .xz-auth *::after {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root .xz-auth *,
+  :root .xz-auth *::after {
+    animation: none;
+  }
+  :root[data-motion="rich"] .xz-auth .xz-falling {
+    display: none;
+  }
+}

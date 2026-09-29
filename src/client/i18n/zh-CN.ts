@@ -281,6 +281,27 @@ export const zhCN = {
       required: '请先完成拼图',
       loadFailed: '拼图加载失败，点此重试',
     },
+    /** ADR-0034 认证页小燕的气泡（装饰，aria-hidden） */
+    bird: {
+      hello: {
+        login: '啾～今天也来衔一根枝吧',
+        register: '新燕来啦？先报个名～',
+        twoFactor: '再对一下暗号就好',
+        invite: '有人邀你一起筑巢～',
+      },
+      scout: '我帮你看着～',
+      scoutName: '嗯？是「{{name}}」吗',
+      cover: '我不看，我不看！',
+      peek: '就……偷看一眼',
+      captcha: '对准缺口，拼上它～',
+      error: '咦？好像哪里不对…',
+      success: '衔到啦，回巢～',
+      sleep: '呼……Zzz',
+      shy: '别、别戳啦…',
+      love: '啾啾，最喜欢你了',
+      chirp: '啾啾～',
+      foot: '一枝一叶，岁成一巢',
+    },
     twoFactor: {
       title: '两步验证',
       code: '验证码',

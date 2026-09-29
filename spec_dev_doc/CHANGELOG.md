@@ -4,6 +4,9 @@
 
 ## 2026-09-29
 
+**认证页「衔枝小院」：双栏插画 + 会反应的小燕（ADR-0034）**
+- 新增 ADR-0034（兑现 ADR-0007 预留的柳枝构图 D）。00 §16：+REQ-UI-041 ~ 043。06 §5.6 注（认证四页改双栏，窄屏探头小燕）。08 §2.1 注（情绪 / 成功延迟跳转）。glossary §2 +衔枝小院 · 小燕。tokens +`--xz-bird-*` `--xz-scene-*` `--xz-willow*` `--xz-branch`（两主题）。评审跟进：去掉燕巢 / 雏燕（不聚焦）；造型两版正面被否后改 3/4 侧身，三方向候选中用户选定 A「豆豆燕」；再出三种渲染质感，选定 T1「绒光」（无描边 · 右上主光 · 釉光 / 反光 / 柔影 · 栗红下巴 + 藏蓝胸带）。跟随与去机械感重做（喙指向指针 · 指针在背后转身 · 眼先头后身尾跟随链 · 微顿挫 / 错相呼吸 / 换重心 · 嘴只画一个喙）；定稿「幼燕 + A 墨青」（头宽约为躯干长 45% · 蛋形躯干 · 大眼偏低 · 嘴角笑线 · 叉尾白斑 · 低饱和墨青 / 陶土红 / 暖奶油，`--xz-bird-gape`，柳叶改鼠尾草绿）；此前比例曾改为真家燕 N2「自然」（修长身 · 长刀翅 · 深叉尾 · 捂眼改扭头躲开，`--xz-bird-band`）；动作按真鸟规律重做（头身拆开、扫视 + 头部稳定、眼先头后身、歪头打量、燕子停栖小动作清单、开发用 `?birdlab` 实验台）。tokens 相应改为 `--xz-bird-back-hi/-lo` `wing-hi/-lo` `belly-lo` `throat-lo` `eye-hi` `reflect` `gloss` `rim` `shadow` 与 `--xz-branch-lo/-light`。debug 记一条（减弱档 CSS 被情绪规则特异性压过 / 0ms 过渡带 delay 仍生成 transition）。
+
 **Bug 跟踪：四态 · 优先级 · 统计 · 保存视图 · 查询块（ADR-0033）**
 - 新增 ADR-0033（计划评审意见已并入）。00：+§6d BUG（REQ-BUG-001 ~ 012）及 open → new 注。01：§3.4d +`entry_field_changes` `entry_views`；§3.5 bug fields 改四态 + 优先级 / 发现 / 解决日期 / 模块。02 §9：+`/entries/stats` `/entries/bug-stats` `/entries/:id/field-changes` `/entry-views`×4，batch `fields.set` +priority。03 §3.2 +entryQuery。07 §5 +保存视图 / Bug 统计限额。08 §2.8 注（统计视图、分组、我的视图、快速提 Bug、流转）。glossary +优先级、待决策、流转、保存视图、查询块。迁移 0020（两表）· 0021（数据：open → new、补 priority / foundAt / resolvedAt、模板剔日期）。
 - 验收跟进：SSE invalidate 帧合并失效（安静 300ms / 最长 2s），避免连续写入时统计页把本人请求放大到 429；debug 记两条（失效放大、e2e collab 端口写死）。

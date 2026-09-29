@@ -116,6 +116,43 @@
   --xz-seal-leaf: #e4f76a;
   --xz-seal-leaf-2: #c4ee55;
 
+  /* ---- ADR-0034 认证页「衔枝小院」：小燕 / 柳枝（纯装饰，不承载文字） ---- */
+  --xz-bird-back-hi: #4a7a92;
+  --xz-bird-back: #243b4f;
+  --xz-bird-back-lo: #1b2c3b;
+  --xz-bird-wing-hi: #4a7a92;
+  --xz-bird-wing-lo: #1b2c3b;
+  --xz-bird-belly: #fbf1e1;
+  --xz-bird-belly-lo: #e6d2b2;
+  --xz-bird-throat: #c8603f;
+  --xz-bird-throat-lo: #a94c31;
+  --xz-bird-eye-hi: #3e4150;
+  --xz-bird-eye: #1a1d24;
+  --xz-bird-reflect: rgba(159, 184, 255, 0.5);
+  --xz-bird-gloss: rgba(255, 255, 255, 0.28);
+  --xz-bird-rim: rgba(246, 217, 166, 0.38);
+  --xz-bird-shadow: rgba(40, 30, 10, 0.28);
+  --xz-bird-blush: rgba(244, 163, 140, 0.55);
+  --xz-bird-band: #2e4659;
+  --xz-bird-gape: #f2b366;
+  --xz-bird-beak: #3a3230;
+  --xz-bird-mouth: #b8433a;
+  --xz-bird-feet: #5b4440;
+  --xz-bird-glint: #ffffff;
+  --xz-bird-brow: #fff1dc;
+  --xz-bird-tear: #7cc4f0;
+  --xz-bird-heart: #f0587a;
+  --xz-bird-spark: #f3b43a;
+  --xz-bird-ink: #3f4a66;
+  --xz-branch: #8a5a30;
+  --xz-branch-lo: #5a3718;
+  --xz-branch-light: rgba(255, 243, 214, 0.35);
+  --xz-willow: #86b879;
+  --xz-willow-2: #b3d48f;
+  --xz-scene-sun: rgba(255, 214, 150, 0.42);
+  --xz-scene-orb: rgba(255, 240, 208, 0.8);
+  --xz-scene-wash: rgba(2, 179, 119, 0.07);
+
   /* ---- ADR-0005 / 06 §4 代码块：One Dark 变体，两主题同一深底 ---- */
   --xz-code-bg: #282c34;
   --xz-code-bar: #21252b;
@@ -259,6 +296,42 @@
     inset 0 0 0 1px rgba(255, 255, 255, 0.05);
   --xz-shadow-float: 0 20px 60px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
   --xz-shadow-seal: 0 4px 18px rgba(46, 231, 156, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+
+  /* ADR-0034 夜场：燕身提亮 + 浅色描边免得融进深底；日轮换成月轮 */
+  --xz-bird-back-hi: #6a9ab2;
+  --xz-bird-back: #2f4b62;
+  --xz-bird-back-lo: #22384a;
+  --xz-bird-wing-hi: #6a9ab2;
+  --xz-bird-wing-lo: #22384a;
+  --xz-bird-belly: #f3e6d0;
+  --xz-bird-belly-lo: #cdb896;
+  --xz-bird-throat: #d06a48;
+  --xz-bird-throat-lo: #ae5236;
+  --xz-bird-eye-hi: #3e4150;
+  --xz-bird-eye: #15171d;
+  --xz-bird-reflect: rgba(159, 184, 255, 0.45);
+  --xz-bird-gloss: rgba(255, 255, 255, 0.16);
+  --xz-bird-rim: rgba(246, 217, 166, 0.5);
+  --xz-bird-shadow: rgba(0, 0, 0, 0.45);
+  --xz-bird-blush: rgba(244, 163, 140, 0.5);
+  --xz-bird-band: #3a5870;
+  --xz-bird-gape: #f0b060;
+  --xz-bird-beak: #2c2523;
+  --xz-bird-mouth: #c24d42;
+  --xz-bird-feet: #6b524d;
+  --xz-bird-brow: #fff1dc;
+  --xz-bird-tear: #8fd0ff;
+  --xz-bird-heart: #ff7a98;
+  --xz-bird-spark: #ffd166;
+  --xz-bird-ink: #c9d2ea;
+  --xz-branch: #9a6a3e;
+  --xz-branch-lo: #5f3f22;
+  --xz-branch-light: rgba(255, 243, 214, 0.12);
+  --xz-willow: #5f9a5c;
+  --xz-willow-2: #86ad6a;
+  --xz-scene-sun: rgba(170, 190, 255, 0.22);
+  --xz-scene-orb: rgba(230, 236, 255, 0.55);
+  --xz-scene-wash: rgba(46, 231, 156, 0.05);
 }
 
 /* ---- 两主题共用的派生 token（06 §3.4，color-mix 不新增手调色）；在每个主题容器上重算，嵌套 [data-theme] 才能取到本主题值 ---- */

@@ -3,12 +3,13 @@
  * 「邮箱或用户名」+ 密码（可显隐）——含 @ 走邮箱登录，否则走用户名登录（ADR-0008）；
  * 服务端拼图滑块（ADR-0006，未解开不可提交，任何失败换新题）；401 统一文案，429 显示剩余秒数，
  * 403 REGISTRATION_PENDING 提示待审批；底部「申请注册」；右上角主题选择。
+ * 外壳与小燕见 `AuthShell`（ADR-0034）：失败时小燕垂头摇头，成功时衔枝欢跳后再跳转。
  */
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { Eye, EyeOff, KeyRound, LockKeyhole, Mail, UserRound } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ThemeMenu } from '../components/layout/ThemeMenu.tsx'
+import { AuthShell, birdPause, useBirdFlash } from '../components/auth/AuthShell.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { IconField } from '../components/ui/icon-field.tsx'
 import { FieldError } from '../components/ui/label.tsx'
@@ -26,13 +27,6 @@ export const safeRedirect = (r: string | undefined) =>
 
 export const Route = createFileRoute('/login')({ validateSearch: search, component: Login })
 
-export function useLoginBody() {
-  useEffect(() => {
-    document.body.classList.add('xz-login')
-    return () => document.body.classList.remove('xz-login')
-  }, [])
-}
-
 function Login() {
   const { t } = useTranslation()
   const { redirect } = Route.useSearch()
@@ -46,7 +40,7 @@ function Login() {
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
-  useLoginBody()
+  const [flash, fire] = useBirdFlash()
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -62,12 +56,13 @@ function Login() {
     const res = isEmail
       ? await authClient.signIn.email({ email: id, password }, opts)
       : await authClient.signIn.username({ username: id, password }, opts)
-    setPending(false)
     if (res.error) {
+      setPending(false)
       const status = res.error.status
       const code = (res.error as { code?: string }).code
       // 旧题已被服务端消费：任何失败都换新题（ADR-0006）
       setCaptchaKey((k) => k + 1)
+      fire('error')
       if (code === 'CAPTCHA_INVALID') {
         setCaptchaFailed(true)
         setError(t('auth.captcha.failed'))
@@ -79,18 +74,14 @@ function Login() {
     }
     // 需要 2FA 时 twoFactorClient 的 onTwoFactorRedirect 已整页跳到 /login/2fa（保留 search），这里不再二次导航
     if ((res.data as { twoFactorRedirect?: boolean } | null)?.twoFactorRedirect) return
+    fire('success')
+    await birdPause()
     window.location.assign(safeRedirect(redirect))
   }
 
   return (
-    <main className="flex min-h-dvh items-center justify-center p-4">
-      <ThemeMenu className="fixed top-4 right-4 z-(--xz-z-sticky)" />
-      <form
-        onSubmit={submit}
-        className="glass-thick w-full max-w-[26rem] rounded-2xl px-6 pt-8 pb-6 sm:px-9 [--xz-edge:var(--xz-edge-login)]"
-        data-testid="login-form"
-        noValidate
-      >
+    <AuthShell greeting={t('auth.bird.hello.login')} flash={flash}>
+      <form onSubmit={submit} data-testid="login-form" noValidate>
         <div className="xz-seal-host mb-7 flex flex-col items-center gap-3">
           <Seal size="lg" />
           <h1 className="font-display text-[30px] leading-none tracking-[.2em]">{t('app.name')}</h1>
@@ -118,6 +109,7 @@ function Login() {
             icon={LockKeyhole}
             type={showPw ? 'text' : 'password'}
             autoComplete="current-password"
+            data-secret
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -158,7 +150,10 @@ function Login() {
               className="flex-1"
               onClick={async () => {
                 const r = await authClient.signIn.passkey()
-                if (!r?.error) window.location.assign(safeRedirect(redirect))
+                if (r?.error) return // 取消 / 不支持不算出错，小燕不闹
+                fire('success')
+                await birdPause()
+                window.location.assign(safeRedirect(redirect))
               }}
             >
               <KeyRound />
@@ -200,6 +195,6 @@ function Login() {
           </p>
         </div>
       </form>
-    </main>
+    </AuthShell>
   )
 }
