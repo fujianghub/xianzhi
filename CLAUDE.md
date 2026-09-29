@@ -26,7 +26,7 @@ pnpm start / start:collab        # 生产：app 容器（migrate+api+worker）/ 
 pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore | create-owner [--username] | seed | migrate-prefix（import-debug 属二期）
 ```
 
-- 后端 API 测试用 `app.request()`，不起端口；`signIn()` 辅助自动取拼图答案。E2E 用独立端口 3011/8012/8013 与独立 `.vite-verify` 缓存；`pnpm e2e` 会重建 `xz_e2e`，且只认 `localhost:3011`（跑前停掉按 IP 起的验证实例）；对其它实例跑指定用例：`XZ_E2E_BASE=<与该实例 APP_URL 同源，按 IP 起的就用 IP> pnpm exec playwright test <spec> --project=setup --project=desktop`（Origin 不一致则登录 setup 超时）；另起的 worktree 实例与 3011 同连 xz_e2e 时，实时 / 协同 / 历史类 e2e 会串（SSE 丢帧、恢复执行两次），这类用例只留一套实例跑（见 `debug/2026-09-27-spaces-list-truncated-200`）
+- 后端 API 测试用 `app.request()`，不起端口；`signIn()` 辅助自动取拼图答案。E2E 用独立端口 3011/8012/8013 与独立 `.vite-verify` 缓存；`pnpm e2e` 会重建 `xz_e2e`，且只认 `localhost:3011`（跑前停掉按 IP 起的验证实例）；对其它实例跑指定用例：`XZ_E2E_BASE=<与该实例 APP_URL 同源，按 IP 起的就用 IP> pnpm exec playwright test <spec> --project=setup --project=desktop`（Origin 不一致则登录 setup 超时）；另起的 worktree 实例与 3011 同连 xz_e2e 时，实时 / 协同 / 历史类 e2e 会串（SSE 丢帧、恢复执行两次），这类用例只留一套实例跑（见 `debug/2026-09-27-spaces-list-truncated-200`）；REQ-COLLAB-011 写死杀 8013 的 collab，对别的实例无效（`debug/2026-09-29-e2e-collab-kill-hardcoded-port`）
 - 验证实例设 `XZ_CAPTCHA_DEBUG=1`（拼图答案回显，e2e `solveCaptcha()` 真实拖拽）；production 由服务端强制忽略。`xz_e2e` 各 worktree 共用，附件目录固定为主仓 `data/e2e`；不重建库也要能过，用例勿依赖累积数据（自建大类 / 空间，遮罩未读数等易变区域；见 `debug/2026-09-26-e2e-shared-db-data-drift`）；改阅读偏好的用例前后都要复位（按人存在共享库）
 - 视觉基线：改样式后先在 `/settings/design?theme=both` 逐页过一遍，确认后 `pnpm exec playwright test e2e/design.spec.ts e2e/feedback.spec.ts --project=setup --project=desktop --update-snapshots`
 - **主 dev server 运行时勿在同目录再起共享 `.vite` 缓存的实例**（简斋教训：prosemirror/codemirror 多实例崩溃）；worktree 有自己的 `node_modules`，可在另一端口起预览
@@ -56,7 +56,7 @@ pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore 
 | `spec_dev_doc/adr/0012 ~ 0015` | 大类 `space_groups`（大类 → 空间 → 记录）· 空间概览 / 类型视图 · 目录树 · `/links` 关联与反链 · 界面称呼定为「空间」· 我的记录：位置导航（大类 → 空间 → 目录）· 标签自定义 / 合并 · 收藏 / 最近 · 批量 `/entries/batch` · 看板 / 时间线 · 目录引导线与字重分级（`DirTree` / `TreeGuides`）· 个人空间工作台（空间目录）· 记录类型图标色块（`KindIcon`，`.xz-chip` 只取 token） |
 | `spec_dev_doc/adr/0016 · 0017` | 日历快速编辑气泡 / 任务拖动 · 记录默认列表 + 批量改类型 / 状态 · 侧栏「空间」可点 · 标签与自定义类型按人隔离（读写按 `tags.created_by` 过滤）· 内置类型所有者维护（`entry_kind_overrides`、`/settings/types`） |
 | `spec_dev_doc/adr/0018 ~ 0022` | 大类就地管理（侧栏 ⋯）· 在空间里就地新建：对话框「建在」行、`e` 跟随上下文（`useNewEntryContext`）、新建子页面 / 新建并关联（`linkFrom`）· `[[` 新建 · 侧栏 / 目录「+」· 空间默认类型与模板 · 设计画廊挪进设置（`/settings/design`，旧 `/design` 跳转）、工具栏 / 对比度表 / 领域组件 · 空间批量管理：`POST /spaces/batch`（dryRun 计数、purge 只收回收站）· `/spaces`「批量管理」· 回收站空间多选 · 0022 合并空间 `POST /spaces/:id/merge` |
-| `spec_dev_doc/adr/0023 ~ 0032` | 模板直接编辑 / 工作区共享 · 阅读偏好（`/me/preferences`、阅读胶囊、专注、纸张）· 编辑器对齐简斋（插入面板、块手柄菜单、表格工具条、代码块复制 / 折叠、提示块、色板文字色 / 背景色、Mermaid / KaTeX）· 版心默认满栏 · 目录自动编号与卡片 · Ctrl+S 保存版本（stateless）/ 打标记 · 文档栏 + 素净格式栏 · 表头列 · 插入时间 |
+| `spec_dev_doc/adr/0023 ~ 0033` | 模板直接编辑 / 工作区共享 · 阅读偏好（`/me/preferences`、阅读胶囊、专注、纸张）· 编辑器对齐简斋（插入面板、块手柄菜单、表格工具条、代码块复制 / 折叠、提示块、色板文字色 / 背景色、Mermaid / KaTeX）· 版心默认满栏 · 目录自动编号与卡片 · Ctrl+S 保存版本（stateless）/ 打标记 · 文档栏 + 素净格式栏 · 表头列 · 插入时间 · 0033 Bug 跟踪：四态 `new/pending/fixed/wontfix` + 优先级、`/entries/stats` `/entries/bug-stats` 统计视图、流转 `entry_field_changes`、保存视图 `entry_views`、查询块 `entryQuery`，记录页筛选白名单 `src/shared/entry-search.ts` |
 | `spec_dev_doc/01-domain-model.md` | 表结构、`fields` schema、事件种类、权限矩阵 |
 | `spec_dev_doc/02-api-conventions.md` | 路由/错误/分页/SSE/文件/MCP 约定、路由清单 |
 | `spec_dev_doc/03-editor-kernel.md` | Tiptap schema、Hocuspocus 钩子、快照、模板、交互规格、简斋陷阱 |

@@ -8,7 +8,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { ArrowDown, ArrowUp } from 'lucide-react'
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn.ts'
 import type { Entry, EntryKind } from '../../lib/entry-queries.ts'
@@ -23,9 +23,13 @@ import { tagsQuery } from './TagPicker.tsx'
 
 type Col = { key: string; label: string; rank?: (v: unknown) => number }
 
+/** 不进列表的属性（ADR-0033：Bug 的提交 / 踩坑目录很少填、又长，留在属性栏） */
+const TABLE_HIDDEN = ['commit', 'debugDir']
+
 /** 内置状态的语义色（不单靠颜色：旁边有文字） */
 const STATUS_TONE: Record<string, PaletteName> = {
-  open: 'red',
+  new: 'red',
+  pending: 'orange',
   fixed: 'green',
   wontfix: 'gray',
   proposed: 'blue',
@@ -95,6 +99,7 @@ export function EntryTable({
   typeId,
   showSpace,
   select,
+  group,
 }: {
   /** 勾选（ADR-0016：列表视图常驻） */
   select?: {
@@ -107,6 +112,8 @@ export function EntryTable({
   /** 只选了一个自定义类型 */
   typeId?: string
   showSpace: boolean
+  /** 分组（ADR-0033）：在已加载的行内按该属性分组；counts = 服务端各组总数（取值缺失为 ''） */
+  group?: { key: string; counts: Map<string, number> }
 }) {
   const { t } = useTranslation()
   const { data: tags = [] } = useQuery(tagsQuery)
@@ -118,10 +125,12 @@ export function EntryTable({
       ? kinds[0]
       : undefined
   const singleStatuses = single ? kindOf(single, typeId).statuses : null
-  // 状态 / 进度常驻，单一类型的其它字段附在后面
-  const specs = single
-    ? fieldSpecs(single, singleStatuses).filter((f) => f.name !== 'status' && f.name !== 'progress')
-    : []
+  // 状态常驻；进度只在该类型有进度属性（或多类型混排）时出现；单一类型的其它字段附在后面（很少填的长字段不进列表）
+  const singleSpecs = single ? fieldSpecs(single, singleStatuses) : []
+  const specs = singleSpecs.filter(
+    (f) => f.name !== 'status' && f.name !== 'progress' && !TABLE_HIDDEN.includes(f.name),
+  )
+  const showProgress = !single || singleSpecs.some((f) => f.name === 'progress')
   const statusSpec = single
     ? fieldSpecs(single, singleStatuses).find((f) => f.name === 'status')
     : undefined
@@ -195,6 +204,142 @@ export function EntryTable({
       ? String(v)
       : t(`entry.fieldValue.${String(v)}`, { defaultValue: String(v) })
   }
+  const row = (e: Entry) => {
+    const meta = kindOf(e.kind, e.typeId)
+    const status = e.fields.status
+    const progress = e.fields.progress
+    const on = !!select?.has(e.id)
+    return (
+      <tr
+        key={e.id}
+        className={cn(
+          'border-divider border-b align-top last:border-0 hover:bg-hover',
+          on && 'bg-selected',
+        )}
+        data-testid="entry-row"
+        data-entry-id={e.id}
+        aria-selected={select ? on : undefined}
+      >
+        {select ? (
+          <td className="px-3 py-2.5">
+            <Checkbox
+              checked={on}
+              onCheckedChange={() => select.toggle(e.id)}
+              aria-label={t('entry.batch.toggle', {
+                title: e.title || t('entry.untitled'),
+              })}
+              className="size-4"
+              data-testid="entry-row-select"
+            />
+          </td>
+        ) : null}
+        <td className="min-w-[12rem] max-w-[30rem] px-3 py-2">
+          <Link
+            to="/entries/$entryId"
+            params={{ entryId: e.id }}
+            className="line-clamp-1 font-medium hover:text-primary-text"
+          >
+            {e.pinned ? <span className="sr-only">{t('entry.pinned')} · </span> : null}
+            {e.title || t('entry.untitled')}
+          </Link>
+          {e.path?.length ? (
+            <span className="line-clamp-1 text-fg-faint text-xs">
+              {e.path.map((p) => p.title || t('entry.untitled')).join(' / ')}
+            </span>
+          ) : null}
+          {e.excerpt ? (
+            <span className="line-clamp-1 text-fg-muted text-xs" data-testid="entry-excerpt">
+              {e.excerpt}
+            </span>
+          ) : null}
+        </td>
+        {single ? null : (
+          <td className="px-3 py-2">
+            <KindBadge kind={e.kind} typeId={e.typeId} />
+          </td>
+        )}
+        <td className="whitespace-nowrap px-3 py-2" data-field="status">
+          {typeof status === 'string' && status ? (
+            <StatusPill value={status} statuses={meta.statuses} />
+          ) : (
+            <span className="text-fg-faint">—</span>
+          )}
+        </td>
+        {showProgress ? (
+          <td className="whitespace-nowrap px-3 py-2" data-field="progress">
+            {typeof progress === 'number' ? (
+              <ProgressBar value={progress} />
+            ) : (
+              <span className="text-fg-faint">—</span>
+            )}
+          </td>
+        ) : null}
+        {cols.map((c) => (
+          <td key={c.key} className="whitespace-nowrap px-3 py-2" data-field={c.key.slice(2)}>
+            {show(e.fields[c.key.slice(2)], c.key.slice(2))}
+          </td>
+        ))}
+        <td className="px-3 py-2">
+          <div className="flex flex-wrap gap-1">
+            {(e.tagIds ?? []).map((id) => {
+              const tag = tags.find((x) => x.id === id)
+              return tag ? (
+                <span
+                  key={id}
+                  className={cn(
+                    'rounded px-1.5 py-0.5 text-[11px]',
+                    PALETTE_CLASS[(tag.color as PaletteName) ?? 'gray'],
+                  )}
+                >
+                  #{tag.name}
+                </span>
+              ) : null
+            })}
+          </div>
+        </td>
+        {showSpace ? (
+          <td className="px-3 py-2">
+            <SpaceTag slug={e.spaceSlug} />
+          </td>
+        ) : null}
+        <td className="whitespace-nowrap px-3 py-2 text-fg-muted text-xs">
+          <RelativeTime date={e.updatedAt} />
+        </td>
+      </tr>
+    )
+  }
+  // 分组：组序 = 枚举定义顺序（模块按总数降序），缺值组放最后
+  const grouped = (() => {
+    if (!group) return null
+    const buckets = new Map<string, Entry[]>()
+    for (const e of sorted) {
+      const v = e.fields[group.key]
+      const k = v === undefined || v === null ? '' : String(v)
+      buckets.set(k, [...(buckets.get(k) ?? []), e])
+    }
+    const spec = single
+      ? fieldSpecs(single, singleStatuses).find((f) => f.name === group.key)
+      : undefined
+    const order =
+      spec?.kind === 'select'
+        ? spec.options.map(String)
+        : [...new Set([...group.counts.keys(), ...buckets.keys()])]
+            .filter(Boolean)
+            .sort((a, b) => (group.counts.get(b) ?? 0) - (group.counts.get(a) ?? 0))
+    return [...order, '']
+      .filter((v) => buckets.has(v))
+      .map((value) => ({ value, items: buckets.get(value) ?? [], total: group.counts.get(value) }))
+  })()
+  const colCount =
+    (select ? 1 : 0) +
+    1 +
+    (single ? 0 : 1) +
+    1 +
+    (showProgress ? 1 : 0) +
+    cols.length +
+    1 +
+    (showSpace ? 1 : 0) +
+    1
   const allOn = !!select && items.length > 0 && items.every((e) => select.has(e.id))
   const someOn = !!select && items.some((e) => select.has(e.id))
   return (
@@ -216,7 +361,7 @@ export function EntryTable({
             {header('title', t('entry.title'))}
             {single ? null : header('kind', t('entry.props.kind'))}
             {header('f.status', t('entry.field.status'))}
-            {header('f.progress', t('entry.list.progress'))}
+            {showProgress ? header('f.progress', t('entry.list.progress')) : null}
             {cols.map((c) => header(c.key, c.label))}
             <th scope="col" className="px-3 py-2 text-left font-medium">
               {t('kb.tags')}
@@ -230,115 +375,28 @@ export function EntryTable({
           </tr>
         </thead>
         <tbody>
-          {sorted.map((e) => {
-            const meta = kindOf(e.kind, e.typeId)
-            const status = e.fields.status
-            const progress = e.fields.progress
-            const on = !!select?.has(e.id)
-            return (
-              <tr
-                key={e.id}
-                className={cn(
-                  'border-divider border-b align-top last:border-0 hover:bg-hover',
-                  on && 'bg-selected',
-                )}
-                data-testid="entry-row"
-                data-entry-id={e.id}
-                aria-selected={select ? on : undefined}
-              >
-                {select ? (
-                  <td className="px-3 py-2.5">
-                    <Checkbox
-                      checked={on}
-                      onCheckedChange={() => select.toggle(e.id)}
-                      aria-label={t('entry.batch.toggle', {
-                        title: e.title || t('entry.untitled'),
-                      })}
-                      className="size-4"
-                      data-testid="entry-row-select"
-                    />
-                  </td>
-                ) : null}
-                <td className="max-w-[30rem] px-3 py-2">
-                  <Link
-                    to="/entries/$entryId"
-                    params={{ entryId: e.id }}
-                    className="line-clamp-1 font-medium hover:text-primary-text"
-                  >
-                    {e.pinned ? <span className="sr-only">{t('entry.pinned')} · </span> : null}
-                    {e.title || t('entry.untitled')}
-                  </Link>
-                  {e.path?.length ? (
-                    <span className="line-clamp-1 text-fg-faint text-xs">
-                      {e.path.map((p) => p.title || t('entry.untitled')).join(' / ')}
-                    </span>
-                  ) : null}
-                  {e.excerpt ? (
-                    <span
-                      className="line-clamp-1 text-fg-muted text-xs"
-                      data-testid="entry-excerpt"
+          {grouped
+            ? grouped.map((g) => (
+                <Fragment key={g.value}>
+                  <tr className="border-divider border-b bg-surface-2" data-testid="entry-group">
+                    <th
+                      scope="colgroup"
+                      colSpan={colCount}
+                      className="px-3 py-1.5 text-left font-medium text-fg-muted text-xs"
+                      data-group={g.value}
                     >
-                      {e.excerpt}
-                    </span>
-                  ) : null}
-                </td>
-                {single ? null : (
-                  <td className="px-3 py-2">
-                    <KindBadge kind={e.kind} typeId={e.typeId} />
-                  </td>
-                )}
-                <td className="whitespace-nowrap px-3 py-2" data-field="status">
-                  {typeof status === 'string' && status ? (
-                    <StatusPill value={status} statuses={meta.statuses} />
-                  ) : (
-                    <span className="text-fg-faint">—</span>
-                  )}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2" data-field="progress">
-                  {typeof progress === 'number' ? (
-                    <ProgressBar value={progress} />
-                  ) : (
-                    <span className="text-fg-faint">—</span>
-                  )}
-                </td>
-                {cols.map((c) => (
-                  <td
-                    key={c.key}
-                    className="whitespace-nowrap px-3 py-2"
-                    data-field={c.key.slice(2)}
-                  >
-                    {show(e.fields[c.key.slice(2)], c.key.slice(2))}
-                  </td>
-                ))}
-                <td className="px-3 py-2">
-                  <div className="flex flex-wrap gap-1">
-                    {(e.tagIds ?? []).map((id) => {
-                      const tag = tags.find((x) => x.id === id)
-                      return tag ? (
-                        <span
-                          key={id}
-                          className={cn(
-                            'rounded px-1.5 py-0.5 text-[11px]',
-                            PALETTE_CLASS[(tag.color as PaletteName) ?? 'gray'],
-                          )}
-                        >
-                          #{tag.name}
-                        </span>
-                      ) : null
-                    })}
-                  </div>
-                </td>
-                {showSpace ? (
-                  <td className="px-3 py-2">
-                    <SpaceTag slug={e.spaceSlug} />
-                  </td>
-                ) : null}
-                <td className="whitespace-nowrap px-3 py-2 text-fg-muted text-xs">
-                  <RelativeTime date={e.updatedAt} />
-                </td>
-              </tr>
-            )
-          })}
+                      {g.value ? show(g.value, group?.key ?? '') : t('entry.group.empty')}
+                      <span className="ms-2 tabular-nums" data-testid="entry-group-count">
+                        {g.total !== undefined && g.total > g.items.length
+                          ? t('entry.group.partial', { loaded: g.items.length, total: g.total })
+                          : g.items.length}
+                      </span>
+                    </th>
+                  </tr>
+                  {g.items.map(row)}
+                </Fragment>
+              ))
+            : sorted.map(row)}
         </tbody>
       </table>
     </div>

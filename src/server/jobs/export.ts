@@ -27,6 +27,7 @@ import {
   tags,
   tasks,
 } from '../db/schema/business.ts'
+import { getEnv } from '../env.ts'
 import { dataPath } from '../lib/files.ts'
 import { loadActor } from '../services/actors.ts'
 import { audit } from '../services/audit.ts'
@@ -152,7 +153,7 @@ export async function buildExport(db: Db, dataDir: string, actor: Actor, d: Expo
         title: r.e.title,
         kind: r.e.kind,
         ...(r.typeName ? { type: r.typeName } : {}),
-      }) + pmToMarkdown(doc)
+      }) + pmToMarkdown(doc, { appUrl: getEnv().APP_URL })
     return {
       single: {
         name: `${fileSlug(r.e.title)}.md`,
@@ -192,6 +193,7 @@ export async function buildExport(db: Db, dataDir: string, actor: Actor, d: Expo
     })
     const body = pmToMarkdown(r.e.pmJson as PmNode | null, {
       resolveImage: (id) => `../../assets/${id}.${attExt.get(id) ?? 'bin'}`,
+      appUrl: getEnv().APP_URL,
     })
     files[path] = strToU8(fm + body)
   }

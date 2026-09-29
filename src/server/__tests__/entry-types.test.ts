@@ -183,7 +183,7 @@ describe('entry types', () => {
     const bug = await create(u.owner, {
       kind: 'bug',
       title: '一个 bug',
-      fields: { severity: 'high', status: 'open' },
+      fields: { severity: 'high', status: 'new' },
     })
     expect((await listIds(`typeId=${t.id}`)).sort()).toEqual([a.id])
     expect((await listIds(`kind=bug&typeId=${t.id}`)).sort()).toEqual([a.id, bug.id].sort())
@@ -226,7 +226,7 @@ describe('entry types', () => {
     expect(await get(n1.id)).toMatchObject({
       kind: 'bug',
       typeId: null,
-      fields: { severity: 'medium', status: 'open' },
+      fields: { severity: 'medium', status: 'new' },
     })
     r = await batch({ op: 'pin', ids: [n1.id, n2.id] })
     expect(r.ok).toHaveLength(2)

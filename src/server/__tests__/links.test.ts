@@ -62,7 +62,7 @@ describe('links', () => {
       title: 'PDF 渲染空白',
       spaceId,
       visibility: 'workspace',
-      fields: { severity: 'high', status: 'open' },
+      fields: { severity: 'high', status: 'new' },
     })
     iteration = await create(owner, {
       kind: 'iteration',

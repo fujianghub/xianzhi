@@ -51,6 +51,7 @@ export const FULL_NODES = [
   'callout',
   'mermaid',
   'entryCard',
+  'entryQuery',
   'attachment',
   'toc',
   'mention',
@@ -147,6 +148,9 @@ export function pmToPlain(doc: PmNode): string {
       out.push(`@${String((n.attrs as { label?: unknown } | undefined)?.label ?? '')}`)
     else if (n.type === 'entryLink')
       out.push(String((n.attrs as { title?: unknown } | undefined)?.title ?? ''))
+    else if (n.type === 'entryQuery')
+      // 查询块：只有标题参与检索（结果是实时的，ADR-0033）
+      out.push(`${String((n.attrs as { title?: unknown } | undefined)?.title ?? '')}\n`)
     for (const c of n.content ?? []) walk(c)
     if (['paragraph', 'heading', 'listItem', 'taskItem', 'codeBlock', 'callout'].includes(n.type))
       out.push('\n')

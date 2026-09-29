@@ -263,7 +263,9 @@
 | GET | `/cycles/:id` | 详情（含任务列表与完成数） | REQ-CYCLE-006 · REQ-TASK-018 |
 | PATCH | `/cycles/:id` | `goals / status`（单向流转） | REQ-CYCLE-003 · 005 |
 | GET | `/entries` | 筛选 `spaceId kind authorId tag q pinned deleted`；sort 白名单 `updatedAt createdAt title`；不返回正文列（注 2026-09-26 ADR-0012：`kind` 逗号多值；`fields=status=open\|fixed,severity=high` 按 fields 过滤；`inTree=1\|0`；每项带 `tagIds`；注 ADR-0014：+`under` 目录子树、`groupId`（uuid \| `none`）、`favorite=1`、`ids` csv ≤ 50，每项带 `path` `favorited`；注 ADR-0016：+`typeId` csv（自定义类型，与 `kind` 同给为任一命中），每项带 `typeId`） | REQ-ENTRY-002 · REQ-KB-004 · REQ-ENTRY-012 · 018 |
-| POST | `/entries/batch` | `{ op: move\|tags\|archive\|unarchive\|delete, ids ≤ 100, spaceId? / add? / remove? }` 逐条鉴权 → `{ ok, failed[{id, code, message}] }`（ADR-0014；注 ADR-0016：op 增 `retype {kind, typeId?}` · `fields {set:{status?, progress?}}` · `pin` · `unpin`） | REQ-ENTRY-013 · 017 |
+| POST | `/entries/batch` | `{ op: move\|tags\|archive\|unarchive\|delete, ids ≤ 100, spaceId? / add? / remove? }` 逐条鉴权 → `{ ok, failed[{id, code, message}] }`（ADR-0014；注 ADR-0016：op 增 `retype {kind, typeId?}` · `fields {set:{status?, progress?}}` · `pin` · `unpin`；注 ADR-0033：`fields.set` 增 `priority`） | REQ-ENTRY-013 · 017 |
+| GET | `/entries/stats` | 与列表同名的筛选参数（无游标 / 排序）+ `groupBy`（1 ~ 2 个 fields 键）→ `{ total, groups[{ values:{键:值\|null}, n }] }`；权限同列表（ADR-0033） | REQ-BUG-004 |
+| GET | `/entries/bug-stats` | 列表筛选（kind 固定 bug）+ `from? to?`（isoDate，缺省近 12 周）+ `bucket=week\|month` → `{ summary, trend[{start, created, resolved, open}], mttr[{priority, n, avgDays, medianDays}], aging[{key, n}] }`；周桶按 `weekStartsOn` 与时区对齐，≤ 104 桶（ADR-0033） | REQ-BUG-007 |
 | PUT | `/entries/:id/favorite` | 收藏（个人；需可读；幂等）（ADR-0014） | REQ-ENTRY-012 |
 | DELETE | `/entries/:id/favorite` | 取消收藏（ADR-0014） | REQ-ENTRY-012 |
 | PATCH | `/entries/:id/move` | `{ parentId, after }` 移到目录某处 / `{ detach: true }` 移出目录；需 entry.write；防环、after 须同级 | REQ-KB-005 |
@@ -281,6 +283,7 @@
 - `/entries/:id*` 的 `:id`（快照的 `:sid` 同理）必须是 UUID，否则 422。
 - `preview` 返回 `{ id, kind, title, excerpt, author, spaceSlug, visibility, updatedAt, fieldsSummary }`，`fieldsSummary` 按 kind 取最多 3 个标量字段。
 - 列表查询不读取 `ydoc / pm_json / tsv`，`plain` 只取前 160 字作为 excerpt。
+| GET | `/entries/:id/field-changes` | `{ items[{id, field, from, to, actor{id, displayName}, createdAt}] }` 时间正序；受 `can(read)`（ADR-0033） | REQ-BUG-006 |
 | GET | `/entries/:id/backlinks` | 反链（经 `can(read)` 过滤） | REQ-LINK-002 |
 | GET | `/entries/:id/snapshots` | 快照列表 | REQ-COLLAB-007 |
 | POST | `/entries/:id/snapshots` | `{ label }` 手动标记版本 | REQ-COLLAB-007 |
@@ -302,6 +305,10 @@
 | PATCH | `/entry-types/builtin/:kind` | `{ name?, color? }`（null = 恢复默认）；仅所有者（`entry_kind.manage`，ADR-0017） | REQ-ENTRY-020 |
 | DELETE | `/entry-types/builtin/:kind` | `?moveTo=<内置 kind>`（删随笔时必填）全员该类型记录转走后标记已删除；仅所有者 | REQ-ENTRY-020 |
 | POST | `/entry-types/builtin/:kind/restore` | 恢复已删除的内置类型 | REQ-ENTRY-020 |
+| GET | `/entry-views` | 本人的保存视图 `{ items[{id, name, spaceId, search, createdAt, updatedAt}] }`（ADR-0033） | REQ-BUG-009 |
+| POST | `/entry-views` | `{ name ≤ 40, spaceId?, search }`；search 按 shared 白名单清洗、清洗后为空 422；空间须可读（404）；每人 ≤ 50 | REQ-BUG-009 |
+| PATCH | `/entry-views/:id` | `{ name?, search?, ifUpdatedAt? }`；只能改本人的（他人 404） | REQ-BUG-009 |
+| DELETE | `/entry-views/:id` | 只能删本人的（他人 404） | REQ-BUG-009 |
 | GET | `/tags` | 列表（注 ADR-0017：只返回本人的标签，附 `canCreate`；标签相关读写 / 筛选 / 搜索均按本人过滤） | REQ-TAG-001 · 007 |
 | POST | `/tags` | `{ name, color }`；重名 409 | REQ-TAG-001 · 003 |
 | PATCH | `/tags/:id` | 改名 / 颜色 | REQ-TAG-001 |

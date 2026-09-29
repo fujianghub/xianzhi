@@ -251,11 +251,47 @@
 | deleted | bool | 已删除（其下记录已转走；可恢复）；默认 false |
 | updated_at | timestamptz | |
 
+### 3.4d 流转与保存视图（2026-09-29 ADR-0033）
+
+**entry_field_changes**
+
+（记录 status / priority / severity 的变化；entries service 在 create / patch（含批量 fields / retype）同事务写入，新建为起点 null → 值；记录页「流转」与 Bug 统计「重开次数」读它）
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| id | uuid | PK |
+| workspace_id | text | FK organization |
+| entry_id | uuid | FK entries（cascade） |
+| actor_id | text? | FK user |
+| field | text | `status` \| `priority` \| `severity`（check） |
+| from_value | text? | 改前值；新建为 null |
+| to_value | text? | 改后值；改类型后没有该属性为 null |
+| created_at | timestamptz | 索引 `(entry_id, created_at)`、`(workspace_id, field, created_at)` |
+
+**entry_views**
+
+（个人保存的记录页筛选；同标签 ADR-0017 按 owner 隔离，他人 404；每人 ≤ 50）
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| id | uuid | PK |
+| workspace_id | text | FK organization |
+| owner_id | text | FK user（cascade） |
+| space_id | uuid? | FK spaces（cascade）；非空 = 在该空间记录页打开 |
+| name | text | ≤ 40 |
+| search | jsonb | 记录页 search 白名单子集（`src/shared/entry-search.ts`），服务端清洗后存 |
+| sort_key | text | fractional-indexing，`COLLATE "C"`；索引 `(workspace_id, owner_id, sort_key)` |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
+
 ### 3.5 `fields` 按 kind 的 Zod schema（`src/shared/entryFields.ts`）
 
 ```ts
 decision : { status: 'proposed'|'accepted'|'superseded'|'rejected', supersedesId?: uuid, decidedAt?: date }
-bug      : { severity: 'low'|'medium'|'high'|'critical', status: 'open'|'fixed'|'wontfix', commit?: string, debugDir?: string }
+bug      : { status: 'new'|'pending'|'fixed'|'wontfix', priority?: 'p0'|'p1'|'p2'|'p3', severity: 'low'|'medium'|'high'|'critical',
+             foundAt?: date, resolvedAt?: date, module?: string(≤40，不含 , | =), commit?: string, debugDir?: string }
+           // 2026-09-29 ADR-0033：四态（新建 / 待决策 / 已修复 / 不修复），open → new 迁移 0021；priority 缺省 p2、
+           // foundAt 缺省今天（改类型来的取创建日，不得晚于今天）、resolvedAt 进入已关闭写入 / 回到未关闭清除，均由服务端规范化
 iteration: { periodStart: date, periodEnd: date, version?: string }
 changelog: { version: string, releasedAt: date }
 review   : { cycleId: uuid }

@@ -10,6 +10,7 @@ import {
   Archive,
   ArchiveRestore,
   CircleDot,
+  Flag,
   FolderInput,
   Pin,
   Shapes,
@@ -20,7 +21,11 @@ import {
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { defaultEntryFields, entryFieldsByKind } from '../../../shared/schemas/entryFields.ts'
+import {
+  BUG_PRIORITIES,
+  defaultEntryFields,
+  entryFieldsByKind,
+} from '../../../shared/schemas/entryFields.ts'
 import { type BatchInput, useEntryActions } from '../../hooks/useEntries.ts'
 import { ApiError } from '../../lib/api.ts'
 import { cn } from '../../lib/cn.ts'
@@ -80,6 +85,9 @@ export function EntryBatchBar({
         : null
     })
     .filter((g) => g !== null)
+
+  // Bug 批量改优先级（ADR-0033）：只对所选中的 Bug 下发
+  const bugIds = chosen.filter((e) => e.kind === 'bug').map((e) => e.id)
 
   const run = async (input: OpInput, ids: string[] = selected) => {
     setBusy(true)
@@ -192,6 +200,33 @@ export function EntryBatchBar({
           ))}
         </PopoverContent>
       </Popover>
+      {bugIds.length ? (
+        <Popover>
+          <PopoverTrigger asChild disabled={busy}>
+            <button type="button" className={iconBtn} data-testid="batch-priority">
+              <Flag className="size-4" />
+              {t('entry.batch.priority')}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-48 p-1">
+            <p className="px-2 pb-1 text-fg-muted text-xs">
+              {t('entry.batch.count', { count: bugIds.length })}
+            </p>
+            {BUG_PRIORITIES.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => void run({ op: 'fields', set: { priority: p } }, bugIds)}
+                className={menuItem}
+                data-testid="batch-priority-option"
+                data-priority={p}
+              >
+                {t(`entry.fieldValue.${p}`)}
+              </button>
+            ))}
+          </PopoverContent>
+        </Popover>
+      ) : null}
       <Popover>
         <PopoverTrigger asChild disabled={!n || busy}>
           <button type="button" className={iconBtn} data-testid="batch-move">

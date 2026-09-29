@@ -2,6 +2,7 @@
  * 斜杠菜单（03 §11.1、REQ-EDITOR-002）：`/` 触发 @tiptap/suggestion；最多 8 条，模糊匹配中英触发词与命令名；
  * ↑↓ 选择、Enter 执行、Esc 关闭并保留 `/`。弹层 glass-thick，定位用 @floating-ui/dom。
  */
+
 import { computePosition, flip, offset, shift } from '@floating-ui/dom'
 import { type Editor, Extension, type Range } from '@tiptap/core'
 import { PluginKey, TextSelection } from '@tiptap/pm/state'
@@ -10,6 +11,7 @@ import Suggestion, { type SuggestionProps } from '@tiptap/suggestion'
 import i18n from 'i18next'
 import { Fragment, forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { stringifyEntryFilter } from '../../shared/entry-search.ts'
 import type { EntryKind } from '../../shared/schemas/enums.ts'
 import { cn } from '../lib/cn.ts'
 import { SOURCE_EVENT, TEMPLATE_EVENT } from './extensions.ts'
@@ -21,6 +23,8 @@ export interface SlashCtx {
   kind: EntryKind
   ydoc: import('yjs').Doc
   pickEntry: (mode: 'card' | 'link', at: number) => void
+  /** 本篇所在空间（查询块默认范围，ADR-0033） */
+  spaceId?: string
 }
 
 export interface SlashItem {
@@ -252,6 +256,29 @@ export const SLASH_ITEMS: SlashItem[] = [
       chainAt(e, r).run()
       ctx.pickEntry('card', r.from)
     },
+  },
+  // 查询块（ADR-0033）：默认 = 本空间未关闭的 Bug，按优先级；插入后在块上「设置」改筛选
+  {
+    id: 'query',
+    group: 'media',
+    terms: ['query', 'chaxun', 'bug', 'shitu', 'tongji'],
+    run: (e, r, ctx) =>
+      chainAt(e, r)
+        .insertContent({
+          type: 'entryQuery',
+          attrs: {
+            title: '',
+            query: stringifyEntryFilter({
+              kind: 'bug',
+              fields: 'status=new|pending',
+              sort: 'priority',
+              ...(ctx.spaceId ? { spaceId: ctx.spaceId } : {}),
+            }),
+            view: 'table',
+            limit: 20,
+          },
+        })
+        .run(),
   },
   {
     id: 'entryLink',

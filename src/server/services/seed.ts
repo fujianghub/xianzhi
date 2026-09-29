@@ -555,8 +555,12 @@ export async function seed(deps: SeedDeps): Promise<Record<string, number>> {
             : { status: 'accepted', supersedesId: E(0), decidedAt: ymd(addDays(today, -3)) }
           : kind === 'bug'
             ? {
-                severity: j === 0 ? 'high' : 'critical',
                 status: 'fixed',
+                priority: j === 0 ? 'p1' : 'p0',
+                severity: j === 0 ? 'high' : 'critical',
+                foundAt: ymd(addDays(today, j === 0 ? -9 : -4)),
+                resolvedAt: ymd(addDays(today, j === 0 ? -6 : -3)),
+                module: j === 0 ? '空间' : '数据库',
                 commit: j === 0 ? 'a1b2c3d' : 'e4f5a6b',
                 debugDir:
                   j === 0

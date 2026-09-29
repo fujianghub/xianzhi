@@ -78,7 +78,7 @@ export const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
     description: '从现象、复现到根因与验证，修复后跟进迭代与变更记录',
     kind: 'bug',
     spaceKinds: ['project', 'work'],
-    fields: { severity: 'medium', status: 'open' },
+    fields: { status: 'new', priority: 'p2', severity: 'medium' },
     body: doc(
       callout(
         'info',

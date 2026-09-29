@@ -45,7 +45,7 @@ test('REQ-KB-003 产品空间概览：未关闭 Bug 按严重度计数；快捷�
     kind: 'bug',
     title: '严重崩溃',
     spaceId: s.id,
-    fields: { severity: 'critical', status: 'open' },
+    fields: { severity: 'critical', status: 'new' },
   })
   await createEntry(request, {
     kind: 'bug',
@@ -73,13 +73,13 @@ test('REQ-KB-004 记录表格视图：只看 Bug 时按严重度过滤、列头�
     kind: 'bug',
     title: 'B-高',
     spaceId: s.id,
-    fields: { severity: 'high', status: 'open' },
+    fields: { severity: 'high', status: 'new' },
   })
   await createEntry(request, {
     kind: 'bug',
     title: 'B-低',
     spaceId: s.id,
-    fields: { severity: 'low', status: 'open' },
+    fields: { severity: 'low', status: 'new' },
   })
   await createEntry(request, { kind: 'note', title: '随手记', spaceId: s.id })
   await page.goto(`/spaces/${s.slug}/entries?kind=bug&view=table`)
@@ -139,7 +139,7 @@ test('REQ-LINK-003 · 005 迭代「关联 Bug」→ Bug 页「修复于」显示
     kind: 'bug',
     title: `登录失败 ${t}`,
     spaceId: s.id,
-    fields: { severity: 'high', status: 'open' },
+    fields: { severity: 'high', status: 'new' },
   })
   const it = await createEntry(request, {
     kind: 'iteration',

@@ -294,3 +294,16 @@
 .xz-prose [data-type="detailsContent"] {
   margin-top: 0.5em;
 }
+
+/* ---- 查询块（ADR-0033）：正文里的实时结果用界面字号，行内链接不带正文下划线 ---- */
+.xz-prose .xz-entry-query {
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+.xz-prose .xz-entry-query a:not(.xz-mention, .xz-entry-link) {
+  color: inherit;
+  text-decoration: none;
+}
+.xz-prose .xz-entry-query a:not(.xz-mention, .xz-entry-link):hover {
+  color: var(--xz-primary-text);
+}

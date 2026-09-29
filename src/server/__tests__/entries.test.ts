@@ -72,7 +72,7 @@ describe('entries', () => {
     const res = await post(member.cookie, {
       kind: 'bug',
       title: '登录报错',
-      fields: { severity: 'high', status: 'open' },
+      fields: { severity: 'high', status: 'new' },
     })
     expect(res.status).toBe(201)
     const { id } = (await res.json()) as { id: string }

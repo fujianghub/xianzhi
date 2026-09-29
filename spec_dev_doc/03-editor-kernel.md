@@ -56,6 +56,7 @@
 - **attachment**：非图片文件卡片（名称/大小/下载）；图片仍用 `image` 节点，`src` **只接受** `xz:attachment/<id>`（schema 层校验，外域 URL 拒绝），渲染时解析为 `/api/v1/attachments/<id>/md`（同源 Cookie 鉴权，02 §7；不做签名 URL）；粘贴或导入的外域图片一律先下载为附件（§11.3，07 §2.5）。
 - **comment 标记**：仅存 `threadId`；评论正文在 `comments` 表；标记被删除时线程保留并标 `orphaned`（侧栏仍可见）。
 - **toc**：atom，渲染时由 `table-of-contents` 扩展的实时数据填充；导出时展开为列表。
+- **entryQuery**（2026-09-29 ADR-0033 查询块）：atom 块，`attrs { title, query, view: table|stats|count, limit 1–50 }`；`query` 为记录页 search 白名单子集（`src/shared/entry-search.ts`）的 URLSearchParams 串。节点视图以阅读者自己的权限实时请求 `GET /entries` / `/entries/stats` / `/entries/bug-stats`，结果不写进正文；设置对话框保存时一次 `updateAttributes`。历史 / 模板预览（`ReadOnlyDoc` 挂 `StaticDoc` 标记）只显示标题 + 链接卡。纯文本 / tsv 只取标题；Markdown 导出 `> [查询：标题](<APP_URL>/entries?…)`，HTML 同链接；源码对话框按 `SOURCE_KEEP_TYPES` 保留占位；不进 liteKit（评论）。斜杠 `/查询`（query / chaxun / bug），默认 = 本空间未关闭 Bug 按优先级。
 
 > 注 2026-09-24（T1-014 实现口径）：
 > - `entryLink` 属性沿用 Phase 0 的 `id / title`，服务端 links 抽取也读 `id`；`mode`（行内 / 标题）与卡片切换随 REQ-EDITOR-011（Phase 2）一起补。

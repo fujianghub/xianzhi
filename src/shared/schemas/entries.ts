@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isoDateTime, uuidSchema } from './common.ts'
+import { isoDate, isoDateTime, uuidSchema } from './common.ts'
 import { entryFieldsIssues } from './entryFields.ts'
 import {
   ENTRY_EXPORT_FORMATS,
@@ -68,7 +68,8 @@ export const patchEntrySchema = z
     customTypeIssues(v.kind, v.typeId, ctx)
   })
 
-export const ENTRY_SORT = ['updatedAt', 'createdAt', 'title'] as const
+// priority / foundAt：Bug 属性（ADR-0033），其它类型缺值排在最后
+export const ENTRY_SORT = ['updatedAt', 'createdAt', 'title', 'priority', 'foundAt'] as const
 export const listEntriesQuery = pageParams.extend({
   spaceId: uuidSchema.optional(),
   kind: csv(ENTRY_KINDS), // 逗号多值（08 §2.8、ADR-0012 类型视图）
@@ -106,6 +107,32 @@ export const listEntriesQuery = pageParams.extend({
   deleted: bool01,
   sort: sortParam(ENTRY_SORT, { field: 'updatedAt', dir: 'desc' }),
 })
+/** fields 键名（与 entryFields 键一致：只含字母），统计分组用（ADR-0033）。 */
+const fieldKey = z.string().regex(/^[a-zA-Z]{1,40}$/, 'fields 键名只含字母')
+/** GET /entries/stats（ADR-0033、REQ-BUG-004）：列表同款筛选 + groupBy（1 ~ 2 个 fields 键）。 */
+export const entryStatsQuery = listEntriesQuery
+  .omit({ cursor: true, limit: true, withTotal: true, sort: true })
+  .extend({
+    groupBy: z
+      .string()
+      .transform((s) =>
+        s
+          .split(',')
+          .map((v) => v.trim())
+          .filter(Boolean),
+      )
+      .pipe(z.array(fieldKey).min(1).max(2))
+      .optional(),
+  })
+/** GET /entries/bug-stats（ADR-0033、REQ-BUG-007）：列表筛选（kind 固定 bug）+ 区间与分桶。 */
+export const bugStatsQuery = listEntriesQuery
+  .omit({ cursor: true, limit: true, withTotal: true, sort: true, kind: true, typeId: true })
+  .extend({
+    from: isoDate.optional(),
+    to: isoDate.optional(),
+    bucket: z.enum(['week', 'month']).default('week'),
+  })
+  .refine((v) => !v.from || !v.to || v.from <= v.to, { message: 'to 不能早于 from', path: ['to'] })
 export const entryDetailQuery = z.object({ withBody: bool01 })
 /** PATCH /entries/:id/move（ADR-0012、REQ-KB-005）：移到 parentId 下、after 之后（null = 最前）；或 `{ detach: true }` 移出目录。 */
 export const moveEntrySchema = z.union([
@@ -149,11 +176,16 @@ export const batchEntriesSchema = z.discriminatedUnion('op', [
       .object({
         status: z.string().trim().min(1).max(40).optional(),
         progress: z.number().int().min(0).max(100).optional(),
+        // Bug 优先级（ADR-0033）；其它类型合并后 strict 校验失败进 failed
+        priority: z.string().trim().min(1).max(10).optional(),
       })
-      .refine((v) => v.status !== undefined || v.progress !== undefined, {
-        message: '至少一个字段',
-        path: ['status'],
-      }),
+      .refine(
+        (v) => v.status !== undefined || v.progress !== undefined || v.priority !== undefined,
+        {
+          message: '至少一个字段',
+          path: ['status'],
+        },
+      ),
   }),
   z.object({ op: z.literal('pin'), ids: z.array(uuidSchema).min(1).max(100) }),
   z.object({ op: z.literal('unpin'), ids: z.array(uuidSchema).min(1).max(100) }),

@@ -210,6 +210,27 @@
 | REQ-KB-009 | P1 | 2 | （2026-09-27 新增，ADR-0019）就地「+」：侧栏空间行悬停「+」= 在该空间目录顶层新建；记录页位置导航与个人首页空间目录的节点悬停「+」= 作为该页子页新建；只对可写空间显示，窄屏常显 | When 点侧栏空间行「+」Then 新建对话框空间 = 该空间、位置 = 目录顶层；When 点目录节点「+」Then 位置 = 该节点之下 | ADR-0019 | e2e |
 | REQ-KB-010 | P1 | 2 | （ADR-0019）空间默认类型（仅内置）与默认模板（内置或工作区模板；个人模板 422）；在「编辑空间」设置；新建对话框打开时与切换空间时按目标空间预选，显式传入的类型 / 模板不被覆盖，已删除的内置类型不预选 | When `PATCH /spaces/:id {defaultTemplateId: 个人模板}` Then 422；When 设默认类型「决策」后在该空间按 e Then 类型预选决策 | ADR-0019 · 01 §3.1 | api · e2e |
 
+## 6d. BUG —— Bug 跟踪（2026-09-29 新增，ADR-0033）
+
+| ID | P | Phase | 需求（EARS） | 验收（GWT） | 规范 | 层 |
+|---|---|---|---|---|---|---|
+| REQ-BUG-001 | P1 | 2 | Bug 属性：状态四态 新建 / 待决策 / 已修复 / 不修复（`new\|pending\|fixed\|wontfix`，定义顺序 = 看板列）、优先级 P0 ~ P3（缺省 p2）、严重度、发现 / 解决日期、模块（≤ 40，不含 `, \| =`）；strict 校验；迁移把旧 `open` 改为 `new` | When `POST /entries {kind:'bug', fields:{status:'open'}}` Then 422 `fields.status`；When 不给 priority Then `fields.priority = p2`；When module 含逗号 Then 422 | ADR-0033 · 01 §3.5 | unit · api |
+| REQ-BUG-002 | P1 | 2 | 服务端规范化 Bug 日期：发现日期缺省为操作者时区今天（从别的类型改来取创建日）且不得晚于今天；进入已关闭写解决日期（给出值优先），保持已关闭沿用，回到未关闭清除；解决日期不得早于发现日期；批量改状态 / 优先级同样生效 | When 新建 Then `foundAt` = 今天；When 改为 fixed Then `resolvedAt` = 今天；When 改回 new Then 无 `resolvedAt`；When `foundAt = 2999-01-01` Then 422；When 批量 `fields {set:{priority:'p0'}}` Then 生效 | ADR-0033 | api |
+| REQ-BUG-003 | P1 | 2 | 记录列表可按优先级（p0 在前）与发现日期（`-foundAt`）排序，游标翻页不丢行、缺值排最后；只选 Bug 时排序下拉多出这两项 | When 4 条（含一篇随笔）`sort=priority&limit=1` 逐页取 Then 顺序 P0 · P1 · P3 · 随笔 | ADR-0033 · 02 §9 | api |
+| REQ-BUG-004 | P1 | 2 | `GET /entries/stats`：与列表同口径条件按 1 ~ 2 个 fields 键分组计数，权限同列表；空间概览的 Bug 面板计数改用它（未关闭 = `status=new\|pending`，不再受前端 100 条限制） | When 按 priority 分组 Then p0 = 2；When member 跨空间统计 Then 不含其不可见空间的记录；When `groupBy=a-b` Then 422 | ADR-0033 · 02 §9 | api |
+| REQ-BUG-005 | P1 | 2 | 记录页只选单一内置类型的表格可「分组」（状态 / 优先级 / 严重度 / 模块；在已加载行内分组，组头显示总数或「已加载 x / 共 n」）；新建对话框对 Bug 只显示 优先级 / 严重度 / 模块（模块带已用值候选）；批量条对所选 Bug 可「改优先级」；属性栏的解决日期只在已关闭时出现 | When `/entries?kind=bug&group=priority` Then 表格出现 P0 组头；When 新建对话框选 Bug Then 只有优先级 / 严重度 / 模块三项 | ADR-0033 · 08 §2.8 | e2e |
+| REQ-BUG-006 | P1 | 2 | 状态 / 优先级 / 严重度的每次变化（含新建起点）同事务记入 `entry_field_changes`；`GET /entries/:id/field-changes` 受 `can(read)`；记录页属性栏「流转」按时间倒序显示 | When 新建后改为 pending 再改为 fixed Then 流转含 `status:null→new`、`new→pending`、`pending→fixed`；不可见记录 404 | ADR-0033 · 01 §3.4d | api · e2e |
+| REQ-BUG-007 | P1 | 2 | `GET /entries/bug-stats`：按周（遵从 weekStartsOn / 时区）或月分桶的 新增 / 关闭 / 期末未关闭存量、按优先级的修复天数（平均 / 中位）、未关闭账龄、区间内重开次数；桶数 ≤ 104 | Given 固定日期的 4 条 Bug When `from=2026-08-31&to=2026-09-13` Then 两桶 `{created:2,resolved:1,open:2}`、`{1,2,1}`，P0 修复天数平均 3；When 重开一次 Then `reopened = 1`；区间过长 422 | ADR-0033 · 02 §9 | api |
+| REQ-BUG-008 | P1 | 2 | 记录页只选 Bug 时可切「统计」（`view=stats`）：概要卡、分布条（点击即按该值筛选并回到列表）、趋势（新增 / 关闭柱 + 存量线，悬停看数，可切表格）、修复时长、账龄；颜色只取 token | When 切到统计 Then 出现 `bug-stats`、趋势桶可聚焦显示提示；When 点优先级分布「P0」Then URL 带 `fields=…priority=p0` 且回到列表 | ADR-0033 · 08 §2.8 | e2e |
+| REQ-BUG-009 | P1 | 2 | 保存视图：记录页当前筛选可「保存视图」（个人所有，他人 404；search 经 shared 白名单清洗、清洗后为空 422；空间视图须可读；每人 ≤ 50）；左栏「我的视图」点击即套用，⋯ 可改名 / 用当前筛选覆盖 / 删除 | When 保存「P0 未关闭」后点左栏该视图 Then URL 恢复为保存时的筛选；member 改 owner 的视图 Then 404 | ADR-0033 · 01 §3.4d · 02 §9 | api · e2e |
+| REQ-BUG-010 | P1 | 2 | 查询块 `entryQuery` 节点：进全量正文白名单；纯文本 / tsv 只含标题；Markdown 导出 `> [查询：标题](<APP_URL>/entries?…)`、HTML 同链接；Markdown 源码对话框占位保留；query 只认记录页 search 白名单键 | When 导出含查询块的记录 Then Markdown 含指向记录页的绝对链接；When 源码对话框 Then 出现 `⟦xz-keep:n:entryQuery⟧` | ADR-0033 · 03 §3.2 | unit |
+| REQ-BUG-011 | P1 | 2 | 斜杠 `/查询`（query / chaxun / bug）插入查询块，默认 = 本空间未关闭 Bug 按优先级的表格；块上可切 表格 / 统计（仅 Bug）/ 计数、打开记录页、设置（标题 · 空间 · 类型 · 枚举属性 · 排序 · 视图 · 条数，保存时一次写属性）；结果按阅读者权限实时查询 | When 在记录正文输入 `/查询` 回车 Then 出现查询块且列出本空间未关闭 Bug；When 设置里把视图改为计数 Then 显示总数 | ADR-0033 · 03 §11.1 | e2e |
+| REQ-BUG-012 | P2 | 2 | 历史版本与模板预览里的查询块只显示标题与链接卡，不请求数据；只读访客看记录仍显示实时结果但不能改设置 | When 打开含查询块的历史版本预览 Then 查询块为 `data-static` 占位 | ADR-0033 | e2e |
+
+> 注 2026-09-29（ADR-0033）：REQ-ENTRY-015 · 017、REQ-KB-003、REQ-TPL-007 验收里 Bug 的 `status:'open'` 自此为 `new`（旧数据由迁移 0021 改写）。
+
+---
+
 ## 7. EDITOR —— 编辑器交互
 
 | ID | P | Phase | 需求（EARS） | 验收（GWT） | 依据 | 测试层 |

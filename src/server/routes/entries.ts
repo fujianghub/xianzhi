@@ -4,9 +4,11 @@ import { z } from 'zod'
 import { uuidSchema } from '../../shared/schemas/common.ts'
 import {
   batchEntriesSchema,
+  bugStatsQuery,
   createEntrySchema,
   createSnapshotSchema,
   entryDetailQuery,
+  entryStatsQuery,
   listEntriesQuery,
   moveEntrySchema,
   patchEntrySchema,
@@ -19,6 +21,7 @@ import { validate } from '../lib/validate.ts'
 import { idempotency } from '../middleware/idempotency.ts'
 import { clientIp } from '../middleware/request-context.ts'
 import { requireAuth, requireScope } from '../middleware/session.ts'
+import { bugStats } from '../services/bug-stats.ts'
 import * as svc from '../services/entries.ts'
 import * as bulk from '../services/entry-bulk.ts'
 import * as tree from '../services/entry-tree.ts'
@@ -41,6 +44,7 @@ export function entryRoutes(deps: { db: Db }) {
       workspaceId: c.var.workspaceId,
       ip: clientIp(c.req.raw.headers),
       userAgent: c.req.header('user-agent') ?? null,
+      timezone: c.var.user?.timezone,
     }
   }
   return (
@@ -56,7 +60,19 @@ export function entryRoutes(deps: { db: Db }) {
         validate('json', createEntrySchema),
         async (c) => c.json(await svc.createEntry(deps.db, ctxOf(c), c.req.valid('json')), 201),
       )
-      // 字面路径须在 /:id 之前注册（ADR-0014 批量）
+      // 字面路径须在 /:id 之前注册（ADR-0014 批量；ADR-0033 统计）
+      .get('/stats', validate('query', entryStatsQuery), async (c) =>
+        c.json(await svc.entryStats(deps.db, ctxOf(c), c.req.valid('query'))),
+      )
+      .get('/bug-stats', validate('query', bugStatsQuery), async (c) =>
+        c.json(
+          await bugStats(
+            deps.db,
+            { ...ctxOf(c), weekStartsOn: c.var.user?.weekStartsOn },
+            c.req.valid('query'),
+          ),
+        ),
+      )
       .post('/batch', requireScope('write'), validate('json', batchEntriesSchema), async (c) =>
         c.json(await bulk.batchEntries(deps.db, ctxOf(c), c.req.valid('json'))),
       )
@@ -108,6 +124,9 @@ export function entryRoutes(deps: { db: Db }) {
           c.json(
             await tree.moveEntry(deps.db, ctxOf(c), c.req.valid('param').id, c.req.valid('json')),
           ),
+      )
+      .get('/:id/field-changes', validate('param', idParam), async (c) =>
+        c.json({ items: await svc.entryFieldChanges(deps.db, ctxOf(c), c.req.valid('param').id) }),
       )
       .get('/:id/backlinks', validate('param', idParam), async (c) =>
         c.json({ items: await listBacklinks(deps.db, ctxOf(c), c.req.valid('param').id) }),

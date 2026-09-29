@@ -141,6 +141,20 @@
       "when": 1790529436221,
       "tag": "0019_user_preferences",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790623709601,
+      "tag": "0020_bug_tracking",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790623797594,
+      "tag": "0021_bug_data",
+      "breakpoints": true
     }
   ]
 }
