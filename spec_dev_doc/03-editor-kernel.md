@@ -152,6 +152,7 @@
 > 注 2026-09-25（ADR-0011 §2 · §3）：新增 kind `optimize` / `plan`，默认骨架取对应内置模板。新建记录可选模板（`POST /entries {templateId}`）：模板正文**只在创建时**写成初始 ydoc，此后 fragment 非空、不再注入本表骨架；`builtin:blank` 写一个空段落表示明确空白。内置 6 个模板在 `src/shared/editor/builtin-templates.ts`，用户模板在 `entry_templates`。斜杠 `/模板` 改为选择任意模板插入（首项「按类型默认」）。
 
 > 注 2026-09-30（ADR-0038）：optimize / plan 的默认骨架取对应内置模板（`builtin:product-optimize` / `builtin:learning-plan`）**经工作区覆盖后**的正文（`builtin_template_overrides.body`，null = 代码默认），按 key 映射、与覆盖改过的 kind 无关；该内置模板已删除时回落为空文档 + placeholder（同 journal / note）。`templateId` 注入、斜杠 `/模板` 插入同样取覆盖后的版本，已删除的不可选。模板编辑器（ADR-0037 §D）加格式工具栏、块手柄与表格工具条，「+」插入面板与斜杠共用排除清单（图片 / 附件 / 记录卡片 / 记录链接 / 源码 / 模板）。
+> 注 2026-09-30（ADR-0039）：只有 `POST /entries {templateId}`（新建对话框选模板、空间默认模板、快捷按钮）会把模板记为记录的**来源模板**（`entries.template_id`）并带上它的模板属性；按类型注入的默认骨架与斜杠 `/模板` 在光标处插入正文都只动正文，不设置来源模板，记录不会因此多出模板属性。`builtin:blank` 不记。
 
 ---
 

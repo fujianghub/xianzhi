@@ -768,6 +768,7 @@ Workspace 角色 × Space 角色 → 有效角色取**较高者**，`guest` 只�
 | template.read（记录模板，ADR-0011） | personal 仅本人；workspace 全员；builtin（代码内置与 `scope = builtin`）全员（ADR-0038） | 同左 | 同左 |
 | template.create | 非 guest（personal 与 workspace；~~workspace 仅 owner / admin~~，ADR-0023 共享模板）；`scope = builtin` 仅 owner（ADR-0038） | ✓（builtin ✗） | ✗ |
 | template.manage（改名 / 范围 / 删除） | 本人的（非 guest）；workspace 模板管理员可管；内置（代码内置的覆盖 / 删除 / 恢复与 `scope = builtin` 的行）仅 owner，admin 不可（ADR-0038，沿用 `entry_kind.manage` 口径，不另设 action） | 本人的（builtin ✗） | ✗ |
+| 模板元数据目录（`GET /templates/fields`，ADR-0039 · 0040；不另设 action） | `template.read` 可读的模板；另加「读者可读的记录（`visibleEntriesWhere`，或读者回收站里的）引用的」别人的个人模板——只给字段定义与移除清单，`name` 为 null，`GET /templates/:id` 仍 404 | 同左 | 同左 |
 | notification.* | 仅本人 | | |
 
 `entry.read`：`private` 仅作者；`space` 需 space.read；`workspace` 需 workspace 成员。**软删对象对所有人不可读**（作者可在回收站看到）。最后一名 owner 不可降级、移除、注销（409 `CONFLICT_LAST_OWNER`）；成员生命周期各转换的影响见 07 §4。
