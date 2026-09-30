@@ -17,8 +17,8 @@ import {
   stringifyEntryFilter,
 } from '../../shared/entry-search.ts'
 import { BugStats } from '../components/domain/BugStats.tsx'
-import { fieldSpecs } from '../components/domain/EntryFieldsForm.tsx'
 import { EntryTable } from '../components/domain/EntryTable.tsx'
+import { useFieldSpecs, useTypeTemplateSpecs } from '../components/domain/FieldValue.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../components/ui/dialog.tsx'
 import { Input } from '../components/ui/input.tsx'
@@ -203,7 +203,11 @@ interface Settings {
   limit: number
 }
 
-/** 设置：标题 · 空间 · 类型 · 该类型的枚举属性 · 排序 · 视图 · 条数。 */
+/**
+ * 设置：标题 · 空间 · 类型 · 该类型的条件属性 · 排序 · 视图 · 条数。
+ * 条件属性（ADR-0041、REQ-BUG-013）= 类型的单选 / 多选字段（内置枚举 + 类型追加的自定义字段）+ 绑该类型的模板的模板属性
+ * （与记录页筛选同一来源与同名区分）；多选按「含」匹配。
+ */
 function QuerySettings({
   open,
   onClose,
@@ -231,7 +235,13 @@ function QuerySettings({
       .map((p) => p.split('='))
       .filter((p): p is [string, string] => p.length === 2 && !!p[0] && !!p[1]),
   )
-  const specs = kind ? fieldSpecs(kind).filter((f) => f.kind === 'select') : []
+  const specsOf = useFieldSpecs()
+  const templateSpecsOf = useTypeTemplateSpecs()
+  const typeSpecs = kind ? specsOf(kind) : []
+  const specs = [
+    ...typeSpecs,
+    ...templateSpecsOf(kind ? { kind, typeId: null } : null, typeSpecs, Object.keys(fieldMap)),
+  ].filter((f) => f.kind === 'select' || f.kind === 'multiselect')
   const setFilter = (patch: Partial<EntryFilterSearch>) =>
     setV((s) => ({ ...s, filter: { ...s.filter, ...patch } }))
   const setField = (name: string, value: string) => {
@@ -323,31 +333,29 @@ function QuerySettings({
               ))}
             </select>,
           )}
-          {specs.map((f) =>
-            f.kind === 'select' ? (
-              <div key={f.name}>
-                {row(
-                  t(`entry.field.${f.name}`),
-                  <select
-                    className={sel}
-                    value={fieldMap[f.name] ?? ''}
-                    onChange={(e) => setField(f.name, e.target.value)}
-                    data-testid={`entry-query-field-${f.name}`}
-                  >
-                    <option value="">{t('entry.allKinds')}</option>
-                    {kind === 'bug' && f.name === 'status' ? (
-                      <option value="new|pending">{t('bug.stats.open')}</option>
-                    ) : null}
-                    {f.options.map((o) => (
-                      <option key={String(o)} value={String(o)}>
-                        {t(`entry.fieldValue.${o}`, { defaultValue: String(o) })}
-                      </option>
-                    ))}
-                  </select>,
-                )}
-              </div>
-            ) : null,
-          )}
+          {specs.map((f) => (
+            <div key={f.name}>
+              {row(
+                f.label,
+                <select
+                  className={sel}
+                  value={fieldMap[f.name] ?? ''}
+                  onChange={(e) => setField(f.name, e.target.value)}
+                  data-testid={`entry-query-field-${f.name}`}
+                >
+                  <option value="">{t('entry.allKinds')}</option>
+                  {kind === 'bug' && f.name === 'status' ? (
+                    <option value="new|pending">{t('bug.stats.open')}</option>
+                  ) : null}
+                  {f.options.map((o) => (
+                    <option key={String(o.value)} value={String(o.value)}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>,
+              )}
+            </div>
+          ))}
           {row(
             t('entry.sortLabel'),
             <select
