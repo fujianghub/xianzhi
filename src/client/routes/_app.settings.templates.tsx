@@ -2,10 +2,23 @@
  * 模板管理（ADR-0011 §2 · ADR-0023、REQ-TPL-004 · 010）：内置（开发 / 学习）只读，可预览、「用此模板新建」、「复制到我的」；
  * 我的 / 工作区共享模板可预览、编辑（/settings/templates/:id）、重命名、共享 / 取消共享（服务端 canShare 决定是否显示）、删除；
  * 他人共享的模板显示作者，可「复制到我的」。`?preview=<id>` 直接打开预览（「复制链接」分享给同工作区成员）。
+ * ADR-0038（REQ-TPL-013 ~ 015）：内置模板对所有者可编辑 / 删除（软删，「已删除的内置模板」里恢复）/ 恢复默认；
+ * 所有者新增的内置模板也列在「内置」里。
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { Copy, Eye, FilePlus2, Link2, Pencil, Plus, SquarePen, Trash2 } from 'lucide-react'
+import {
+  Copy,
+  Eye,
+  FilePlus2,
+  Link2,
+  Pencil,
+  Plus,
+  RotateCcw,
+  SquarePen,
+  Trash2,
+  Undo2,
+} from 'lucide-react'
 import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -22,10 +35,14 @@ import { cn } from '../lib/cn.ts'
 import { useNewEntry } from '../lib/stores.ts'
 import {
   copyTemplate,
+  deletedBuiltinsQuery,
   invalidateTemplates,
   invalidateTemplatesAndSpaces,
+  isCodeBuiltin,
   optTemplateId,
   patchTemplate,
+  resetBuiltin,
+  restoreBuiltin,
   type Template,
   type TemplatePatch,
   templateListQuery,
@@ -112,6 +129,7 @@ function TemplatesPage() {
           )}
         </section>
       ))}
+      {items.some((x) => x.source === 'builtin' && x.canManage) ? <DeletedBuiltins /> : null}
       {preview && (previewing || !q.isPending) ? (
         <Suspense fallback={null}>
           <TemplatePreview
@@ -166,6 +184,15 @@ function TemplateRow({
     toast.success(t('template.deleted'))
     void invalidateTemplatesAndSpaces(qc)
   }
+  const reset = useMutation({
+    mutationFn: () => resetBuiltin(tpl.id),
+    onSuccess: () => {
+      toast.success(t('template.resetDone'))
+      void invalidateTemplates(qc)
+    },
+    onError: () => toast.error(t('task.saveFailed')),
+  })
+  const builtin = tpl.source === 'builtin'
   const copyLink = () =>
     void copyText(
       `${location.origin}/settings/templates?preview=${encodeURIComponent(tpl.id)}`,
@@ -277,6 +304,19 @@ function TemplateRow({
             <Link2 className="size-4" />
           </button>
         ) : null}
+        {tpl.canManage && isCodeBuiltin(tpl) && tpl.customized ? (
+          <button
+            type="button"
+            className={icon}
+            aria-label={t('template.resetDefault')}
+            title={t('template.resetDefault')}
+            onClick={() => reset.mutate()}
+            disabled={reset.isPending}
+            data-testid="template-reset"
+          >
+            <RotateCcw className="size-4" />
+          </button>
+        ) : null}
         {tpl.canManage ? (
           <button
             type="button"
@@ -298,7 +338,12 @@ function TemplateRow({
           {t('template.sharedBy', { name: ownerLabel(tpl) })}
         </p>
       ) : null}
-      {tpl.canManage && canShare ? (
+      {builtin && tpl.customized ? (
+        <p className="text-fg-faint text-xs" data-testid="template-customized">
+          {t('template.customized')}
+        </p>
+      ) : null}
+      {tpl.canManage && canShare && !builtin ? (
         <label className="mt-1 flex w-fit cursor-pointer items-center gap-2 text-fg-muted text-xs">
           <Checkbox
             checked={shared}
@@ -316,7 +361,9 @@ function TemplateRow({
         description={
           confirm === 'unshare'
             ? t('template.unshareConfirm', { name: tpl.name }) + defaultsNote
-            : t('template.deleteConfirm', { name: tpl.name }) + defaultsNote
+            : t(isCodeBuiltin(tpl) ? 'template.deleteBuiltinConfirm' : 'template.deleteConfirm', {
+                name: tpl.name,
+              }) + defaultsNote
         }
         confirmLabel={t(confirm === 'unshare' ? 'template.unshare' : 'template.delete')}
         onConfirm={() =>
@@ -324,5 +371,49 @@ function TemplateRow({
         }
       />
     </li>
+  )
+}
+
+/** 已删除的代码内置模板（ADR-0038、REQ-TPL-014）：仅所有者可见，可恢复（保留删除前的修改） */
+function DeletedBuiltins() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const q = useQuery(deletedBuiltinsQuery)
+  const restore = useMutation({
+    mutationFn: (id: string) => restoreBuiltin(id),
+    onSuccess: (r) => {
+      toast.success(t('template.restored', { name: r.name }))
+      void invalidateTemplates(qc)
+    },
+    onError: () => toast.error(t('task.saveFailed')),
+  })
+  if (!q.data?.length) return null
+  return (
+    <section className="flex flex-col gap-2" data-testid="templates-deleted">
+      <h2 className="font-medium text-fg-muted text-sm">{t('template.deletedBuiltins')}</h2>
+      <ul className="flex flex-col divide-y divide-divider rounded-lg border border-divider border-dashed">
+        {q.data.map((tpl) => (
+          <li
+            key={tpl.id}
+            className="flex items-center gap-2 px-3 py-2 text-fg-muted text-sm"
+            data-testid="deleted-template-row"
+            data-template-id={tpl.id}
+          >
+            <KindBadge kind={tpl.kind} typeId={tpl.typeId} />
+            <span className="min-w-0 flex-1 truncate">{tpl.name}</span>
+            <button
+              type="button"
+              onClick={() => restore.mutate(tpl.id)}
+              disabled={restore.isPending}
+              className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-primary-text hover:bg-hover"
+              data-testid="template-restore"
+            >
+              <Undo2 className="size-4" />
+              {t('template.restore')}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }

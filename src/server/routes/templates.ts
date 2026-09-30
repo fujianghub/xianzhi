@@ -33,37 +33,51 @@ export function templateRoutes(deps: { db: Db }) {
       userAgent: c.req.header('user-agent') ?? null,
     }
   }
-  return new Hono<AppEnv>()
-    .use(requireAuth)
-    .get('/', validate('query', listTemplatesQuery), async (c) =>
-      c.json({
-        items: await svc.listTemplates(deps.db, ctxOf(c), c.req.valid('query')),
-        nextCursor: null,
-        canShare: svc.canShareTemplate(ctxOf(c)),
-      }),
-    )
-    .post(
-      '/',
-      requireScope('write'),
-      idempotency(deps.db),
-      validate('json', createTemplateSchema),
-      async (c) => c.json(await svc.createTemplate(deps.db, ctxOf(c), c.req.valid('json')), 201),
-    )
-    .get('/:id', validate('param', idParam), async (c) =>
-      c.json(await svc.getTemplate(deps.db, ctxOf(c), c.req.valid('param').id)),
-    )
-    .patch(
-      '/:id',
-      requireScope('write'),
-      validate('param', idParam),
-      validate('json', patchTemplateSchema),
-      async (c) =>
-        c.json(
-          await svc.patchTemplate(deps.db, ctxOf(c), c.req.valid('param').id, c.req.valid('json')),
-        ),
-    )
-    .delete('/:id', requireScope('write'), validate('param', idParam), async (c) => {
-      await svc.deleteTemplate(deps.db, ctxOf(c), c.req.valid('param').id)
-      return c.body(null, 204)
-    })
+  return (
+    new Hono<AppEnv>()
+      .use(requireAuth)
+      .get('/', validate('query', listTemplatesQuery), async (c) =>
+        c.json({
+          items: await svc.listTemplates(deps.db, ctxOf(c), c.req.valid('query')),
+          nextCursor: null,
+          canShare: svc.canShareTemplate(ctxOf(c)),
+        }),
+      )
+      .post(
+        '/',
+        requireScope('write'),
+        idempotency(deps.db),
+        validate('json', createTemplateSchema),
+        async (c) => c.json(await svc.createTemplate(deps.db, ctxOf(c), c.req.valid('json')), 201),
+      )
+      .get('/:id', validate('param', idParam), async (c) =>
+        c.json(await svc.getTemplate(deps.db, ctxOf(c), c.req.valid('param').id)),
+      )
+      .patch(
+        '/:id',
+        requireScope('write'),
+        validate('param', idParam),
+        validate('json', patchTemplateSchema),
+        async (c) =>
+          c.json(
+            await svc.patchTemplate(
+              deps.db,
+              ctxOf(c),
+              c.req.valid('param').id,
+              c.req.valid('json'),
+            ),
+          ),
+      )
+      .delete('/:id', requireScope('write'), validate('param', idParam), async (c) => {
+        await svc.deleteTemplate(deps.db, ctxOf(c), c.req.valid('param').id)
+        return c.body(null, 204)
+      })
+      // ADR-0038：代码内置模板——恢复已删除（保留修改）/ 恢复默认（删覆盖）；仅所有者
+      .post('/:id/restore', requireScope('write'), validate('param', idParam), async (c) =>
+        c.json(await svc.restoreBuiltinTemplate(deps.db, ctxOf(c), c.req.valid('param').id)),
+      )
+      .post('/:id/reset', requireScope('write'), validate('param', idParam), async (c) =>
+        c.json(await svc.resetBuiltinTemplate(deps.db, ctxOf(c), c.req.valid('param').id)),
+      )
+  )
 }

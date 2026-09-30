@@ -79,6 +79,32 @@ test('REQ-BUG-006 · REQ-ENTRY-024 · 025 属性面板点状态改值后「流�
   await expect(list.locator('[data-field="status"]').first()).toContainText('新建 → 待决策')
 })
 
+test('REQ-ENTRY-030 · 031 紧凑属性：空的非必填属性默认收起可展开；流转为一行摘要，弹层按事件分组', async ({
+  page,
+  request,
+}) => {
+  const s = await mkSpace(request)
+  const id = await bug(request, s.id, '紧凑属性用例')
+  await page.goto(`/entries/${id}`)
+  const props = page.getByTestId('entry-properties')
+  // 模块 / 提交 / 踩坑目录为空 → 收起
+  await expect(props.getByTestId('entry-prop-status')).toBeVisible()
+  await expect(props.getByTestId('entry-prop-commit')).toHaveCount(0)
+  const toggle = props.getByTestId('entry-props-empty-toggle')
+  await expect(toggle).toContainText('显示 3 个空属性')
+  await toggle.click()
+  await expect(props.getByTestId('entry-prop-commit')).toBeVisible()
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  // 标签是列表里的一行
+  await expect(props.getByTestId('entry-tags')).toBeVisible()
+  // 流转：新建时 状态 / 优先级 / 严重度 三项合为一个事件
+  await expect(props.getByTestId('entry-changes-count')).toContainText('3')
+  await props.getByTestId('entry-changes-toggle').click()
+  const list = page.getByTestId('entry-changes')
+  await expect(list.locator(':scope > li')).toHaveCount(1)
+  await expect(list.locator('[data-field]')).toHaveCount(3)
+})
+
 test('REQ-BUG-008 统计视图：概要、趋势悬停提示、点分布条回到列表并按该值筛选', async ({
   page,
   request,

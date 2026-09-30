@@ -201,8 +201,8 @@ Tailwind v4 的 `backdrop-blur-*` 会同时输出 `-webkit-backdrop-filter`；�
 | Toast（状态胶囊变体） | `glass-thick` blur 24 | `full` → 展开后 `lg` | `shadow-float` | **不用 Sonner 的 Toaster 容器**，只复用其 `toast()` 队列；容器自建在 Topbar 内，与 StatusPill 同一 Motion `LayoutGroup`（`layoutId` 共享），从胶囊形变生长（弹簧 `{260, 26}`），完成后缩回；错误 Toast 左侧 3px `danger` 条，仍从胶囊出，不从屏幕边滑入（04 §6）。这是唯一不 portal 到 body 的浮层（它在 Topbar 的 L1 玻璃之内，因此 Toast 自身**不加 backdrop-filter**，只用 `--xz-glass-thick` 底色 + 折射环，避免玻璃套玻璃） |
 | PeekPanel（悬停 / `p` 预览） | `glass-thick` blur 24 | `xl` 左侧两角 | `shadow-float` | Radix Dialog `modal={false}`：无 Scrim、不锁滚动、不抢焦点，z-index `peek 25`（04 §2.3）；右侧贴边宽 480；打开时源卡片作共享元素飞入面板头（04 §2.4）；内容区是 `paper` 纸面，玻璃只在外壳 |
 | 浮动工具条（编辑器 bubble menu） | `glass-thick` blur 24 | `full` | `shadow-float` | 与 Tiptap 内容用同一 token |
-| 编辑器吸顶工具栏（ADR-0025） | 纸面实底（随纸张底色），**不 blur** | 无（上下 1px divider） | 无 | 在纸面内，sticky 顶栏下；ADR-0028：两行固定（格式 / 阅读与保存，行间虚线），「…」收纳菜单为 Popover 材质；ADR-0029 / 0030：只剩格式一行，~~改为纸面内圆角卡片~~ ADR-0031：素净一行，无底色块 / 边框，下方一条与正文等宽的细线；吸顶底色 = 纸面，吸住后极淡阴影；不 blur |
-| 阅读胶囊（ADR-0025） | ~~`primary` 5% 混纸面实底 + 主色细描边~~ ADR-0030：纸面实底 + 中性细边，悬停 / 打开时主色 | `full` | ~~inset 高光~~ 无 | ~~在吸顶工具栏内~~ ADR-0029：在标题下文档栏内，不 blur |
+| 编辑器吸顶工具栏（ADR-0025） | 纸面实底（随纸张底色），**不 blur** | 无（上下 1px divider） | 无 | 在纸面内，sticky 顶栏下；ADR-0028：两行固定（格式 / 阅读与保存，行间虚线），「…」收纳菜单为 Popover 材质；ADR-0029 / 0030：只剩格式一行，~~改为纸面内圆角卡片~~ ADR-0031：素净一行，无底色块 / 边框，下方一条与正文等宽的细线；吸顶底色 = 纸面，吸住后极淡阴影；不 blur；ADR-0037：未吸顶时无底线，吸住后才出现纸色底 + 极淡阴影 + 底线；模板编辑页同款 |
+| 阅读胶囊（ADR-0025） | ~~`primary` 5% 混纸面实底 + 主色细描边~~ ADR-0030：纸面实底 + 中性细边，悬停 / 打开时主色 | `full` | ~~inset 高光~~ 无 | ~~在吸顶工具栏内~~ ADR-0029：在标题下文档栏内，不 blur；ADR-0037：四图标胶囊改为带文字的「Aa 阅读 ▾」轻按钮（无边框，悬停浅底），弹出单个 Popover 材质弹层，内分四页 |
 | 表格工具条 / 块手柄菜单（ADR-0025） | `glass-thick` blur 24 | `lg` | `shadow-float` | 同屏计入 L2 |
 | 表格（DataTable） | `paper`；**冻结表头/首列用 `surface-solid-2` 实色** | `lg` | `shadow-soft` | 透明表头会透出滚动内容，简斋实发 |
 | 代码块 | ~~`surface-solid-2`（两主题都偏暗）~~ `--xz-code-bg` 深底（两主题同值，注 2026-09-24）| `md` | 无 | 代码高亮主题：One Dark 变体，`--xz-code-*` 九色 ≥ 4.5:1（注释 `#9199A6`、标签 `#E5737B` 为提亮修正） |

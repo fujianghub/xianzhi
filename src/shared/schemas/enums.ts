@@ -39,7 +39,8 @@ export const BUILTIN_ENTRY_KINDS = ENTRY_KINDS.filter(
 )
 export type BuiltinEntryKind = Exclude<EntryKind, 'custom'>
 /** 用户模板范围（ADR-0011 §2）：个人 / 工作区；内置模板不入表。 */
-export const TEMPLATE_SCOPES = ['personal', 'workspace'] as const
+/** 模板范围：个人 · 工作区 · 内置（ADR-0038：所有者新增的内置模板入库为 builtin，全员可见、仅所有者可改） */
+export const TEMPLATE_SCOPES = ['personal', 'workspace', 'builtin'] as const
 export type TemplateScope = (typeof TEMPLATE_SCOPES)[number]
 /** 流转记录跟踪的记录属性（ADR-0033）。 */
 export const TRACKED_ENTRY_FIELDS = ['status', 'priority', 'severity'] as const

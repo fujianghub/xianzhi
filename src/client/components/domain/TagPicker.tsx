@@ -33,10 +33,13 @@ export function TagPicker({
   value,
   onChange,
   disabled,
+  placeholder,
 }: {
   value: Tag[]
   onChange: (ids: string[]) => void
   disabled?: boolean
+  /** 空时的按钮文字（属性列表里已有「标签」名称，用「添加」避免重复，ADR-0037） */
+  placeholder?: string
 }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -108,8 +111,8 @@ export function TagPicker({
             ))
           ) : (
             <span className="inline-flex items-center gap-1 text-fg-muted text-sm">
-              <TagIcon className="size-4" />
-              {t('task.tags')}
+              {placeholder ? <Plus className="size-3.5" /> : <TagIcon className="size-4" />}
+              {placeholder ?? t('task.tags')}
             </span>
           )}
         </button>

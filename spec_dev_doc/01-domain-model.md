@@ -210,7 +210,7 @@
 | id | uuid | PK |
 | workspace_id | text | FK organization |
 | owner_id | text | FK user；创建者（删号时其 personal 模板随之删除） |
-| scope | text | `personal`（仅本人）\| `workspace`（全员可用；~~管理员创建~~ 非 guest 可共享，ADR-0023） |
+| scope | text | `personal`（仅本人）\| `workspace`（全员可用；~~管理员创建~~ 非 guest 可共享，ADR-0023）\| `builtin`（所有者新增的内置模板，全员可见可用、仅所有者可建改删，硬删；ADR-0038） |
 | name | text | ≤ 60 |
 | description | text | ≤ 200，默认 '' |
 | kind | text | 同 entries.kind（注 2026-09-30 ADR-0036：check 放开 `custom`） |
@@ -223,6 +223,27 @@
 
 - 索引：`(workspace_id, scope)`、`(owner_id)`。内置模板（`builtin:<key>`）是代码常量（`src/shared/editor/builtin-templates.ts`），不入表。
 - 注 2026-09-28（ADR-0023）：`body` / `kind` / `fields` 可经 `PATCH`（带 `ifUpdatedAt`）直接修改；workspace 模板改回 personal 或删除时，同事务置空引用它的 `spaces.default_template_id`。
+- 注 2026-09-30（ADR-0038）：`scope` check 加 `builtin`（改 `TEMPLATE_SCOPES` 后 `pnpm db:generate` 重建 `entry_templates_scope_ck`，迁移 0023）；`builtin` 行的 `owner_id` = 建它的所有者（界面不署名；删号时同 workspace 模板保留，只删 personal）；类型绑定规则同 workspace。代码内置模板不再「不可改」：工作区覆盖存 `builtin_template_overrides`（下表），读取时与代码常量逐列合并。
+
+**builtin_template_overrides**
+
+（2026-09-30 ADR-0038：代码内置模板 `builtin:<key>` 的工作区覆盖与软删除；仿 `entry_kind_overrides`）
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| workspace_id | text | FK organization，PK 之一 |
+| key | text | 内置模板 key（`builtin:` 之后部分，service 校验属代码常量），PK 之一 |
+| name | text? | 改过的名（≤ 60）；null = 代码默认 |
+| description | text? | 改过的说明（≤ 200）；null = 代码默认 |
+| kind | text? | 改过的类型，仅内置 kind（check）；null = 代码默认 |
+| space_kinds | jsonb? | 改过的适用空间 `SpaceKind[]`；null = 代码默认 |
+| fields | jsonb? | 改过的字段预填（按生效 kind 严格校验）；null = 代码默认（改 kind 未给时重置为新 kind 默认） |
+| body | jsonb? | 改过的 PM JSON 正文（≤ 100KB，排除项同模板编辑器）；null = 代码默认 |
+| deleted | bool | 已删除（软删，不出现在列表 / 选择器，新建使用 422）；默认 false |
+| updated_at | timestamptz | 乐观锁基准（`PATCH` 的 `ifUpdatedAt`；无行 = `1970-01-01T00:00:00.000Z`） |
+
+- 仅所有者可写（`template.manage`，`scope = builtin`）；「恢复默认」= 删除整行（含取消删除），不另存历史。
+- 生效：列表 / 详情、新建记录 `templateId`、空间默认模板（已删除 = 视为未设置，不清空 `spaces.default_template_id`）、空间首页快捷按钮、首次打开骨架（03 §6 注）。
 
 ### 3.4c entry_types / entry_kind_overrides —— 类型（2026-09-27 ADR-0016 · 0017）
 
@@ -736,9 +757,9 @@ Workspace 角色 × Space 角色 → 有效角色取**较高者**，`guest` 只�
 | entry_type.create / entry_type.manage（个人类型个人所有，ADR-0017：新建 = 非 guest；管理 = 本人；空间类型见下行，ADR-0036） | 建 ✓ / 管本人的 | 建 ✓ / 管本人的 | ✗ |
 | entry_kind.manage（内置类型改名 / 改色 / 删除 / 恢复，ADR-0017；追加字段 `field_defs`，ADR-0036） | 仅 owner | ✗ | ✗ |
 | 空间类型（建 / 改 / 删 / 改字段）· 启用清单 · 默认类型（ADR-0036，不另设 action） | 走 `space.manage`，另需空间未归档、非个人空间（service 校验） | space admin（同左） | ✗ |
-| template.read（记录模板，ADR-0011） | personal 仅本人；workspace 全员 | 同左 | 同左 |
-| template.create | 非 guest（personal 与 workspace；~~workspace 仅 owner / admin~~，ADR-0023 共享模板） | ✓ | ✗ |
-| template.manage（改名 / 范围 / 删除） | 本人的（非 guest）；workspace 模板管理员可管 | 本人的 | ✗ |
+| template.read（记录模板，ADR-0011） | personal 仅本人；workspace 全员；builtin（代码内置与 `scope = builtin`）全员（ADR-0038） | 同左 | 同左 |
+| template.create | 非 guest（personal 与 workspace；~~workspace 仅 owner / admin~~，ADR-0023 共享模板）；`scope = builtin` 仅 owner（ADR-0038） | ✓（builtin ✗） | ✗ |
+| template.manage（改名 / 范围 / 删除） | 本人的（非 guest）；workspace 模板管理员可管；内置（代码内置的覆盖 / 删除 / 恢复与 `scope = builtin` 的行）仅 owner，admin 不可（ADR-0038，沿用 `entry_kind.manage` 口径，不另设 action） | 本人的（builtin ✗） | ✗ |
 | notification.* | 仅本人 | | |
 
 `entry.read`：`private` 仅作者；`space` 需 space.read；`workspace` 需 workspace 成员。**软删对象对所有人不可读**（作者可在回收站看到）。最后一名 owner 不可降级、移除、注销（409 `CONFLICT_LAST_OWNER`）；成员生命周期各转换的影响见 07 §4。

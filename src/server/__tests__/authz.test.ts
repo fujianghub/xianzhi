@@ -165,7 +165,11 @@ const NON_GUEST: Matrix = {
   guest: [F, F, F, F],
   anon: [F, F, F, F],
 }
-const tpl = (scope: 'personal' | 'workspace', ownerId: string) => ({ id: 'tp', ownerId, scope })
+const tpl = (scope: 'personal' | 'workspace' | 'builtin', ownerId: string) => ({
+  id: 'tp',
+  ownerId,
+  scope,
+})
 expectMatrix('template.read(personal, own)', SELF_ONLY, (a) =>
   can(a, 'template.read', tpl('personal', ME)),
 )
@@ -192,6 +196,16 @@ expectMatrix('template.manage(workspace, other)', ADMIN_ONLY, (a) =>
 )
 expectMatrix('template.manage(workspace, own)', NON_GUEST, (a) =>
   can(a, 'template.manage', tpl('workspace', ME)),
+)
+// ADR-0038：内置模板全员可读，增删改仅所有者（与内置类型 entry_kind.manage 同口径）
+expectMatrix('template.read(builtin)', SELF_ONLY, (a) =>
+  can(a, 'template.read', tpl('builtin', '')),
+)
+expectMatrix('template.create(builtin)', OWNER_ONLY, (a) =>
+  can(a, 'template.create', tpl('builtin', ME)),
+)
+expectMatrix('template.manage(builtin, own)', OWNER_ONLY, (a) =>
+  can(a, 'template.manage', tpl('builtin', ME)),
 )
 
 // ---------- 空间：visibility=members ----------

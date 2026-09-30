@@ -423,6 +423,41 @@ describe('collab', () => {
     expect(b.doc.getXmlFragment(YDOC_FRAGMENT).length).toBe(first)
   })
 
+  it('REQ-TPL-013 所有者改了「学习计划」内置模板的正文 → 新学习计划首次打开注入改后的骨架', async () => {
+    const cur = (await (
+      await app.request('/api/v1/templates/builtin:learning-plan', {
+        headers: jsonHeaders({ cookie: ownerCookie }),
+      })
+    ).json()) as { updatedAt: string }
+    const p = await app.request('/api/v1/templates/builtin:learning-plan', {
+      method: 'PATCH',
+      headers: jsonHeaders({ cookie: ownerCookie }),
+      body: JSON.stringify({
+        body: {
+          type: 'doc',
+          content: [
+            { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: '团队目标' }] },
+          ],
+        },
+        ifUpdatedAt: cur.updatedAt,
+      }),
+    })
+    expect(p.status).toBe(200)
+    const created = await app.request('/api/v1/entries', {
+      method: 'POST',
+      headers: jsonHeaders({ cookie: ownerCookie }),
+      body: JSON.stringify({ kind: 'plan', title: '计划', spaceId, fields: { status: 'active' } }),
+    })
+    const id = ((await created.json()) as { id: string }).id
+    const c = open(id, signCollabToken(SECRET, ownerId, id).token)
+    await until(() => c.state.synced, 3000, 'synced')
+    expect(c.doc.getXmlFragment(YDOC_FRAGMENT).toString()).toContain('团队目标')
+    await app.request('/api/v1/templates/builtin:learning-plan/reset', {
+      method: 'POST',
+      headers: jsonHeaders({ cookie: ownerCookie }),
+    })
+  })
+
   it('REQ-WS-004 user.revoked：该用户连接 1s 内以 4403 断开，其他人不受影响', async () => {
     const mine = open(noteId, signCollabToken(SECRET, guestId, noteId).token)
     const other = open(noteId, signCollabToken(SECRET, ownerId, noteId).token)

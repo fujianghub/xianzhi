@@ -162,6 +162,13 @@
       "when": 1790747231152,
       "tag": "0022_space_types_field_defs",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790765181131,
+      "tag": "0023_builtin_template_overrides",
+      "breakpoints": true
     }
   ]
 }

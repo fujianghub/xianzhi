@@ -1,6 +1,6 @@
 /** ADR-0024 阅读与写作偏好（REQ-READ-002 ~ 007）：阅读胶囊（字体 / 纸张 / 排版 / 目录，ADR-0025）、纸张、章节编号与目录深度、专注写作、设置页预览。 */
 import { expect, type Page, test } from '@playwright/test'
-import { createEntry, STATE, sameSite } from './helpers.ts'
+import { createEntry, openReading, STATE, sameSite } from './helpers.ts'
 
 test.use({ storageState: STATE.owner })
 
@@ -51,10 +51,10 @@ test('REQ-READ-002 阅读胶囊改字体与版心即时生效、刷新后保留�
   await expect(article(page)).toHaveCSS('max-width', 'none')
 
   const done = saved(page)
-  await page.getByTestId('reading-open-font').click()
+  await openReading(page, 'font')
   await page.getByTestId('reading-font-wenkai').click()
   await page.keyboard.press('Escape')
-  await page.getByTestId('reading-open-layout').click()
+  await openReading(page, 'layout')
   await page.getByTestId('reading-width-wide').click()
   await page.getByTestId('reading-size-lg').click()
   await expect(article(page)).toHaveAttribute('data-font', 'wenkai')
@@ -68,7 +68,7 @@ test('REQ-READ-002 阅读胶囊改字体与版心即时生效、刷新后保留�
   await expect(article(page)).toHaveAttribute('data-font', 'wenkai')
   await expect(article(page)).toHaveAttribute('data-width', 'wide')
 
-  await page.getByTestId('reading-open-layout').click()
+  await openReading(page, 'layout')
   await page.getByTestId('reading-reset').click()
   await expect(article(page)).toHaveAttribute('data-font', 'sans')
   await expect(article(page)).toHaveCSS('max-width', 'none')
@@ -78,7 +78,7 @@ test('REQ-READ-002 阅读胶囊改字体与版心即时生效、刷新后保留�
 test('REQ-READ-003 纸张按人生效：方格纸面有底纹，宣纸换底色', async ({ page, request }) => {
   const id = await createEntry(request, { kind: 'note', title: '纸张示例' })
   await openEntry(page, id)
-  await page.getByTestId('reading-open-paper').click()
+  await openReading(page, 'paper')
   await page.getByTestId('reading-paper-grid').click()
   await expect(article(page)).toHaveAttribute('data-paper', 'grid')
   const bgImage = await article(page).evaluate((el) => getComputedStyle(el).backgroundImage)
@@ -109,7 +109,7 @@ test('REQ-READ-004 章节编号：正文与大纲同一编号（跳级压缩）�
 
   // 正文章节编号默认开（ADR-0027）
   await expect(article(page)).toHaveAttribute('data-numbered', 'true')
-  await page.getByTestId('reading-open-toc').click()
+  await openReading(page, 'toc')
   // h2 → h4 → h3：1 / 1.1 / 1.2（回到中间层级续接计数）
   await expect(ed.locator('h2', { hasText: '背景' })).toHaveAttribute('data-num', '1')
   await expect(ed.locator('h4', { hasText: '细节' })).toHaveAttribute('data-num', '1.1')
@@ -146,7 +146,7 @@ test('REQ-READ-005 专注写作：按钮 / 快捷键进入，隐藏外框；Esc 
   await expect(page.getByTestId('topbar')).toBeVisible()
 })
 
-test('REQ-READ-007 阅读胶囊在标题下的文档栏里（ADR-0029）：四个弹层各管一类；吸顶的格式工具栏里不再有阅读设置', async ({
+test('REQ-READ-007 · 010 阅读设置在标题下的文档栏里（ADR-0029 · 0037）：一个弹层四个分页；吸顶的格式工具栏里不再有阅读设置', async ({
   page,
   request,
 }) => {
@@ -159,12 +159,14 @@ test('REQ-READ-007 阅读胶囊在标题下的文档栏里（ADR-0029）：四�
   const barBox = await page.getByTestId('editor-toolbar').boundingBox()
   expect(docBox?.y ?? 0).toBeGreaterThan(titleBox?.y ?? 0)
   expect(docBox?.y ?? 0).toBeLessThan(barBox?.y ?? 0)
+  // 阅读设置是文档栏里一个「阅读」弹层，四个分页各管一类（ADR-0037、REQ-READ-010）
+  await docBar.getByTestId('reading-open').click()
   for (const k of ['font', 'paper', 'layout', 'toc']) {
-    await docBar.getByTestId(`reading-open-${k}`).click()
+    await page.getByTestId(`reading-open-${k}`).click()
     await expect(page.getByTestId(`reading-${k}-panel`)).toBeVisible()
-    await page.keyboard.press('Escape')
   }
-  await expect(page.getByTestId('editor-toolbar').getByTestId('reading-open-font')).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('editor-toolbar').getByTestId('reading-open')).toHaveCount(0)
   await expect(docBar.getByTestId('word-count')).toBeVisible()
   // 写长一点再滚动：格式工具栏吸顶，文档栏随正文滚走
   await page.getByTestId('editor').click()

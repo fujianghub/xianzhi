@@ -12,15 +12,17 @@ import type { Logger } from 'pino'
 import * as Y from 'yjs'
 import { type Actor, can } from '../server/authz.ts'
 import type { Db, DbOrTx } from '../server/db/index.ts'
-import { entries, events, spaces } from '../server/db/schema/business.ts'
+import { builtinTemplateOverrides, entries, events, spaces } from '../server/db/schema/business.ts'
 import { JtiCache, verifyCollabToken } from '../server/lib/collab-token.ts'
 import type { BusEvents, EventBus } from '../server/lib/event-bus.ts'
 import { loadActor } from '../server/services/actors.ts'
 import { writeEntryDerived } from '../server/services/derived.ts'
 import { loadEntry } from '../server/services/entries.ts'
 import { emit } from '../server/services/events.ts'
+import { fillTemplateVars, KIND_DEFAULT_TEMPLATE } from '../shared/editor/builtin-templates.ts'
 import { entryTemplate } from '../shared/editor/templates.ts'
 import type { EntryKind } from '../shared/schemas/enums.ts'
+import type { PmNode } from '../shared/schemas/pm.ts'
 import {
   SAVE_VERSION_MAX_BYTES,
   SAVE_VERSION_REPLY,
@@ -219,6 +221,26 @@ export function createCollabServer(deps: CollabDeps) {
    * 落库 + 派生；`saveVersion` 时在同一事务里用同一份字节打手动快照（ADR-0026：快照 ydocVersion = 落库版本，
    * 预览读到的就是这份 ydoc），并跳过自动快照。调用方须持有 document.saveMutex（与 Hocuspocus 防抖落库串行）。
    */
+  /**
+   * 默认骨架取内置模板的类型（优化 / 学习计划，ADR-0011 §3）：所有者改过该内置模板的正文则用改后的（ADR-0038）；
+   * 删除内置模板不影响默认骨架（骨架是类型的，不是模板的）。
+   */
+  async function kindSkeletonOverride(workspaceId: string, kind: string) {
+    const id = KIND_DEFAULT_TEMPLATE[kind as EntryKind]
+    if (!id) return null
+    const [o] = await deps.db
+      .select({ body: builtinTemplateOverrides.body })
+      .from(builtinTemplateOverrides)
+      .where(
+        and(
+          eq(builtinTemplateOverrides.workspaceId, workspaceId),
+          eq(builtinTemplateOverrides.key, id.slice('builtin:'.length)),
+        ),
+      )
+    if (!o?.body) return null
+    return fillTemplateVars(o.body as PmNode, { date: new Date().toISOString().slice(0, 10) })
+  }
+
   async function storeDocument(
     documentName: string,
     document: Y.Doc,
@@ -452,6 +474,7 @@ export function createCollabServer(deps: CollabDeps) {
           version: entries.ydocVersion,
           kind: entries.kind,
           schema: entries.editorSchemaVersion,
+          workspaceId: entries.workspaceId,
         })
         .from(entries)
         .where(eq(entries.id, entryId))
@@ -465,7 +488,11 @@ export function createCollabServer(deps: CollabDeps) {
       if (frag.length === 0 && row.version === 0)
         Y.applyUpdate(
           document,
-          templateUpdate(entryId, entryTemplate(row.kind as EntryKind, context?.locale)),
+          templateUpdate(
+            entryId,
+            (await kindSkeletonOverride(row.workspaceId, row.kind)) ??
+              entryTemplate(row.kind as EntryKind, context?.locale),
+          ),
         )
       // schema 迁移（03 §3.3）：当前无迁移脚本，只 bump 版本
       if (row.schema < EDITOR_SCHEMA_VERSION) {

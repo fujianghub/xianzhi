@@ -241,7 +241,7 @@ describe('templates', () => {
         })
       ).status,
     ).toBe(403)
-    // 改名 / 删除自己的；内置不可改删
+    // 改名 / 删除自己的；内置模板只有所有者能改删（ADR-0038）
     const renamed = await req(member.cookie, `/api/v1/templates/${tpl.id}`, {
       method: 'PATCH',
       body: JSON.stringify({ name: '学习计划 v2', ifUpdatedAt: tpl.updatedAt }),

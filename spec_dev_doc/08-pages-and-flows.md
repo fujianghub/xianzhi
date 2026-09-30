@@ -36,8 +36,8 @@
 | `/spaces/$slug/tree` | `routes/_app.spaces.$spaceSlug_.tree.tsx` | 空间目录 + 其余记录（ADR-0012） | guest+ | 2 | REQ-KB-005 |
 | `/settings/types` | `routes/_app.settings.types.tsx` | 类型（ADR-0017 起称「类型」）：内置类型（所有者）改名 / 改色 / 删除（记录转到另一内置类型）/ 恢复；「我的自定义类型」本人新建（色 + 状态）/ 改名改色 / 编辑状态 / 删除（选转入目标）；用量、查看记录（ADR-0016 · 0017） | guest+（自定义类型 member+ 管本人的；内置类型仅 owner） | 2 | REQ-ENTRY-018 ~ 020 |
 | `/settings/tags` | `routes/_app.settings.tags.tsx` | 标签：新建选色、改名 / 改色 / 合并 / 删除（~~管理员或创建者~~ ADR-0017：标签是个人的，只列 / 只管本人的）、用量、查看记录（ADR-0014） | guest+（member+ 管本人的，ADR-0017） | 2 | REQ-TAG-004 · 005 · 007 |
-| `/settings/templates` | `routes/_app.settings.templates.tsx` | 模板：内置 / 我的 / 工作区共享，预览（`?preview=<id>` 直达）、用此模板新建、复制到我的、复制链接、共享开关、编辑 / 删除（ADR-0011 · 0023） | guest+（管理需 member+） | 2 | REQ-TPL-001 · 004 · 010 |
-| `/settings/templates/new` · `/settings/templates/$templateId` | `routes/_app.settings.templates_.new.tsx` · `_app.settings.templates_.$templateId.tsx` | 新建 / 编辑模板：名称、说明、类型、适用空间、共享、正文编辑器（ADR-0023）；不可管的模板只读 +「复制到我的」 | member+（只读 guest+） | 2 | REQ-TPL-010 |
+| `/settings/templates` | `routes/_app.settings.templates.tsx` | 模板：内置 / 我的 / 工作区共享，预览（`?preview=<id>` 直达）、用此模板新建、复制到我的、复制链接、共享开关、编辑 / 删除（ADR-0011 · 0023）；所有者对内置行可编辑 / 删除 / 恢复默认，另有「已删除的内置模板」分区（ADR-0038） | guest+（管理需 member+；内置仅 owner） | 2 | REQ-TPL-001 · 004 · 010 · 013 · 014 |
+| `/settings/templates/new` · `/settings/templates/$templateId` | `routes/_app.settings.templates_.new.tsx` · `_app.settings.templates_.$templateId.tsx` | 新建 / 编辑模板：名称、说明、类型、适用空间、共享、正文编辑器（ADR-0023；带格式工具栏，ADR-0037）；不可管的模板只读 +「复制到我的」；`$templateId` 可为 `builtin:<key>`（所有者可编辑覆盖） | member+（只读 guest+） | 2 | REQ-TPL-010 · 012 · 013 |
 | `/settings/reading` | `routes/_app.settings.reading.tsx` | 阅读与写作：字体 / 字号 / 行距 / 段距 / 版心 / 纸张 / 缩进 / 对齐 / 章节编号 / 目录深度 + 示例预览（ADR-0024） | guest+ | 2 | REQ-READ-006 |
 | `/settings/workspace` | `routes/settings.workspace.index.tsx` | 工作区设置 | admin+ | ~~0~~ 1 | REQ-WS-001 |
 | `/settings/workspace/members` | `routes/settings.workspace.members.tsx` | 成员与邀请 | admin+ | ~~0~~ 1 | REQ-AUTH-003 · REQ-WS-002 · 004 |
@@ -180,6 +180,7 @@
 - **注 2026-09-27（ADR-0019）**：正文 `[[` 选择器找不到时可「新建《q》并插入」（本空间、本篇子页），搜索当前空间优先。REQ-EDITOR-023。
 - **注 2026-09-29（ADR-0029）**：标题下「文档栏」（字数 · 上次保存版本｜阅读胶囊 + 专注｜保存 + Markdown），不吸顶；吸顶的只剩格式工具栏（放不下收进「…」）。REQ-READ-007。
 - **注 2026-09-30（ADR-0035，修订 ADR-0029 的纵向顺序）**：DOM 顺序 = 面包屑 → 元信息行 → 标题 → **属性面板**（`entry-properties`，常显）→ 文档栏 → 吸顶格式栏 → 正文。属性面板：两列网格（窄屏一列），每行 图标 + 属性名 + 彩色值（`FieldValue`），点击弹 `FieldEditor` 即改即存（600ms 合并 + `ifUpdatedAt`）；末行标签（`TagPicker`）；空值「空」占位、必填缺失标红；只读者不弹；专注模式隐藏；类型无字段时不显示；不懒加载，按字段数预留高度。底部「流转 N 次 ▸」展开为竖向彩色时间线（色点 + 字段：旧值胶囊 → 新值胶囊 + 人 · 相对时间）。右栏「属性」页签只留 类型 / 可见性 / 空间 / 目录位置 / 作者 / 字数 / 版本。删除后跳父页，无父页跳所在空间首页（个人空间记录仍跳 `/entries`）。REQ-ENTRY-024 · 025 · REQ-KB-013 · REQ-UI-044。
+- **注 2026-09-30（ADR-0037「文档式 · 极简」，修订上条与 ADR-0029 · 0031）**：DOM 顺序与 REQ-READ-007 几何不变。① 属性面板改**紧凑属性列表**：两列（窄屏一列），属性名淡色、无图标、标签列约 5.5rem；值为彩色胶囊（点值即改不变）；标签并入列表为普通一行；空的非必填字段收为末行「+ 显示 N 个空属性」（`entry-props-empty-toggle`，可再收起）；必填缺失显示红色「必填」；只读者不显示空属性。② 流转缩为列表下一行摘要「↻ 流转 N 次 · 最近 字段 旧→新 · 相对时间 ▸」（`entry-flow-summary`），点击弹 Popover（窄屏底部抽屉，`entry-flow-popover`）：按事件分组（同一人、≤ 2 秒的多字段变化合为一组）的彩色竖向时间线，不推开正文。③ 文档栏：左「N 字 · 已保存 …」淡色元信息；右「Aa 阅读 ▾」（`reading-open`）弹出单个弹层，内分 字体 / 纸张 / 排版 / 目录 四页（`reading-open-*` 为分页按钮）+「专注」+「保存」「Markdown」（仅可编辑者），均为带文字的轻按钮。④ 分隔线只剩属性块与文档栏之间一条；格式栏未吸顶无底线，吸顶后才有纸色底 + 极淡阴影 + 底线。REQ-ENTRY-030 · 031 · REQ-READ-010。
 - **注 2026-09-28（ADR-0025）**：正文上方吸顶工具栏（+ 插入面板、格式、颜色、列表、对齐、链接；右侧阅读胶囊 / 专注 / Markdown / 字数），替代页头「Aa」与单独的「Markdown」行；块手柄菜单、表格工具条、代码块复制、提示块切换、Mermaid / 公式渲染与编辑。REQ-EDITOR-024 ~ 031、REQ-READ-007。
 - **注 2026-09-28（ADR-0024）**：纸面宽度、字体、字号、行距、段距、缩进、对齐、纸张取本人阅读偏好（默认 = 原 760 / MiSans / 1.75），`?wide=1` 仍强制 1080；页头「Aa」弹层改偏好、「专注」进入专注写作（`mod+shift+enter`，Esc 退出，隐藏外框与面包屑 / 元信息 / fields）；开章节编号时正文、大纲、目录块显示 1 / 1.1，目录深度过滤大纲与目录块。REQ-READ-002 ~ 005。
 
@@ -213,6 +214,7 @@
 - **REQ**：REQ-WS-001 · 002 · 005 · 010 · REQ-AUTH-006 · 009 · 010 · REQ-NOTIF-006。
 - 注 2026-09-28：导航加「阅读与写作」（ADR-0024，REQ-READ-006）；模板页加新建 / 编辑子页、共享开关、复制到我的、复制链接（ADR-0023，REQ-TPL-010）。
 - 注 2026-09-30（ADR-0036）：`/settings/types` 的个人类型与内置类型编辑加 `FieldDefsEditor` 与状态色（内置类型追加字段仅 owner）；另列「空间类型」只读分组（本人可见空间的，链到该空间的 `SpaceTypesDialog`）。模板新建 / 编辑页：类型选择 = 内置 + 本人可用的空间类型 / 个人类型（共享模板不列个人类型）；下方「字段」区预填值（与属性面板同款编辑器）+「编辑该类型的字段」（有权限时内嵌 `FieldDefsEditor`，提示「会影响该类型的全部记录」）。REQ-ENTRY-027 · 028 · REQ-TPL-011。
+- 注 2026-09-30（ADR-0037 · 0038）：**模板编辑页**正文编辑器上方为与记录页同一个格式工具栏（吸顶，吸住后才有底线）；「+」插入面板排除 图片 / 附件 / 记录卡片 / 记录链接 / 源码 / 模板；有块手柄与表格工具条；无文档栏（无历史 / 保存版本 / 阅读 / 专注 / 字数），`Mod+S` 保存模板。REQ-TPL-012。**模板页**「内置」分组 = 代码内置（覆盖后的版本）+ 所有者新增的 `scope = builtin` 模板（不署名）；所有者在内置行多出「编辑」「删除」「恢复默认」（仅已改过的代码内置显示），页底「已删除的内置模板」分区（仅所有者、有已删除项时显示，每行「恢复」）；所有者「新建模板」的范围多一项「内置（全员）」；其他人内置行只有 预览 / 用此模板新建 / 复制到我的。编辑代码内置 = 写覆盖（`PATCH /templates/builtin:<key>`），页头提示「修改对全员生效，可随时恢复默认」。REQ-TPL-013 ~ 015。
 - 注 2026-09-24（T1-033 · T1-043 实现）：布局路由 `/settings` 左侧二级导航；个人页含本机偏好（主题 / 密度；注 2026-09-24 加「动效」档位 标准 / 丰富 / 减弱，REQ-UI-028）；工作区页只改名称，slug 只读，Logo 顺延到后续版本（REQ 未要求）；工作区三页非 owner/admin 在 `beforeLoad` 抛 notFound（404 页）；成员页含邀请、改角色、停用 / 恢复、移除、所有权转让。
 - 注 2026-09-25（ADR-0010）：
   - **个人页**顶部加「头像 + 账号」：头像 64px，上传 / 更换 / 移除（PNG / JPG / WebP / GIF / SVG，服务端方形裁切）；用户名可改（回车或「保存」）；邮箱只读 +「修改」→ 行内表单（新邮箱 + 当前密码）。REQ-WS-022 · 023。

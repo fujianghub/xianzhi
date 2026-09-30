@@ -3,8 +3,8 @@
  * 吸顶在顶栏下（专注时贴顶），纸面实底不 blur（06）。
  * ADR-0028：格式始终一行，放不下从右往左收进「…」。ADR-0029：阅读 / 保存 / 字数移到标题下的文档栏（DocBar），吸顶的只剩格式。
  * 编辑组：+ 插入 | 撤销 重做 清除格式 | 标题▾ | B I U S 更多▾ | 文字色▾ 背景色▾ | 列表 ×3 引用 | 对齐▾ | 链接；
- * 右侧：阅读胶囊（字体 / 纸张 / 排版 / 目录）· 专注 · Markdown 源码 · 字数。只读者只有右侧。
- * < lg 编辑组隐藏（MobileToolbar 负责），阅读胶囊保留。下拉关闭时焦点回编辑器。
+ * 文档栏（DocBar，ADR-0029 · 0037）：「N 字 · 上次保存」| 阅读▾（字体 / 纸张 / 排版 / 目录分页）· 专注 · 保存 · Markdown。
+ * < lg 编辑组隐藏（MobileToolbar 负责）。下拉关闭时焦点回编辑器。
  */
 import { useQuery } from '@tanstack/react-query'
 import type { Editor } from '@tiptap/react'
@@ -15,12 +15,11 @@ import {
   AlignRight,
   Baseline,
   Bold,
+  BookOpen,
   ChevronDown,
   Code,
   FileCode,
-  FileText,
   Highlighter,
-  History,
   Italic,
   Link2,
   List,
@@ -474,47 +473,73 @@ function LinkForm({ editor, close }: { editor: Editor; close: () => void }) {
   )
 }
 
-/** 阅读胶囊（简斋 .jz-reader-toolbar）：字体 / 纸张 / 排版 / 目录，各一个弹层。 */
-function ReadingCapsule() {
+type ReadingTab = 'font' | 'paper' | 'layout' | 'toc'
+
+/**
+ * 「阅读」（ADR-0037、REQ-READ-010；取代 ADR-0029 的四图标阅读胶囊）：一个带文字的按钮，
+ * 弹层里 字体 / 纸张 / 排版 / 目录 四个分页（分页按钮沿用 reading-open-* testid），默认停在上次看的分页。
+ */
+function ReadingMenu() {
   const { t } = useTranslation()
-  const items: { key: string; icon: LucideIcon; panel: ReactNode }[] = [
+  const [tab, setTab] = useState<ReadingTab>('font')
+  const items: { key: ReadingTab; icon: LucideIcon; panel: ReactNode }[] = [
     { key: 'font', icon: Type, panel: <FontPanel /> },
     { key: 'paper', icon: Scroll, panel: <PaperPanel /> },
     { key: 'layout', icon: SlidersHorizontal, panel: <LayoutPanel /> },
     { key: 'toc', icon: ListTree, panel: <TocPanel /> },
   ]
   return (
-    <fieldset className="xz-reader-capsule" aria-label={t('reading.title')}>
-      {items.map(({ key, icon: Icon, panel }) => (
-        <Popover key={key}>
-          <PopoverTrigger asChild>
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="xz-tb-btn gap-1 px-2 text-xs"
+          aria-label={t('reading.title')}
+          data-testid="reading-open"
+        >
+          <BookOpen className="size-4" />
+          <span>{t('editor.docbar.readingShort')}</span>
+          <ChevronDown className="size-3 opacity-60" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80 p-0">
+        <div className="xz-reading-tabs" role="tablist" aria-label={t('reading.title')}>
+          {items.map(({ key, icon: Icon }) => (
             <button
+              key={key}
               type="button"
-              aria-label={t(`reading.capsule.${key}`)}
-              title={t(`reading.capsule.${key}`)}
+              role="tab"
+              aria-selected={tab === key}
+              onClick={() => setTab(key)}
+              className="xz-reading-tab"
               data-testid={`reading-open-${key}`}
-              className="xz-capsule-btn"
             >
-              <Icon className="size-4" />
+              <Icon aria-hidden />
+              {t(`reading.capsule.${key}`)}
             </button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className={key === 'layout' ? 'w-80' : 'w-60'}>
-            {panel}
-          </PopoverContent>
-        </Popover>
-      ))}
-    </fieldset>
+          ))}
+        </div>
+        <div className="p-4" role="tabpanel">
+          {items.find((x) => x.key === tab)?.panel}
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
+
+const NO_EXCLUDE: readonly string[] = []
 
 export function EditorToolbar({
   editor,
   readOnly,
   getCtx,
+  exclude = NO_EXCLUDE,
 }: {
   editor: Editor | null
   readOnly: boolean
   getCtx: () => SlashCtx
+  /** 「+」插入面板要排除的项（模板编辑器：图片 / 附件 / 记录卡片 / 记录链接等依赖记录的项，ADR-0037） */
+  exclude?: readonly string[]
 }) {
   const { t } = useTranslation()
   const [insertOpen, setInsertOpen] = useState(false)
@@ -1125,7 +1150,7 @@ export function EditorToolbar({
                   <InsertPanel
                     editor={editor}
                     getCtx={getCtx}
-                    exclude={[]}
+                    exclude={exclude as string[]}
                     close={() => setInsertOpen(false)}
                   />
                 </PopoverContent>
@@ -1248,13 +1273,9 @@ export function DocBar({
   return (
     <div className="xz-doc-bar" data-testid="doc-bar">
       <div className="xz-doc-meta">
-        <span data-testid="word-count">
-          <FileText aria-hidden />
-          {t('editor.toolbar.words', { n: words })}
-        </span>
+        <span data-testid="word-count">{t('editor.toolbar.words', { n: words })}</span>
         {last ? (
           <span data-testid="doc-last-saved">
-            <History aria-hidden />
             {t('editor.docbar.lastSaved')}
             <RelativeTime date={last.createdAt} />
           </span>
@@ -1262,14 +1283,16 @@ export function DocBar({
       </div>
       <div className="xz-doc-actions">
         <fieldset className="xz-doc-group" aria-label={t('editor.docbar.reading')}>
-          <ReadingCapsule />
+          <ReadingMenu />
           <Btn
             label={t('reading.focus')}
             icon={Maximize2}
             shortcut="mod+shift+enter"
             onClick={() => setFocus(!useFocusMode.getState().on)}
             testId="focus-enter"
-          />
+          >
+            <span className="hidden text-xs sm:inline">{t('editor.docbar.focus')}</span>
+          </Btn>
         </fieldset>
         {editable ? (
           <fieldset className="xz-doc-group" aria-label={t('editor.docbar.document')}>
@@ -1292,7 +1315,7 @@ export function DocBar({
               className="xz-tb-btn gap-1 px-2 text-xs"
             >
               <FileCode className="size-4" />
-              <span className="hidden sm:inline">{t('editor.source.open')}</span>
+              <span className="hidden sm:inline">{t('editor.docbar.markdown')}</span>
             </button>
           </fieldset>
         ) : null}

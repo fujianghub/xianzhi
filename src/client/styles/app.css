@@ -1055,8 +1055,8 @@ html:active-view-transition-type(route) :is([data-shared-source], [data-shared-t
   --xz-read-paper-bg: var(--xz-paper-kraft);
 }
 /*
- * 格式工具栏（ADR-0028 / 0029 / 0031）：素净一行——无底色块 / 边框 / 圆角，只在下方留一条与正文等宽的细线；
- * 吸顶时底色 = 纸面（盖住滚上来的正文），吸住后（data-stuck）细线下加极淡阴影。
+ * 格式工具栏（ADR-0028 / 0029 / 0031 · 0037）：素净一行——无底色块 / 边框 / 圆角；
+ * 未吸顶时不画线（与上方文档栏、属性区只用一条分隔线）；吸住后（data-stuck）底色 = 纸面、出现与正文等宽的细线 + 极淡阴影。
  */
 .xz-editor-toolbar {
   position: sticky;
@@ -1067,10 +1067,13 @@ html:active-view-transition-type(route) :is([data-shared-source], [data-shared-t
   margin: 0 0 1rem;
   padding: 0.3125rem 0;
   background: var(--xz-read-paper-bg, var(--xz-surface-solid));
-  border-bottom: 1px solid var(--xz-divider);
-  transition: box-shadow var(--xz-dur-base) var(--xz-ease-out);
+  border-bottom: 1px solid transparent;
+  transition:
+    box-shadow var(--xz-dur-base) var(--xz-ease-out),
+    border-color var(--xz-dur-base) var(--xz-ease-out);
 }
 .xz-editor-toolbar[data-stuck] {
+  border-bottom-color: var(--xz-divider);
   box-shadow: 0 8px 12px -12px color-mix(in srgb, var(--xz-fg) 30%, transparent);
 }
 .xz-tb-sentinel {
@@ -1103,10 +1106,13 @@ html:active-view-transition-type(route) :is([data-shared-source], [data-shared-t
   }
 }
 
-/* ---- 文档栏（ADR-0029 / 0030）：标题下、不吸顶；左侧信息标签，右侧 阅读 | 文档 两组，统一 28px 幽灵按钮 ---- */
+/*
+ * ---- 文档栏（ADR-0029 / 0030 · 0037）：标题下、不吸顶；左侧「N 字 · 已保存…」安静元信息，
+ * 右侧「阅读 ▾ · 专注 · 保存 · Markdown」带文字的 28px 幽灵按钮 ----
+ */
 .xz-doc-bar-slot {
   min-height: 1.75rem;
-  margin-bottom: 0.875rem;
+  margin-bottom: 0.375rem;
 }
 .xz-doc-bar {
   display: flex;
@@ -1118,7 +1124,7 @@ html:active-view-transition-type(route) :is([data-shared-source], [data-shared-t
 .xz-doc-meta {
   display: flex;
   align-items: center;
-  gap: 0.875rem;
+  gap: 0.5rem;
   color: var(--xz-fg-muted);
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
@@ -1129,10 +1135,10 @@ html:active-view-transition-type(route) :is([data-shared-source], [data-shared-t
   align-items: center;
   gap: 0.3rem;
 }
-.xz-doc-meta svg {
-  width: 0.875rem;
-  height: 0.875rem;
-  opacity: 0.75;
+.xz-doc-meta > span + span::before {
+  content: "·";
+  margin-inline-end: 0.5rem;
+  color: var(--xz-fg-faint);
 }
 .xz-doc-actions {
   display: flex;
@@ -1146,9 +1152,36 @@ html:active-view-transition-type(route) :is([data-shared-source], [data-shared-t
   align-items: center;
   gap: 0.125rem;
 }
-.xz-doc-group + .xz-doc-group {
-  padding-inline-start: 0.375rem;
-  border-inline-start: 1px solid var(--xz-divider);
+/* 「阅读」弹层的分页（字体 / 纸张 / 排版 / 目录） */
+.xz-reading-tabs {
+  display: flex;
+  gap: 0.125rem;
+  padding: 0.375rem;
+  border-bottom: 1px solid var(--xz-divider);
+}
+.xz-reading-tab {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  height: 1.75rem;
+  border-radius: var(--xz-radius-md);
+  color: var(--xz-fg-muted);
+  font-size: 0.75rem;
+  transition: background-color var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-reading-tab:hover {
+  background: var(--xz-hover-bg);
+  color: var(--xz-fg);
+}
+.xz-reading-tab[aria-selected="true"] {
+  background: var(--xz-selected-bg);
+  color: var(--xz-primary-text);
+}
+.xz-reading-tab svg {
+  width: 0.875rem;
+  height: 0.875rem;
 }
 
 /* ---- 按钮（格式栏 / 文档栏共用） ---- */
@@ -1231,54 +1264,6 @@ html:active-view-transition-type(route) :is([data-shared-source], [data-shared-t
 .xz-tb-h4 {
   font-size: 0.9375rem;
   font-weight: 600;
-}
-/* 阅读胶囊（简斋 .jz-reader-toolbar，ADR-0030 收敛）：中性细边胶囊，图标 muted；悬停 / 打开时才用主色 */
-.xz-reader-capsule {
-  display: inline-flex;
-  align-items: center;
-  height: 1.75rem;
-  padding: 0 1px;
-  border: 1px solid var(--xz-border);
-  border-radius: 999px;
-  background: var(--xz-read-paper-bg, var(--xz-surface-solid));
-}
-.xz-capsule-btn {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 1.75rem;
-  height: 1.375rem;
-  border-radius: 999px;
-  color: var(--xz-fg-muted);
-  transition:
-    background-color var(--xz-dur-fast) var(--xz-ease-out),
-    color var(--xz-dur-fast) var(--xz-ease-out),
-    transform var(--xz-dur-fast) var(--xz-ease-out);
-}
-.xz-capsule-btn svg {
-  width: 0.9375rem;
-  height: 0.9375rem;
-  stroke-width: 1.75;
-}
-.xz-capsule-btn + .xz-capsule-btn::before {
-  content: "";
-  position: absolute;
-  inset-inline-start: -1px;
-  top: 30%;
-  height: 40%;
-  width: 1px;
-  background: var(--xz-divider);
-}
-.xz-capsule-btn:hover {
-  color: var(--xz-primary-text);
-  background: color-mix(in srgb, var(--xz-primary) 10%, transparent);
-}
-.xz-capsule-btn[data-state="open"] {
-  color: var(--xz-primary-text);
-  background: color-mix(in srgb, var(--xz-primary) 16%, transparent);
-}
-.xz-capsule-btn:active {
-  transform: scale(0.92);
 }
 /* 插入项图标色块：9 色板 key 取 --xz-palette-*（同 .xz-chip 做法） */
 .xz-insert-icon {
@@ -1608,24 +1593,37 @@ select:disabled {
  * 行高固定避免加载时文档栏跳动；悬停整行浅底，值按钮悬停 / 聚焦加描边。
  */
 .xz-props {
-  padding: 0.25rem 0 0.5rem;
+  padding-bottom: 0.625rem;
+  margin-bottom: 0.625rem;
   border-bottom: 1px solid var(--xz-divider);
+}
+/* ADR-0037：紧凑属性列表——两列（窄屏一列），窄的淡色名称列 + 值；行高 32px */
+.xz-prop-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: 2.5rem;
+}
+@media (min-width: 40rem) {
+  .xz-prop-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 .xz-prop-row {
   display: grid;
-  grid-template-columns: 7.5rem minmax(0, 1fr);
+  grid-template-columns: 5.5rem minmax(0, 1fr);
   align-items: start;
   gap: 0.5rem;
-  min-height: 2.25rem;
-  padding: 0.125rem 0;
+  min-height: 2rem;
 }
 .xz-prop-label {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
   min-height: 2rem;
+  overflow: hidden;
   color: var(--xz-fg-muted);
   font-size: 0.8125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .xz-prop-value {
   display: inline-flex;
@@ -1644,6 +1642,38 @@ select:disabled {
 }
 .xz-prop-value-empty {
   min-width: 4rem;
+}
+/* 列表下的一行：「+ 显示 N 个空属性」与流转摘要，淡色小字，悬停变深 */
+.xz-props-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1.25rem;
+  margin-top: 0.25rem;
+}
+.xz-props-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 1.75rem;
+  padding: 0 0.375rem;
+  margin-inline-start: -0.375rem;
+  border-radius: var(--xz-radius-md);
+  color: var(--xz-fg-muted);
+  font-size: 0.75rem;
+  transition:
+    background-color var(--xz-dur-fast) var(--xz-ease-out),
+    color var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-props-link:hover,
+.xz-props-link[data-state="open"] {
+  background: var(--xz-hover-bg);
+  color: var(--xz-fg);
+}
+.xz-props-latest {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
 }
 
 /* 表格可编辑单元格（REQ-ENTRY-026）：透明按钮，悬停浅底提示可点 */

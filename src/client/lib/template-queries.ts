@@ -95,6 +95,25 @@ export const templateSaveError = (qc: QueryClient, t: (k: string) => string) => 
   } else toast.error(t('task.saveFailed'))
 }
 
+/** 已删除的代码内置模板（ADR-0038，仅所有者）：供「恢复」 */
+export const deletedBuiltinsQuery = {
+  queryKey: ['templates', 'deleted'] as const,
+  queryFn: () =>
+    unwrap<{ items: Template[] }>(api.templates.$get({ query: { deleted: '1' } })).then(
+      (r) => r.items,
+    ),
+  staleTime: 60_000,
+}
+
+/** 代码内置模板（`builtin:<key>`），与所有者新增的内置模板（scope = builtin，uuid）相对 */
+export const isCodeBuiltin = (t: Pick<Template, 'id'>) => t.id.startsWith('builtin:')
+
+/** 恢复已删除的内置模板（保留修改）/ 恢复默认（回到代码版本），ADR-0038 */
+export const restoreBuiltin = (id: string) =>
+  unwrap<TemplateDetail>(api.templates[':id'].restore.$post({ param: { id } }))
+export const resetBuiltin = (id: string) =>
+  unwrap<TemplateDetail>(api.templates[':id'].reset.$post({ param: { id } }))
+
 /** 排序：当前空间类型推荐的在前 → 内置在前 → 其余按原序。 */
 export function sortTemplates(items: Template[], spaceKind?: SpaceKind): Template[] {
   const score = (t: Template) =>

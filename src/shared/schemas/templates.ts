@@ -4,6 +4,7 @@ import { isoDateTime, uuidSchema } from './common.ts'
 import { entryFieldsIssues } from './entryFields.ts'
 import { ENTRY_KINDS, SPACE_KINDS, TEMPLATE_SCOPES } from './enums.ts'
 import { fullDocSchema } from './pm.ts'
+import { bool01 } from './query.ts'
 
 /** 模板 id：内置 `builtin:<key>` 或用户模板 uuid。 */
 export const templateIdSchema = z.union([
@@ -15,6 +16,8 @@ export const listTemplatesQuery = z.object({
   kind: z.enum(ENTRY_KINDS).optional(),
   /** 绑自定义 / 空间类型的模板（ADR-0036） */
   typeId: uuidSchema.optional(),
+  /** 只列已删除的代码内置模板（ADR-0038，仅所有者） */
+  deleted: bool01,
   spaceKind: z.enum(SPACE_KINDS).optional(),
 })
 
