@@ -470,6 +470,8 @@ export async function templateMeta(
 
 export interface TemplateFieldMeta {
   id: string
+  /** 模板名（ADR-0040：筛选 / 分组里区分同名属性）；读者读不到该模板（别人的个人模板）时为 null */
+  name: string | null
   kind: EntryKind
   typeId: string | null
   fieldDefs: FieldDef[]
@@ -479,7 +481,7 @@ export interface TemplateFieldMeta {
 /**
  * GET /templates/fields（ADR-0039、REQ-TPL-019）：读者「认得」的模板元数据目录（只含有自有字段或移除了字段的）。
  * 自己可读的模板（内置含已软删的——旧记录仍引用）；别人的个人模板仅当有读者可读的记录引用它
- * （看得到记录就该看得懂它的属性；不给模板名 / 正文 / 作者）。
+ * （看得到记录就该看得懂它的属性；不给模板名 / 正文 / 作者——`name` 只对读得到的模板给出）。
  */
 export async function listTemplateFieldMetas(db: Db, ctx: EntryCtx): Promise<TemplateFieldMeta[]> {
   const builtins = await effectiveBuiltins(db, ctx.workspaceId)
@@ -507,6 +509,9 @@ export async function listTemplateFieldMetas(db: Db, ctx: EntryCtx): Promise<Tem
   const rows = await db
     .select({
       id: entryTemplates.id,
+      name: entryTemplates.name,
+      ownerId: entryTemplates.ownerId,
+      scope: entryTemplates.scope,
       kind: entryTemplates.kind,
       typeId: entryTemplates.typeId,
       fieldDefs: entryTemplates.fieldDefs,
@@ -530,6 +535,7 @@ export async function listTemplateFieldMetas(db: Db, ctx: EntryCtx): Promise<Tem
       .filter((e) => e.fieldDefs.length || e.hiddenFields.length)
       .map((e) => ({
         id: e.tpl.id,
+        name: e.tpl.name,
         kind: e.tpl.kind,
         typeId: null,
         fieldDefs: e.fieldDefs,
@@ -537,6 +543,8 @@ export async function listTemplateFieldMetas(db: Db, ctx: EntryCtx): Promise<Tem
       })),
     ...rows.map((r) => ({
       id: r.id,
+      // 只因「看得到用它建的记录」才进目录的别人的个人模板：不给名字
+      name: can(ctx.actor, 'template.read', refOf(r as Row)) ? r.name : null,
       kind: r.kind as EntryKind,
       typeId: r.typeId,
       fieldDefs: r.fieldDefs ?? [],

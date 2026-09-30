@@ -54,7 +54,12 @@ export function EntryTable({
   typeId?: string
   showSpace: boolean
   /** 分组（ADR-0033）：在已加载的行内按该属性分组；counts = 服务端各组总数（取值缺失为 ''） */
-  group?: { key: string; counts: Map<string, number> }
+  group?: {
+    key: string
+    counts: Map<string, number>
+    /** 分组键的规格（模板属性不在类型字段里，由调用方给出，ADR-0040）；缺省从类型字段里找 */
+    spec?: FieldSpec
+  }
   /** 就地编辑（REQ-ENTRY-026）：返回 true 的行可点单元格改值（写权限由调用方判断，服务端 can() 为准） */
   editable?: (e: Entry) => boolean
   /** 行末 ⋯ 菜单（REQ-KB-013） */
@@ -317,7 +322,7 @@ export function EntryTable({
       const k = v === undefined || v === null ? '' : String(v)
       buckets.set(k, [...(buckets.get(k) ?? []), e])
     }
-    const spec = singleSpecs.find((f) => f.name === group.key)
+    const spec = group.spec ?? singleSpecs.find((f) => f.name === group.key)
     const order =
       spec?.kind === 'select'
         ? spec.options.map((o) => String(o.value))
@@ -339,7 +344,9 @@ export function EntryTable({
     (showSpace ? 1 : 0) +
     1 +
     (rowMenu ? 1 : 0)
-  const groupSpec = group ? singleSpecs.find((f) => f.name === group.key) : undefined
+  const groupSpec = group
+    ? (group.spec ?? singleSpecs.find((f) => f.name === group.key))
+    : undefined
   const allOn = !!select && items.length > 0 && items.every((e) => select.has(e.id))
   const someOn = !!select && items.some((e) => select.has(e.id))
   return (
