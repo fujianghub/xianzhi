@@ -1,6 +1,7 @@
 /**
  * ADR-0039 模板元数据：模板自有字段的增删改查（REQ-TPL-016）· 移除类型字段（REQ-TPL-017）·
  * 定义变更同步记录 / 删模板清值（REQ-TPL-018）· 元数据目录与沿用（REQ-TPL-019）· 记录的来源模板（REQ-ENTRY-032）。
+ * ADR-0040：按模板属性筛选 / 分组，目录带模板名（REQ-ENTRY-033）。
  */
 import { and, eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, it } from 'vitest'
@@ -43,6 +44,7 @@ interface Entry {
 }
 interface Meta {
   id: string
+  name: string | null
   kind: string
   typeId: string | null
   fieldDefs: FieldDef[]
@@ -458,5 +460,58 @@ describe('template metadata', () => {
       templateId: t.id,
       fields: { [src]: '书' },
     })
+  })
+
+  it('REQ-ENTRY-033 按模板属性筛选与分组（列表 fields= / stats groupBy）；目录带模板名，读不到的模板不给名字', async () => {
+    const t = await mkTpl(u.member, {
+      name: '周报',
+      fieldDefs: [
+        { label: '进展', type: 'select', options: [opt('顺利'), opt('受阻')] },
+        { label: '涉及', type: 'multiselect', options: [opt('前端'), opt('后端')] },
+      ],
+    })
+    const prog = keyOf(t, '进展')
+    const area = keyOf(t, '涉及')
+    const a = await mkEntry(u.member, {
+      templateId: t.id,
+      title: 'w1',
+      fields: { [prog]: '顺利', [area]: ['前端', '后端'] },
+    })
+    const b = await mkEntry(u.member, {
+      templateId: t.id,
+      title: 'w2',
+      fields: { [prog]: '受阻', [area]: ['后端'] },
+    })
+    const c = await mkEntry(u.member, { templateId: t.id, title: 'w3' })
+    const list = async (fields: string) =>
+      (
+        await json<{ items: Entry[] }>(
+          req(
+            u.other,
+            'GET',
+            `/entries?spaceId=${spaceId}&kind=note&fields=${encodeURIComponent(fields)}`,
+          ),
+        )
+      ).items
+        .map((e) => e.id)
+        .sort()
+    expect(await list(`${prog}=顺利`)).toEqual([a.id])
+    expect(await list(`${area}=后端`)).toEqual([a.id, b.id].sort())
+    expect(await list(`${prog}=受阻,${area}=前端`)).toEqual([])
+    const stats = await json<{
+      total: number
+      groups: { values: Record<string, string | null>; n: number }[]
+    }>(req(u.other, 'GET', `/entries/stats?spaceId=${spaceId}&kind=note&groupBy=${prog}`))
+    const by = new Map(stats.groups.map((g) => [g.values[prog] ?? '', g.n]))
+    expect(by.get('顺利')).toBe(1)
+    expect(by.get('受阻')).toBe(1)
+    expect(by.get('') ?? 0).toBeGreaterThanOrEqual(1)
+    expect(c.templateId).toBe(t.id)
+    // 目录：作者拿得到模板名；别人只因看得到记录才拿到定义，名字为 null
+    expect((await metas(u.member)).find((m) => m.id === t.id)?.name).toBe('周报')
+    expect((await metas(u.other)).find((m) => m.id === t.id)).toMatchObject({ name: null })
+    // 共享后别人也拿得到名字
+    expect((await patchTpl(u.member, t.id, { scope: 'workspace' })).status).toBe(200)
+    expect((await metas(u.other)).find((m) => m.id === t.id)?.name).toBe('周报')
   })
 })

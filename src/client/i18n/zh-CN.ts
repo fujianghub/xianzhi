@@ -1026,6 +1026,7 @@ export const zhCN = {
       empty: '未填写',
       partial: '已加载 {{loaded}} / 共 {{total}}',
     },
+    templateField: '{{label}}（{{template}}）',
     sort: {
       '-updatedAt': '最近更新',
       '-createdAt': '最近创建',

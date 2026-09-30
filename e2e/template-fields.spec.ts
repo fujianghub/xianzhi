@@ -1,9 +1,10 @@
 /**
  * ADR-0039 模板元数据（REQ-TPL-016 · 017 · 018、REQ-ENTRY-032）：模板编辑页增 / 删 / 改模板属性、移除 / 恢复类型属性；
  * 用模板新建的记录带这些属性；回头改模板，已建记录跟着变。
+ * ADR-0040（REQ-ENTRY-033）：记录页按模板属性筛选与分组。
  */
 import { type APIRequestContext, expect, test } from '@playwright/test'
-import { STATE, sameSite } from './helpers.ts'
+import { createEntry, STATE, sameSite } from './helpers.ts'
 
 test.use({ storageState: STATE.owner })
 
@@ -122,4 +123,76 @@ test('REQ-TPL-016 模板编辑页增删改模板属性、移除 / 恢复类型�
   // 收尾：共享库不留数据
   await request.delete(`/api/v1/entries/${entryId}`, { headers: sameSite })
   await request.delete(`/api/v1/templates/${tpl?.id}`, { headers: sameSite })
+})
+
+test('REQ-ENTRY-033 记录页：选中类型后可按模板属性筛选与分组', async ({ page, request }) => {
+  const slug = `tf-${stamp()}`
+  const sp = await request.post('/api/v1/spaces', {
+    data: { name: `模板筛选 ${slug}`, slug, kind: 'project', visibility: 'workspace' },
+    headers: sameSite,
+  })
+  expect(sp.status(), await sp.text()).toBe(201)
+  const space = (await sp.json()) as { id: string }
+  const tr = await request.post('/api/v1/templates', {
+    data: {
+      name: `周报 ${slug}`,
+      kind: 'note',
+      body: { type: 'doc', content: [{ type: 'paragraph' }] },
+      fieldDefs: [
+        {
+          label: `进展${slug}`,
+          type: 'select',
+          options: [
+            { name: '顺利', color: 'green' },
+            { name: '受阻', color: 'red' },
+          ],
+        },
+      ],
+    },
+    headers: sameSite,
+  })
+  expect(tr.status(), await tr.text()).toBe(201)
+  const tpl = (await tr.json()) as Tpl
+  const key = tpl.fieldDefs[0]?.key ?? ''
+  const mk = (title: string, fields: Record<string, unknown>) =>
+    createEntry(request, { kind: 'note', title, spaceId: space.id, templateId: tpl.id, fields })
+  const ids = [
+    await mk('周报一', { [key]: '顺利' }),
+    await mk('周报二', { [key]: '受阻' }),
+    await mk('周报三', { [key]: '受阻' }),
+    await mk('周报四', {}),
+  ]
+
+  // 没选类型：没有属性筛选；选中「随笔」后出现模板属性的筛选下拉
+  await page.goto(`/spaces/${slug}/entries`)
+  await expect(page.getByTestId('entry-row')).toHaveCount(4)
+  await expect(page.getByTestId(`field-filter-${key}`)).toHaveCount(0)
+  await page.locator('[data-kind-filter="note"]').click()
+  const filter = page.getByTestId(`field-filter-${key}`)
+  await expect(filter).toBeVisible()
+  await filter.selectOption('受阻')
+  await expect(page).toHaveURL(new RegExp(`fields=${key}`))
+  await expect(page.getByTestId('entry-row')).toHaveCount(2)
+  await expect(page.getByTestId('entry-table')).not.toContainText('周报一')
+  await filter.selectOption('')
+  await expect(page.getByTestId('entry-row')).toHaveCount(4)
+
+  // 分组：按模板属性分三组（顺利 1 / 受阻 2 / 未填写 1），组序 = 选项顺序，缺值在最后
+  await page.getByTestId('entries-group').selectOption(key)
+  const groups = page.getByTestId('entry-group')
+  await expect(groups).toHaveCount(3)
+  await expect(groups.nth(0)).toContainText('顺利')
+  await expect(groups.nth(0).getByTestId('entry-group-count')).toHaveText('1')
+  await expect(groups.nth(1)).toContainText('受阻')
+  await expect(groups.nth(1).getByTestId('entry-group-count')).toHaveText('2')
+  await expect(groups.nth(2)).toContainText('未填写')
+
+  // 刷新后筛选 / 分组仍在（选项不依赖已加载的行）
+  await page.reload()
+  await expect(page.getByTestId('entries-group')).toHaveValue(key)
+  await expect(page.getByTestId('entry-group')).toHaveCount(3)
+
+  for (const id of ids) await request.delete(`/api/v1/entries/${id}`, { headers: sameSite })
+  await request.delete(`/api/v1/templates/${tpl.id}`, { headers: sameSite })
+  await request.delete(`/api/v1/spaces/${space.id}`, { headers: sameSite })
 })

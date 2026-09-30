@@ -55,6 +55,8 @@ import { recentIds } from '../../lib/recent.ts'
 import { csvList } from '../../lib/search.ts'
 import { type Space, spaceGroupsQuery, spacesQuery } from '../../lib/space-queries.ts'
 import { useNewEntry } from '../../lib/stores.ts'
+import { typeTemplateFields } from '../../lib/template-fields.ts'
+import { templateFieldsQuery } from '../../lib/template-queries.ts'
 import { Button } from '../ui/button.tsx'
 import { EmptyState } from '../ui/empty-state.tsx'
 import { Input } from '../ui/input.tsx'
@@ -67,7 +69,7 @@ import { EntryCard } from './EntryCard.tsx'
 import { EntryRowMenu } from './EntryRowMenu.tsx'
 import { EntryTable } from './EntryTable.tsx'
 import { EntryTimeline, hasTimeline } from './EntryTimeline.tsx'
-import { useFieldSpecs } from './FieldValue.tsx'
+import { defSpec, type FieldSpec, useFieldSpecs } from './FieldValue.tsx'
 import { SavedViewsNav, SaveViewButton } from './SavedViews.tsx'
 import { TagFilter } from './TagFilter.tsx'
 
@@ -119,6 +121,7 @@ export function EntriesPage({
   const typeIds = csvList(search.typeId)
   const kindOf = useKindLabel()
   const specsOf = useFieldSpecs()
+  const tplMetas = useQuery(templateFieldsQuery)
   // 类型筛选条：空间内按启用清单（ADR-0036），全局列全部可见类型
   const kindOptions = useKindOptions(space ?? null, { all: !space, personal: false })
   // 只选了一种类型：内置 kind，或一个自定义类型
@@ -186,12 +189,30 @@ export function EntriesPage({
   const pageSize = view === 'cards' ? 30 : 200
   // 表格分组（ADR-0033）：只对单一类型；可选键 = 该类型有的枚举属性（Bug 另有模块）+ 自定义单选字段（ADR-0036）
   const kindSpecs = kind ? specsOf(kind, typeId) : []
+  // 模板属性（ADR-0040、REQ-ENTRY-033）：绑这个类型的模板的自有字段与类型字段并列，可筛选 / 分组；
+  // 正在用的键（当前筛选 / 分组）即使模板不绑这个类型也保留。同名的带模板名区分。
+  const fieldValues = parseFieldsParam(search.fields)
+  const tplSpecs: FieldSpec[] = kind
+    ? typeTemplateFields(tplMetas.data ?? [], { kind, typeId: typeId ?? null }, kindSpecs, [
+        ...Object.keys(fieldValues),
+        ...(search.group ? [search.group] : []),
+      ]).map((f) => ({
+        ...defSpec(f.def),
+        label:
+          f.ambiguous && f.template
+            ? t('entry.templateField', { label: f.def.label, template: f.template })
+            : f.def.label,
+      }))
+    : []
+  const filterSpecs = [...kindSpecs, ...tplSpecs]
   const groupOptions: EntryGroup[] = kind
     ? [
         ...ENTRY_GROUP_VALUES.filter((g) =>
           kindSpecs.some((f) => f.name === g && (f.kind === 'select' || g === 'module')),
         ),
-        ...kindSpecs.filter((f) => f.extra && f.kind === 'select').map((f) => f.name as EntryGroup),
+        ...filterSpecs
+          .filter((f) => f.extra && f.kind === 'select')
+          .map((f) => f.name as EntryGroup),
       ]
     : []
   const group =
@@ -265,9 +286,8 @@ export function EntriesPage({
     const next = kinds.includes(k) ? kinds.filter((x) => x !== k) : [...kinds, k]
     setSearch({ kind: next.length ? next.join(',') : undefined, fields: undefined })
   }
-  // 属性筛选：该类型的单选 / 多选（含自定义字段，ADR-0036；多选按「含」筛）
-  const fieldFilters = kindSpecs.filter((f) => f.kind === 'select' || f.kind === 'multiselect')
-  const fieldValues = parseFieldsParam(search.fields)
+  // 属性筛选：该类型的单选 / 多选（含自定义字段，ADR-0036；多选按「含」筛）+ 模板属性（ADR-0040）
+  const fieldFilters = filterSpecs.filter((f) => f.kind === 'select' || f.kind === 'multiselect')
   const viewBtn = (key: typeof view, icon: ReactNode, label: string, testId: string) => (
     <button
       type="button"
@@ -503,7 +523,7 @@ export function EntriesPage({
                 {groupOptions.map((g) => (
                   <option key={g} value={g}>
                     {t('entry.group.by', {
-                      field: kindSpecs.find((f) => f.name === g)?.label ?? t(`entry.field.${g}`),
+                      field: filterSpecs.find((f) => f.name === g)?.label ?? t(`entry.field.${g}`),
                     })}
                   </option>
                 ))}
@@ -559,7 +579,13 @@ export function EntriesPage({
                 <EntryRowMenu entryId={e.id} title={e.title} entry={e} canWrite={canWrite(e)} />
               )}
               group={
-                group ? { key: group, counts: statsByValue(groupStats.data, group) } : undefined
+                group
+                  ? {
+                      key: group,
+                      counts: statsByValue(groupStats.data, group),
+                      spec: filterSpecs.find((f) => f.name === group),
+                    }
+                  : undefined
               }
               select={{
                 has: (id) => selSet.has(id),
