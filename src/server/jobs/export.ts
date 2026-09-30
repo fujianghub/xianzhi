@@ -12,7 +12,7 @@ import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 import { strToU8, zipSync } from 'fflate'
 import { pmToHtmlDocument } from '../../shared/editor/serializers/html.ts'
 import { frontmatter, pmToMarkdown } from '../../shared/editor/serializers/markdown.ts'
-import { type FieldDef, isExtraFieldKey } from '../../shared/schemas/fieldDefs.ts'
+import { type FieldDef, isExtraFieldKey, mergeFieldDefs } from '../../shared/schemas/fieldDefs.ts'
 import type { PmNode } from '../../shared/schemas/pm.ts'
 import { type Actor, can, visibleEntriesWhere, visibleTasksWhere } from '../authz.ts'
 import type { Db } from '../db/index.ts'
@@ -34,6 +34,7 @@ import { dataPath } from '../lib/files.ts'
 import { loadActor } from '../services/actors.ts'
 import { audit } from '../services/audit.ts'
 import { emit } from '../services/events.ts'
+import { templateMeta } from '../services/templates.ts'
 import type { JobDef } from './types.ts'
 
 export interface ExportJobData {
@@ -179,6 +180,10 @@ export async function buildExport(db: Db, dataDir: string, actor: Actor, d: Expo
         .where(eq(entryKindOverrides.workspaceId, d.workspaceId))
     ).map((o) => [o.kind, o.defs ?? []]),
   )
+  // 来源模板的自有字段（ADR-0039）同样换成字段名
+  const tplDefs = new Map<string, FieldDef[]>()
+  for (const id of new Set(es.flatMap((r) => (r.e.templateId ? [r.e.templateId] : []))))
+    tplDefs.set(id, (await templateMeta(db, d.workspaceId, id))?.fieldDefs ?? [])
   for (const r of es) {
     // 自定义类型按类型名分目录（ADR-0016）
     const kindDir = r.typeName ? fileSlug(r.typeName) : r.e.kind
@@ -196,7 +201,10 @@ export async function buildExport(db: Db, dataDir: string, actor: Actor, d: Expo
       author: r.authorDisplay || r.author || '',
       fields: labelFields(
         (r.e.fields ?? {}) as Record<string, unknown>,
-        r.typeDefs ?? builtinDefs.get(r.e.kind) ?? [],
+        mergeFieldDefs(
+          r.typeDefs ?? builtinDefs.get(r.e.kind) ?? [],
+          (r.e.templateId && tplDefs.get(r.e.templateId)) || [],
+        ),
       ),
       tags: tagRows.filter((t) => t.entryId === r.e.id).map((t) => t.name),
       links: linkRows

@@ -32,6 +32,7 @@ import { cn } from '../../lib/cn.ts'
 import type { EntryKind } from '../../lib/entry-queries.ts'
 import { useKindLabel } from '../../lib/entry-types.ts'
 import { dateTone, isClosedStatus, progressTone, valueTone } from '../../lib/field-tones.ts'
+import { useTemplateMetaOf } from '../../lib/template-queries.ts'
 import { Input } from '../ui/input.tsx'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.tsx'
 import { useUserTimeZone } from '../ui/relative-time.tsx'
@@ -103,15 +104,45 @@ export function defSpec(d: FieldDef): FieldSpec {
   }
 }
 
+/** 模板元数据里与字段规格有关的部分（目录项，或模板表单里未保存的草稿） */
+export interface TemplateSpecMeta {
+  kind: string
+  typeId: string | null
+  fieldDefs: FieldDef[]
+  hiddenFields: string[]
+}
+
 /**
- * (kind, typeId) → 字段规格。内置字段在前（进度改为 progress 类型），追加 / 自定义字段在后。
+ * 类型的字段规格套上模板元数据（ADR-0039、REQ-ENTRY-032）：去掉模板移除的类型字段，追加模板自有字段。
+ * 移除清单只在记录类型与模板所绑类型一致时生效（记录改过类型后，同名字段在新类型里可能是必填的）；
+ * 必填字段不会被去掉。模板自有字段与类型无关，始终追加（同键以类型的为准）。
+ */
+export function withTemplateSpecs(
+  specs: FieldSpec[],
+  tpl: TemplateSpecMeta | undefined,
+  kind: string,
+  typeId?: string | null,
+): FieldSpec[] {
+  if (!tpl) return specs
+  const sameType = tpl.kind === kind && (tpl.typeId ?? null) === (typeId ?? null)
+  const kept = sameType
+    ? specs.filter((f) => f.required || !tpl.hiddenFields.includes(f.name))
+    : specs
+  const have = new Set(specs.map((f) => f.name))
+  return [...kept, ...tpl.fieldDefs.filter((d) => !have.has(d.key)).map(defSpec)]
+}
+
+/**
+ * (kind, typeId, templateId?) → 字段规格。内置字段在前（进度改为 progress 类型），追加 / 自定义字段在后；
+ * 给了来源模板（记录的 `templateId`）再套上模板元数据。
  * 自定义状态：选项色取类型的 statusColors，未设按位置轮换。
  */
 export function useFieldSpecs() {
   const { t } = useTranslation()
   const kindOf = useKindLabel()
+  const tplOf = useTemplateMetaOf()
   return useCallback(
-    (kind: EntryKind, typeId?: string | null): FieldSpec[] => {
+    (kind: EntryKind, typeId?: string | null, templateId?: string | null): FieldSpec[] => {
       const meta = kindOf(kind, typeId)
       const base: FieldSpec[] = fieldSpecs(kind, meta.statuses).map((f) => {
         if (f.kind !== 'select') {
@@ -146,9 +177,14 @@ export function useFieldSpecs() {
           extra: false,
         }
       })
-      return [...base, ...meta.fieldDefs.map(defSpec)]
+      return withTemplateSpecs(
+        [...base, ...meta.fieldDefs.map(defSpec)],
+        tplOf(templateId),
+        kind,
+        typeId,
+      )
     },
-    [kindOf, t],
+    [kindOf, t, tplOf],
   )
 }
 

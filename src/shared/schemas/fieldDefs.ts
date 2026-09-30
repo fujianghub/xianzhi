@@ -123,3 +123,54 @@ export function newExtraFieldKey(existing: readonly string[], rand = Math.random
     if (!existing.includes(k)) return k
   }
 }
+
+/** 选项改名表：字段键 → { 旧名: 新名 } */
+export type OptionRenames = Record<string, Record<string, string>>
+
+/**
+ * 字段定义变更后迁移一份 fields 里的值（与服务端对记录做的 SQL 同规则，ADR-0036 §11 · ADR-0039）：
+ * 去掉的字段清值；选项改名同步；不在新选项里的值清掉（单选去键、多选去该项，空了去键）。
+ * 只动 `prev` 里有的键，其余原样保留。
+ */
+export function migrateExtraValues(
+  fields: Record<string, unknown>,
+  prev: FieldDef[],
+  next: FieldDef[],
+  renames: OptionRenames = {},
+): Record<string, unknown> {
+  const out = { ...fields }
+  for (const old of prev) {
+    if (!(old.key in out)) continue
+    const cur = next.find((d) => d.key === old.key)
+    if (!cur) {
+      delete out[old.key]
+      continue
+    }
+    if (cur.type !== 'select' && cur.type !== 'multiselect') continue
+    const names = new Set((cur.options ?? []).map((o) => o.name))
+    const map = renames[old.key] ?? {}
+    const rename = (v: string) => {
+      const to = map[v]
+      return to !== undefined && names.has(to) ? to : v
+    }
+    const v = out[old.key]
+    if (cur.type === 'select') {
+      const nv = typeof v === 'string' ? rename(v) : v
+      if (typeof nv === 'string' && names.has(nv)) out[old.key] = nv
+      else delete out[old.key]
+    } else {
+      const arr = Array.isArray(v) ? [...new Set(v.map((x) => rename(String(x))))] : []
+      const kept = arr.filter((x) => names.has(x))
+      if (kept.length) out[old.key] = kept
+      else delete out[old.key]
+    }
+  }
+  return out
+}
+
+/** 合并两组字段定义（类型的在前；同键以前者为准）：记录的有效自定义字段 = 类型字段 + 来源模板的字段（ADR-0039） */
+export function mergeFieldDefs(first: FieldDef[], second: FieldDef[]): FieldDef[] {
+  if (!second.length) return first
+  const keys = new Set(first.map((d) => d.key))
+  return [...first, ...second.filter((d) => !keys.has(d.key))]
+}

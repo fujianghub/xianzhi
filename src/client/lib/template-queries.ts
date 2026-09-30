@@ -1,8 +1,10 @@
 /** 记录模板查询（ADR-0011 §2 · ADR-0023、02 §9 /templates）：内置 + 个人 + 工作区共享。写入后失效 ['templates']。 */
-import type { QueryClient } from '@tanstack/react-query'
+import { type QueryClient, useQuery } from '@tanstack/react-query'
+import { useCallback } from 'react'
 import { toast } from 'sonner'
-import type { TemplateView } from '../../server/services/templates.ts'
+import type { TemplateFieldMeta, TemplateView } from '../../server/services/templates.ts'
 import type { EntryKind, SpaceKind, TemplateScope } from '../../shared/schemas/enums.ts'
+import type { FieldDef, OptionRenames } from '../../shared/schemas/fieldDefs.ts'
 import type { PmNode } from '../../shared/schemas/pm.ts'
 import { ApiError, api, unwrap } from './api.ts'
 import { newId } from './uuid.ts'
@@ -34,8 +36,37 @@ export const templateQuery = (id: string) => ({
   staleTime: 60_000,
 })
 
+export type { TemplateFieldMeta }
+
+/**
+ * 模板元数据目录（ADR-0039、REQ-TPL-019）：有自有字段 / 移除了类型字段的模板；记录按 `templateId` 查它，
+ * 得到该记录多出的属性与不显示的属性。键在 ['templates'] 之下，随 `invalidateTemplates` 一起失效。
+ */
+export const templateFieldsQuery = {
+  queryKey: ['templates', 'fields'] as const,
+  queryFn: () =>
+    unwrap<{ items: TemplateFieldMeta[] }>(api.templates.fields.$get()).then((r) => r.items),
+  staleTime: 60_000,
+}
+
+/** templateId → 该模板的元数据（没有自定义过 / 未加载 → undefined） */
+export function useTemplateMetaOf() {
+  const { data } = useQuery(templateFieldsQuery)
+  return useCallback(
+    (id: string | null | undefined) => (id ? data?.find((m) => m.id === id) : undefined),
+    [data],
+  )
+}
+
 export const invalidateTemplates = (qc: QueryClient) =>
   qc.invalidateQueries({ queryKey: ['templates'] })
+
+/** 模板字段定义变了：用它建的记录里的值被同步改过，记录缓存一并失效（ADR-0039、REQ-TPL-018） */
+export const invalidateTemplateEntries = (qc: QueryClient) =>
+  Promise.all([
+    qc.invalidateQueries({ queryKey: ['entries'] }),
+    qc.invalidateQueries({ queryKey: ['entry'] }),
+  ])
 
 /** 失效模板与空间（取消共享 / 删除会清掉引用它的空间默认模板，REQ-TPL-009）。 */
 export const invalidateTemplatesAndSpaces = (qc: QueryClient) =>
@@ -61,6 +92,10 @@ export interface TemplatePatch {
   kind?: EntryKind
   typeId?: string
   fields?: Record<string, unknown>
+  /** 模板自有字段（整组替换；新字段的 key 是临时句柄，服务端会换）与移除的类型字段（ADR-0039） */
+  fieldDefs?: (Omit<FieldDef, 'key'> & { key?: string })[]
+  optionRenames?: OptionRenames
+  hiddenFields?: string[]
   body?: PmNode
 }
 

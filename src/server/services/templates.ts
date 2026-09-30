@@ -10,8 +10,11 @@
  * - ADR-0038（REQ-TPL-013 ~ 015）：内置模板由所有者维护——代码内置（`builtin:<key>`）的修改存覆盖表
  *   `builtin_template_overrides`（null 列沿用代码默认；可「恢复默认」= 删覆盖行），删除为软删除（可恢复）；
  *   所有者另可新增内置模板（入库，scope = builtin，全员可见、仅所有者可改）。
+ * - ADR-0039（REQ-TPL-016 ~ 019、REQ-ENTRY-032）：模板元数据——模板自有字段（`field_defs`，增删改）与移除的类型字段
+ *   （`hidden_fields`）；用模板建的记录记下来源模板（`entries.template_id`），其有效字段 = 类型字段 − 移除的 + 自有的。
+ *   改 / 删自有字段同事务同步这些记录里的值；删模板（或代码内置模板恢复默认）清掉自有字段的值。
  */
-import { and, count, desc, eq, inArray, or } from 'drizzle-orm'
+import { and, count, desc, eq, exists, inArray, isNotNull, or, sql } from 'drizzle-orm'
 import type { z } from 'zod'
 import { deriveFromYdoc } from '../../collab/derive.ts'
 import {
@@ -20,9 +23,18 @@ import {
   builtinTemplate,
   fillTemplateVars,
 } from '../../shared/editor/builtin-templates.ts'
-import { defaultEntryFields, entryFieldsByKind } from '../../shared/schemas/entryFields.ts'
+import {
+  defaultEntryFields,
+  entryFieldsByKind,
+  hideableBaseFields,
+} from '../../shared/schemas/entryFields.ts'
 import type { EntryKind, SpaceKind, TemplateScope } from '../../shared/schemas/enums.ts'
-import { splitExtraFields } from '../../shared/schemas/fieldDefs.ts'
+import {
+  type FieldDef,
+  mergeFieldDefs,
+  migrateExtraValues,
+  splitExtraFields,
+} from '../../shared/schemas/fieldDefs.ts'
 import type { PmNode } from '../../shared/schemas/pm.ts'
 import type {
   createTemplateSchema,
@@ -30,17 +42,20 @@ import type {
   patchTemplateSchema,
 } from '../../shared/schemas/templates.ts'
 import { formatLocalDate, localDateOf } from '../../shared/tz.ts'
-import { type Actor, assertCan, can, type TemplateRef } from '../authz.ts'
+import { type Actor, assertCan, can, type TemplateRef, visibleEntriesWhere } from '../authz.ts'
 import type { Db, DbOrTx } from '../db/index.ts'
 import { user } from '../db/schema/auth.ts'
-import { builtinTemplateOverrides, entryTemplates, spaces } from '../db/schema/business.ts'
+import { builtinTemplateOverrides, entries, entryTemplates, spaces } from '../db/schema/business.ts'
 import { AppError } from '../lib/errors.ts'
+import { audit } from './audit.ts'
 import { type EntryCtx, loadEntry, loadSpaceRef } from './entries.ts'
 import {
+  applyFieldDefChanges,
   builtinFieldDefs,
   loadEntryType,
   normalizeCustomFields,
   normalizeExtraFields,
+  resolveOwnFieldDefs,
 } from './entry-types.ts'
 
 export interface TemplateView {
@@ -54,6 +69,12 @@ export interface TemplateView {
   typeId: string | null
   spaceKinds: SpaceKind[]
   fields: Record<string, unknown>
+  /** 模板自有字段（ADR-0039）：用此模板建的记录多出这些属性 */
+  fieldDefs: FieldDef[]
+  /** 本模板移除的类型字段名（ADR-0039） */
+  hiddenFields: string[]
+  /** 用此模板建的记录数（含回收站；仅计数）——改 / 删自有字段、删模板前提示 */
+  entryCount: number
   ownerId: string | null
   /** 作者显示名（内置为 null；账号已删为空串，前端显示「已删除的用户」） */
   ownerName: string | null
@@ -71,6 +92,8 @@ export interface TemplateView {
 interface RowExtra {
   names: Map<string, string>
   defaults: Map<string, number>
+  /** 模板 id → 引用它的记录数 */
+  uses: Map<string, number>
 }
 
 type Row = typeof entryTemplates.$inferSelect
@@ -88,6 +111,9 @@ type Override = typeof builtinTemplateOverrides.$inferSelect
 /** 代码内置模板套上覆盖后的实际样子 */
 export interface EffectiveBuiltin {
   tpl: BuiltinTemplate
+  /** 所有者给它加的自有字段 / 移除的类型字段（ADR-0039；代码默认都为空） */
+  fieldDefs: FieldDef[]
+  hiddenFields: string[]
   customized: boolean
   deleted: boolean
   updatedAt: Date
@@ -95,7 +121,15 @@ export interface EffectiveBuiltin {
 const keyOf = (id: string) => id.slice('builtin:'.length)
 
 function applyOverride(t: BuiltinTemplate, o: Override | undefined): EffectiveBuiltin {
-  if (!o) return { tpl: t, customized: false, deleted: false, updatedAt: BUILTIN_EPOCH }
+  if (!o)
+    return {
+      tpl: t,
+      fieldDefs: [],
+      hiddenFields: [],
+      customized: false,
+      deleted: false,
+      updatedAt: BUILTIN_EPOCH,
+    }
   const kind = (o.kind ?? t.kind) as BuiltinTemplate['kind']
   return {
     tpl: {
@@ -109,12 +143,16 @@ function applyOverride(t: BuiltinTemplate, o: Override | undefined): EffectiveBu
         (kind === t.kind ? t.fields : { ...defaultEntryFields[kind] }),
       body: (o.body as PmNode | null) ?? t.body,
     },
+    fieldDefs: o.fieldDefs ?? [],
+    hiddenFields: o.hiddenFields ?? [],
     customized:
       o.name !== null ||
       o.description !== null ||
       o.kind !== null ||
       o.spaceKinds !== null ||
       o.fields !== null ||
+      o.fieldDefs !== null ||
+      o.hiddenFields !== null ||
       o.body !== null,
     deleted: o.deleted,
     updatedAt: o.updatedAt,
@@ -154,7 +192,7 @@ export async function effectiveBuiltin(
   return applyOverride(t, o)
 }
 
-const builtinView = (actor: Actor, e: EffectiveBuiltin): TemplateView => ({
+const builtinView = (actor: Actor, e: EffectiveBuiltin, entryCount = 0): TemplateView => ({
   id: e.tpl.id,
   source: 'builtin',
   group: e.tpl.group,
@@ -164,6 +202,9 @@ const builtinView = (actor: Actor, e: EffectiveBuiltin): TemplateView => ({
   typeId: null,
   spaceKinds: e.tpl.spaceKinds,
   fields: e.tpl.fields ?? { ...defaultEntryFields[e.tpl.kind] },
+  fieldDefs: e.fieldDefs,
+  hiddenFields: e.hiddenFields,
+  entryCount,
   ownerId: null,
   ownerName: null,
   canManage: can(actor, 'template.manage', BUILTIN_REF(e.tpl.id)),
@@ -183,6 +224,9 @@ const rowView = (actor: Actor, r: Row, x: RowExtra): TemplateView => ({
   typeId: r.typeId,
   spaceKinds: r.spaceKind ? [r.spaceKind as SpaceKind] : [],
   fields: (r.fields as Record<string, unknown>) ?? {},
+  fieldDefs: r.fieldDefs ?? [],
+  hiddenFields: r.hiddenFields ?? [],
+  entryCount: x.uses.get(r.id) ?? 0,
   ownerId: r.ownerId,
   ownerName: x.names.get(r.ownerId) ?? '',
   canManage: can(actor, 'template.manage', refOf(r)),
@@ -190,10 +234,33 @@ const rowView = (actor: Actor, r: Row, x: RowExtra): TemplateView => ({
   updatedAt: r.updatedAt.toISOString(),
 })
 
-async function extraOf(db: DbOrTx, ctx: EntryCtx, rows: Row[]): Promise<RowExtra> {
+/** 各模板被多少条记录引用（含回收站；只计数，不看记录可见性——与类型的 usage 同口径） */
+async function templateUses(db: DbOrTx, workspaceId: string, ids?: string[]) {
+  const uses = new Map<string, number>()
+  if (ids && !ids.length) return uses
+  for (const u of await db
+    .select({ id: entries.templateId, n: count() })
+    .from(entries)
+    .where(
+      and(
+        eq(entries.workspaceId, workspaceId),
+        ids ? inArray(entries.templateId, ids) : isNotNull(entries.templateId),
+      ),
+    )
+    .groupBy(entries.templateId))
+    if (u.id) uses.set(u.id, u.n)
+  return uses
+}
+
+async function extraOf(
+  db: DbOrTx,
+  ctx: EntryCtx,
+  rows: Row[],
+  uses?: Map<string, number>,
+): Promise<RowExtra> {
   const names = new Map<string, string>()
   const defaults = new Map<string, number>()
-  if (!rows.length) return { names, defaults }
+  if (!rows.length) return { names, defaults, uses: uses ?? new Map() }
   const owners = [...new Set(rows.map((r) => r.ownerId))]
   for (const u of await db
     .select({ id: user.id, name: user.name, username: user.displayUsername })
@@ -214,7 +281,17 @@ async function extraOf(db: DbOrTx, ctx: EntryCtx, rows: Row[]): Promise<RowExtra
     )
     .groupBy(spaces.defaultTemplateId))
     if (d.id) defaults.set(d.id, d.n)
-  return { names, defaults }
+  return {
+    names,
+    defaults,
+    uses:
+      uses ??
+      (await templateUses(
+        db,
+        ctx.workspaceId,
+        rows.map((r) => r.id),
+      )),
+  }
 }
 
 const viewOne = async (db: DbOrTx, ctx: EntryCtx, r: Row) =>
@@ -250,13 +327,29 @@ async function assertTemplateType(db: DbOrTx, ctx: EntryCtx, typeId: string, sco
   return t
 }
 
-/** fields 按类型校验并规范化（与 POST /entries 同一套：内置字段 strict，自定义字段按定义；未定义的 x 键丢弃）。 */
+/** 所绑类型的自定义字段定义：内置类型 = 追加的字段；自定义 / 空间类型 = 类型的字段 */
+async function typeFieldDefs(
+  db: DbOrTx,
+  workspaceId: string,
+  kind: EntryKind,
+  typeId: string | null,
+): Promise<FieldDef[]> {
+  if (kind !== 'custom') return builtinFieldDefs(db, workspaceId, kind)
+  const t = typeId ? await loadEntryType(db, workspaceId, typeId) : null
+  return t?.fieldDefs ?? []
+}
+
+/**
+ * fields 按类型校验并规范化（与 POST /entries 同一套：内置字段 strict，自定义字段按定义；未定义的 x 键丢弃）。
+ * `own` = 模板自有字段（ADR-0039），与类型的字段一并作为可预填的自定义字段。
+ */
 async function checkFields(
   db: DbOrTx,
   ctx: EntryCtx,
   kind: EntryKind,
   typeId: string | null,
   fields: Record<string, unknown>,
+  own: FieldDef[] = [],
 ): Promise<Record<string, unknown>> {
   const { base, extra } = splitExtraFields(fields)
   const r = entryFieldsByKind[kind].safeParse(base)
@@ -267,7 +360,10 @@ async function checkFields(
   if (kind !== 'custom')
     return {
       ...base,
-      ...normalizeExtraFields(await builtinFieldDefs(db, ctx.workspaceId, kind), extra),
+      ...normalizeExtraFields(
+        mergeFieldDefs(await builtinFieldDefs(db, ctx.workspaceId, kind), own),
+        extra,
+      ),
     }
   const t = typeId ? await loadEntryType(db, ctx.workspaceId, typeId) : null
   if (!t) throw AppError.validation([{ path: 'typeId', message: '类型不存在' }])
@@ -275,8 +371,178 @@ async function checkFields(
     ...normalizeCustomFields(t.statuses ?? [], r.data as Record<string, unknown>, {
       fillDefault: true,
     }),
-    ...normalizeExtraFields(t.fieldDefs ?? [], extra),
+    ...normalizeExtraFields(mergeFieldDefs(t.fieldDefs ?? [], own), extra),
   }
+}
+
+/**
+ * 模板可移除的类型字段（ADR-0039、REQ-TPL-017）：类型的可移除内置字段 + 类型的自定义字段键。
+ * 不认识的名字（类型后来改了 / 必填字段 / 进流转的字段）静默丢弃，去重。
+ */
+function cleanHidden(kind: EntryKind, typeDefs: FieldDef[], names: readonly string[]): string[] {
+  const ok = new Set([...hideableBaseFields(kind), ...typeDefs.map((d) => d.key)])
+  return [...new Set(names)].filter((n) => ok.has(n))
+}
+
+/**
+ * 自有字段输入 → 定义（键由服务端生成，见 resolveOwnFieldDefs）；新增 / 改名的字段不得与所绑类型的自定义字段重名
+ * （同一条记录上出现两个同名属性）。返回定义与临时键对照。
+ */
+function resolveOwn(
+  prev: FieldDef[],
+  input: NonNullable<z.infer<typeof patchTemplateSchema>['fieldDefs']>,
+  typeDefs: FieldDef[],
+) {
+  const r = resolveOwnFieldDefs(
+    prev,
+    input,
+    typeDefs.map((d) => d.key),
+  )
+  const typeLabels = new Set(typeDefs.map((d) => d.label))
+  const errors = r.defs.flatMap((d, i) =>
+    typeLabels.has(d.label) && prev.find((p) => p.key === d.key)?.label !== d.label
+      ? [{ path: `fieldDefs.${i}.label`, message: `「${d.label}」与类型的字段重名` }]
+      : [],
+  )
+  if (errors.length) throw AppError.validation(errors)
+  return r
+}
+
+/** 把请求里按临时键写的预填值改到服务端生成的键上 */
+const remapKeys = (fields: Record<string, unknown>, remap: Record<string, string>) =>
+  Object.keys(remap).length
+    ? Object.fromEntries(Object.entries(fields).map(([k, v]) => [remap[k] ?? k, v]))
+    : fields
+
+const omitKeys = (fields: Record<string, unknown>, keys: readonly string[]) =>
+  keys.length
+    ? Object.fromEntries(Object.entries(fields).filter(([k]) => !keys.includes(k)))
+    : fields
+
+/** 用某模板建的记录（含回收站） */
+const entriesOf = (workspaceId: string, id: string) =>
+  sql`${entries.workspaceId} = ${workspaceId} and ${entries.templateId} = ${id}`
+
+/** 清掉这些记录里的模板自有字段值（删模板 / 内置模板恢复默认）；返回受影响条数 */
+async function stripOwnValues(tx: DbOrTx, workspaceId: string, id: string, defs: FieldDef[]) {
+  if (!defs.length) return 0
+  return applyFieldDefChanges(tx, { entries: entriesOf(workspaceId, id) }, defs, [])
+}
+
+async function auditFieldsChanged(
+  tx: DbOrTx,
+  ctx: EntryCtx,
+  id: string,
+  meta: Record<string, unknown>,
+) {
+  await audit(tx, {
+    workspaceId: ctx.workspaceId,
+    actorId: ctx.actor.id,
+    action: 'template.fields_changed',
+    targetType: 'template',
+    targetId: id,
+    ip: ctx.ip ?? null,
+    userAgent: ctx.userAgent ?? null,
+    meta,
+  })
+}
+
+/**
+ * 某模板的元数据（记录读写时用，ADR-0039）：不做可见性判断——记录引用了它，它的字段定义就对该记录生效
+ * （含已软删的代码内置模板）。不存在 → null。
+ */
+export async function templateMeta(
+  db: DbOrTx,
+  workspaceId: string,
+  id: string | null | undefined,
+): Promise<{ fieldDefs: FieldDef[]; hiddenFields: string[] } | null> {
+  if (!id) return null
+  if (id.startsWith('builtin:')) {
+    const e = await effectiveBuiltin(db, workspaceId, id)
+    return e ? { fieldDefs: e.fieldDefs, hiddenFields: e.hiddenFields } : null
+  }
+  const [r] = await db
+    .select({ fieldDefs: entryTemplates.fieldDefs, hiddenFields: entryTemplates.hiddenFields })
+    .from(entryTemplates)
+    .where(and(eq(entryTemplates.id, id), eq(entryTemplates.workspaceId, workspaceId)))
+  return r ? { fieldDefs: r.fieldDefs ?? [], hiddenFields: r.hiddenFields ?? [] } : null
+}
+
+export interface TemplateFieldMeta {
+  id: string
+  kind: EntryKind
+  typeId: string | null
+  fieldDefs: FieldDef[]
+  hiddenFields: string[]
+}
+
+/**
+ * GET /templates/fields（ADR-0039、REQ-TPL-019）：读者「认得」的模板元数据目录（只含有自有字段或移除了字段的）。
+ * 自己可读的模板（内置含已软删的——旧记录仍引用）；别人的个人模板仅当有读者可读的记录引用它
+ * （看得到记录就该看得懂它的属性；不给模板名 / 正文 / 作者）。
+ */
+export async function listTemplateFieldMetas(db: Db, ctx: EntryCtx): Promise<TemplateFieldMeta[]> {
+  const builtins = await effectiveBuiltins(db, ctx.workspaceId)
+  const usedByVisibleEntry = exists(
+    db
+      .select({ one: sql`1` })
+      .from(entries)
+      .where(
+        and(
+          eq(entries.workspaceId, ctx.workspaceId),
+          sql`${entries.templateId} = ${entryTemplates.id}::text`,
+          // 可读的记录，或读者回收站里的（本人的；管理员全部——与列表 deleted=1 同口径）
+          or(
+            visibleEntriesWhere(ctx.actor),
+            and(
+              isNotNull(entries.deletedAt),
+              can(ctx.actor, 'workspace.manage', null)
+                ? undefined
+                : eq(entries.authorId, ctx.actor.id),
+            ),
+          ),
+        ),
+      ),
+  )
+  const rows = await db
+    .select({
+      id: entryTemplates.id,
+      kind: entryTemplates.kind,
+      typeId: entryTemplates.typeId,
+      fieldDefs: entryTemplates.fieldDefs,
+      hiddenFields: entryTemplates.hiddenFields,
+    })
+    .from(entryTemplates)
+    .where(
+      and(
+        eq(entryTemplates.workspaceId, ctx.workspaceId),
+        sql`(jsonb_array_length(${entryTemplates.fieldDefs}) > 0 or jsonb_array_length(${entryTemplates.hiddenFields}) > 0)`,
+        or(
+          eq(entryTemplates.scope, 'workspace'),
+          eq(entryTemplates.scope, 'builtin'),
+          eq(entryTemplates.ownerId, ctx.actor.id),
+          usedByVisibleEntry,
+        ),
+      ),
+    )
+  return [
+    ...builtins
+      .filter((e) => e.fieldDefs.length || e.hiddenFields.length)
+      .map((e) => ({
+        id: e.tpl.id,
+        kind: e.tpl.kind,
+        typeId: null,
+        fieldDefs: e.fieldDefs,
+        hiddenFields: e.hiddenFields,
+      })),
+    ...rows.map((r) => ({
+      id: r.id,
+      kind: r.kind as EntryKind,
+      typeId: r.typeId,
+      fieldDefs: r.fieldDefs ?? [],
+      hiddenFields: r.hiddenFields ?? [],
+    })),
+  ]
 }
 
 /** 模板不带日期（ADR-0033）：Bug 的发现 / 解决日期在用模板新建时由服务端重新补。 */
@@ -318,9 +584,12 @@ export async function listTemplates(
     return builtins.filter((e) => e.deleted).map((e) => builtinView(ctx.actor, e))
   }
   const rows = (await visibleRows(db, ctx)).filter((r) => can(ctx.actor, 'template.read', refOf(r)))
-  const x = await extraOf(db, ctx, rows)
+  const uses = await templateUses(db, ctx.workspaceId)
+  const x = await extraOf(db, ctx, rows, uses)
   const all = [
-    ...builtins.filter((e) => !e.deleted).map((e) => builtinView(ctx.actor, e)),
+    ...builtins
+      .filter((e) => !e.deleted)
+      .map((e) => builtinView(ctx.actor, e, uses.get(e.tpl.id) ?? 0)),
     ...rows.map((r) => rowView(ctx.actor, r, x)),
   ]
   return all.filter(
@@ -350,7 +619,8 @@ export async function getTemplate(
     // 已删除的只有所有者能看（恢复前预览）
     if (!e || (e.deleted && !can(ctx.actor, 'template.manage', BUILTIN_REF(id))))
       throw AppError.notFound('模板不存在')
-    return { ...builtinView(ctx.actor, e), body: e.tpl.body }
+    const uses = await templateUses(db, ctx.workspaceId, [id])
+    return { ...builtinView(ctx.actor, e, uses.get(id) ?? 0), body: e.tpl.body }
   }
   const r = await loadRow(db, ctx, id)
   return { ...(await viewOne(db, ctx, r)), body: r.body as PmNode }
@@ -366,6 +636,8 @@ export async function createTemplate(
   let kind: EntryKind | undefined = input.kind
   let typeId: string | null = input.typeId ?? null
   let fields = input.fields
+  /** 沿用来源的模板元数据（ADR-0039）：复制到我的 = 原模板的；另存为模板 = 该记录来源模板的 */
+  let srcMeta: { fieldDefs: FieldDef[]; hiddenFields: string[] } | null = null
   /** 来源（记录 / 模板）绑的类型：本模板能绑就沿用，否则退回随笔（如工作区模板不能绑个人类型） */
   const inherit = async (src: { kind: EntryKind; typeId: string | null; fields: unknown }) => {
     if (kind) return
@@ -391,6 +663,8 @@ export async function createTemplate(
       typeId: loaded.row.typeId,
       fields: loaded.row.fields,
     })
+    // 能读记录就能沿用它的属性定义（不要求能读来源模板）
+    srcMeta = await templateMeta(db, ctx.workspaceId, loaded.row.templateId)
     if (JSON.stringify(body).length > 100 * 1024)
       throw AppError.validation([{ path: 'fromEntryId', message: '正文超过 100KB，不能存为模板' }])
   }
@@ -399,16 +673,30 @@ export async function createTemplate(
     const src = await getTemplate(db, ctx, input.fromTemplateId)
     body = src.body
     await inherit(src)
+    srcMeta = { fieldDefs: src.fieldDefs, hiddenFields: src.hiddenFields }
   }
   if (!body || !kind) throw AppError.validation([{ path: 'body', message: '缺少正文或类型' }])
   if (kind === 'custom' && typeId) await assertTemplateType(db, ctx, typeId, input.scope)
   if (kind !== 'custom') typeId = null
+  // 模板元数据（ADR-0039）：自有字段（给了就按输入，否则沿用来源的——键不变，值可互通）+ 移除的类型字段
+  const typeDefs = await typeFieldDefs(db, ctx.workspaceId, kind, typeId)
+  const typeKeys = typeDefs.map((d) => d.key)
+  const own = input.fieldDefs ? resolveOwn([], input.fieldDefs, typeDefs) : null
+  const fieldDefs = own
+    ? own.defs
+    : (srcMeta?.fieldDefs ?? []).filter((d) => !typeKeys.includes(d.key))
+  const hiddenFields = cleanHidden(
+    kind,
+    typeDefs,
+    input.hiddenFields ?? srcMeta?.hiddenFields ?? [],
+  )
   const checked = await checkFields(
     db,
     ctx,
     kind,
     typeId,
-    fields ?? { ...defaultEntryFields[kind] },
+    remapKeys(fields ?? { ...defaultEntryFields[kind] }, own?.remap ?? {}),
+    fieldDefs,
   ).catch((err) => {
     // 另存为模板：记录上的旧值不合规（如定义已变）不拦，退回默认值
     if (input.fromEntryId && !input.fields) return { ...defaultEntryFields[kind as EntryKind] }
@@ -426,11 +714,101 @@ export async function createTemplate(
       typeId,
       spaceKind: input.spaceKind ?? null,
       body,
-      fields: templateFields(kind, checked),
+      fields: omitKeys(templateFields(kind, checked), hiddenFields),
+      fieldDefs,
+      hiddenFields,
     })
     .returning()
   if (!row) throw new Error('insert entry_templates failed')
   return viewOne(db, ctx, row)
+}
+
+type PatchInput = z.infer<typeof patchTemplateSchema>
+
+/**
+ * PATCH 后的模板元数据与预填（ADR-0039）：
+ * - 自有字段整组替换（新字段的键由服务端生成 / 已有字段类型不可改 / 不与所绑类型的字段重名）；
+ * - 移除的类型字段：给了就按新类型过滤；换了类型没给 → 清空；
+ * - 预填 fields：给了 / 换了类型 / 元数据变了就重算——先按定义变更迁移（删字段、选项改名 / 删除），
+ *   再按「类型字段 + 自有字段」校验，最后去掉被移除字段的值。
+ * 未变的项返回 undefined（不写库）。
+ */
+async function nextMetadata(
+  tx: DbOrTx,
+  ctx: EntryCtx,
+  input: PatchInput,
+  cur: {
+    kind: EntryKind
+    typeId: string | null
+    retyped: boolean
+    fieldDefs: FieldDef[]
+    hiddenFields: string[]
+    fields: Record<string, unknown>
+  },
+): Promise<{
+  fieldDefs: FieldDef[] | undefined
+  hiddenFields: string[] | undefined
+  fields: Record<string, unknown> | undefined
+}> {
+  const typeDefs = await typeFieldDefs(tx, ctx.workspaceId, cur.kind, cur.typeId)
+  const own = input.fieldDefs ? resolveOwn(cur.fieldDefs, input.fieldDefs, typeDefs) : null
+  const fieldDefs = own?.defs
+  // 换了类型而没动自有字段：已有的自有字段也不能与新类型的字段重名
+  if (cur.retyped && !own) {
+    const clash = cur.fieldDefs.find((d) => typeDefs.some((t) => t.label === d.label))
+    if (clash)
+      throw AppError.validation([
+        { path: 'kind', message: `模板属性「${clash.label}」与该类型的字段重名，请先改名` },
+      ])
+  }
+  const hiddenFields =
+    input.hiddenFields !== undefined
+      ? cleanHidden(cur.kind, typeDefs, input.hiddenFields)
+      : cur.retyped && cur.hiddenFields.length
+        ? []
+        : undefined
+  const raw =
+    (input.fields && remapKeys(input.fields, own?.remap ?? {})) ??
+    (cur.retyped
+      ? // 换类型：回到新类型的默认值，自有字段的预填保留
+        { ...defaultEntryFields[cur.kind], ...splitExtraFields(cur.fields).extra }
+      : fieldDefs !== undefined || hiddenFields !== undefined
+        ? cur.fields
+        : undefined)
+  if (raw === undefined) return { fieldDefs, hiddenFields, fields: undefined }
+  const migrated = fieldDefs
+    ? migrateExtraValues(raw, cur.fieldDefs, fieldDefs, input.optionRenames)
+    : raw
+  const checked = await checkFields(
+    tx,
+    ctx,
+    cur.kind,
+    cur.typeId,
+    migrated,
+    fieldDefs ?? cur.fieldDefs,
+  )
+  return { fieldDefs, hiddenFields, fields: omitKeys(checked, hiddenFields ?? cur.hiddenFields) }
+}
+
+/** 自有字段定义变了：同事务同步用此模板建的记录里的值（删字段清值、选项改名 / 删除），有改动则审计 */
+async function syncOwnFieldValues(
+  tx: DbOrTx,
+  ctx: EntryCtx,
+  id: string,
+  name: string,
+  prev: FieldDef[],
+  next: FieldDef[] | undefined,
+  input: PatchInput,
+) {
+  if (!next) return
+  const n = await applyFieldDefChanges(
+    tx,
+    { entries: entriesOf(ctx.workspaceId, id) },
+    prev,
+    next,
+    input.optionRenames,
+  )
+  if (n) await auditFieldsChanged(tx, ctx, id, { name, entriesChanged: n })
 }
 
 export async function patchTemplate(
@@ -456,10 +834,15 @@ export async function patchTemplate(
     if (kind === 'custom' && typeId && (input.kind || input.scope))
       await assertTemplateType(tx, ctx, typeId, scope)
     const retyped = kind !== r.kind || typeId !== r.typeId
-    let fields = input.fields
-    if (fields) fields = await checkFields(tx, ctx, kind, typeId, fields)
-    else if (retyped)
-      fields = await checkFields(tx, ctx, kind, typeId, { ...defaultEntryFields[kind] })
+    const meta = await nextMetadata(tx, ctx, input, {
+      kind,
+      typeId,
+      retyped,
+      fieldDefs: r.fieldDefs ?? [],
+      hiddenFields: r.hiddenFields ?? [],
+      fields: (r.fields ?? {}) as Record<string, unknown>,
+    })
+    const fields = meta.fields
     const [row] = await tx
       .update(entryTemplates)
       .set({
@@ -469,12 +852,15 @@ export async function patchTemplate(
         ...(input.spaceKind !== undefined ? { spaceKind: input.spaceKind } : {}),
         ...(input.kind !== undefined ? { kind: input.kind, typeId } : {}),
         ...(fields !== undefined ? { fields: templateFields(kind, fields) } : {}),
+        ...(meta.fieldDefs !== undefined ? { fieldDefs: meta.fieldDefs } : {}),
+        ...(meta.hiddenFields !== undefined ? { hiddenFields: meta.hiddenFields } : {}),
         ...(input.body !== undefined ? { body: input.body } : {}),
         updatedAt: new Date(),
       })
       .where(eq(entryTemplates.id, id))
       .returning()
     if (!row) throw AppError.notFound()
+    await syncOwnFieldValues(tx, ctx, id, r.name, r.fieldDefs ?? [], meta.fieldDefs, input)
     // 从共享（工作区 / 内置）改回个人：清掉引用它的空间默认模板
     if (r.scope !== 'personal' && row.scope === 'personal')
       await clearSpaceDefaults(tx, ctx.workspaceId, id)
@@ -505,16 +891,25 @@ async function patchBuiltinTemplate(
     if (input.kind === 'custom')
       throw AppError.validation([{ path: 'kind', message: '内置模板只能用内置类型' }])
     const kind = (input.kind ?? e.tpl.kind) as EntryKind
-    let fields: Record<string, unknown> | undefined
-    if (input.fields) fields = await checkFields(tx, ctx, kind, null, input.fields)
-    else if (kind !== e.tpl.kind)
-      fields = await checkFields(tx, ctx, kind, null, { ...defaultEntryFields[kind] })
+    const meta = await nextMetadata(tx, ctx, input, {
+      kind,
+      typeId: null,
+      retyped: kind !== e.tpl.kind,
+      fieldDefs: e.fieldDefs,
+      hiddenFields: e.hiddenFields,
+      fields: e.tpl.fields ?? { ...defaultEntryFields[e.tpl.kind] },
+    })
+    const fields = meta.fields
     const set: Partial<typeof builtinTemplateOverrides.$inferInsert> = { updatedAt: new Date() }
     if (input.name !== undefined) set.name = input.name
     if (input.description !== undefined) set.description = input.description
     if (input.kind !== undefined) set.kind = input.kind
     if (input.spaceKind !== undefined) set.spaceKinds = input.spaceKind ? [input.spaceKind] : []
     if (fields !== undefined) set.fields = templateFields(kind, fields)
+    // 空 = 代码默认：写回 null，免得「已修改」一直亮着
+    if (meta.fieldDefs !== undefined) set.fieldDefs = meta.fieldDefs.length ? meta.fieldDefs : null
+    if (meta.hiddenFields !== undefined)
+      set.hiddenFields = meta.hiddenFields.length ? meta.hiddenFields : null
     if (input.body !== undefined) set.body = input.body
     await tx
       .insert(builtinTemplateOverrides)
@@ -523,6 +918,7 @@ async function patchBuiltinTemplate(
         target: [builtinTemplateOverrides.workspaceId, builtinTemplateOverrides.key],
         set,
       })
+    await syncOwnFieldValues(tx, ctx, id, e.tpl.name, e.fieldDefs, meta.fieldDefs, input)
     const next = await effectiveBuiltin(tx, ctx.workspaceId, id)
     if (!next) throw AppError.notFound()
     return builtinView(ctx.actor, next)
@@ -549,14 +945,21 @@ export async function restoreBuiltinTemplate(db: Db, ctx: EntryCtx, id: string) 
 export async function resetBuiltinTemplate(db: Db, ctx: EntryCtx, id: string) {
   if (!id.startsWith('builtin:') || !builtinTemplate(id)) throw AppError.notFound('模板不存在')
   assertCan(ctx.actor, 'template.manage', BUILTIN_REF(id))
-  await db
-    .delete(builtinTemplateOverrides)
-    .where(
-      and(
-        eq(builtinTemplateOverrides.workspaceId, ctx.workspaceId),
-        eq(builtinTemplateOverrides.key, keyOf(id)),
-      ),
-    )
+  await db.transaction(async (tx) => {
+    // 自有字段回到代码默认（没有）：清掉用它建的记录里这些字段的值（ADR-0039；来源模板不变）
+    const e = await effectiveBuiltin(tx, ctx.workspaceId, id)
+    const n = await stripOwnValues(tx, ctx.workspaceId, id, e?.fieldDefs ?? [])
+    if (n)
+      await auditFieldsChanged(tx, ctx, id, { name: e?.tpl.name, reset: true, entriesChanged: n })
+    await tx
+      .delete(builtinTemplateOverrides)
+      .where(
+        and(
+          eq(builtinTemplateOverrides.workspaceId, ctx.workspaceId),
+          eq(builtinTemplateOverrides.key, keyOf(id)),
+        ),
+      )
+  })
   return getTemplate(db, ctx, id)
 }
 
@@ -580,6 +983,12 @@ export async function deleteTemplate(db: Db, ctx: EntryCtx, id: string): Promise
   await db.transaction(async (tx) => {
     const r = await loadRow(tx, ctx, id)
     assertCan(ctx.actor, 'template.manage', refOf(r))
+    // 用它建的记录（ADR-0039）：自有字段的值清掉、来源模板置空（定义随模板一起没了）
+    const n = await stripOwnValues(tx, ctx.workspaceId, id, r.fieldDefs ?? [])
+    if (n) await auditFieldsChanged(tx, ctx, id, { name: r.name, deleted: true, entriesChanged: n })
+    await tx.execute(
+      sql`update ${entries} set template_id = null where ${entriesOf(ctx.workspaceId, id)}`,
+    )
     await tx.delete(entryTemplates).where(eq(entryTemplates.id, id))
     await clearSpaceDefaults(tx, ctx.workspaceId, id)
   })

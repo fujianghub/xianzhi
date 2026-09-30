@@ -2,6 +2,7 @@
 import { z } from 'zod'
 import { isoDateTime, uuidSchema } from './common.ts'
 import { entryFieldsIssues } from './entryFields.ts'
+import { fieldDefsInputSchema, optionRenamesSchema } from './entryTypes.ts'
 import { ENTRY_KINDS, SPACE_KINDS, TEMPLATE_SCOPES } from './enums.ts'
 import { fullDocSchema } from './pm.ts'
 import { bool01 } from './query.ts'
@@ -21,6 +22,20 @@ export const listTemplatesQuery = z.object({
   spaceKind: z.enum(SPACE_KINDS).optional(),
 })
 
+/**
+ * 模板元数据（ADR-0039、REQ-TPL-016 · 017）：
+ * - `fieldDefs`：模板自有字段，整组替换；已有字段须带原 key、type 不可改。新字段的 key 可省；
+ *   带了也只是临时句柄（好在同一次保存里用它给新字段预填值），服务端一律换成自己生成的键。
+ * - `hiddenFields`：本模板移除的类型字段名（类型的可移除内置字段或其自定义字段键）；不认识的名字静默丢弃。
+ */
+export const hiddenFieldsSchema = z
+  .array(z.string().regex(/^[a-zA-Z]{1,40}$/, '字段名无效'))
+  .max(40)
+const metadata = {
+  fieldDefs: fieldDefsInputSchema.optional(),
+  hiddenFields: hiddenFieldsSchema.optional(),
+}
+
 const meta = {
   name: z.string().trim().min(1).max(60),
   description: z.string().trim().max(200).default(''),
@@ -39,6 +54,7 @@ export const createTemplateSchema = z
     /** kind = custom 时必给（ADR-0036、REQ-TPL-011） */
     typeId: uuidSchema.optional(),
     fields: z.record(z.string(), z.unknown()).optional(),
+    ...metadata,
     body: fullDocSchema.optional(),
     fromEntryId: uuidSchema.optional(),
     fromTemplateId: templateIdSchema.optional(),
@@ -69,6 +85,9 @@ export const patchTemplateSchema = z
     kind: z.enum(ENTRY_KINDS).optional(),
     typeId: uuidSchema.optional(),
     fields: z.record(z.string(), z.unknown()).optional(),
+    ...metadata,
+    /** 选项改名（字段键 → { 旧名: 新名 }）：用此模板建的记录里的值同步改 */
+    optionRenames: optionRenamesSchema.optional(),
     body: fullDocSchema.optional(),
     ifUpdatedAt: isoDateTime,
   })

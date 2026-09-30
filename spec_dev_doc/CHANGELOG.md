@@ -4,6 +4,15 @@
 
 ## 2026-09-30
 
+**模板元数据：模板属性增删改查 · 移除类型属性 · 记录记住来源模板（ADR-0039）**
+- 新增 ADR-0039（修订 ADR-0036 §A.5 · §E.29 模板只预填类型字段 → 模板有自己的元数据；ADR-0011 §2 记录不记来源模板 → `entries.template_id`；ADR-0038 §1 覆盖表 +`field_defs` `hidden_fields`）；计划评审 11 条意见已并入（键一律服务端生成、移除只在类型一致时生效、可移除范围收窄、`purgeUser` / `purgeSpace` / 删类型三处适配、与类型字段不重名等）。
+- 00：§6b +REQ-TPL-016 ~ 019；§6 +REQ-ENTRY-032。加注：REQ-TPL-004 · 007 · 011。
+- 01：§3.4 entries +`template_id`；entry_templates +`field_defs` `hidden_fields`；builtin_template_overrides +`field_defs` `hidden_fields`；§3.12 +`template.fields_changed`。
+- 02 §9：+`GET /templates/fields`；`/templates`（GET / POST / PATCH / DELETE / reset）、`POST /entries`、`GET /entries/:id` 行注。
+- 08：§2.9 · §2.13 · §3.2 注。glossary +模板属性 · 来源模板 · 移除（类型属性）。
+- 迁移 0024（`entries.template_id` + partial index、两表各 +2 列、`audit_log_action_ck` 重建）已落地，`lint:drift` 零差异。
+- CLAUDE.md：规范索引行改为 `0035 ~ 0039` 并加 ADR-0039 摘要；测试说明加 `XZ_TEST_DATABASE_URL` 隔离测试库与勿写死库名（用户要求同步，仍 ≤ 80 行）。debug +`2026-09-30-jobs-test-restore-hardcoded-db`。
+
 **记录页编辑区「文档式 · 极简」· 模板编辑器工具栏（ADR-0037）；内置模板由所有者维护（ADR-0038）**
 - 新增 ADR-0037（修订 ADR-0029 §1 阅读胶囊四图标 → 单个「阅读」弹层四分页、控件带文字；ADR-0031 格式栏常驻细线 → 仅吸顶时有底线；ADR-0035 §B 两列表单式属性面板 + 面板内流转时间线 → 紧凑属性列表 + 流转摘要弹层、标签并入列表；ADR-0023 §4 模板编辑器只有斜杠 / 气泡 → 加格式工具栏、块手柄、表格工具条）与 ADR-0038（修订 ADR-0011 §2 内置模板为不可改的代码常量、ADR-0023 内置 403 → 所有者覆盖 / 软删 / 恢复 + 新增 `scope = builtin`）。
 - 00：§6 +REQ-ENTRY-030 · 031；§6b +REQ-TPL-012 ~ 015；§18c +REQ-READ-010。加注：REQ-ENTRY-024 · 025、REQ-READ-007、REQ-EDITOR-024、REQ-TPL-001 · 002 · 004。

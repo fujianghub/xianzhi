@@ -2,12 +2,13 @@
  * kind 元数据表单（08 §2.9、T1-013）：由 `entryFieldsByKind[kind]` 的 Zod shape 生成——
  * enum / 字面量联合 → 下拉；日期 → date 输入；数字 → number 输入；其余 → 文本。前端不重复校验，422 的 `fields.x` 错误就地显示（REQ-ENTRY-001）。
  * 自定义类型（ADR-0016）：状态下拉的选项 = 该类型的状态列表（原样显示，不翻译）；列表为空则不出状态项。
+ * 模板元数据（ADR-0039）：给了 `template`（新建对话框里选中的模板）→ 去掉它移除的类型字段、追加它的自有字段。
  */
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import type { z } from 'zod'
 import { BUG_CLOSED_STATUSES, entryFieldsByKind } from '../../../shared/schemas/entryFields.ts'
-import type { FieldDef } from '../../../shared/schemas/fieldDefs.ts'
+import { type FieldDef, mergeFieldDefs } from '../../../shared/schemas/fieldDefs.ts'
 import { type EntryKind, entryStatsQuery } from '../../lib/entry-queries.ts'
 import { useKindLabel } from '../../lib/entry-types.ts'
 import { Input } from '../ui/input.tsx'
@@ -88,9 +89,17 @@ export function EntryFieldsForm({
   errors,
   disabled,
   only,
+  template,
 }: {
   kind: EntryKind
   typeId?: string | null
+  /** 所选模板的元数据（ADR-0039）：移除的类型字段只在模板所绑类型与当前类型一致时生效 */
+  template?: {
+    kind: string
+    typeId: string | null
+    fieldDefs: FieldDef[]
+    hiddenFields: string[]
+  } | null
   value: Record<string, unknown>
   onChange: (next: Record<string, unknown>) => void
   errors?: Record<string, string>
@@ -100,11 +109,21 @@ export function EntryFieldsForm({
 }) {
   const { t } = useTranslation()
   const meta = useKindLabel()(kind, typeId)
-  // 类型的自定义字段（ADR-0036）：精简模式（only）不显示
-  const extras = only ? [] : meta.fieldDefs
+  const removed =
+    template && template.kind === kind && (template.typeId ?? null) === (typeId ?? null)
+      ? template.hiddenFields
+      : []
+  // 类型的自定义字段（ADR-0036）+ 模板自有字段（ADR-0039）：精简模式（only）不显示
+  const extras = only
+    ? []
+    : mergeFieldDefs(
+        meta.fieldDefs.filter((d) => !removed.includes(d.key)),
+        template?.fieldDefs ?? [],
+      )
   const specs = fieldSpecs(kind, meta.statuses).filter(
     (f) =>
       (!only || only.includes(f.name)) &&
+      (f.required || !removed.includes(f.name)) &&
       // 解决日期只在已关闭时显示（服务端维护，ADR-0033）
       !(kind === 'bug' && f.name === 'resolvedAt' && !isBugClosed(value.status)),
   )

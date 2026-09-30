@@ -160,7 +160,7 @@ export function keyFields(entry: Entry): { name: string; value: string }[] {
 
 /** 关键字段的彩色胶囊（REQ-UI-044）；`exclude` 去掉已另行显示的字段（看板列已表明状态） */
 export function KeyFieldPills({ entry, exclude = [] }: { entry: Entry; exclude?: string[] }) {
-  const specs = useFieldSpecs()(entry.kind, entry.typeId)
+  const specs = useFieldSpecs()(entry.kind, entry.typeId, entry.templateId)
   return (
     <>
       {keyFields(entry)

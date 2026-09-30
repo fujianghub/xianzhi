@@ -169,6 +169,13 @@
       "when": 1790765181131,
       "tag": "0023_builtin_template_overrides",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790776540573,
+      "tag": "0024_template_metadata",
+      "breakpoints": true
     }
   ]
 }

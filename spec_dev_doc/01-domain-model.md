@@ -161,6 +161,7 @@
 | space_id | uuid | FK spaces，NOT NULL（个人记录落个人空间） |
 | kind | text | `decision` \| `iteration` \| `bug` \| `changelog` \| `journal` \| `note` \| `review` \| `optimize` \| `plan`（后两者 ADR-0011 §3，2026-09-25）\| `custom`（2026-09-27 ADR-0016：自定义类型，见 §3.4c） |
 | type_id | uuid? | FK entry_types（ADR-0016）；check `(kind = 'custom') = (type_id is not null)`；删类型前 service 先把记录转为 `note` |
+| template_id | text? | 来源模板（ADR-0039）：`builtin:<key>` 或用户模板 uuid，新建时写入、之后不改（`builtin:blank` 不记）；无外键；模板硬删时 service 同事务置空。有效字段 = 类型字段 − 该模板移除的 + 该模板的模板属性 |
 | title | text | |
 | fields | jsonb | 按 kind 的**元数据**（见 §3.5）；叙述性内容在正文，不在此重复 |
 | visibility | text | `private`（仅作者）\| `space` \| `workspace` |
@@ -217,13 +218,16 @@
 | type_id | uuid? | FK entry_types（on delete set null）；check `(kind = 'custom') = (type_id is not null)`；workspace 模板只能绑内置 / 空间类型，personal 还可绑本人个人类型（service）；类型删除时 service 同事务改为 `kind='note', type_id=null`（ADR-0036） |
 | space_kind | text? | 推荐的空间类型 `project` \| `learning` \| `work` |
 | body | jsonb | PM JSON 正文种子（≤ 100KB）；只在新建记录时写成初始 ydoc，不是正文真源 |
-| fields | jsonb | 该 kind 的默认 fields（可含所绑类型的 x 键预填值，ADR-0036） |
+| fields | jsonb | 该 kind 的默认 fields（可含所绑类型的 x 键预填值，ADR-0036；及模板属性的预填值，ADR-0039；不含被移除字段） |
+| field_defs | jsonb | 模板属性（ADR-0039）：本模板自有的 `FieldDef[]`（≤ 20，键由服务端生成），默认 `[]`；值存于用它建的记录的 `fields` |
+| hidden_fields | jsonb | 本模板移除的类型字段名 `string[]`（ADR-0039），默认 `[]`；只能是类型的可省内置字段（不含状态 / 优先级 / 严重度 / Bug 日期）或类型的自定义字段键 |
 | created_at | timestamptz | |
 | updated_at | timestamptz | |
 
 - 索引：`(workspace_id, scope)`、`(owner_id)`。内置模板（`builtin:<key>`）是代码常量（`src/shared/editor/builtin-templates.ts`），不入表。
 - 注 2026-09-28（ADR-0023）：`body` / `kind` / `fields` 可经 `PATCH`（带 `ifUpdatedAt`）直接修改；workspace 模板改回 personal 或删除时，同事务置空引用它的 `spaces.default_template_id`。
 - 注 2026-09-30（ADR-0038）：`scope` check 加 `builtin`（改 `TEMPLATE_SCOPES` 后 `pnpm db:generate` 重建 `entry_templates_scope_ck`，迁移 0023）；`builtin` 行的 `owner_id` = 建它的所有者（界面不署名；删号时同 workspace 模板保留，只删 personal）；类型绑定规则同 workspace。代码内置模板不再「不可改」：工作区覆盖存 `builtin_template_overrides`（下表），读取时与代码常量逐列合并。
+- 注 2026-09-30（ADR-0039，迁移 0024）：+`field_defs` `hidden_fields`；`entries` +`template_id`（partial index `entries_template_idx where template_id is not null`）。改 `field_defs`：同事务同步 `entries.template_id = id` 的记录（含回收站）——删字段 `fields - key`、`optionRenames` 同步、删选项清值，审计 `template.fields_changed`；硬删模板清掉这些记录里模板属性的值并置空 `template_id`；类型被删转随笔时 `hidden_fields` 清空、`field_defs` 与其预填保留；删号时仍被记录引用的 personal 模板保留（只经 `GET /templates/fields` 对看得到这些记录的人生效）。
 
 **builtin_template_overrides**
 
@@ -238,12 +242,15 @@
 | kind | text? | 改过的类型，仅内置 kind（check）；null = 代码默认 |
 | space_kinds | jsonb? | 改过的适用空间 `SpaceKind[]`；null = 代码默认 |
 | fields | jsonb? | 改过的字段预填（按生效 kind 严格校验）；null = 代码默认（改 kind 未给时重置为新 kind 默认） |
+| field_defs | jsonb? | 所有者给它加的模板属性 `FieldDef[]`（ADR-0039）；null = 代码默认（没有） |
+| hidden_fields | jsonb? | 它移除的类型字段名 `string[]`（ADR-0039）；null = 代码默认（没有） |
 | body | jsonb? | 改过的 PM JSON 正文（≤ 100KB，排除项同模板编辑器）；null = 代码默认 |
 | deleted | bool | 已删除（软删，不出现在列表 / 选择器，新建使用 422）；默认 false |
 | updated_at | timestamptz | 乐观锁基准（`PATCH` 的 `ifUpdatedAt`；无行 = `1970-01-01T00:00:00.000Z`） |
 
 - 仅所有者可写（`template.manage`，`scope = builtin`）；「恢复默认」= 删除整行（含取消删除），不另存历史。
 - 生效：列表 / 详情、新建记录 `templateId`、空间默认模板（已删除 = 视为未设置，不清空 `spaces.default_template_id`）、空间首页快捷按钮、首次打开骨架（03 §6 注）。
+- 注 2026-09-30（ADR-0039）：软删后覆盖行仍在，`field_defs` 对已用它建的记录继续生效；「恢复默认」删整行前同事务清掉这些记录里模板属性的值（`template_id` 保留），审计 `template.fields_changed`。
 
 ### 3.4c entry_types / entry_kind_overrides —— 类型（2026-09-27 ADR-0016 · 0017）
 
@@ -577,6 +584,7 @@ FieldDef = { key: /^x[A-Z]{6}$/   // 系统生成、不可改，与内置 camelC
   注（2026-09-25，ADR-0008）：+ `member.registered`（自助注册，actor 为空）· `member.approved` · `member.rejected`（驳回即删号，`meta` 留邮箱 / 用户名）。
   注（2026-09-25，ADR-0010）：+ `auth.password_changed`（本人改密，`meta.otherSessionsRevoked`）· `user.created`（owner 直建）· `user.updated`（改显示名 / 用户名 / 邮箱，`meta.byAdmin` 区分本人与 owner，含新旧值）；owner 重置他人密码记 `auth.password_reset`（`meta.byAdmin`），删号记 `user.deleted`（`meta.byAdmin`）。迁移 0007 同步 `audit_log_action_ck`。
   注（2026-09-30，ADR-0036）：+ `entry_type.fields_changed`（改字段定义 / 选项改名或删除导致批量改值；`meta` 含增删改的字段与受影响记录数；内置类型 `targetType = entry_kind`；迁移 0022 重建 check 约束）。
+  注（2026-09-30，ADR-0039）：+ `template.fields_changed`（改 / 删模板属性、删模板、内置模板恢复默认导致批量改值；`targetType = template`，`targetId` = 模板 id（含 `builtin:<key>`），`meta` 含模板名与受影响记录数；迁移 0024 重建 check 约束）。
   注（2026-09-27，ADR-0022）：+ `space.merged`（合并空间，target = 源空间，`meta` 含目标、记录 / 任务 / 成员数、`visibilityWidened`；迁移 0018 重建 check 约束）。
   `auth.login` · `auth.logout` · `auth.login_failed` · `auth.locked` · `auth.password_reset` · `auth.2fa_enabled` · `auth.2fa_disabled` · `auth.2fa_reset_by_admin` · `member.invited` · `member.joined` · `member.registered` · `member.approved` · `member.rejected` · `member.role_changed` · `member.suspended` · `member.unsuspended` · `member.removed` · `member.content_transferred` · `user.deleted` · `workspace.owner_transferred` · `workspace.settings_changed` · `space.deleted` · `space.permanently_deleted` · `task.permanently_deleted` · `entry.permanently_deleted` · `entry.restored`（ADR-0011）· `export.requested` · `export.done` · `export.failed` · `api_key.created` · `api_key.revoked` · `gc.failed` · `backup.failed` · `entry_type.deleted`（ADR-0016）
 

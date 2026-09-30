@@ -46,7 +46,7 @@ export default function EntryFieldsPanel({
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showEmpty, setShowEmpty] = useState(false)
   const closed = BUG_CLOSED_STATUSES.includes(String(entry.fields.status))
-  const specs = specsOf(entry.kind, entry.typeId).filter(
+  const specs = specsOf(entry.kind, entry.typeId, entry.templateId).filter(
     (f) => !(entry.kind === 'bug' && f.name === 'resolvedAt' && !closed),
   )
   // 空的非必填属性收起（有错误的保持显示）；只读者直接不显示

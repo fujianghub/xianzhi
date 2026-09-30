@@ -141,6 +141,8 @@ export const AUDIT_ACTIONS = [
   // ADR-0016：删自定义类型会把其下记录转为随手记，留痕
   'entry_type.deleted',
   'entry_type.fields_changed',
+  // ADR-0039：改 / 删模板自有字段时同步改了记录里的值，留痕
+  'template.fields_changed',
 ] as const
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]
 

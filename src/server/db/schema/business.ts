@@ -292,6 +292,11 @@ export const entries = pgTable(
     kind: text().notNull(),
     /** 自定义类型（ADR-0016）：kind = 'custom' 时必填，否则为空；删类型前 service 先把记录转为随手记 */
     typeId: uuid().references(() => entryTypes.id),
+    /**
+     * 来源模板（ADR-0039）：`builtin:<key>` 或用户模板 uuid，新建时写入、之后不改；无外键（代码内置模板不入表）。
+     * 记录的有效字段 = 类型字段 − 该模板移除的 + 该模板自有的；模板被删时 service 同事务置空。
+     */
+    templateId: text(),
     title: text().notNull(),
     fields: jsonb().notNull().default(sql`'{}'::jsonb`),
     visibility: text().notNull(),
@@ -331,6 +336,7 @@ export const entries = pgTable(
     check('entries_kind_ck', inList(t.kind, ENTRY_KINDS)),
     check('entries_custom_type_ck', sql`(${t.kind} = 'custom') = (${t.typeId} is not null)`),
     index('entries_type_idx').on(t.typeId),
+    index('entries_template_idx').on(t.templateId).where(sql`${t.templateId} is not null`),
     check('entries_visibility_ck', inList(t.visibility, ENTRY_VISIBILITIES)),
   ],
 )
@@ -370,6 +376,10 @@ export const entryTemplates = pgTable(
     spaceKind: text(),
     body: jsonb().notNull(),
     fields: jsonb().notNull().default({}),
+    /** 模板自有字段（ADR-0039、REQ-TPL-016）：值存于用它建的记录的 fields（x 键）与本模板的预填 fields */
+    fieldDefs: jsonb().$type<FieldDef[]>().notNull().default(sql`'[]'::jsonb`),
+    /** 本模板移除的类型字段名（ADR-0039、REQ-TPL-017）：类型的可省内置字段或其自定义字段键 */
+    hiddenFields: jsonb().$type<string[]>().notNull().default(sql`'[]'::jsonb`),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -404,6 +414,9 @@ export const builtinTemplateOverrides = pgTable(
     kind: text(),
     spaceKinds: jsonb().$type<string[]>(),
     fields: jsonb().$type<Record<string, unknown>>(),
+    /** 模板自有字段 / 移除的类型字段（ADR-0039）；null = 代码默认（都为空） */
+    fieldDefs: jsonb().$type<FieldDef[]>(),
+    hiddenFields: jsonb().$type<string[]>(),
     body: jsonb(),
     deleted: boolean().notNull().default(false),
     updatedAt: updatedAt(),
