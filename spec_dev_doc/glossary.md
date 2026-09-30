@@ -114,3 +114,6 @@
 | 阅读弹层 | Reading popover / `reading-open` | — | 阅读 | `reading.*` | 文档栏「Aa 阅读」按钮弹出的单个弹层，内分 字体 / 纸张 / 排版 / 目录 四页；取代阅读胶囊的四个图标弹层（ADR-0037） | 08 §2.9 |
 | 内置模板覆盖 | Builtin template override | `builtin_template_overrides` | 编辑（内置模板） | `settings.templates.*` | 所有者对代码内置模板（`builtin:<key>`）的工作区修改：名称 / 说明 / 类型 / 适用空间 / 字段预填 / 正文，null = 代码默认；删除为软删（可恢复）。所有者另可新增 `scope = builtin` 的入库内置模板（ADR-0038） | 01 §3.4 |
 | 恢复默认（内置模板） | Restore builtin template | `POST /templates/:id/restore` | 恢复默认 / 恢复 | `settings.templates.restore` | 删除该内置模板的覆盖行：修改与「已删除」一并撤销，回到代码版本（ADR-0038） | 02 §9 |
+| 模板属性 | Template field / `entry_templates.field_defs` | `entry_templates.field_defs` · `builtin_template_overrides.field_defs` | 模板属性 | `template.meta.*` | 模板自有的字段定义（`FieldDef`，同「字段定义」），只对用该模板建的记录生效；增删改随模板保存，只需模板管理权限；与类型上的「字段定义」（类型属性）相对；合称模板的「元数据」（ADR-0039） | 01 §3.4 |
+| 来源模板 | Source template / `templateId` | `entries.template_id` | —（不直接显示） | — | 记录新建时所用的模板（`builtin:<key>` 或 uuid），之后不可改；决定该记录多出哪些模板属性、不显示哪些类型属性（ADR-0039） | 01 §3.4 |
+| 移除（类型属性） | Hidden field / `hiddenFields` | `entry_templates.hidden_fields` | 从本模板移除 / 已移除 / 恢复 | `template.meta.remove` | 模板把所绑类型的某个可省字段从自己的元数据里去掉：用它建的记录不显示、不预填该字段，值不动；必填与进流转的字段不可移除（ADR-0039） | 08 §2.13 |

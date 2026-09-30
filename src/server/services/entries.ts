@@ -27,7 +27,11 @@ import type {
 } from '../../shared/schemas/entries.ts'
 import { defaultEntryFields, entryFieldsByKind } from '../../shared/schemas/entryFields.ts'
 import type { EntryKind, EntryVisibility, SpaceRole } from '../../shared/schemas/enums.ts'
-import { isExtraFieldKey, splitExtraFields } from '../../shared/schemas/fieldDefs.ts'
+import {
+  isExtraFieldKey,
+  mergeFieldDefs,
+  splitExtraFields,
+} from '../../shared/schemas/fieldDefs.ts'
 import {
   type Actor,
   assertCan,
@@ -66,7 +70,7 @@ import { type FieldChangeView, listFieldChanges, recordFieldChanges } from './fi
 import { assertLinkSource, purgeLinksOf } from './links.ts'
 import { publishChange } from './realtime.ts'
 import { assertOwnTags, ownTagIdsSql } from './tags.ts'
-import { resolveTemplateBody } from './templates.ts'
+import { resolveTemplateBody, templateMeta } from './templates.ts'
 
 export interface EntryCtx {
   actor: Actor
@@ -86,6 +90,8 @@ export interface EntryView {
   kind: EntryKind
   /** 自定义类型 id（kind = 'custom'，ADR-0016）；名 / 色 / 状态由前端从 /entry-types 取 */
   typeId: string | null
+  /** 来源模板（ADR-0039）：有效字段 = 类型字段 − 该模板移除的 + 该模板自有的；定义由前端从 /templates/fields 取 */
+  templateId: string | null
   title: string
   spaceId: string
   spaceSlug: string
@@ -205,6 +211,7 @@ function toView(
     id: e.id,
     kind: e.kind as EntryKind,
     typeId: e.typeId ?? null,
+    templateId: e.templateId ?? null,
     title: e.title,
     spaceId: e.spaceId,
     spaceSlug: space.slug,
@@ -507,6 +514,7 @@ function assertPersonalPrivate(isPersonal: boolean, visibility: EntryVisibility)
  * 按（目标）类型校验并规范化 fields（ADR-0016 · 0036）：内置字段走各自 strict schema；
  * 自定义字段（x 键）按类型的字段定义校验——未定义的静默丢弃（定义可能刚被删），类型 / 选项不符 422。
  * 自定义类型须属本工作区，status ∈ 其状态列表（新建未给 → 第一项）。返回写库用的 { kind, typeId, fields }。
+ * 记录有来源模板时（ADR-0039、REQ-ENTRY-032），模板自有字段与类型的字段一并作为合法的自定义字段。
  */
 export async function resolveKindFields(
   db: DbOrTx,
@@ -518,16 +526,17 @@ export async function resolveKindFields(
    * fillDefault：新建 / 改类型时补默认状态，并要求类型对本人在该空间可用（本人的个人类型或该空间的空间类型，
    * ADR-0017 · 0036）；改已有记录的属性不要求。spaceId = 记录（将）所在空间。
    */
-  opts: { fillDefault: boolean; spaceId: string },
+  opts: { fillDefault: boolean; spaceId: string; templateId?: string | null },
 ): Promise<{ kind: EntryKind; typeId: string | null; fields: Record<string, unknown> }> {
   const { base, extra } = splitExtraFields(fields)
+  const own = (await templateMeta(db, ctx.workspaceId, opts.templateId))?.fieldDefs ?? []
   const r = entryFieldsByKind[kind].safeParse(base)
   if (!r.success)
     throw AppError.validation(
       r.error.issues.map((i) => ({ path: ['fields', ...i.path].join('.'), message: i.message })),
     )
   if (kind !== 'custom') {
-    const defs = await builtinFieldDefs(db, ctx.workspaceId, kind)
+    const defs = mergeFieldDefs(await builtinFieldDefs(db, ctx.workspaceId, kind), own)
     return { kind, typeId: null, fields: { ...base, ...normalizeExtraFields(defs, extra) } }
   }
   const type = !typeId
@@ -541,14 +550,14 @@ export async function resolveKindFields(
     typeId: type.id,
     fields: {
       ...normalizeCustomFields(type.statuses ?? [], r.data as Record<string, unknown>, opts),
-      ...normalizeExtraFields(type.fieldDefs ?? [], extra),
+      ...normalizeExtraFields(mergeFieldDefs(type.fieldDefs ?? [], own), extra),
     },
   }
 }
 
 /**
  * 改类型时重建 fields（ADR-0016 · 0036）：从目标类型默认值出发，保留在目标类型仍合法的 status / progress，
- * 以及目标类型里同键的自定义字段值（resolveKindFields 再按定义校验）。
+ * 以及目标类型里同键的自定义字段值、来源模板的自有字段值（ADR-0039；resolveKindFields 再按定义校验）。
  * 目标类型有无默认值的必填字段（迭代 / 变更 / 复盘）→ 422，请在属性栏里填好后再改。
  */
 export async function fieldsForRetype(
@@ -557,6 +566,7 @@ export async function fieldsForRetype(
   from: Record<string, unknown>,
   kind: EntryKind,
   typeId: string | null | undefined,
+  templateId?: string | null,
 ): Promise<Record<string, unknown>> {
   const base: Record<string, unknown> = { ...defaultEntryFields[kind] }
   const type = kind === 'custom' && typeId ? await loadEntryType(db, ctx.workspaceId, typeId) : null
@@ -573,7 +583,10 @@ export async function fieldsForRetype(
     throw AppError.validation([
       { path: 'kind', message: '目标类型有必填属性，请在记录的属性栏里改类型并填写' },
     ])
-  const defs = type ? (type.fieldDefs ?? []) : await builtinFieldDefs(db, ctx.workspaceId, kind)
+  const defs = mergeFieldDefs(
+    type ? (type.fieldDefs ?? []) : await builtinFieldDefs(db, ctx.workspaceId, kind),
+    (await templateMeta(db, ctx.workspaceId, templateId))?.fieldDefs ?? [],
+  )
   const keep = new Set(defs.map((d) => d.key))
   for (const [k, v] of Object.entries(from)) if (isExtraFieldKey(k) && keep.has(k)) base[k] = v
   return base
@@ -595,17 +608,22 @@ export async function createEntry(
   if (input.tagIds?.length) await assertOwnTags(db, ctx, input.tagIds) // 只能打自己的标签（ADR-0017）
   // 新建并关联（ADR-0018）：源记录须可读（404）且可写（403），与 POST /links 同一套 can()
   if (input.linkFrom) await assertLinkSource(db, ctx, 'entry', input.linkFrom.entryId)
+  // 先解析模板（不可见 / 已删除 → 422），再按「类型字段 + 模板自有字段」校验 fields（ADR-0039）
+  const body = await resolveTemplateBody(db, ctx, input.templateId, {
+    space: sp.row.isPersonal ? '' : sp.row.name,
+  })
+  // 来源模板：`builtin:blank` 只是「不要骨架」，不算模板
+  const templateId =
+    input.templateId && input.templateId !== 'builtin:blank' ? input.templateId : null
   const typed = await resolveKindFields(db, ctx, input.kind, input.typeId, input.fields, {
     fillDefault: true,
     spaceId,
+    templateId,
   })
   if (typed.kind === 'bug')
     typed.fields = normalizeBugFields(null, typed.fields, {
       today: localDay(await timezoneOf(db, ctx.actor.id, ctx.timezone), new Date()),
     })
-  const body = await resolveTemplateBody(db, ctx, input.templateId, {
-    space: sp.row.isPersonal ? '' : sp.row.name,
-  })
   const created = await db.transaction(async (tx) => {
     const [row] = await tx
       .insert(entries)
@@ -614,6 +632,7 @@ export async function createEntry(
         spaceId,
         kind: typed.kind,
         typeId: typed.typeId,
+        templateId,
         title: input.title,
         fields: typed.fields,
         visibility,
@@ -717,11 +736,13 @@ export async function patchEntry(
         (loaded.row.fields ?? {}) as Record<string, unknown>,
         targetKind,
         targetTypeId,
+        loaded.row.templateId,
       ))
     nextFields = (
       await resolveKindFields(db, ctx, targetKind, targetTypeId, raw, {
         fillDefault: retype,
         spaceId: targetSpaceId,
+        templateId: loaded.row.templateId,
       })
     ).fields
     if (targetKind === 'bug') {

@@ -261,7 +261,13 @@ describe('jobs', () => {
     expect((await c.query('select count(*)::int n from "session"')).rows[0].n).toBe(0)
     await c.end()
     await expect(
-      runRestore({ file: r.file, identity, sourceUrl: URL_, targetDb: 'xz_test' }),
+      runRestore({
+        file: r.file,
+        identity,
+        sourceUrl: URL_,
+        // 源库自己的名字（不写死 xz_test：换测试库名跑时会把备份真的恢复进 xz_test）
+        targetDb: new URL(URL_).pathname.slice(1),
+      }),
     ).rejects.toThrow(/拒绝恢复/)
   })
 

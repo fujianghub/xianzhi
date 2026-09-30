@@ -19,6 +19,7 @@ import {
 } from '../db/schema/business.ts'
 import { dataPath, removeOlderThan, removeQuietly } from '../lib/files.ts'
 import { writeEntryDerived } from '../services/derived.ts'
+import { templateToNote } from '../services/entry-types.ts'
 
 export const BATCH = 1000
 const DAY = 86_400_000
@@ -213,7 +214,7 @@ export async function purgeSpace(
       .where(inArray(entries.typeId, typeIds))
     await tx
       .update(entryTemplates)
-      .set({ kind: 'note', typeId: null, fields: {}, updatedAt: new Date() })
+      .set(templateToNote())
       .where(inArray(entryTemplates.typeId, typeIds))
     await tx.delete(spaces).where(eq(spaces.id, spaceId))
   })

@@ -2,7 +2,7 @@
  * 单个元数据字段的就地提交（ADR-0035、REQ-ENTRY-024 · 026）：属性面板与表格单元格共用。
  * - 串行：同一页内的提交排队，每次取缓存里最新的 updatedAt 作 ifUpdatedAt，连点不自撞 409；
  * - 乐观：先改详情缓存与已加载列表里的该行，服务端返回后以其为准（服务端会补 resolvedAt 等）；
- * - 409：提示并刷新；422：返回 `fields.*` 错误给调用方就地显示，并刷新类型（字段定义可能已变，ADR-0036）。
+ * - 409：提示并刷新；422：返回 `fields.*` 错误给调用方就地显示，并刷新类型与模板元数据（字段定义可能已变，ADR-0036 · 0039）。
  */
 import { type InfiniteData, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useRef } from 'react'
@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { fieldErrors } from '../components/domain/EntryFieldsForm.tsx'
 import { ApiError, api, unwrap } from '../lib/api.ts'
 import type { Entry, EntryPage } from '../lib/entry-queries.ts'
+import { templateFieldsQuery } from '../lib/template-queries.ts'
 
 export type CommitResult =
   | { ok: true; entry: Entry }
@@ -83,6 +84,7 @@ export function useFieldCommit() {
           }
           if (err instanceof ApiError && err.status === 422) {
             void qc.invalidateQueries({ queryKey: ['entry-types'] })
+            void qc.invalidateQueries({ queryKey: templateFieldsQuery.queryKey })
             const errors = fieldErrors(err.problem.errors)
             toast.error(Object.values(errors)[0] ?? t('task.saveFailed'))
             return { ok: false, errors }

@@ -1,6 +1,7 @@
 /**
  * 新记录（08 §3.2、REQ-ENTRY-001 · REQ-TPL-003）：选模板（可选）+ kind + 标题 + 该 kind 的 fields → `POST /entries` → 跳编辑页。
- * 模板：「按类型默认」= 首次打开按 kind 注入骨架；选具体模板 → 带出 kind / fields，正文以模板初始化；
+ * 模板：「按类型默认」= 首次打开按 kind 注入骨架；选具体模板 → 带出 kind / fields，正文以模板初始化，
+ * 属性表单按模板元数据增减（ADR-0039：去掉模板移除的类型字段、加上模板自有字段；建出的记录记下来源模板）；
  * 当前空间类型（如「学习」）推荐的模板排在前面。改 kind 与所选模板不符时回到「按类型默认」。
  * 422 的 `fields.*` 错误就地显示在对应字段下；其余错误 Toast。按需懒加载（带 zod）。
  * 类型（ADR-0016）：未隐藏的内置类型 + 自定义类型；自定义类型的状态默认取其第一项（服务端补）。
@@ -109,6 +110,8 @@ export default function NewEntryDialog() {
   }, [open, defaults.templateId, templates.data])
 
   const pickKind = (k: EntryKind, tid?: string) => {
+    // 点的就是当前类型：什么都不变（否则模板带出的预填值被清掉，而来源模板还在）
+    if (k === kind && tid === typeId) return
     setKind(k)
     setTypeId(tid)
     setFields({ ...defaultEntryFields[k] })
@@ -324,6 +327,7 @@ export default function NewEntryDialog() {
             onChange={setFields}
             errors={errors}
             only={QUICK_FIELDS[kind]}
+            template={templates.data?.find((x) => x.id === templateId) ?? null}
           />
           <div className="flex justify-end">
             <Button

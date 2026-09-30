@@ -22,6 +22,7 @@ import {
 import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { useFieldSpecs } from '../components/domain/FieldValue.tsx'
 import { KindBadge } from '../components/domain/KindIcon.tsx'
 import { buttonVariants } from '../components/ui/button.tsx'
 import { Checkbox } from '../components/ui/checkbox.tsx'
@@ -36,6 +37,7 @@ import { useNewEntry } from '../lib/stores.ts'
 import {
   copyTemplate,
   deletedBuiltinsQuery,
+  invalidateTemplateEntries,
   invalidateTemplates,
   invalidateTemplatesAndSpaces,
   isCodeBuiltin,
@@ -159,7 +161,19 @@ function TemplateRow({
   const ownerLabel = useOwnerLabel()
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(tpl.name)
-  const [confirm, setConfirm] = useState<'delete' | 'unshare' | null>(null)
+  const [confirm, setConfirm] = useState<'delete' | 'unshare' | 'reset' | null>(null)
+  const typeSpecs = useFieldSpecs()(tpl.kind, tpl.typeId)
+  // 模板元数据（ADR-0039）：自有属性 / 移除的类型属性，列表里各一行小字
+  const ownLabels = tpl.fieldDefs.map((d) => d.label).join('、')
+  const removedLabels = tpl.hiddenFields
+    .map((n) => typeSpecs.find((f) => f.name === n)?.label)
+    .filter(Boolean)
+    .join('、')
+  // 删模板（硬删）/ 恢复默认会清掉已建记录里模板属性的值
+  const fieldsLoss =
+    tpl.fieldDefs.length && tpl.entryCount > 0
+      ? ` ${t('template.fieldsLossWarning', { count: tpl.entryCount, fields: ownLabels })}`
+      : ''
   const patch = useMutation({
     mutationFn: (body: TemplatePatch) => patchTemplate(tpl, body),
     onSuccess: (r, body) => {
@@ -183,12 +197,14 @@ function TemplateRow({
     await unwrap(api.templates[':id'].$delete({ param: { id: tpl.id } }))
     toast.success(t('template.deleted'))
     void invalidateTemplatesAndSpaces(qc)
+    if (tpl.entryCount) void invalidateTemplateEntries(qc)
   }
   const reset = useMutation({
     mutationFn: () => resetBuiltin(tpl.id),
     onSuccess: () => {
       toast.success(t('template.resetDone'))
       void invalidateTemplates(qc)
+      if (tpl.entryCount) void invalidateTemplateEntries(qc)
     },
     onError: () => toast.error(t('task.saveFailed')),
   })
@@ -310,7 +326,7 @@ function TemplateRow({
             className={icon}
             aria-label={t('template.resetDefault')}
             title={t('template.resetDefault')}
-            onClick={() => reset.mutate()}
+            onClick={() => (fieldsLoss ? setConfirm('reset') : reset.mutate())}
             disabled={reset.isPending}
             data-testid="template-reset"
           >
@@ -332,6 +348,16 @@ function TemplateRow({
       </div>
       {tpl.description ? (
         <p className="line-clamp-2 text-fg-muted text-xs">{tpl.description}</p>
+      ) : null}
+      {ownLabels ? (
+        <p className="line-clamp-1 text-fg-faint text-xs" data-testid="template-meta-own">
+          {t('template.metaSummary', { fields: ownLabels })}
+        </p>
+      ) : null}
+      {removedLabels ? (
+        <p className="line-clamp-1 text-fg-faint text-xs" data-testid="template-meta-removed">
+          {t('template.metaRemoved', { fields: removedLabels })}
+        </p>
       ) : null}
       {shared ? (
         <p className="text-fg-faint text-xs" data-testid="template-owner">
@@ -357,17 +383,38 @@ function TemplateRow({
       <ConfirmDialog
         open={confirm !== null}
         onOpenChange={(v) => !v && setConfirm(null)}
-        title={t(confirm === 'unshare' ? 'template.unshare' : 'template.delete')}
+        title={t(
+          confirm === 'unshare'
+            ? 'template.unshare'
+            : confirm === 'reset'
+              ? 'template.resetDefault'
+              : 'template.delete',
+        )}
         description={
           confirm === 'unshare'
             ? t('template.unshareConfirm', { name: tpl.name }) + defaultsNote
-            : t(isCodeBuiltin(tpl) ? 'template.deleteBuiltinConfirm' : 'template.deleteConfirm', {
-                name: tpl.name,
-              }) + defaultsNote
+            : confirm === 'reset'
+              ? t('template.resetConfirm', { name: tpl.name }) + fieldsLoss
+              : // 代码内置模板是软删（定义还在，记录不受影响）；其余是硬删，模板属性的值随之清空
+                t(isCodeBuiltin(tpl) ? 'template.deleteBuiltinConfirm' : 'template.deleteConfirm', {
+                  name: tpl.name,
+                }) +
+                defaultsNote +
+                (isCodeBuiltin(tpl) ? '' : fieldsLoss)
         }
-        confirmLabel={t(confirm === 'unshare' ? 'template.unshare' : 'template.delete')}
+        confirmLabel={t(
+          confirm === 'unshare'
+            ? 'template.unshare'
+            : confirm === 'reset'
+              ? 'template.resetDefault'
+              : 'template.delete',
+        )}
         onConfirm={() =>
-          confirm === 'unshare' ? patch.mutateAsync({ scope: 'personal' }) : remove()
+          confirm === 'unshare'
+            ? patch.mutateAsync({ scope: 'personal' })
+            : confirm === 'reset'
+              ? reset.mutateAsync()
+              : remove()
         }
       />
     </li>

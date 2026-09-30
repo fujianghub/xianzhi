@@ -4,7 +4,7 @@
  */
 import { z } from 'zod'
 import { isoDate, uuidSchema } from './common.ts'
-import { ENTRY_KINDS, type EntryKind } from './enums.ts'
+import { ENTRY_KINDS, type EntryKind, TRACKED_ENTRY_FIELDS } from './enums.ts'
 import { splitExtraFields } from './fieldDefs.ts'
 
 export const decisionFields = z.strictObject({
@@ -153,4 +153,23 @@ export const defaultEntryFields: Record<EntryKind, Record<string, unknown>> = {
   optimize: { status: 'proposed' },
   plan: { status: 'active' },
   custom: {}, // 状态默认取该类型状态列表第一项（service）
+}
+
+/** 服务端维护的字段（Bug 的发现 / 解决日期，ADR-0033）：模板既不预填也不能移除 */
+const SERVER_KEPT_FIELDS: readonly string[] = ['foundAt', 'resolvedAt']
+
+/**
+ * 模板可以从自己的元数据里移除的内置字段名（ADR-0039、REQ-TPL-017）：该类型的可省字段，
+ * 去掉进流转的（状态 / 优先级 / 严重度——统计、看板靠它们）与服务端维护的日期。必填字段不可移除。
+ */
+export function hideableBaseFields(kind: EntryKind): string[] {
+  const shape = (entryFieldsByKind[kind] as unknown as { shape: Record<string, z.ZodType> }).shape
+  return Object.entries(shape)
+    .filter(
+      ([k, s]) =>
+        s.safeParse(undefined).success &&
+        !(TRACKED_ENTRY_FIELDS as readonly string[]).includes(k) &&
+        !SERVER_KEPT_FIELDS.includes(k),
+    )
+    .map(([k]) => k)
 }

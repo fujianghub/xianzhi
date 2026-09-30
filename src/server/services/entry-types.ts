@@ -319,12 +319,18 @@ export function normalizeExtraFields(
 
 /**
  * 字段定义输入 → 存储：新字段生成键；已有字段须带原键、类型不可改；整组按 fieldDefsSchema 校验。
+ * `reserved` = 另外不得占用的键（模板自有字段不与所绑类型的字段撞键，ADR-0039）。
  */
-function resolveFieldDefs(
+export function resolveFieldDefs(
   prev: FieldDef[],
   input: z.infer<typeof fieldDefsInputSchema>,
+  opts: { reserved?: readonly string[] } = {},
 ): FieldDef[] {
-  const taken = [...prev.map((d) => d.key), ...input.flatMap((d) => (d.key ? [d.key] : []))]
+  const taken = [
+    ...(opts.reserved ?? []),
+    ...prev.map((d) => d.key),
+    ...input.flatMap((d) => (d.key ? [d.key] : [])),
+  ]
   const out: FieldDef[] = input.map((d, i) => {
     if (d.key) {
       const old = prev.find((p) => p.key === d.key)
@@ -353,12 +359,38 @@ function resolveFieldDefs(
 }
 
 /**
- * 字段定义变更同步到数据（记录 + 模板，同事务）：去掉的字段清值；选项改名同步；删掉的选项清值（单选去键、多选去该项）。
- * `scope` = 该类型的记录 / 模板条件。返回受影响的记录数（用于审计）。
+ * 模板自有字段的输入（ADR-0039）：输入里「不在 prev 中的键」只是客户端的临时句柄（好在同一次保存里给新字段预填值），
+ * 服务端一律换成自己生成的键——不让客户端挑键（否则可挑一个与某类型字段相同的键，日后删字段时连带清掉那些值）。
+ * 返回定义与「临时键 → 正式键」对照（调用方据此改写同一请求里的预填 fields）。
  */
-async function applyFieldDefChanges(
+export function resolveOwnFieldDefs(
+  prev: FieldDef[],
+  input: z.infer<typeof fieldDefsInputSchema>,
+  reserved: readonly string[],
+): { defs: FieldDef[]; remap: Record<string, string> } {
+  const known = new Set(prev.map((d) => d.key))
+  const taken = [...reserved, ...known, ...input.flatMap((d) => (d.key ? [d.key] : []))]
+  const remap: Record<string, string> = {}
+  const minted: FieldDef[] = []
+  const kept = input.map((d) => {
+    if (d.key && known.has(d.key)) return d
+    const key = newExtraFieldKey(taken)
+    taken.push(key)
+    if (d.key) remap[d.key] = key
+    minted.push({ key, label: d.label, type: d.type })
+    return { ...d, key }
+  })
+  // 新键先并进 prev（类型与输入一致），再走同一套校验
+  return { defs: resolveFieldDefs([...prev, ...minted], kept, { reserved }), remap }
+}
+
+/**
+ * 字段定义变更同步到数据（记录 + 模板，同事务）：去掉的字段清值；选项改名同步；删掉的选项清值（单选去键、多选去该项）。
+ * `scope` = 该类型的记录 / 模板条件（模板自有字段只同步记录，不给 templates，ADR-0039）。返回受影响的记录数（用于审计）。
+ */
+export async function applyFieldDefChanges(
   tx: DbOrTx,
-  scope: { entries: SQL; templates: SQL },
+  scope: { entries: SQL; templates?: SQL },
   prev: FieldDef[],
   next: FieldDef[],
   renames: z.infer<typeof optionRenamesSchema> = {},
@@ -368,10 +400,9 @@ async function applyFieldDefChanges(
     const r = await tx.execute(sql`update ${table} set fields = ${stmt} where ${where}`)
     if (table === entries) touched += (r as unknown as { rowCount?: number }).rowCount ?? 0
   }
-  for (const [table, where] of [
-    [entries, scope.entries],
-    [entryTemplates, scope.templates],
-  ] as const) {
+  const targets: [typeof entries | typeof entryTemplates, SQL][] = [[entries, scope.entries]]
+  if (scope.templates) targets.push([entryTemplates, scope.templates])
+  for (const [table, where] of targets) {
     for (const old of prev) {
       const key = sql.raw(`'${old.key}'`) // 键已按 /^x[A-Z]{6}$/ 校验
       const cur = next.find((d) => d.key === old.key)
@@ -641,7 +672,7 @@ async function convertEntries(
   to: { kind: EntryKind; typeId: string | null },
 ): Promise<number> {
   const rows = await tx
-    .select({ id: entries.id, fields: entries.fields })
+    .select({ id: entries.id, fields: entries.fields, templateId: entries.templateId })
     .from(entries)
     .where(
       and(
@@ -658,6 +689,7 @@ async function convertEntries(
       (r.fields ?? {}) as Record<string, unknown>,
       to.kind,
       to.typeId,
+      r.templateId, // 来源模板的自有字段值保留（ADR-0039）
     )
     await tx
       .update(entries)
@@ -667,11 +699,20 @@ async function convertEntries(
   return rows.length
 }
 
-/** 删类型前：绑它的模板转随笔（fields 清空），各空间启用清单去掉该项（ADR-0036） */
+/** 模板转随笔时的列值：类型字段的预填清空、移除清单清空；模板自有字段及其预填保留（ADR-0039） */
+export const templateToNote = () => ({
+  kind: 'note',
+  typeId: null,
+  fields: sql`coalesce((select jsonb_object_agg(k, v) from jsonb_each(${entryTemplates.fields}) as f(k, v) where k ~ '^x[A-Z]{6}$' and exists (select 1 from jsonb_array_elements(${entryTemplates.fieldDefs}) d where d ->> 'key' = k)), '{}'::jsonb)`,
+  hiddenFields: [] as string[],
+  updatedAt: new Date(),
+})
+
+/** 删类型前：绑它的模板转随笔（类型字段的预填清空），各空间启用清单去掉该项（ADR-0036） */
 async function detachType(tx: DbOrTx, workspaceId: string, id: string) {
   await tx
     .update(entryTemplates)
-    .set({ kind: 'note', typeId: null, fields: {}, updatedAt: new Date() })
+    .set(templateToNote())
     .where(and(eq(entryTemplates.workspaceId, workspaceId), eq(entryTemplates.typeId, id)))
   await removeEnabledKind(tx, workspaceId, `type:${id}`)
 }

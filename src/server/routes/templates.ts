@@ -43,6 +43,10 @@ export function templateRoutes(deps: { db: Db }) {
           canShare: svc.canShareTemplate(ctxOf(c)),
         }),
       )
+      // ADR-0039：模板元数据目录（自有字段 / 移除的类型字段），记录的属性展示用；须在 /:id 之前
+      .get('/fields', async (c) =>
+        c.json({ items: await svc.listTemplateFieldMetas(deps.db, ctxOf(c)) }),
+      )
       .post(
         '/',
         requireScope('write'),

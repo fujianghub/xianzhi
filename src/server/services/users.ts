@@ -324,9 +324,12 @@ export async function purgeUser(db: Db, ctx: UsersCtx, userId: string): Promise<
     await tx.execute(sql`delete from notification_preferences where user_id = ${userId}`)
     await tx.execute(sql`delete from user_preferences where user_id = ${userId}`)
     await tx.execute(sql`delete from push_subscriptions where user_id = ${userId}`)
-    // 个人模板随人删除；工作区模板保留（管理员可管，ADR-0011 §2）
+    // 个人模板随人删除；工作区模板保留（管理员可管，ADR-0011 §2）。
+    // 仍被记录引用的个人模板留着（ADR-0039：保留下来的记录靠它的字段定义显示自定义属性；
+    // 它只经 /templates/fields 对看得到这些记录的人生效，列表里没人看得到）
     await tx.execute(
-      sql`delete from entry_templates where owner_id = ${userId} and scope = 'personal'`,
+      sql`delete from entry_templates t where t.owner_id = ${userId} and t.scope = 'personal'
+          and not exists (select 1 from entries e where e.template_id = t.id::text)`,
     )
     // 个人标签随人删除（ADR-0017：只有本人看得见，关联随标签级联）；自定义类型保留（他人仍需显示其记录的类型）
     await tx.execute(sql`delete from tags where created_by = ${userId}`)

@@ -4,9 +4,11 @@
  *   选项草稿记住原名，保存时算出 optionRenames（记录里的值同步改名）。
  * - `TypeFieldsSection`：某个类型（自定义 / 空间类型，或内置类型的追加字段）的字段区：草稿 + 保存 / 撤销，
  *   删掉字段或选项前提示会清空记录里的值。空间类型对话框、设置 · 类型、模板表单共用。
+ * - 模板自有字段（ADR-0039、REQ-TPL-016）也用 `FieldDefsEditor`：`rowExtra` 在每个字段下多一行（预填值）；
+ *   新字段带临时键（`fresh`，好给它预填值，服务端保存时换成正式键），类型仍可改。
  */
 import { ArrowDown, ArrowUp, Plus, Trash2, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { BuiltinEntryKind, PaletteColor } from '../../../shared/schemas/enums.ts'
 import {
@@ -38,8 +40,10 @@ export interface OptionDraft {
 }
 export interface FieldDraft {
   id: string
-  /** 已保存字段的键；新字段无 */
+  /** 已保存字段的键；新字段无（模板自有字段的新字段带临时键，见 fresh） */
   key?: string
+  /** key 是客户端临时生成的、尚未保存（ADR-0039）：类型仍可改、不算选项改名 */
+  fresh?: boolean
   label: string
   type: FieldDefType
   required: boolean
@@ -47,6 +51,19 @@ export interface FieldDraft {
 }
 
 const isChoice = (t: FieldDefType) => t === 'select' || t === 'multiselect'
+
+/** 字段名 / 选项名输入框里回车不提交外层表单（模板编辑页整页是一个 form） */
+const noSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  if (e.key === 'Enter') e.preventDefault()
+}
+
+/** 草稿是否还不能提交：字段名为空，或单选 / 多选没有选项、有空选项名 */
+export const draftsInvalid = (drafts: FieldDraft[]) =>
+  drafts.some(
+    (d) =>
+      !d.label.trim() ||
+      (isChoice(d.type) && (!d.options.length || d.options.some((o) => !o.name.trim()))),
+  )
 
 export const draftsOf = (defs: FieldDef[]): FieldDraft[] =>
   defs.map((d) => ({
@@ -70,7 +87,7 @@ export function toPayload(drafts: FieldDraft[]): {
 } {
   const optionRenames: OptionRenames = {}
   const fieldDefs = drafts.map((d) => {
-    if (d.key && isChoice(d.type)) {
+    if (d.key && !d.fresh && isChoice(d.type)) {
       const r = Object.fromEntries(
         d.options
           .filter((o) => o.orig && o.orig !== o.name.trim())
@@ -110,10 +127,17 @@ export function FieldDefsEditor({
   value,
   onChange,
   disabled,
+  rowExtra,
+  emptyText,
+  addLabel,
 }: {
   value: FieldDraft[]
   onChange: (next: FieldDraft[]) => void
   disabled?: boolean
+  /** 每个字段卡片底部的附加内容（模板：预填值） */
+  rowExtra?: (d: FieldDraft) => ReactNode
+  emptyText?: string
+  addLabel?: string
 }) {
   const { t } = useTranslation()
   const set = (id: string, patch: Partial<FieldDraft>) =>
@@ -129,7 +153,9 @@ export function FieldDefsEditor({
     onChange([...value, { id: newId(), label: '', type: 'text', required: false, options: [] }])
   return (
     <div className="flex flex-col gap-2" data-testid="field-defs-editor">
-      {value.length ? null : <p className="text-fg-muted text-sm">{t('fieldDefs.empty')}</p>}
+      {value.length ? null : (
+        <p className="text-fg-muted text-sm">{emptyText ?? t('fieldDefs.empty')}</p>
+      )}
       {value.map((d, i) => (
         <div
           key={d.id}
@@ -141,6 +167,7 @@ export function FieldDefsEditor({
             <Input
               value={d.label}
               onChange={(e) => set(d.id, { label: e.target.value })}
+              onKeyDown={noSubmit}
               placeholder={t('fieldDefs.labelPlaceholder')}
               aria-label={t('fieldDefs.label')}
               maxLength={20}
@@ -150,8 +177,8 @@ export function FieldDefsEditor({
             />
             <select
               value={d.type}
-              disabled={disabled || !!d.key}
-              title={d.key ? t('fieldDefs.typeLocked') : undefined}
+              disabled={disabled || (!!d.key && !d.fresh)}
+              title={d.key && !d.fresh ? t('fieldDefs.typeLocked') : undefined}
               onChange={(e) => {
                 const type = e.target.value as FieldDefType
                 set(d.id, {
@@ -215,6 +242,7 @@ export function FieldDefsEditor({
               onChange={(options) => set(d.id, { options })}
             />
           ) : null}
+          {rowExtra?.(d)}
         </div>
       ))}
       {disabled ? null : (
@@ -225,7 +253,7 @@ export function FieldDefsEditor({
           data-testid="field-def-add"
         >
           <Plus className="size-4" />
-          {t('fieldDefs.add')}
+          {addLabel ?? t('fieldDefs.add')}
         </button>
       )}
     </div>
@@ -261,6 +289,7 @@ function OptionsEditor({
           <input
             value={o.name}
             onChange={(e) => set(o.id, { name: e.target.value })}
+            onKeyDown={noSubmit}
             placeholder={t('fieldDefs.optionPlaceholder')}
             aria-label={t('fieldDefs.option')}
             maxLength={20}
@@ -361,11 +390,7 @@ export function TypeFieldsSection({
   const [confirm, setConfirm] = useState<string[] | null>(null)
   useEffect(() => setDrafts(initial), [initial])
   const dirty = JSON.stringify(toPayload(drafts)) !== JSON.stringify(toPayload(initial))
-  const invalid = drafts.some(
-    (d) =>
-      !d.label.trim() ||
-      (isChoice(d.type) && (!d.options.length || d.options.some((o) => !o.name.trim()))),
-  )
+  const invalid = draftsInvalid(drafts)
   const pending = actions.patch.isPending || actions.patchBuiltin.isPending
   const save = () => {
     const body = toPayload(drafts)

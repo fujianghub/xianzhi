@@ -1,6 +1,8 @@
 /**
  * 记录列表视图（ADR-0012、REQ-KB-004；ADR-0016 起为记录页默认视图，REQ-ENTRY-016）：
  * 列 = 勾选 · 标题（+ 目录路径 + 一行摘要）· 类型（多类型时）· 状态 · 进度 · 所选单一类型的其它字段 · 标签 · （跨空间时）空间 · 更新时间。
+ * 模板元数据（ADR-0039）：单一类型时，已加载行的来源模板带来的自有字段也各占一列；某行没有这个属性
+ * （别的模板建的 / 被它的模板移除了）显示 `—`、不可编辑。
  * 状态：任何带 status 的类型都显示（内置类型译名；自定义类型原样）；进度：学习计划 / 自定义类型的百分比条。
  * 点列头在已加载数据内排序；枚举字段按 schema 定义顺序，日期 / 文本按字典序，数字按数值。
  * 勾选列常驻（有 `select` 时）：表头复选框全选 / 取消本页。
@@ -71,7 +73,30 @@ export function EntryTable({
       : undefined
   // 状态常驻；进度只在该类型有进度属性（或多类型混排）时出现；单一类型的其它字段附在后面（很少填的长字段不进列表）
   const singleSpecs = single ? specsOf(single, typeId) : []
-  const specs = singleSpecs.filter(
+  // 每行自己的规格（按来源模板）：同一模板只算一次
+  const rowSpecCache = new Map<string, FieldSpec[]>()
+  const rowSpecsOf = (e: Entry): FieldSpec[] => {
+    const k = `${e.kind}|${e.typeId ?? ''}|${e.templateId ?? ''}`
+    let v = rowSpecCache.get(k)
+    if (!v) {
+      v = specsOf(e.kind, e.typeId, e.templateId)
+      rowSpecCache.set(k, v)
+    }
+    return v
+  }
+  // 来源模板带来的自有字段（类型里没有的）：按首次出现的顺序附在类型字段之后
+  const templateSpecs: FieldSpec[] = []
+  if (single)
+    for (const e of items)
+      if (e.templateId)
+        for (const f of rowSpecsOf(e))
+          if (
+            f.extra &&
+            !singleSpecs.some((s) => s.name === f.name) &&
+            !templateSpecs.some((s) => s.name === f.name)
+          )
+            templateSpecs.push(f)
+  const specs = [...singleSpecs, ...templateSpecs].filter(
     (f) => f.name !== 'status' && f.name !== 'progress' && !TABLE_HIDDEN.includes(f.name),
   )
   const showProgress = !single || singleSpecs.some((f) => f.name === 'progress')
@@ -173,7 +198,7 @@ export function EntryTable({
     )
   }
   const row = (e: Entry) => {
-    const rowSpecs = single ? singleSpecs : specsOf(e.kind, e.typeId)
+    const rowSpecs = rowSpecsOf(e)
     const canEdit = !!editable?.(e)
     const on = !!select?.has(e.id)
     return (
@@ -245,7 +270,12 @@ export function EntryTable({
         ) : null}
         {cols.map((c) => (
           <td key={c.key} className="whitespace-nowrap px-3 py-2" data-field={c.key.slice(2)}>
-            {cell(e, c.spec, c.spec.name, canEdit)}
+            {cell(
+              e,
+              rowSpecs.find((f) => f.name === c.spec.name),
+              c.spec.name,
+              canEdit,
+            )}
           </td>
         ))}
         <td className="px-3 py-2">

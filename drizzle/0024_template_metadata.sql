@@ -1,0 +1,8 @@
+ALTER TABLE "audit_log" DROP CONSTRAINT "audit_log_action_ck";--> statement-breakpoint
+ALTER TABLE "builtin_template_overrides" ADD COLUMN "field_defs" jsonb;--> statement-breakpoint
+ALTER TABLE "builtin_template_overrides" ADD COLUMN "hidden_fields" jsonb;--> statement-breakpoint
+ALTER TABLE "entries" ADD COLUMN "template_id" text;--> statement-breakpoint
+ALTER TABLE "entry_templates" ADD COLUMN "field_defs" jsonb DEFAULT '[]'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "entry_templates" ADD COLUMN "hidden_fields" jsonb DEFAULT '[]'::jsonb NOT NULL;--> statement-breakpoint
+CREATE INDEX "entries_template_idx" ON "entries" USING btree ("template_id") WHERE "entries"."template_id" is not null;--> statement-breakpoint
+ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_action_ck" CHECK ("audit_log"."action" in ('auth.login', 'auth.logout', 'auth.login_failed', 'auth.locked', 'auth.password_reset', 'auth.password_changed', 'auth.2fa_enabled', 'auth.2fa_disabled', 'auth.2fa_reset_by_admin', 'member.invited', 'member.joined', 'member.registered', 'member.approved', 'member.rejected', 'member.role_changed', 'member.suspended', 'member.unsuspended', 'member.removed', 'member.content_transferred', 'user.created', 'user.updated', 'user.deleted', 'workspace.owner_transferred', 'workspace.settings_changed', 'space.deleted', 'space.permanently_deleted', 'space.merged', 'task.permanently_deleted', 'entry.permanently_deleted', 'entry.restored', 'export.requested', 'export.done', 'export.failed', 'api_key.created', 'api_key.revoked', 'gc.failed', 'backup.failed', 'entry_type.deleted', 'entry_type.fields_changed', 'template.fields_changed'));

@@ -2,30 +2,34 @@
  * 新建 / 编辑模板（ADR-0023、REQ-TPL-010）：名称 · 描述 · 记录类型 · 适用空间 · 共享给工作区成员（服务端 canShare）· 正文编辑器。
  * 编辑时只提交改动过的字段并带 ifUpdatedAt（409 → 提示刷新）；不可管理的模板只读，可「复制到我的」。
  * ADR-0036（REQ-TPL-011）：类型可选内置 / 空间类型 / 本人个人类型（工作区模板不能绑个人类型）；
- * 「字段预填」按所绑类型的字段（含自定义字段）预置值；可就地编辑该类型的字段定义（有权限时，影响该类型全部记录）。
+ * 可就地编辑该类型的字段定义（有权限时，影响该类型全部记录）。
+ * ADR-0039（REQ-TPL-016 · 017）：「元数据」区（`TemplateMetadata`）——类型属性可预填、可从本模板移除 / 恢复；
+ * 模板属性（自有字段）可增删改并预填；都随「保存」提交，改 / 删会同步已用它建的记录（有记录时先确认）。
  * ADR-0038（REQ-TPL-013 · 015）：所有者可直接编辑代码内置模板（只能用内置类型、不能改共享范围，可「恢复默认」），
  * 新建时可「设为内置模板」（全员可见、仅所有者可改）。
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ArrowLeft, RotateCcw } from 'lucide-react'
-import { lazy, Suspense, useRef, useState } from 'react'
+import { lazy, Suspense, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { defaultEntryFields } from '../../../shared/schemas/entryFields.ts'
 import {
-  type BuiltinEntryKind,
   type EntryKind,
   SPACE_KINDS,
   type SpaceKind,
   type TemplateScope,
 } from '../../../shared/schemas/enums.ts'
+import { splitExtraFields } from '../../../shared/schemas/fieldDefs.ts'
 import type { PmNode } from '../../../shared/schemas/pm.ts'
 import type { TemplateEditorHandle } from '../../editor/TemplateEditor.tsx'
-import { api, unwrap } from '../../lib/api.ts'
-import { entryTypesQuery, kindKey, useKindLabel, useKindOptions } from '../../lib/entry-types.ts'
+import { apiErrorMessage } from '../../hooks/useEntryTypeActions.ts'
+import { ApiError, api, unwrap } from '../../lib/api.ts'
+import { entryTypesQuery, kindKey, useKindOptions } from '../../lib/entry-types.ts'
 import {
   copyTemplate,
+  invalidateTemplateEntries,
   invalidateTemplates,
   invalidateTemplatesAndSpaces,
   isCodeBuiltin,
@@ -40,13 +44,13 @@ import {
 import { newId } from '../../lib/uuid.ts'
 import { Button } from '../ui/button.tsx'
 import { Checkbox } from '../ui/checkbox.tsx'
-import { Disclosure } from '../ui/disclosure.tsx'
+import { ConfirmDialog } from '../ui/confirm-dialog.tsx'
 import { Input } from '../ui/input.tsx'
 import { Label } from '../ui/label.tsx'
 import { PageHeader } from '../ui/page-header.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
-import { TypeFieldsSection } from './FieldDefsEditor.tsx'
-import { FieldEditor, FieldValue, fieldIcon, useFieldSpecs } from './FieldValue.tsx'
+import { draftsInvalid, draftsOf, type FieldDraft, lossOf, toPayload } from './FieldDefsEditor.tsx'
+import { TemplateMetadata } from './TemplateMetadata.tsx'
 
 const TemplateEditor = lazy(() => import('../../editor/TemplateEditor.tsx'))
 
@@ -62,12 +66,17 @@ export function TemplateForm({ tpl }: { tpl?: TemplateDetail }) {
   // 新建：列表未到前先按可编辑渲染，避免成员看到禁用闪烁；guest（canShare=false）只读
   const editable = tpl ? tpl.canManage : (list.data?.canShare ?? true)
   const types = useQuery(entryTypesQuery)
-  const kindOf = useKindLabel()
   const [name, setName] = useState(tpl?.name ?? '')
   const [description, setDescription] = useState(tpl?.description ?? '')
   const [kind, setKind] = useState<EntryKind>(tpl?.kind ?? 'note')
   const [typeId, setTypeId] = useState<string | null>(tpl?.typeId ?? null)
   const [fields, setFields] = useState<Record<string, unknown>>(tpl?.fields ?? {})
+  // 模板元数据（ADR-0039）：自有字段草稿 + 移除的类型字段
+  const initialOwn = useMemo(() => draftsOf(tpl?.fieldDefs ?? []), [tpl?.fieldDefs])
+  const [own, setOwn] = useState<FieldDraft[]>(initialOwn)
+  const [hidden, setHidden] = useState<string[]>(tpl?.hiddenFields ?? [])
+  const [loss, setLoss] = useState<string[] | null>(null)
+  const ownInvalid = draftsInvalid(own)
   const [spaceKind, setSpaceKind] = useState<SpaceKind | ''>(tpl?.spaceKinds[0] ?? '')
   // 共享范围：个人 / 工作区 / 内置（ADR-0038：内置仅所有者；代码内置模板不能改范围）
   const [scope, setScope] = useState<TemplateScope>(tpl?.source ?? 'personal')
@@ -92,13 +101,23 @@ export function TemplateForm({ tpl }: { tpl?: TemplateDetail }) {
     if (!m) return
     setKind(m.kind)
     setTypeId(m.typeId)
-    setFields(m.kind === 'custom' ? {} : { ...defaultEntryFields[m.kind] })
+    // 换类型：类型属性回到新类型的默认值、移除清单清空；模板属性的预填保留
+    setFields({
+      ...(m.kind === 'custom' ? {} : defaultEntryFields[m.kind]),
+      ...Object.fromEntries(
+        Object.entries(splitExtraFields(fields).extra).filter(([k]) =>
+          own.some((d) => d.key === k),
+        ),
+      ),
+    })
+    setHidden([])
   }
   const bindsPersonal = kind === 'custom' && isPersonalType(typeId)
 
   const save = useMutation({
     mutationFn: async () => {
       const body = editorRef.current?.getBody() ?? tpl?.body ?? EMPTY_DOC
+      const defs = toPayload(own)
       if (!tpl)
         return unwrap<Template>(
           api.templates.$post(
@@ -109,6 +128,8 @@ export function TemplateForm({ tpl }: { tpl?: TemplateDetail }) {
                 kind,
                 ...(kind === 'custom' && typeId ? { typeId } : {}),
                 fields,
+                fieldDefs: defs.fieldDefs,
+                hiddenFields: hidden,
                 spaceKind: spaceKind || null,
                 scope,
                 body: body as never,
@@ -125,6 +146,11 @@ export function TemplateForm({ tpl }: { tpl?: TemplateDetail }) {
         if (kind === 'custom' && typeId) patch.typeId = typeId
       }
       if (JSON.stringify(fields) !== JSON.stringify(tpl.fields)) patch.fields = fields
+      if (JSON.stringify(defs) !== JSON.stringify(toPayload(initialOwn))) {
+        patch.fieldDefs = defs.fieldDefs
+        patch.optionRenames = defs.optionRenames
+      }
+      if (JSON.stringify(hidden) !== JSON.stringify(tpl.hiddenFields)) patch.hiddenFields = hidden
       if ((spaceKind || null) !== (tpl.spaceKinds[0] ?? null)) patch.spaceKind = spaceKind || null
       if (!codeBuiltin && scope !== tpl.source) patch.scope = scope
       if (JSON.stringify(body) !== JSON.stringify(tpl.body)) patch.body = body
@@ -137,12 +163,24 @@ export function TemplateForm({ tpl }: { tpl?: TemplateDetail }) {
       void (tpl && tpl.source !== scope
         ? invalidateTemplatesAndSpaces(qc)
         : invalidateTemplates(qc))
+      // 自有字段变了：用它建的记录里的值已被同步改过
+      if (tpl?.entryCount) void invalidateTemplateEntries(qc)
       back()
     },
-    onError: templateSaveError(qc, t),
+    onError: (err) => {
+      // 元数据校验不过（重名 / 预填不合选项…）：把服务端的说法告诉用户；其余沿用原处理（409 刷新）
+      if (err instanceof ApiError && err.status === 422)
+        toast.error(apiErrorMessage(err, t('task.saveFailed')))
+      else templateSaveError(qc, t)(err)
+    },
   })
+  const canSave = editable && !!name.trim() && !ownInvalid
   const submit = () => {
-    if (editable && name.trim() && !save.isPending) save.mutate()
+    if (!canSave || save.isPending) return
+    // 删掉自有字段 / 选项会清空已用它建的记录里的值：有记录时先确认
+    const lost = tpl?.entryCount ? lossOf(tpl.fieldDefs, own) : []
+    if (lost.length) setLoss(lost)
+    else save.mutate()
   }
   const reset = useMutation({
     mutationFn: () => resetBuiltin(tpl?.id ?? ''),
@@ -207,7 +245,7 @@ export function TemplateForm({ tpl }: { tpl?: TemplateDetail }) {
                 size="sm"
                 variant="primary"
                 loading={save.isPending}
-                disabled={!name.trim()}
+                disabled={!name.trim() || ownInvalid}
                 data-testid="template-save"
               >
                 {t('template.save')}
@@ -297,19 +335,27 @@ export function TemplateForm({ tpl }: { tpl?: TemplateDetail }) {
           </select>
         </div>
       </fieldset>
-      <TemplateFieldPresets
+      <TemplateMetadata
         kind={kind}
         typeId={typeId}
-        value={fields}
-        onChange={setFields}
+        fields={fields}
+        onFields={setFields}
+        own={own}
+        onOwn={setOwn}
+        hidden={hidden}
+        onHidden={setHidden}
         editable={editable}
         canManageType={
           kind === 'custom'
             ? !!types.data?.items.find((x) => x.id === typeId)?.canManage
             : !!types.data?.canManageBuiltin
         }
-        typeLabel={kindOf(kind, typeId).label}
       />
+      {ownInvalid ? (
+        <p className="text-danger text-xs" data-testid="template-fields-invalid">
+          {t('fieldDefs.invalid')}
+        </p>
+      ) : null}
       {editable && canShare && !codeBuiltin && scope !== 'builtin' ? (
         <div className="flex flex-col gap-1">
           <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
@@ -349,117 +395,21 @@ export function TemplateForm({ tpl }: { tpl?: TemplateDetail }) {
           handleRef={editorRef}
         />
       </Suspense>
+      <ConfirmDialog
+        open={!!loss}
+        onOpenChange={(o) => !o && setLoss(null)}
+        title={t('fieldDefs.lossTitle')}
+        description={t('template.meta.lossBody', {
+          count: tpl?.entryCount ?? 0,
+          items: (loss ?? []).join('、'),
+        })}
+        confirmLabel={t('template.save')}
+        onConfirm={() => {
+          setLoss(null)
+          save.mutate()
+        }}
+      />
     </form>
-  )
-}
-
-/**
- * 字段预填（REQ-TPL-011）：按所绑类型的字段逐个预置值（与记录页属性面板同一套彩色值 / 编辑器）；
- * 下方可折叠「编辑该类型的字段」。模板不带日期类 Bug 字段（服务端剔除）。
- */
-function TemplateFieldPresets({
-  kind,
-  typeId,
-  value,
-  onChange,
-  editable,
-  canManageType,
-  typeLabel,
-}: {
-  kind: EntryKind
-  typeId: string | null
-  value: Record<string, unknown>
-  onChange: (v: Record<string, unknown>) => void
-  editable: boolean
-  canManageType: boolean
-  typeLabel: string
-}) {
-  const { t } = useTranslation()
-  const specs = useFieldSpecs()(kind, typeId).filter(
-    (f) => !(kind === 'bug' && (f.name === 'foundAt' || f.name === 'resolvedAt')),
-  )
-  const meta = useKindLabel()(kind, typeId)
-  const [open, setOpen] = useState(false)
-  const set = (name: string, v: unknown) => {
-    const next = { ...value }
-    if (v === undefined) delete next[name]
-    else next[name] = v
-    onChange(next)
-  }
-  return (
-    <section
-      className="flex flex-col gap-2 rounded-lg border border-divider p-3"
-      data-testid="template-fields"
-    >
-      <h3 className="font-medium text-sm">{t('template.fieldsPreset')}</h3>
-      {specs.length ? (
-        <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
-          {specs.map((f) => {
-            const Icon = fieldIcon(f)
-            const shown = (
-              <FieldValue
-                spec={f}
-                value={value[f.name]}
-                fields={value}
-                empty={<span className="text-fg-faint text-sm">{t('field.empty')}</span>}
-              />
-            )
-            return (
-              <div key={f.name} className="xz-prop-row" data-field={f.name}>
-                <dt className="xz-prop-label">
-                  <Icon className="size-3.5" aria-hidden />
-                  <span className="truncate">{f.label}</span>
-                </dt>
-                <dd className="min-w-0">
-                  {editable ? (
-                    <FieldEditor
-                      spec={f}
-                      value={value[f.name]}
-                      onCommit={(v) => set(f.name, v)}
-                      trigger={
-                        <button
-                          type="button"
-                          className="xz-prop-value"
-                          data-testid={`template-field-${f.name}`}
-                        >
-                          {shown}
-                        </button>
-                      }
-                    />
-                  ) : (
-                    <span className="inline-flex min-h-8 items-center">{shown}</span>
-                  )}
-                </dd>
-              </div>
-            )
-          })}
-        </dl>
-      ) : (
-        <p className="text-fg-muted text-sm">{t('template.noFields')}</p>
-      )}
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        className="inline-flex w-fit items-center gap-1 text-fg-muted text-xs hover:text-fg"
-        data-testid="template-type-fields-toggle"
-      >
-        <Disclosure open={open} />
-        {t('template.editTypeFields', { type: typeLabel })}
-      </button>
-      {open ? (
-        <div className="flex flex-col gap-2">
-          <p className="text-fg-muted text-xs">{t('template.editTypeFieldsHint')}</p>
-          <TypeFieldsSection
-            typeId={kind === 'custom' ? (typeId ?? undefined) : undefined}
-            kind={kind === 'custom' ? undefined : (kind as BuiltinEntryKind)}
-            defs={meta.fieldDefs}
-            canManage={canManageType}
-            compact
-          />
-        </div>
-      ) : null}
-    </section>
   )
 }
 
