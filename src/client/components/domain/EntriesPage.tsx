@@ -55,8 +55,6 @@ import { recentIds } from '../../lib/recent.ts'
 import { csvList } from '../../lib/search.ts'
 import { type Space, spaceGroupsQuery, spacesQuery } from '../../lib/space-queries.ts'
 import { useNewEntry } from '../../lib/stores.ts'
-import { typeTemplateFields } from '../../lib/template-fields.ts'
-import { templateFieldsQuery } from '../../lib/template-queries.ts'
 import { Button } from '../ui/button.tsx'
 import { EmptyState } from '../ui/empty-state.tsx'
 import { Input } from '../ui/input.tsx'
@@ -69,7 +67,7 @@ import { EntryCard } from './EntryCard.tsx'
 import { EntryRowMenu } from './EntryRowMenu.tsx'
 import { EntryTable } from './EntryTable.tsx'
 import { EntryTimeline, hasTimeline } from './EntryTimeline.tsx'
-import { defSpec, type FieldSpec, useFieldSpecs } from './FieldValue.tsx'
+import { useFieldSpecs, useTypeTemplateSpecs } from './FieldValue.tsx'
 import { SavedViewsNav, SaveViewButton } from './SavedViews.tsx'
 import { TagFilter } from './TagFilter.tsx'
 
@@ -121,7 +119,7 @@ export function EntriesPage({
   const typeIds = csvList(search.typeId)
   const kindOf = useKindLabel()
   const specsOf = useFieldSpecs()
-  const tplMetas = useQuery(templateFieldsQuery)
+  const templateSpecsOf = useTypeTemplateSpecs()
   // 类型筛选条：空间内按启用清单（ADR-0036），全局列全部可见类型
   const kindOptions = useKindOptions(space ?? null, { all: !space, personal: false })
   // 只选了一种类型：内置 kind，或一个自定义类型
@@ -192,18 +190,10 @@ export function EntriesPage({
   // 模板属性（ADR-0040、REQ-ENTRY-033）：绑这个类型的模板的自有字段与类型字段并列，可筛选 / 分组；
   // 正在用的键（当前筛选 / 分组）即使模板不绑这个类型也保留。同名的带模板名区分。
   const fieldValues = parseFieldsParam(search.fields)
-  const tplSpecs: FieldSpec[] = kind
-    ? typeTemplateFields(tplMetas.data ?? [], { kind, typeId: typeId ?? null }, kindSpecs, [
-        ...Object.keys(fieldValues),
-        ...(search.group ? [search.group] : []),
-      ]).map((f) => ({
-        ...defSpec(f.def),
-        label:
-          f.ambiguous && f.template
-            ? t('entry.templateField', { label: f.def.label, template: f.template })
-            : f.def.label,
-      }))
-    : []
+  const tplSpecs = templateSpecsOf(kind ? { kind, typeId: typeId ?? null } : null, kindSpecs, [
+    ...Object.keys(fieldValues),
+    ...(search.group ? [search.group] : []),
+  ])
   const filterSpecs = [...kindSpecs, ...tplSpecs]
   const groupOptions: EntryGroup[] = kind
     ? [

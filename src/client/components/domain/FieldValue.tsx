@@ -5,6 +5,8 @@
  * - `FieldValue`：只读彩色展示（胶囊 / 日期胶囊 / 进度条 / 勾选 / 链接），记录页属性面板、表格、看板、卡片共用。
  * - `FieldEditor`：点值弹出的编辑器（选项列表带色点 / 日期 / 数字 / 文本），提交即回调，由调用方 PATCH。
  */
+
+import { useQuery } from '@tanstack/react-query'
 import {
   CalendarDays,
   Check,
@@ -32,7 +34,8 @@ import { cn } from '../../lib/cn.ts'
 import type { EntryKind } from '../../lib/entry-queries.ts'
 import { useKindLabel } from '../../lib/entry-types.ts'
 import { dateTone, isClosedStatus, progressTone, valueTone } from '../../lib/field-tones.ts'
-import { useTemplateMetaOf } from '../../lib/template-queries.ts'
+import { typeTemplateFields } from '../../lib/template-fields.ts'
+import { templateFieldsQuery, useTemplateMetaOf } from '../../lib/template-queries.ts'
 import { Input } from '../ui/input.tsx'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.tsx'
 import { useUserTimeZone } from '../ui/relative-time.tsx'
@@ -185,6 +188,33 @@ export function useFieldSpecs() {
       )
     },
     [kindOf, t, tplOf],
+  )
+}
+
+/**
+ * 某类型下可作条件的模板属性规格（ADR-0040 · 0041、REQ-ENTRY-033 · REQ-BUG-013）：记录页筛选 / 分组与查询块设置共用。
+ * 来源 = 绑该类型的模板（按元数据目录，不看已加载的行）；`keep` = 正在用的键，即使其模板不绑该类型也保留；
+ * 与类型字段或别的模板属性同名时标签带模板名。
+ */
+export function useTypeTemplateSpecs() {
+  const { t } = useTranslation()
+  const { data } = useQuery(templateFieldsQuery)
+  return useCallback(
+    (
+      type: { kind: string; typeId: string | null } | null,
+      typeSpecs: readonly FieldSpec[],
+      keep: readonly string[] = [],
+    ): FieldSpec[] =>
+      type
+        ? typeTemplateFields(data ?? [], type, typeSpecs, keep).map((f) => ({
+            ...defSpec(f.def),
+            label:
+              f.ambiguous && f.template
+                ? t('entry.templateField', { label: f.def.label, template: f.template })
+                : f.def.label,
+          }))
+        : [],
+    [data, t],
   )
 }
 

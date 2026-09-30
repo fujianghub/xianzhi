@@ -77,7 +77,7 @@ LOG_LEVEL=info
 | 命令 | 作用 |
 |---|---|
 | `pnpm i` | 安装（`.npmrc` 已指 mirror） |
-| `pnpm dev` | 并行起 client(3010) + api(8010) + collab(8011)，`tsx watch` |
+| `pnpm dev` | 并行起 client(3010) + api(8010) + collab(8011)，`tsx watch`（注 2026-10-01：本机常驻 3010 也用它起；曾以 `concurrently … "tsx src/server/index.ts"` 直跑，合并服务端改动后 API 仍是旧代码，新前端读不到新字段整页崩溃，见 debug/2026-10-01-dev-api-no-watch-stale） |
 | `pnpm db:up` / `db:down` | `docker compose -f infra/docker-compose.yml up -d pg mailpit` |
 | `pnpm db:generate` / `db:migrate` / `db:studio` | `generate` / `studio` 走 drizzle-kit；`migrate` 走 `tsx src/server/db/migrate.ts`（drizzle-orm migrator，错误可见，与 `start.ts` / 测试建库复用同一函数） |
 | `pnpm auth:generate` | `pnpm dlx @better-auth/cli@1.4.21 generate`（CLI 独立版本线停在 1.4，对 1.7 配置可用；不进 devDependencies）→ `src/server/db/schema/auth.ts`，再 `db:generate` |

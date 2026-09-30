@@ -1,9 +1,9 @@
 /**
  * ADR-0039 模板元数据（REQ-TPL-016 · 017 · 018、REQ-ENTRY-032）：模板编辑页增 / 删 / 改模板属性、移除 / 恢复类型属性；
  * 用模板新建的记录带这些属性；回头改模板，已建记录跟着变。
- * ADR-0040（REQ-ENTRY-033）：记录页按模板属性筛选与分组。
+ * ADR-0040（REQ-ENTRY-033）：记录页按模板属性筛选与分组。ADR-0041（REQ-BUG-013）：查询块按模板属性设条件。
  */
-import { type APIRequestContext, expect, test } from '@playwright/test'
+import { type APIRequestContext, expect, type Page, test } from '@playwright/test'
 import { createEntry, STATE, sameSite } from './helpers.ts'
 
 test.use({ storageState: STATE.owner })
@@ -196,3 +196,94 @@ test('REQ-ENTRY-033 记录页：选中类型后可按模板属性筛选与分组
   await request.delete(`/api/v1/templates/${tpl.id}`, { headers: sameSite })
   await request.delete(`/api/v1/spaces/${space.id}`, { headers: sameSite })
 })
+
+test('REQ-BUG-013 查询块：选中类型后条件里有模板属性，按它筛出的结果实时显示并写回属性', async ({
+  page,
+  request,
+}) => {
+  const slug = `qb-${stamp()}`
+  const sp = await request.post('/api/v1/spaces', {
+    data: { name: `查询块 ${slug}`, slug, kind: 'project', visibility: 'workspace' },
+    headers: sameSite,
+  })
+  expect(sp.status(), await sp.text()).toBe(201)
+  const space = (await sp.json()) as { id: string }
+  const tr = await request.post('/api/v1/templates', {
+    data: {
+      name: `日报 ${slug}`,
+      kind: 'note',
+      body: { type: 'doc', content: [{ type: 'paragraph' }] },
+      fieldDefs: [
+        {
+          label: `状况${slug}`,
+          type: 'select',
+          options: [
+            { name: '顺利', color: 'green' },
+            { name: '受阻', color: 'red' },
+          ],
+        },
+      ],
+    },
+    headers: sameSite,
+  })
+  expect(tr.status(), await tr.text()).toBe(201)
+  const tpl = (await tr.json()) as Tpl
+  const key = tpl.fieldDefs[0]?.key ?? ''
+  const mk = (title: string, fields: Record<string, unknown>) =>
+    createEntry(request, { kind: 'note', title, spaceId: space.id, templateId: tpl.id, fields })
+  const ids = [
+    await mk('日报一', { [key]: '顺利' }),
+    await mk('日报二', { [key]: '受阻' }),
+    await mk('日报三', { [key]: '受阻' }),
+  ]
+  const host = await createEntry(request, { kind: 'note', title: '日报汇总', spaceId: space.id })
+  ids.push(host)
+
+  await openEntry(page, host)
+  await page.keyboard.type('/查询')
+  await page.keyboard.press('Enter')
+  const block = page.getByTestId('editor').getByTestId('entry-query')
+  await expect(block).toBeVisible()
+  await block.getByTestId('entry-query-settings').click()
+  const dlg = page.getByTestId('entry-query-dialog')
+  // 默认是 Bug：没有这个模板属性；换成随笔后出现
+  await expect(dlg.getByTestId(`entry-query-field-${key}`)).toHaveCount(0)
+  await dlg.getByTestId('entry-query-kind').selectOption('note')
+  const cond = dlg.getByTestId(`entry-query-field-${key}`)
+  await expect(cond).toBeVisible()
+  await cond.selectOption('受阻')
+  await dlg.getByTestId('entry-query-save').click()
+  await expect(block.getByTestId('entry-row')).toHaveCount(2)
+  await expect(block).toContainText('日报二')
+  await expect(block).not.toContainText('日报一')
+  // 条件写进了查询块属性（记录页 search 白名单格式）
+  await expect
+    .poll(
+      async () =>
+        JSON.stringify(
+          (
+            (await (await request.get(`/api/v1/entries/${host}?withBody=1`)).json()) as {
+              pmJson: unknown
+            }
+          ).pmJson,
+        ),
+      { timeout: 15_000 },
+    )
+    .toContain(`fields=${key}`)
+  // 再打开设置：条件仍在
+  await block.getByTestId('entry-query-settings').click()
+  await expect(dlg.getByTestId(`entry-query-field-${key}`)).toHaveValue('受阻')
+  await page.keyboard.press('Escape')
+
+  for (const id of ids) await request.delete(`/api/v1/entries/${id}`, { headers: sameSite })
+  await request.delete(`/api/v1/templates/${tpl.id}`, { headers: sameSite })
+  await request.delete(`/api/v1/spaces/${space.id}`, { headers: sameSite })
+})
+
+async function openEntry(page: Page, id: string) {
+  await page.goto(`/entries/${id}`)
+  await expect(page.getByTestId('status-pill')).toHaveAttribute('data-status', 'synced', {
+    timeout: 15_000,
+  })
+  await page.getByTestId('editor').click()
+}
