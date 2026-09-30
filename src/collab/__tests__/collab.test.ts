@@ -390,6 +390,39 @@ describe('collab', () => {
     expect(frag.toString()).toContain('<table>')
   })
 
+  it('03 §6 模板：从未落库就离开再打开，服务端再注入一次，与客户端本地缓存合并后不重复（确定性注入）', async () => {
+    const created = await app.request('/api/v1/entries', {
+      method: 'POST',
+      headers: jsonHeaders({ cookie: ownerCookie }),
+      body: JSON.stringify({
+        kind: 'decision',
+        title: '重复注入',
+        spaceId,
+        fields: { status: 'proposed' },
+      }),
+    })
+    const id = ((await created.json()) as { id: string }).id
+    const name = docNameOf(id)
+    const a = open(id, signCollabToken(SECRET, ownerId, id).token)
+    await until(() => a.state.synced, 3000, 'a synced')
+    const first = a.doc.getXmlFragment(YDOC_FRAGMENT).length
+    expect(first).toBeGreaterThan(3)
+    // 客户端本地缓存（y-indexeddb）里留下的状态；不编辑就离开 → 不落库、服务端卸载文档
+    const cached = Y.encodeStateAsUpdate(a.doc)
+    a.destroy()
+    await until(() => !collab.server.hocuspocus.documents.has(name), 5000, 'unload')
+    const [row] = await getDb()
+      .select({ v: entries.ydocVersion })
+      .from(entries)
+      .where(eq(entries.id, id))
+    expect(row?.v).toBe(0)
+    // 再次打开：服务端重新注入；本地缓存随后合并进来
+    const b = open(id, signCollabToken(SECRET, ownerId, id).token)
+    await until(() => b.state.synced, 3000, `b synced ${JSON.stringify(b.state)}`)
+    Y.applyUpdate(b.doc, cached)
+    expect(b.doc.getXmlFragment(YDOC_FRAGMENT).length).toBe(first)
+  })
+
   it('REQ-WS-004 user.revoked：该用户连接 1s 内以 4403 断开，其他人不受影响', async () => {
     const mine = open(noteId, signCollabToken(SECRET, guestId, noteId).token)
     const other = open(noteId, signCollabToken(SECRET, ownerId, noteId).token)
