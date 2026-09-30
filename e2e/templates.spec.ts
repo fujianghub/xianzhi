@@ -70,9 +70,9 @@ test('REQ-TPL-004 另存为模板 → 设置页可见、预览、用它新建、
   await row.getByTestId('template-delete').click()
   await page.getByTestId('confirm-ok').click()
   await expect(row).toHaveCount(0)
-  // 内置模板在「内置」组、不可删
+  // 内置模板在「内置」组；ADR-0038：所有者（本用例登录身份）可删，成员不可（API 用例 REQ-TPL-014）
   await expect(page.getByTestId('templates-builtin').getByTestId('template-row')).toHaveCount(6)
-  await expect(page.getByTestId('templates-builtin').getByTestId('template-delete')).toHaveCount(0)
+  await expect(page.getByTestId('templates-builtin').getByTestId('template-delete')).toHaveCount(6)
 })
 
 test('REQ-TPL-005 斜杠「模板」在光标处插入学习笔记，原内容保留', async ({ page, request }) => {
@@ -91,4 +91,62 @@ test('REQ-TPL-005 斜杠「模板」在光标处插入学习笔记，原内容�
   await expect(dlg).toBeHidden()
   await expect(editor(page).locator('h2', { hasText: '核心概念' })).toBeVisible()
   await expect(editor(page)).toContainText('原有的一句话')
+})
+
+test('REQ-TPL-012 新建模板：正文区带吸顶格式工具栏（加粗可用），「+」插入面板不含图片 / 附件等依赖记录的项', async ({
+  page,
+}) => {
+  await page.goto('/settings/templates/new')
+  const paper = page.getByTestId('template-paper')
+  await expect(paper.getByTestId('editor-toolbar')).toBeVisible()
+  const body = page.getByTestId('template-editor')
+  await body.click()
+  await page.keyboard.type('模板正文')
+  await page.keyboard.press('ControlOrMeta+a')
+  await paper.getByTestId('tb-bold').click()
+  await expect(body.locator('strong')).toHaveText('模板正文')
+  await paper.getByTestId('insert-open').click()
+  const panel = page.getByTestId('insert-panel')
+  await expect(panel.locator('[data-insert="table"]')).toBeVisible()
+  await expect(panel.locator('[data-insert="image"]')).toHaveCount(0)
+  await expect(panel.locator('[data-insert="file"]')).toHaveCount(0)
+  await expect(panel.locator('[data-insert="entryLink"]')).toHaveCount(0)
+})
+
+test('REQ-TPL-013 · 014 所有者改内置模板名 → 列表显示「已修改」，可恢复默认；删除后在「已删除的内置模板」里恢复', async ({
+  page,
+  request,
+}) => {
+  const id = 'builtin:reading-note'
+  // 共用库 xz_e2e：无论成败都把该内置模板复原
+  const cleanup = () => request.post(`/api/v1/templates/${id}/reset`, { headers: sameSite })
+  try {
+    await cleanup()
+    await page.goto('/settings/templates')
+    const row = page.locator(`[data-testid="template-row"][data-template-id="${id}"]`)
+    const original = (await row.locator('span.truncate').first().textContent()) ?? ''
+    await row.getByTestId('template-edit').click()
+    await expect(page.getByTestId('template-form')).toBeVisible()
+    const renamed = `读书卡 ${stamp()}`
+    await page.getByTestId('template-name').fill(renamed)
+    await page.getByTestId('template-save').click()
+    await expect(page).toHaveURL(/\/settings\/templates$/)
+    await expect(row).toContainText(renamed)
+    await expect(row.getByTestId('template-customized')).toBeVisible()
+    await row.getByTestId('template-reset').click()
+    await expect(row).toContainText(original)
+    await expect(row.getByTestId('template-customized')).toHaveCount(0)
+
+    await row.getByTestId('template-delete').click()
+    await page.getByTestId('confirm-ok').click()
+    await expect(row).toHaveCount(0)
+    await page
+      .getByTestId('templates-deleted')
+      .locator(`[data-testid="deleted-template-row"][data-template-id="${id}"]`)
+      .getByTestId('template-restore')
+      .click()
+    await expect(row).toBeVisible()
+  } finally {
+    await cleanup()
+  }
 })

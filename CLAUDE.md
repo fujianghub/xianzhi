@@ -8,7 +8,7 @@
 - 单 package TypeScript：`src/client`（Vite 8 + React 19 + TanStack + Tailwind v4 + shadcn）· `src/server`（Hono + Drizzle + pg-boss）· `src/collab`（Hocuspocus）· `src/shared`（Zod schema、编辑器模板、`tz.ts`）
 - 数据：PostgreSQL 16（pgvector 镜像，独立容器）；正文 = Yjs 二进制 `entries.ydoc`
 - 认证：Better Auth（organization/admin/2FA/passkey/magicLink/apiKey/username）；Better Auth 自助注册关闭，注册只走 `POST /workspace/join-requests`，审批前无 `member` 行 = 不能登录；邮箱或用户名 + 密码（≥ 8 位）登录，前置服务端拼图滑块（ADR-0006 / 0008）；collab WebSocket 用 `POST /collab/token` 按文档签发的 5 分钟票据，不用 Cookie
-- 视觉：Apple 玻璃（ADR-0002）+ 翡翠主色、燕印、动效档位（ADR-0005）+ 空间 / 标签 / 日历共用鲜艳 9 色板（ADR-0010）；日场 / 夜场，默认跟随系统；字体 npm 自托管、异步加载；记录页 = 标题 → 文档栏 → 吸顶格式栏 → 正文，排版由按人存的阅读偏好（`user_preferences`，ADR-0024 ~ 0031）决定；认证四页共用 `AuthShell`「衔枝小院」：幼燕插画 + 情绪状态机，动作引擎 `components/auth/bird-engine.ts`，开发用 `/login?birdlab` 逐个触发（ADR-0034）
+- 视觉：Apple 玻璃（ADR-0002）+ 翡翠主色、燕印、动效档位（ADR-0005）+ 空间 / 标签 / 日历共用鲜艳 9 色板（ADR-0010）；日场 / 夜场，默认跟随系统；字体 npm 自托管、异步加载；记录页 = 标题 → 紧凑属性列表（空属性收起、流转摘要弹层）→ 文档栏（字数 · 阅读弹层 · 专注 · 保存 · Markdown）→ 吸顶格式栏（吸顶才有底线）→ 正文（ADR-0035 · 0037），排版由按人存的阅读偏好（`user_preferences`，ADR-0024 ~ 0031）决定；认证四页共用 `AuthShell`「衔枝小院」：幼燕插画 + 情绪状态机，动作引擎 `components/auth/bird-engine.ts`，开发用 `/login?birdlab` 逐个触发（ADR-0034）
 - 分期：一期 = Phase 0–2（可用版本）· 二期 = Phase 3（MCP / 导入 / AI / pgvector）；规范里不出现「三期」
 - 端口：3010 Vite · 8010 API · 8011 collab · 5433 PG · 8025 Mailpit（简斋占 3001/8002/5432/6379，勿撞）
 - 部署：腾讯云与简斋同机，Compose 三服务，复用其 Caddy；`infra/`；远端 `github.com/fujianghub/xianzhi`
@@ -51,12 +51,12 @@ pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore 
 | 文件 | 内容 |
 |---|---|
 | `spec_dev_doc/adr/0001-tech-stack.md` | 选型与 8 项决定、分期、各技术介绍 / 作用 / 语言（§10） |
-| `spec_dev_doc/adr/0002 · 0003 · 0004 · 0005 · 0006 · 0007` | 视觉改 Apple 玻璃 · 工期基线 = 任务级估时 · 更名衔枝（gi → xz） · 翡翠主色 / 燕印 / 动效档位 · 登录拼图滑块 · 晨光白燕燕印 |
-| `spec_dev_doc/adr/0008 · 0009 · 0010 · 0011` | 开放注册 + 审批 / 用户名 / 密码 8 位 · 日历日程（重复、提醒、节假日） · 鲜艳 9 色板 / 日历拖选 / owner 用户管理 / 个人资料 · 历史版本恢复 · Markdown 源码对话框 / 语雀式识别 · 附件类型（Office / csv）· 记录模板（`entry_templates`、kind `optimize` `plan`） |
+| `spec_dev_doc/adr/0002 ~ 0011` | 视觉改 Apple 玻璃 · 工期基线 = 任务级估时 · 更名衔枝（gi → xz） · 翡翠主色 / 燕印 / 动效档位 · 登录拼图滑块 · 晨光白燕燕印 · 开放注册 + 审批 / 用户名 / 密码 8 位 · 日历日程（重复、提醒、节假日） · 鲜艳 9 色板 / 日历拖选 / owner 用户管理 / 个人资料 · 历史版本恢复 · Markdown 源码对话框 / 语雀式识别 · 附件类型（Office / csv）· 记录模板（`entry_templates`、kind `optimize` `plan`） |
 | `spec_dev_doc/adr/0012 ~ 0015` | 大类 `space_groups`（大类 → 空间 → 记录）· 空间概览 / 类型视图 · 目录树 · `/links` 关联与反链 · 界面称呼定为「空间」· 我的记录：位置导航（大类 → 空间 → 目录）· 标签自定义 / 合并 · 收藏 / 最近 · 批量 `/entries/batch` · 看板 / 时间线 · 目录引导线与字重分级（`DirTree` / `TreeGuides`）· 个人空间工作台（空间目录）· 记录类型图标色块（`KindIcon`，`.xz-chip` 只取 token） |
 | `spec_dev_doc/adr/0016 · 0017` | 日历快速编辑气泡 / 任务拖动 · 记录默认列表 + 批量改类型 / 状态 · 侧栏「空间」可点 · 标签与自定义类型按人隔离（读写按 `tags.created_by` 过滤）· 内置类型所有者维护（`entry_kind_overrides`、`/settings/types`） |
 | `spec_dev_doc/adr/0018 ~ 0022` | 大类就地管理（侧栏 ⋯）· 在空间里就地新建：对话框「建在」行、`e` 跟随上下文（`useNewEntryContext`）、新建子页面 / 新建并关联（`linkFrom`）· `[[` 新建 · 侧栏 / 目录「+」· 空间默认类型与模板 · 设计画廊挪进设置（`/settings/design`，旧 `/design` 跳转）、工具栏 / 对比度表 / 领域组件 · 空间批量管理：`POST /spaces/batch`（dryRun 计数、purge 只收回收站）· `/spaces`「批量管理」· 回收站空间多选 · 0022 合并空间 `POST /spaces/:id/merge` |
-| `spec_dev_doc/adr/0023 ~ 0034` | 模板直接编辑 / 工作区共享 · 阅读偏好（`/me/preferences`、阅读胶囊、专注、纸张）· 编辑器对齐简斋（插入面板、块手柄菜单、表格工具条、代码块复制 / 折叠、提示块、色板文字色 / 背景色、Mermaid / KaTeX）· 版心默认满栏 · 目录自动编号与卡片 · Ctrl+S 保存版本（stateless）/ 打标记 · 文档栏 + 素净格式栏 · 表头列 · 插入时间 · 0033 Bug 跟踪：四态 `new/pending/fixed/wontfix` + 优先级、`/entries/stats` `/entries/bug-stats` 统计视图、流转 `entry_field_changes`、保存视图 `entry_views`、查询块 `entryQuery`，记录页筛选白名单 `src/shared/entry-search.ts` · 0034 认证页「衔枝小院」：双栏插画 / 窄屏探头幼燕、`--xz-bird-*` token、扭头躲开 / 转身 / 喙指向指针，减弱档 CSS 须留 `auth.css` 末尾 |
+| `spec_dev_doc/adr/0023 ~ 0034` | 模板直接编辑 / 工作区共享 · 阅读偏好（`/me/preferences`、阅读设置、专注、纸张）· 编辑器对齐简斋（插入面板、块手柄菜单、表格工具条、代码块复制 / 折叠、提示块、色板文字色 / 背景色、Mermaid / KaTeX）· 版心默认满栏 · 目录自动编号与卡片 · Ctrl+S 保存版本（stateless）/ 打标记 · 文档栏 + 素净格式栏 · 表头列 · 插入时间 · 0033 Bug 跟踪：四态 `new/pending/fixed/wontfix` + 优先级、`/entries/stats` `/entries/bug-stats` 统计视图、流转 `entry_field_changes`、保存视图 `entry_views`、查询块 `entryQuery`，记录页筛选白名单 `src/shared/entry-search.ts` · 0034 认证页「衔枝小院」：双栏插画 / 窄屏探头幼燕、`--xz-bird-*` token、扭头躲开 / 转身 / 喙指向指针，减弱档 CSS 须留 `auth.css` 末尾 |
+| `spec_dev_doc/adr/0035 ~ 0038` | 就地管理（`SpaceMenu` / `EntryRowMenu`，含右键）· 属性面板与元数据配色（`FieldValue`、`lib/field-tones.ts`）· 表格就地编辑（`useFieldCommit`）· 0036 空间类型（`entry_types.space_id`）/ 启用清单（`spaces.enabled_kinds`）/ 字段定义（`field_defs`，值存 `fields` 的 `x`+6 位大写键）/ 模板绑任一类型 · 0037 编辑区极简排版 + 模板编辑器工具栏 · 0038 内置模板所有者覆盖（`builtin_template_overrides`，`/restore` 取消删除、`/reset` 恢复默认）/ 新增（scope `builtin`） |
 | `spec_dev_doc/01-domain-model.md` | 表结构、`fields` schema、事件种类、权限矩阵 |
 | `spec_dev_doc/02-api-conventions.md` | 路由/错误/分页/SSE/文件/MCP 约定、路由清单 |
 | `spec_dev_doc/03-editor-kernel.md` | Tiptap schema、Hocuspocus 钩子、快照、模板、交互规格、简斋陷阱 |

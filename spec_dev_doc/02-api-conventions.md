@@ -269,7 +269,7 @@
 | PUT | `/entries/:id/favorite` | 收藏（个人；需可读；幂等）（ADR-0014） | REQ-ENTRY-012 |
 | DELETE | `/entries/:id/favorite` | 取消收藏（ADR-0014） | REQ-ENTRY-012 |
 | PATCH | `/entries/:id/move` | `{ parentId, after }` 移到目录某处 / `{ detach: true }` 移出目录；需 entry.write；防环、after 须同级 | REQ-KB-005 |
-| POST | `/entries` | `{ kind, title, spaceId?, fields, visibility, templateId? }` → `{ id }`；正文经 collab；`templateId`（`builtin:<key>` / uuid / `builtin:blank`）→ 模板正文写成初始 ydoc（ADR-0011 §2）（注 ADR-0018：+`linkFrom?: { entryId, kind ∈ relates\|blocks\|caused_by\|resolves }`，源端按 `POST /links` 同一套 can() 校验，同事务建关联） | REQ-ENTRY-001 · REQ-TPL-003 |
+| POST | `/entries` | `{ kind, title, spaceId?, fields, visibility, templateId? }` → `{ id }`；正文经 collab；`templateId`（`builtin:<key>` / uuid / `builtin:blank`）→ 模板正文写成初始 ydoc（ADR-0011 §2）（注 ADR-0018：+`linkFrom?: { entryId, kind ∈ relates\|blocks\|caused_by\|resolves }`，源端按 `POST /links` 同一套 can() 校验，同事务建关联）（注 ADR-0038：内置模板取所有者覆盖后的版本；已删除的内置模板 422） | REQ-ENTRY-001 · REQ-TPL-003 · 015 |
 | GET | `/entries/:id` | 元数据详情（无 `ydoc`；`pmJson` 仅 `?withBody=1`） | REQ-ENTRY-003 |
 | PATCH | `/entries/:id` | 标题、fields、可见性、`spaceId`（移动）、`pinned`；带 `ifUpdatedAt`（注 ADR-0016：可改 `kind`（自定义再给 `typeId`），未给 fields 时按目标类型重建；注 ADR-0036：fields 未定义的 x 键静默丢弃、类型 / 选项不符 422；改类型保留同 key 的 x 值；空间类型记录改 `spaceId` 到别的空间 422；`typeId` 须为本人个人类型或所在空间的空间类型） | REQ-ENTRY-004 · 006 · 011 · 017 · 026 · 027 · 029 |
 | DELETE | `/entries/:id` | 软删；`?permanent=1` | REQ-ENTRY-007 |
@@ -314,11 +314,13 @@
 | PATCH | `/tags/:id` | 改名 / 颜色 | REQ-TAG-001 |
 | DELETE | `/tags/:id` | 删除并解除关联 | REQ-TAG-001 |
 | POST | `/tags/:id/merge` | `{ intoId }` 关联并入目标（去重）后删源；需两者 `tag.manage`（ADR-0014） | REQ-TAG-005 |
-| GET | `/templates` | 内置 + 本人个人 + 工作区模板（`?kind=&spaceKind=`）；不返回正文；另返回 `canShare`，每行 `ownerName` `spaceDefaults`（ADR-0023）（注 ADR-0036：+`?typeId=`，每行带 `typeId`） | REQ-TPL-001 · 004 · 006 · 009 · 011 |
-| POST | `/templates` | `{ name, scope, description?, spaceKind?, body+kind \| fromEntryId \| fromTemplateId }`（三选一；fromTemplateId = 复制到我的）；workspace 范围需非 guest（~~需管理员~~，ADR-0023）；幂等（注 ADR-0036：`kind` 可为 `custom` + `typeId`；workspace 模板只能绑内置 / 空间类型，personal 还可绑本人个人类型；`fields` 可含所绑类型的 x 键） | REQ-TPL-004 · 006 · 008 · 011 |
-| GET | `/templates/:id` | 详情带 `body`（id 可为 `builtin:<key>`） | REQ-TPL-001 · 005 |
-| PATCH | `/templates/:id` | 改名 / 说明 / 范围 / 推荐空间类型 / 正文 `body` / `kind` / `fields`（ADR-0023）；必带 `ifUpdatedAt`（409 `CONFLICT_STALE`）；改回 personal 时清掉引用它的空间默认模板；内置 403（注 ADR-0036：+`typeId`；改为 workspace 时若绑的是个人类型 422） | REQ-TPL-004 · 007 · 009 · 011 |
-| DELETE | `/templates/:id` | 删除；内置 403；已建记录不受影响；同事务清掉引用它的空间默认模板 | REQ-TPL-004 · 009 |
+| GET | `/templates` | 内置 + 本人个人 + 工作区模板（`?kind=&spaceKind=`）；不返回正文；另返回 `canShare`，每行 `ownerName` `spaceDefaults`（ADR-0023）（注 ADR-0036：+`?typeId=`，每行带 `typeId`）（注 ADR-0038：内置行为覆盖后的版本、不含已删除的，含 `scope = builtin` 的入库内置模板，每行带 `canManage`；`?deleted=1` 仅所有者，只列已删除的代码内置模板，非所有者 403） | REQ-TPL-001 · 004 · 006 · 009 · 011 · 013 · 014 · 015 |
+| POST | `/templates` | `{ name, scope, description?, spaceKind?, body+kind \| fromEntryId \| fromTemplateId }`（三选一；fromTemplateId = 复制到我的）；workspace 范围需非 guest（~~需管理员~~，ADR-0023）；幂等（注 ADR-0036：`kind` 可为 `custom` + `typeId`；workspace 模板只能绑内置 / 空间类型，personal 还可绑本人个人类型；`fields` 可含所绑类型的 x 键）（注 ADR-0038：`scope` 可为 `builtin`，仅所有者，其余 403；绑类型规则同 workspace；`fromTemplateId` 为内置时复制覆盖后的版本，已删除的 404） | REQ-TPL-004 · 006 · 008 · 011 · 014 |
+| GET | `/templates/:id` | 详情带 `body`（id 可为 `builtin:<key>`）（注 ADR-0038：内置为覆盖后的版本，另带 `customized` `updatedAt`（无覆盖为 1970-01-01 基准）；已删除的内置对非所有者 404，对所有者带 `deleted: true`） | REQ-TPL-001 · 005 · 013 |
+| PATCH | `/templates/:id` | 改名 / 说明 / 范围 / 推荐空间类型 / 正文 `body` / `kind` / `fields`（ADR-0023）；必带 `ifUpdatedAt`（409 `CONFLICT_STALE`）；改回 personal 时清掉引用它的空间默认模板；内置 403（注 ADR-0036：+`typeId`；改为 workspace 时若绑的是个人类型 422）（注 ADR-0038：内置不再一律 403——所有者可改：代码内置写 `builtin_template_overrides`（`name` `description` `kind`〔仅内置 kind〕`spaceKinds` `fields` `body`；`ifUpdatedAt` 无覆盖时为 `1970-01-01T00:00:00.000Z`（详情 / 列表的 `updatedAt` 即此值）；不可改 `scope`），`scope = builtin` 的行同普通模板；非所有者 403） | REQ-TPL-004 · 007 · 009 · 011 · 013 · 014 |
+| DELETE | `/templates/:id` | 删除；~~内置 403~~；已建记录不受影响；同事务清掉引用它的空间默认模板（注 ADR-0038：代码内置 = 所有者软删除 `deleted = true`，不清空空间默认模板〔视为未设置〕；`scope = builtin` = 所有者硬删；非所有者 403） | REQ-TPL-004 · 009 · 013 · 014 |
+| POST | `/templates/:id/restore` | （ADR-0038）仅代码内置 `builtin:<key>`：取消删除（保留已做的修改）；仅所有者（403）；非代码内置 id 422；未删除时幂等 200 | REQ-TPL-013 |
+| POST | `/templates/:id/reset` | （ADR-0038）仅代码内置 `builtin:<key>`：删除覆盖行 = 恢复默认（修改与「已删除」一并清掉）；仅所有者（403）；非代码内置 id 422；无覆盖行时幂等 200 | REQ-TPL-013 |
 
 注（2026-09-24，T1-021 / T1-022）：
 - 标签：创建为非 guest（authz `tag.create`，供 TagPicker 输入即创建）；改名、改色、删除限 owner/admin（`tag.manage`，影响全工作区；注 2026-09-26 ADR-0014：创建者也可，`tags.created_by`，列表每项带 `canManage`）。`GET /tags` 不分页，附 `usage { tasks, entries }` 计数。`?tag=a,b` 为逗号多值，任一命中，最多 20 个。

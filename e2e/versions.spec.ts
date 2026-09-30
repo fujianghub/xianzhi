@@ -1,6 +1,6 @@
 /** ADR-0026：Ctrl+S 保存版本（REQ-COLLAB-017）、打标记（REQ-COLLAB-018）、目录自动编号与当前标题（REQ-READ-008）、满栏工具栏不遮挡（REQ-EDITOR-032）。 */
 import { expect, type Page, test } from '@playwright/test'
-import { createEntry, STATE, sameSite } from './helpers.ts'
+import { createEntry, openReading, STATE, sameSite } from './helpers.ts'
 
 test.use({ storageState: STATE.owner })
 
@@ -95,7 +95,7 @@ test('REQ-READ-008 右侧目录默认自动编号（跳级压缩），可关闭�
   await page.mouse.wheel(0, -8000)
   await expect(outline.locator('[data-active]')).toContainText('背景')
   // 目录格式里关闭自动编号
-  await page.getByTestId('reading-open-toc').click()
+  await openReading(page, 'toc')
   await page.getByTestId('reading-toc-numbers').click()
   await expect(outline.getByTestId('outline-num')).toHaveCount(0)
 })

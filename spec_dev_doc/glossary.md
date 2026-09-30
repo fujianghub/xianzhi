@@ -43,7 +43,7 @@
 | 周期状态 | `cycle.status` | `planning` / `active` / `reviewed` | 规划中 / 进行中 / 已复盘 | `cycle.status.<value>` | | 01 §3.3 |
 | 记录 | Entry / `entry` | `entries` | 记录 | `entry.entry` | 富文本主体；**不叫笔记 / 文档 / note** | 01 §3.4 |
 | 记录类型 | `entry.kind` | `decision` `iteration` `bug` `changelog` `journal` `note` `review` `optimize` `plan` | 决策 / 迭代 / Bug / 变更 / 日志 / 随笔 / 复盘 / 优化 / 学习计划 | `entry.kind.<value>` | `note` 的中文是「随笔」；`optimize` `plan` 为 ADR-0011 新增 | 01 §3.4 |
-| 模板 | Template / `template` | `entry_templates`；内置 `builtin:<key>` | 模板 | `template.*` | 新建记录的正文种子；个人 / 工作区 / 内置三类；**不是**正文真源 | ADR-0011 §2 · 01 §3.4 |
+| 模板 | Template / `template` | `entry_templates`；内置 `builtin:<key>` | 模板 | `template.*` | 新建记录的正文种子；个人 / 工作区 / 内置三类；**不是**正文真源（注 2026-09-30 ADR-0038：内置 = 代码内置〔可被所有者覆盖〕+ `scope = builtin` 的入库模板，见「内置模板覆盖」） | ADR-0011 §2 · 01 §3.4 |
 | 历史版本 | Snapshot / `snapshot` | `entry_snapshots` | 历史 / 版本 | `entry.history.*` | 自动快照 + 标记版本；「恢复」= 以一次修改写回，不覆盖 ydoc | 03 §5 |
 | 源码编辑 | Source / `source` | — | Markdown 源码 | `editor.source.*` | 一次性导入，不是 Markdown 往返真源 | ADR-0011 §1 |
 | 元数据字段 | Fields / `fields` | jsonb | 属性 | `entry.fields` | 按 kind 的结构化元数据 | 01 §3.5 |
@@ -109,4 +109,8 @@
 | 空间类型 | Space entry type / `entry_types.space_id` | `entry_types` | 本空间类型 | `space.types.*` | 空间自有的记录类型：只能用于该空间的记录，空间成员都可用，`space.manage` 管理；记录不能带着它移到别的空间；合并空间时随之改挂（ADR-0036）。勿与「空间种类」（`space.kind`）混淆 | 01 §3.4c |
 | 启用类型 | Enabled kinds / `enabledKinds` | `spaces.enabled_kinds` | 启用的类型 | `space.types.enabled` | 空间里可用、并作为首页页签的类型清单（内置 kind 或 `type:<uuid>`，有序）；null = 按空间种类推导默认（ADR-0036） | 01 §3.1 |
 | 字段定义 | Field definition / `FieldDef` | `entry_types.field_defs` · `entry_kind_overrides.field_defs` | 属性 / 字段 | `entry.fieldDef.*` | 类型上定义的自定义属性（名、类型、选项与颜色、必填提示）；值存 `entries.fields` 的 `x…` 键；内置类型的代码字段不在此（ADR-0036） | 01 §3.5 |
-| 属性面板 | Properties panel / `EntryProperties` | — | 属性 | `entry.props.*` | 记录页标题下常显的元数据区：彩色值点击即改、标签、底部流转时间线；取代默认收起的属性栏（ADR-0035） | 08 §2.9 |
+| 属性面板 | Properties panel / `EntryProperties` | — | 属性 | `entry.props.*` | 记录页标题下常显的元数据区：彩色值点击即改、标签、底部流转时间线；取代默认收起的属性栏（ADR-0035）（注 2026-09-30 ADR-0037：改为紧凑属性列表——属性名淡色无图标、标签并入列表、空属性默认收起；流转改为下方一行「流转摘要」） | 08 §2.9 |
+| 流转摘要 | Field-change summary / `entry-flow-summary` | `entry_field_changes` | 流转 N 次 | `entry.flow.*` | 属性列表下一行：流转次数 + 最近一次变化；点击弹出按事件分组（同一人 ≤ 2 秒合为一组）的时间线弹层，不推开正文（ADR-0037） | 08 §2.9 |
+| 阅读弹层 | Reading popover / `reading-open` | — | 阅读 | `reading.*` | 文档栏「Aa 阅读」按钮弹出的单个弹层，内分 字体 / 纸张 / 排版 / 目录 四页；取代阅读胶囊的四个图标弹层（ADR-0037） | 08 §2.9 |
+| 内置模板覆盖 | Builtin template override | `builtin_template_overrides` | 编辑（内置模板） | `settings.templates.*` | 所有者对代码内置模板（`builtin:<key>`）的工作区修改：名称 / 说明 / 类型 / 适用空间 / 字段预填 / 正文，null = 代码默认；删除为软删（可恢复）。所有者另可新增 `scope = builtin` 的入库内置模板（ADR-0038） | 01 §3.4 |
+| 恢复默认（内置模板） | Restore builtin template | `POST /templates/:id/restore` | 恢复默认 / 恢复 | `settings.templates.restore` | 删除该内置模板的覆盖行：修改与「已删除」一并撤销，回到代码版本（ADR-0038） | 02 §9 |

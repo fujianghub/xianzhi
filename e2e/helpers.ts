@@ -101,3 +101,10 @@ export async function createEntry(req: APIRequestContext, body: Record<string, u
   expect(r.status()).toBe(201)
   return ((await r.json()) as { id: string }).id
 }
+
+/** 打开文档栏「阅读」弹层并切到某分页（ADR-0037：四图标胶囊合为一个弹层，分页沿用 reading-open-* testid） */
+export async function openReading(page: Page, tab: 'font' | 'paper' | 'layout' | 'toc') {
+  const t = page.getByTestId(`reading-open-${tab}`)
+  if (!(await t.isVisible())) await page.getByTestId('reading-open').click()
+  await t.click()
+}

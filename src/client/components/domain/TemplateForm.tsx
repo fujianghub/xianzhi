@@ -3,10 +3,12 @@
  * 编辑时只提交改动过的字段并带 ifUpdatedAt（409 → 提示刷新）；不可管理的模板只读，可「复制到我的」。
  * ADR-0036（REQ-TPL-011）：类型可选内置 / 空间类型 / 本人个人类型（工作区模板不能绑个人类型）；
  * 「字段预填」按所绑类型的字段（含自定义字段）预置值；可就地编辑该类型的字段定义（有权限时，影响该类型全部记录）。
+ * ADR-0038（REQ-TPL-013 · 015）：所有者可直接编辑代码内置模板（只能用内置类型、不能改共享范围，可「恢复默认」），
+ * 新建时可「设为内置模板」（全员可见、仅所有者可改）。
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, RotateCcw } from 'lucide-react'
 import { lazy, Suspense, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -16,6 +18,7 @@ import {
   type EntryKind,
   SPACE_KINDS,
   type SpaceKind,
+  type TemplateScope,
 } from '../../../shared/schemas/enums.ts'
 import type { PmNode } from '../../../shared/schemas/pm.ts'
 import type { TemplateEditorHandle } from '../../editor/TemplateEditor.tsx'
@@ -25,7 +28,9 @@ import {
   copyTemplate,
   invalidateTemplates,
   invalidateTemplatesAndSpaces,
+  isCodeBuiltin,
   patchTemplate,
+  resetBuiltin,
   type Template,
   type TemplateDetail,
   type TemplatePatch,
@@ -64,14 +69,22 @@ export function TemplateForm({ tpl }: { tpl?: TemplateDetail }) {
   const [typeId, setTypeId] = useState<string | null>(tpl?.typeId ?? null)
   const [fields, setFields] = useState<Record<string, unknown>>(tpl?.fields ?? {})
   const [spaceKind, setSpaceKind] = useState<SpaceKind | ''>(tpl?.spaceKinds[0] ?? '')
-  const [shared, setShared] = useState(tpl?.source === 'workspace')
+  // 共享范围：个人 / 工作区 / 内置（ADR-0038：内置仅所有者；代码内置模板不能改范围）
+  const [scope, setScope] = useState<TemplateScope>(tpl?.source ?? 'personal')
+  const shared = scope !== 'personal'
+  const codeBuiltin = !!tpl && isCodeBuiltin(tpl)
+  // 能否设为内置模板：与维护内置类型同一判定（服务端 can()：所有者）
+  const canBuiltin = !!types.data?.canManageBuiltin
   const editorRef = useRef<TemplateEditorHandle | null>(null)
   const back = () => void nav({ to: '/settings/templates' })
   // 可绑的类型：内置 + 本人可用的空间类型 + 本人个人类型（工作区模板排除个人类型，别人用不了）；当前值总保留
   const isPersonalType = (id: string | null) =>
     !!types.data?.items.find((x) => x.id === id && !x.spaceId)
   const kinds = useKindOptions(null, { keep: { kind, typeId } }).filter(
-    (o) => !(shared && o.kind === 'custom' && isPersonalType(o.typeId) && o.typeId !== typeId),
+    (o) =>
+      !(shared && o.kind === 'custom' && isPersonalType(o.typeId) && o.typeId !== typeId) &&
+      // 代码内置模板全员共用：只能用内置类型
+      !(codeBuiltin && o.kind === 'custom'),
   )
   const curKey = kindKey({ kind, typeId })
   const pickKind = (key: string) => {
@@ -86,7 +99,6 @@ export function TemplateForm({ tpl }: { tpl?: TemplateDetail }) {
   const save = useMutation({
     mutationFn: async () => {
       const body = editorRef.current?.getBody() ?? tpl?.body ?? EMPTY_DOC
-      const scope = shared ? ('workspace' as const) : ('personal' as const)
       if (!tpl)
         return unwrap<Template>(
           api.templates.$post(
@@ -114,7 +126,7 @@ export function TemplateForm({ tpl }: { tpl?: TemplateDetail }) {
       }
       if (JSON.stringify(fields) !== JSON.stringify(tpl.fields)) patch.fields = fields
       if ((spaceKind || null) !== (tpl.spaceKinds[0] ?? null)) patch.spaceKind = spaceKind || null
-      if (scope !== tpl.source) patch.scope = scope
+      if (!codeBuiltin && scope !== tpl.source) patch.scope = scope
       if (JSON.stringify(body) !== JSON.stringify(tpl.body)) patch.body = body
       if (!Object.keys(patch).length) return null
       return patchTemplate(tpl, patch)
@@ -122,7 +134,7 @@ export function TemplateForm({ tpl }: { tpl?: TemplateDetail }) {
     onSuccess: (r) => {
       if (r)
         toast.success(tpl ? t('template.savedTemplate') : t('template.created', { name: r.name }))
-      void (tpl && tpl.source !== (shared ? 'workspace' : 'personal')
+      void (tpl && tpl.source !== scope
         ? invalidateTemplatesAndSpaces(qc)
         : invalidateTemplates(qc))
       back()
@@ -132,6 +144,15 @@ export function TemplateForm({ tpl }: { tpl?: TemplateDetail }) {
   const submit = () => {
     if (editable && name.trim() && !save.isPending) save.mutate()
   }
+  const reset = useMutation({
+    mutationFn: () => resetBuiltin(tpl?.id ?? ''),
+    onSuccess: () => {
+      toast.success(t('template.resetDone'))
+      void invalidateTemplates(qc)
+      back()
+    },
+    onError: () => toast.error(t('task.saveFailed')),
+  })
   const copy = useMutation({
     mutationFn: () =>
       copyTemplate(tpl?.id ?? '', t('template.copyName', { name: tpl?.name ?? '' }).slice(0, 60)),
@@ -165,6 +186,19 @@ export function TemplateForm({ tpl }: { tpl?: TemplateDetail }) {
         actions={
           editable ? (
             <>
+              {codeBuiltin && tpl?.customized ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  loading={reset.isPending}
+                  onClick={() => reset.mutate()}
+                  data-testid="template-form-reset"
+                >
+                  <RotateCcw className="size-4" />
+                  {t('template.resetDefault')}
+                </Button>
+              ) : null}
               <Button type="button" size="sm" variant="ghost" onClick={back}>
                 {t('ui.action.cancel')}
               </Button>
@@ -276,12 +310,12 @@ export function TemplateForm({ tpl }: { tpl?: TemplateDetail }) {
         }
         typeLabel={kindOf(kind, typeId).label}
       />
-      {editable && canShare ? (
+      {editable && canShare && !codeBuiltin && scope !== 'builtin' ? (
         <div className="flex flex-col gap-1">
           <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
             <Checkbox
               checked={shared}
-              onCheckedChange={(v) => setShared(v === true)}
+              onCheckedChange={(v) => setScope(v === true ? 'workspace' : 'personal')}
               data-testid="template-form-share"
             />
             {t('template.share')}
@@ -292,6 +326,19 @@ export function TemplateForm({ tpl }: { tpl?: TemplateDetail }) {
               ? ` ${t('template.defaultsWarning', { count: tpl.spaceDefaults })}`
               : ''}
           </p>
+        </div>
+      ) : null}
+      {editable && canBuiltin && !codeBuiltin && (!tpl || tpl.source === 'builtin') ? (
+        <div className="flex flex-col gap-1">
+          <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
+            <Checkbox
+              checked={scope === 'builtin'}
+              onCheckedChange={(v) => setScope(v === true ? 'builtin' : 'personal')}
+              data-testid="template-form-builtin"
+            />
+            {t('template.scopeBuiltin')}
+          </label>
+          <p className="ps-7 text-fg-muted text-xs">{t('template.scopeBuiltinHint')}</p>
         </div>
       ) : null}
       <Suspense fallback={<Skeleton className="h-64 w-full" />}>

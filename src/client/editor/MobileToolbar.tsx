@@ -45,7 +45,8 @@ function useKeyboardInset(): number {
   return inset
 }
 
-export function MobileToolbar({ editor, onImage }: { editor: Editor; onImage: () => void }) {
+/** `onImage` 不给 = 不显示图片按钮（模板编辑器：模板不带附件，REQ-TPL-012） */
+export function MobileToolbar({ editor, onImage }: { editor: Editor; onImage?: () => void }) {
   const { t } = useTranslation()
   const inset = useKeyboardInset()
   const s = useEditorState({
@@ -106,7 +107,7 @@ export function MobileToolbar({ editor, onImage }: { editor: Editor; onImage: ()
       {btn('quote', !!s?.quote, Quote, () => chain().toggleBlockquote().run())}
       {btn('code', !!s?.code, Code, () => chain().toggleCodeBlock().run())}
       {btn('link', false, Link2, () => window.dispatchEvent(new CustomEvent(LINK_EVENT)))}
-      {btn('image', false, Image, onImage)}
+      {onImage ? btn('image', false, Image, onImage) : null}
       {btn('slash', false, Slash, () => chain().insertContent('/').run())}
       {btn('hide', false, ChevronDown, () => editor.commands.blur())}
     </div>

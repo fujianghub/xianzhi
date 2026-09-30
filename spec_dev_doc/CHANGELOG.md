@@ -4,6 +4,15 @@
 
 ## 2026-09-30
 
+**记录页编辑区「文档式 · 极简」· 模板编辑器工具栏（ADR-0037）；内置模板由所有者维护（ADR-0038）**
+- 新增 ADR-0037（修订 ADR-0029 §1 阅读胶囊四图标 → 单个「阅读」弹层四分页、控件带文字；ADR-0031 格式栏常驻细线 → 仅吸顶时有底线；ADR-0035 §B 两列表单式属性面板 + 面板内流转时间线 → 紧凑属性列表 + 流转摘要弹层、标签并入列表；ADR-0023 §4 模板编辑器只有斜杠 / 气泡 → 加格式工具栏、块手柄、表格工具条）与 ADR-0038（修订 ADR-0011 §2 内置模板为不可改的代码常量、ADR-0023 内置 403 → 所有者覆盖 / 软删 / 恢复 + 新增 `scope = builtin`）。
+- 00：§6 +REQ-ENTRY-030 · 031；§6b +REQ-TPL-012 ~ 015；§18c +REQ-READ-010。加注：REQ-ENTRY-024 · 025、REQ-READ-007、REQ-EDITOR-024、REQ-TPL-001 · 002 · 004。
+- 01：§3.4 entry_templates `scope` +`builtin`、新表 `builtin_template_overrides`；§5 template.read / create / manage 三行（builtin 仅 owner，admin 不可）。
+- 02 §9：`GET /templates`（+`?deleted=1`）、`POST /templates`（scope builtin）、`GET|PATCH|DELETE /templates/:id`（内置不再一律 403）、`POST /entries`（覆盖 / 已删除 422）行注；+`POST /templates/:id/restore`（取消删除、保留修改）· `/reset`（恢复默认；实施时拆为两个接口，ADR-0038 · REQ-TPL-013 同步）；未改过的内置 `ifUpdatedAt` 基准 = 1970-01-01。
+- 03 §6 注（默认骨架取覆盖后的正文，已删除回落空文档；模板编辑器工具栏）。04 §4 记录页纵向结构注。06 材质表「编辑器吸顶工具栏」「阅读胶囊」行注。08 §1 模板两行、§2.9 · §2.13 注。glossary +流转摘要 · 阅读弹层 · 内置模板覆盖 · 恢复默认（内置模板），属性面板 · 模板行加注。
+- 迁移 0023（`builtin_template_overrides` + `entry_templates_scope_ck` 加 `builtin`）已落地，`lint:drift` 零差异。
+- CLAUDE.md：坐标「记录页」行改为 标题 → 紧凑属性列表 → 文档栏（阅读弹层）→ 格式栏（吸顶才有底线）→ 正文；规范索引合并 0002 ~ 0011 行、新增 0035 ~ 0038 行（用户要求同步，仍 ≤ 80 行）。
+
 **就地管理 · 记录页属性面板 · 元数据配色（ADR-0035）；空间类型 · 启用清单 · 字段定义 · 模板绑类型（ADR-0036）**
 - 新增 ADR-0035（修订 ADR-0029 记录页纵向顺序为 标题 → 属性面板 → 文档栏 → 吸顶格式栏 → 正文；修订 ADR-0033 默认收起的流转 → 彩色时间线）与 ADR-0036（修订 ADR-0017 §2、ADR-0019 §3、ADR-0033 否决项「自定义类型任意属性」、ADR-0011 §2 / ADR-0023 模板只绑内置、ADR-0012 概览按 `space.kind` 写死）；计划评审 16 条意见已并入。
 - 00：§6c +REQ-KB-011 ~ 017；§6 +REQ-ENTRY-024 ~ 029；§6b +REQ-TPL-011；§16 +REQ-UI-044。加注：REQ-KB-003（被 REQ-KB-016 取代，个人空间不受影响）· REQ-KB-010 · REQ-ENTRY-018 · REQ-TPL-007 · REQ-BUG-006 · REQ-READ-007。

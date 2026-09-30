@@ -389,6 +389,34 @@ export const entryTemplates = pgTable(
   ],
 )
 
+// ---------- 3.5b' builtin_template_overrides（ADR-0038）----------
+/**
+ * 代码内置模板（`builtin:<key>`）的工作区覆盖：所有者改的名 / 描述 / 类型 / 适用空间 / 预填 fields / 正文，
+ * 以及软删除（可恢复）。null 列 = 沿用代码默认；删整行 = 恢复默认。仅所有者维护（template.manage，scope builtin）。
+ */
+export const builtinTemplateOverrides = pgTable(
+  'builtin_template_overrides',
+  {
+    workspaceId: orgRef(),
+    key: text().notNull(),
+    name: text(),
+    description: text(),
+    kind: text(),
+    spaceKinds: jsonb().$type<string[]>(),
+    fields: jsonb().$type<Record<string, unknown>>(),
+    body: jsonb(),
+    deleted: boolean().notNull().default(false),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workspaceId, t.key] }),
+    check(
+      'builtin_template_overrides_kind_ck',
+      sql`${t.kind} is null or ${inList(t.kind, BUILTIN_ENTRY_KINDS)}`,
+    ),
+  ],
+)
+
 // ---------- 3.5c entry_favorites（ADR-0014 收藏）----------
 /** 个人收藏：仅本人可见；记录硬删时级联。 */
 export const entryFavorites = pgTable(
