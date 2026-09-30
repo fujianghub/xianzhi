@@ -21,9 +21,10 @@ test('REQ-KB-001 · 002 空间列表按大类分区；在「生活」里新建 �
   await page.goto('/spaces')
   const sections = page.getByTestId('spaces-section')
   await expect(sections.first()).toContainText('产品开发')
-  await expect(page.locator('[data-testid="spaces-section"]', { hasText: '衔枝' })).toContainText(
-    '产品开发',
-  )
+  // 共用库里可能累积了同名演示空间（未分类），按分区定位而不是按空间名（debug/2026-09-26-e2e-shared-db-data-drift）
+  await expect(
+    page.locator('[data-testid="spaces-section"]', { hasText: '产品开发' }).first(),
+  ).toContainText('衔枝')
   const life = page.locator('[data-testid="spaces-section"]', { hasText: '生活' })
   await life.getByTestId('spaces-new-here').click()
   const dlg = page.getByTestId('create-space-dialog')
@@ -36,12 +37,12 @@ test('REQ-KB-001 · 002 空间列表按大类分区；在「生活」里新建 �
   await expect(side.getByTestId('space-row').filter({ hasText: name })).toBeVisible()
 })
 
-test('REQ-KB-003 产品空间概览：未关闭 Bug 按严重度计数；快捷「Bug」带出修复模板', async ({
+test('REQ-KB-016 · REQ-ENTRY-026 空间首页按启用类型分页签：状态概要可筛选、表格就地改状态；快捷「新建 Bug」带出修复模板', async ({
   page,
   request,
 }) => {
   const s = await kb(request)
-  await createEntry(request, {
+  const crash = await createEntry(request, {
     kind: 'bug',
     title: '严重崩溃',
     spaceId: s.id,
@@ -53,11 +54,31 @@ test('REQ-KB-003 产品空间概览：未关闭 Bug 按严重度计数；快捷�
     spaceId: s.id,
     fields: { severity: 'low', status: 'fixed' },
   })
-  await page.goto(`/spaces/${s.slug}/home`)
-  const bugs = page.getByTestId('kb-panel-bugs')
-  await expect(bugs).toContainText('严重崩溃')
-  await expect(bugs).not.toContainText('已修小问题')
-  await expect(bugs.locator('[data-severity="critical"]')).toContainText('1')
+  await page.goto(`/spaces/${s.slug}/home?type=bug`)
+  const tabs = page.getByTestId('kb-type-tabs')
+  // 产品空间默认启用：Bug · 迭代 · 版本 · 决策 · 优化 · 随笔（学习类型不出现）
+  await expect(tabs.locator('[data-key="bug"]')).toContainText('2')
+  await expect(tabs.locator('[data-key="plan"]')).toHaveCount(0)
+  const section = page.getByTestId('kb-type-section')
+  await expect(section).toContainText('严重崩溃')
+  await expect(section).toContainText('已修小问题')
+  // 状态概要：点「新建」只看新建
+  const summary = page.getByTestId('kb-status-summary')
+  await expect(summary.locator('[data-status="new"]')).toContainText('1')
+  await summary.locator('[data-status="new"]').click()
+  await expect(page).toHaveURL(/status=new/)
+  await expect(section).not.toContainText('已修小问题')
+  // 表格就地改状态：写回记录
+  const row = section.locator(`[data-entry-id="${crash}"]`)
+  await row.getByTestId('cell-status').click()
+  await page.getByTestId('field-editor-status').locator('[data-value="pending"]').click()
+  await expect
+    .poll(async () => {
+      const r = await request.get(`/api/v1/entries/${crash}`)
+      return ((await r.json()) as { fields: { status: string } }).fields.status
+    })
+    .toBe('pending')
+  await summary.locator('[data-status=""]').click()
   await page.getByTestId('kb-quick-bug').click()
   const dlg = page.getByTestId('new-entry-dialog')
   await expect(dlg.locator('[data-template-id="builtin:bug-fix"]')).toHaveAttribute(

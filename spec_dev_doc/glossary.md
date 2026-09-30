@@ -26,7 +26,7 @@
 | 引导线 | Tree guide / `TreeGuides` | — | —（纯视觉） | — | 目录树每级祖先的竖向细线，标示层级归属 | ADR-0015 |
 | 类型图标 | Kind icon / `KindIcon` | — | —（配合类型名） | `entry.kind.*` | 记录类型对应的 Lucide 图标色块 | ADR-0015 |
 | 空间管理员 / 成员 / 查看者 | admin / member / viewer | `space_members.role` | 空间管理员 / 空间成员 / 查看者 | `space.role.admin` `.member` `.viewer` | 空间级角色 | 01 §3.1 |
-| 空间类型 | `space.kind` | `project` / `learning` / `work` | 项目 / 学习 / 工作 | `space.kind.project` 等 | 只影响图标与默认视图 | 01 §3.1 |
+| ~~空间类型~~ 空间种类 | `space.kind` | `project` / `learning` / `work` | 项目 / 学习 / 工作 | `space.kind.project` 等 | 只影响图标、默认视图与启用类型的推导默认（注 2026-09-30 ADR-0036：「空间类型」一词改指空间自有的记录类型，本行改称「空间种类」，标识符不变） | 01 §3.1 |
 | 空间可见性 | `space.visibility` | `workspace` / `members` | 全员可见 / 仅成员 | `space.visibility.workspace` `.members` | | 01 §3.1 |
 | 任务 | Task / `task` | `tasks` | 任务 | `task.task` | 待办；隐喻「枝」 | 01 §3.2 |
 | 任务状态 | `task.status` | `inbox` `todo` `doing` `blocked` `done` `cancelled` | 收件箱 / 待办 / 进行中 / 阻塞 / 完成 / 取消 | `task.status.<value>` | 看板列即状态 | 01 §3.2 |
@@ -103,102 +103,10 @@
 | 最近打开 | Recent / `recent` | 本机 `localStorage xz:recent` | 最近打开 | `entry.nav.recent` | 本机最近访问的记录，按访问顺序（ADR-0014） | 08 §2.8 |
 | 记录位置 | Entries location | URL `spaceId under groupId favorite recent archived` | 记录位置 | `entry.nav.label` | 记录页左栏选中的范围，互斥（ADR-0014） | 08 §2.8 |
 | 批量操作 | Batch / `POST /entries/batch` · `POST /spaces/batch` | — | 多选 / 批量操作；空间页入口叫「批量管理」 | `entry.batch.*` · `space.batch.*` | 逐条鉴权，部分失败不回滚（ADR-0014 · 0021）；`dryRun` 只校验与计数 | 02 §9 |
-| 自定义类型 | Custom entry type / `typeId` | `entry_types` | 我的自定义类型（管理页称「类型」，ADR-0017） | `settings.types.*` | 个人的记录类型：名 + 色 + 状态列表；只有本人能用、能管，读者可见名 / 色 / 状态；记录 `kind = custom`（ADR-0016 · 0017） | 01 §3.4c |
+| 自定义类型 | Custom entry type / `typeId` | `entry_types` | 我的自定义类型（管理页称「类型」，ADR-0017） | `settings.types.*` | 个人的记录类型：名 + 色 + 状态列表；只有本人能用、能管，读者可见名 / 色 / 状态；记录 `kind = custom`（ADR-0016 · 0017）（注 2026-09-30 ADR-0036：`kind = custom` 的类型分「个人类型」与「空间类型」两种，均可带字段定义） | 01 §3.4c |
 | 删除内置类型 | Deleted builtin kind | `entry_kind_overrides.deleted` | 删除 / 恢复 | `settings.types.delete` · `settings.types.restore` | 所有者操作：全员该类型记录转到另一内置类型后标记已删除，可恢复；取代 ADR-0016 的「隐藏」（ADR-0017） | 01 §3.4c |
-| 快速编辑气泡 | Calendar quick edit | — | — | `calendar.quick.*` | 日历里点日程 / 任务在其旁弹出的就地编辑框（ADR-0016） | 08 §2.17 |
-| 新建上下文 | New-entry context | — | 建在 | `entry.location.*` | 页面登记的「在这里新建建在哪」：空间页 = 目录顶层，记录页 = 同级；按钮可传一次性默认值（ADR-0018） | 08 §2.8 |
-| 新建并关联 | Create & link / `linkFrom` | `links` | 新建并关联 | `link.createLinked` | 新建记录同时由当前记录关联到它，同事务（ADR-0018） | 02 §9 |
-| 优先级 | Priority / `fields.priority` | — | 优先级 | `entry.field.priority` | Bug 的修复顺序 P0 紧急 ~ P3 低；与「严重程度」（影响面）不同（ADR-0033） | 01 §3.5 |
-| 待决策 | Pending / `status=pending` | — | 待决策 | `entry.fieldValue.pending` | Bug 四态之一：要不要修、怎么修还没定；与新建同属「未关闭」（ADR-0033） | 01 §3.5 |
-| 流转 | Field changes | `entry_field_changes` | 流转 | `entry.changes.label` | 记录状态 / 优先级 / 严重程度的变化历史（ADR-0033） | 01 §3.4d |
-| 保存视图 / 我的视图 | Saved view | `entry_views` | 保存视图 · 我的视图 | `entry.views.*` | 个人保存的记录页筛选组合，左栏一点即用（ADR-0033） | 01 §3.4d |
-| 查询块 / 查询视图 | Entry query block / `entryQuery` | — | 查询视图 | `editor.slash.query` | 正文里按筛选实时列出记录（表格 / 统计 / 计数）的块，结果不写进正文（ADR-0033） | 03 §3.2 |
-| 看板（记录） | Entry board / `view=board` | — | 看板 | `entry.board.label` | 按 `fields.status` 分列的记录视图（ADR-0014） | 08 §2.8 |
-| 时间线 | Timeline / `view=timeline` | — | 时间线 | `entry.timeline.label` | 迭代 / 变更按日期的视图（ADR-0014） | 08 §2.8 |
-| 合并标签 | Merge tag | — | 合并到… | `settings.tags.merge` | 源标签关联并入目标后删除源（ADR-0014） | 02 §9 |
-| 合并空间 | Merge space / `POST /spaces/:id/merge` | — | 合并到… | `space.merge.*` | 源空间记录 / 任务 / 成员并入目标，源进回收站；审计 `space.merged`（ADR-0022） | 02 §9 |
-| 归档 | Archive / `archivedAt` | `archived_at` | 归档 | `ui.action.archive` | 隐藏但不删除；**与删除不同** | 01 §3.1 |
-| 乐观锁 | Optimistic lock / `ifUpdatedAt` | PATCH body | — | — | 不匹配 409 `CONFLICT_STALE` | 02 §5 |
-| 幂等键 | Idempotency key | `Idempotency-Key` 头 / `idempotency_keys` | — | — | 24h 回放 | 02 §5 |
-| API Key | API key / `apiKey` | `api_key`（Better Auth） | API 密钥 | `auth.apiKey` | `xz_` 前缀 Bearer | 02 §2 |
-| 作用域 | Scope | `read` / `write` / `admin` | 权限范围 | `auth.scope.<value>` | API Key 权限 | 02 §2 |
-| 协同票据 | Collab token | `POST /collab/token { entryId }` | — | — | 5 分钟 HMAC，载荷 `{userId, entryId, jti, exp}`，一票一文档，WebSocket 鉴权 | 02 §9 |
-| 审计 | Audit / `auditLog` | `audit_log` | 审计日志 | `ws.audit` | 只增不改 | 01 §3.12 |
-| 导出 | Export | `POST /exports` | 导出 | `export.export` | Markdown zip / JSON | 02 §8 |
-| 一期 / 二期 | Phase 0–2 / Phase 3 | — | — | — | 见 05 头部 | 05 |
-| 色板 | Palette / `PALETTE_COLORS` | `spaces.color` `tags.color` `calendars.color`；token `--xz-palette-<name>-solid/-bg/-fg` | 蓝 / 橙 / 黄 / 红 / 绿 / 紫 / 粉 / 青 / 灰 | `ui.palette.blue` `.orange` `.yellow` `.red` `.green` `.purple` `.pink` `.cyan` `.gray` | 04 §2.1 的鲜艳 9 色（用户可选），代码标识符 `blue orange yellow red green purple pink cyan gray`（ADR-0010，2026-09-25；~~旧 8 色 `moss amber indigo ochre teal plum gray pine`~~） | 04 §2.1 · ADR-0010 |
-| 原文已删除（孤立线程） | orphaned / `comments.orphaned` | `comments` | 原文已删除，讨论保留 | `comment.orphaned` | 锚定线程的 comment 标记从正文消失；线程保留在侧栏（注 2026-09-24：锚定 = 根评论 `thread_id ≠ id`） | 01 §3.9 · 03 §3.2 |
-| 锚定评论 | anchored thread / `comment(threadId)` 标记 | `comments` | 评论（浮动工具条） | `editor.bubble.comment` | 选中正文发起的评论，正文里以 comment 标记关联线程 | 03 §3.2 |
-| 停用 | suspend / `suspended` | Better Auth `user.banned` | 停用 / 恢复 | `settings.members.suspend` `.unsuspend` | 保留成员行但立即登出、不可登录；可恢复 | 07 §4 · REQ-WS-014 |
-| 最近访问 | recent / `recent` 参数 | 本机 localStorage `xz:recent` | 最近访问 | `search.recent` | 搜索空查询时列出最近打开的任务与记录 | 08 §2.11 |
-| 浮动工具条 | BubbleBar | 组件 | — | `editor.bubble.*` | 选中文字时出现的 glass-thick 工具条 | 03 §11 · 06 §4 |
-| 斜杠菜单 | slash menu / `SLASH_ITEMS` | 组件 | 输入 / 唤起命令 | `editor.slash.*` | 编辑器内 `/` 命令列表 | 03 §11.1 |
-| 大纲 | outline / `useOutline` | 组件 | 大纲 | `entry.aside.outline` | Aside 中按标题生成的目录，点击跳转 | 04 §4 · 08 §2.9 |
-| 共享模板 | shared template / `scope: 'workspace'` | `entry_templates.scope` | 工作区共享 · 共享给工作区成员 | `template.groups.workspace` · `template.share` | 非 guest 成员共享给全工作区的模板；作者与管理员可管，其他人可用、可复制到我的 | ADR-0023 |
-| 阅读偏好 | reading prefs / `ReadingPrefs` | `user_preferences.reading` | 阅读与写作 · 阅读与排版 | `reading.*` | 本人看记录正文的显示方式（字体 / 字号 / 行距 / 段距 / 版心 / 纸张 / 缩进 / 对齐 / 编号 / 目录深度），不改正文 | ADR-0024 |
-| 版心 | measure / `width` | `reading.width` | 版心宽度 | `reading.width` | 记录纸面的宽度档位：窄 680 / 标准 760 / 宽 1080 / 满栏 | ADR-0024 |
-| 纸张 | paper / `paper` | `reading.paper` · `--xz-paper-*` | 纸张 | `reading.papers.*` | 记录纸面的底纹：素纸 / 宣纸 / 方格 / 横线 / 点阵 / 牛皮纸；按人生效 | ADR-0024 |
-| 章节编号 | heading numbers / `headingNumbers` · `numberHeadings` | `reading.headingNumbers` | 章节编号 | `reading.headingNumbers` | 标题前显示的 1 / 1.1 编号（跳级压缩），只是显示，不写进正文 | ADR-0024 §5 |
-| 吸顶工具栏 | editor toolbar / `EditorToolbar` | 组件 | 编辑工具栏 | `editor.toolbar.*` | 记录正文上方、吸顶在顶栏下的格式 / 插入 / 阅读设置条 | ADR-0025 §1 |
-| 阅读胶囊 | reading capsule / `ReadingCapsule` | 组件 | 正文字体 · 纸张样式 · 排版 · 目录格式 | `reading.capsule.*` | 吸顶工具栏右侧四个阅读设置按钮组成的胶囊 | ADR-0025 §1 |
-| 插入面板 | insert panel / `InsertPanel` | 组件 | 插入内容块 | `editor.toolbar.insert` | 「+」打开的可搜索分区插入菜单，与斜杠菜单共用注册表 | ADR-0025 §2 |
-| 块手柄菜单 | block menu / `BlockHandle` | 组件 | 转换为 · 包裹为 · 复制此块 · 删除此块 | `editor.block.*` | 单击拖动把手打开的块操作菜单 | ADR-0025 §3 |
-| 表格工具条 | table menu / `TableMenu` | 组件 | 表格工具条 | `editor.table.*` | 光标在表格内浮出的行列增删 / 合并拆分 / 表头 / 删除表格 | ADR-0025 §4 |
-| 文字色 / 背景色 | text color / `textColor` · highlight `color` | mark | 文字颜色 · 背景颜色 | `editor.toolbar.textColor` · `editor.toolbar.bgColor` | 只存 9 色板 key 的颜色标记，夜场随 token 变 | ADR-0025 §7 |
-| 专注写作 | focus mode / `useFocusMode` | 会话态 | 专注写作 · 退出专注 | `reading.focus` | 记录页隐藏外框只留正文的状态，`mod+shift+enter` / Esc | ADR-0024 §6 |
-| 快捷键面板 | ShortcutsDialog | 组件 | 快捷键 | `cmd.help` | `?` 打开，列出全局热键与列表按键 | 04 §6 |
-| 实时失效 | data.changed → `invalidate` 帧 | EventBus + SSE | — | — | 数据写提交后按空间可读性推送 Query key 失效；不是通知 | 02 §6 注 |
-| 记录卡片 | entryCard | PM 节点 | 记录卡片 | `editor.slash.card` | 正文里以卡片形式引用另一篇记录 | 03 §3.2 |
-| 未知块 | unknownBlock | PM 节点 | 未识别的内容块 | `editor.unknownBlock` | schema 不认识的节点占位，保留原 JSON | 03 §3.3 |
-| 动效档位 | `MotionLevel`：`reduce / standard / rich` | `html[data-motion]` · `xz:motion` | 动效：减弱 / 标准 / 丰富 | `settings.profile.motionLevel.*` | 本机偏好；系统 reduced-motion 优先 | 04 §2.4 · ADR-0005 |
-| 拼图滑块 | `SliderCaptcha` · `GET /api/captcha` · 头 `x-captcha` | 组件 · 接口 | 拼图滑块 | `auth.captcha.*` | 登录前服务端出题的拖动拼图，一次性、120 s（ADR-0006） | 08 §2.1 · REQ-AUTH-016 |
-| 拼图通行证 | `captchaPass`（`pass:<id>`） | 接口字段 | — | — | 接受邀请后 60 s 一次性免拼图凭据，仅用于紧随其后的自动登录 | ADR-0006 |
-| 展开指示 | `Disclosure` | 组件 | — | — | 可折叠区块标题前的圆角小三角，展开转 90° | 04 §2.4 · REQ-UI-030 |
-
----
-
-## 2. 品牌隐喻
-
-| 隐喻 | 对象 | 允许出现的位置 |
-|---|---|---|
-| 程 Trip | 周期 Cycle（季度 = 长程） | 周期页头副标「第 N 程」 |
-| 回望 Look-back | 周复盘 review | 复盘页空状态、完成态文案、「成巢」里程碑动效 |
-| 枝 Twig | 任务 Task | 看板列头进度刻度；空状态「这里还没有衔来的枝」 |
-| 巢 Nest | 空间 Space | 仅空状态与引导语；命名保持「空间」 |
-| 燕印 Seal | 品牌标识（`Seal` 组件 / `.xz-seal`） | Sidebar 品牌位、登录页、favicon（ADR-0005 §2；配色造型见 ADR-0007） |
-| 枝线 Branch line | 顶栏滚动态下沿细线（`.xz-topbar[data-scrolled]`、`--xz-branch-line`） | 仅 Topbar（ADR-0005 §2） |
-| 衔枝小院 · 小燕 Swallow courtyard | 认证页插画与吉祥物（`AuthShell` / `SwallowScene` / `SwallowPeek`，情绪 `data-mood`、小动作 `data-behavior`，气泡 `auth.bird.*`） | 仅登录 / 注册 / 2FA / 邀请四页（ADR-0034） |
-
-克制原则（04 §1）：隐喻只出现在**命名、空状态、里程碑动效**三处。（注 2026-09-24：ADR-0005 扩为五处，另加品牌位与顶栏枝线。）数据模型、API、代码标识符一律用英文本名（`cycle` / `review` / `task` / `space`），不用隐喻词。
-
----
-
-## 3. 禁用词与唯一写法
-
-| 容易混用 | 唯一写法 | 说明 |
-|---|---|---|
-| 笔记 / 文档 / note / 文章 | **记录 Entry** | `note` 仅指 `entry.kind = note`（随笔） |
-| 删除 / 归档 | 两者不同 | 归档 = `archived_at`，可见性隐藏；删除 = `deleted_at`，30 天回收站 |
-| 用户 / 成员 | 指工作区内身份时用**成员 Member**；泛指最终使用者（「用户时区」「用户编辑」）可用「用户」 | 代码 `user` 仅指 Better Auth 账号本身 |
-| 组织 / 团队 / 租户 | **工作区 Workspace** | 代码里 `organization` 只出现在 Better Auth 表名 |
-| 文件 / 图片 | 上传物一律**附件 Attachment**；文件系统与上传体积语境（「单文件上限」「文件名」）可用「文件」 | 图片是 mime 为 image 的附件 |
-| 项目 | 避免单独使用 | 「项目」只是空间 kind 之一；容器统一叫空间 |
-| 负责人 / 执行人 | **指派人 Assignee** | |
-| 订阅者 / 关注者 | **关注者 Watcher** | |
-| 版本 / 历史 / 快照 | UI 叫「版本」，代码叫 `snapshot` | 「标记版本」= 带 label 的快照 |
-| 评论 / 讨论 / 批注 | **评论 Comment**；一组评论叫**线程** | |
-| 消息 / 提醒 / 通知 | **通知 Notification** | 「消息」不使用；「提醒」仅作为 `cycle.review_due` 等具体通知的文案动词，不作名词 |
-| 动态 / 活动 / 时间线 | UI 叫「动态」，代码叫 `activity` | |
-| 亮色 / 浅色 / 深色 / 暗色 | UI 叫**日场 / 夜场**，代码叫 `light` / `dark` | |
-| 毛玻璃 / 磨砂 / 玻璃拟态 | **玻璃 Glass** | |
-| 三期 | 不使用 | 一期 = Phase 0–2，二期 = Phase 3 |
-| 登录 / 登入 / 签入 | **登录** | |
-| 空间管理员 / 管理员 | 必须带前缀区分 | 「管理员」单独出现时指工作区 admin |
-
----
-
-## 裁定记录（2026-09-23）
-
-- 「日历」页按 Phase 2 收录，路由 `/calendar`；「回收站」路由 `/trash`。两者已进 08 §1 路由表。
-- `entry.kind = note` 中文定为「随笔」。
-- i18n key 的 area 前缀 = `00-requirements.md` 的 REQ AREA 小写（`auth ws space task cycle entry editor collab link tag attach comment search notif export ui mobile ops`），本表已按此写。
+| 个人类型 | Personal entry type / `entry_types.space_id = null` | `entry_types` | 我的类型 | `settings.types.*` | 即 ADR-0017 的「自定义类型」：属于创建者，只有本人能用、能管；可放进空间启用清单（他人只见名 / 色）（ADR-0036） | 01 §3.4c |
+| 空间类型 | Space entry type / `entry_types.space_id` | `entry_types` | 本空间类型 | `space.types.*` | 空间自有的记录类型：只能用于该空间的记录，空间成员都可用，`space.manage` 管理；记录不能带着它移到别的空间；合并空间时随之改挂（ADR-0036）。勿与「空间种类」（`space.kind`）混淆 | 01 §3.4c |
+| 启用类型 | Enabled kinds / `enabledKinds` | `spaces.enabled_kinds` | 启用的类型 | `space.types.enabled` | 空间里可用、并作为首页页签的类型清单（内置 kind 或 `type:<uuid>`，有序）；null = 按空间种类推导默认（ADR-0036） | 01 §3.1 |
+| 字段定义 | Field definition / `FieldDef` | `entry_types.field_defs` · `entry_kind_overrides.field_defs` | 属性 / 字段 | `entry.fieldDef.*` | 类型上定义的自定义属性（名、类型、选项与颜色、必填提示）；值存 `entries.fields` 的 `x…` 键；内置类型的代码字段不在此（ADR-0036） | 01 §3.5 |
+| 属性面板 | Properties panel / `EntryProperties` | — | 属性 | `entry.props.*` | 记录页标题下常显的元数据区：彩色值点击即改、标签、底部流转时间线；取代默认收起的属性栏（ADR-0035） | 08 §2.9 |

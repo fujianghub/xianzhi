@@ -64,9 +64,10 @@ import { type EntriesLocation, EntriesNav, locationPatch } from './EntriesNav.ts
 import { EntryBatchBar } from './EntryBatchBar.tsx'
 import { boardStatuses, EntryBoard } from './EntryBoard.tsx'
 import { EntryCard } from './EntryCard.tsx'
-import { fieldSpecs } from './EntryFieldsForm.tsx'
+import { EntryRowMenu } from './EntryRowMenu.tsx'
 import { EntryTable } from './EntryTable.tsx'
 import { EntryTimeline, hasTimeline } from './EntryTimeline.tsx'
+import { useFieldSpecs } from './FieldValue.tsx'
 import { SavedViewsNav, SaveViewButton } from './SavedViews.tsx'
 import { TagFilter } from './TagFilter.tsx'
 
@@ -117,7 +118,9 @@ export function EntriesPage({
   const kinds = csvList(search.kind) as EntryKind[]
   const typeIds = csvList(search.typeId)
   const kindOf = useKindLabel()
-  const kindOptions = useKindOptions()
+  const specsOf = useFieldSpecs()
+  // 类型筛选条：空间内按启用清单（ADR-0036），全局列全部可见类型
+  const kindOptions = useKindOptions(space ?? null, { all: !space, personal: false })
   // 只选了一种类型：内置 kind，或一个自定义类型
   const typeId = !kinds.length && typeIds.length === 1 ? typeIds[0] : undefined
   const kind: EntryKind | undefined = typeId
@@ -181,13 +184,16 @@ export function EntriesPage({
     sort: search.sort ?? '-updatedAt',
   }
   const pageSize = view === 'cards' ? 30 : 200
-  // 表格分组（ADR-0033）：只对单一内置类型；可选键 = 该类型有的枚举属性（Bug 另有模块）
-  const groupOptions: EntryGroup[] =
-    kind && kind !== 'custom'
-      ? ENTRY_GROUP_VALUES.filter((g) =>
-          fieldSpecs(kind).some((f) => f.name === g && (f.kind === 'select' || g === 'module')),
-        )
-      : []
+  // 表格分组（ADR-0033）：只对单一类型；可选键 = 该类型有的枚举属性（Bug 另有模块）+ 自定义单选字段（ADR-0036）
+  const kindSpecs = kind ? specsOf(kind, typeId) : []
+  const groupOptions: EntryGroup[] = kind
+    ? [
+        ...ENTRY_GROUP_VALUES.filter((g) =>
+          kindSpecs.some((f) => f.name === g && (f.kind === 'select' || g === 'module')),
+        ),
+        ...kindSpecs.filter((f) => f.extra && f.kind === 'select').map((f) => f.name as EntryGroup),
+      ]
+    : []
   const group =
     view === 'table' && search.group && groupOptions.includes(search.group)
       ? search.group
@@ -259,9 +265,8 @@ export function EntriesPage({
     const next = kinds.includes(k) ? kinds.filter((x) => x !== k) : [...kinds, k]
     setSearch({ kind: next.length ? next.join(',') : undefined, fields: undefined })
   }
-  const fieldFilters = kind
-    ? fieldSpecs(kind, customStatuses).filter((f) => f.kind === 'select')
-    : []
+  // 属性筛选：该类型的单选 / 多选（含自定义字段，ADR-0036；多选按「含」筛）
+  const fieldFilters = kindSpecs.filter((f) => f.kind === 'select' || f.kind === 'multiselect')
   const fieldValues = parseFieldsParam(search.fields)
   const viewBtn = (key: typeof view, icon: ReactNode, label: string, testId: string) => (
     <button
@@ -411,31 +416,29 @@ export function EntriesPage({
                 <Settings2 className="size-4" />
               </Link>
             </fieldset>
-            {fieldFilters.map((f) =>
-              f.kind === 'select' ? (
-                <select
-                  key={f.name}
-                  value={fieldValues[f.name] ?? ''}
-                  onChange={(e) =>
-                    setSearch({
-                      fields: stringifyFieldsParam({ ...fieldValues, [f.name]: e.target.value }),
-                    })
-                  }
-                  aria-label={t(`entry.field.${f.name}`)}
-                  className="h-8 rounded-full border border-border bg-surface px-3 text-sm"
-                  data-testid={`field-filter-${f.name}`}
-                >
-                  <option value="">
-                    {t(`entry.field.${f.name}`)}：{t('entry.allKinds')}
+            {fieldFilters.map((f) => (
+              <select
+                key={f.name}
+                value={fieldValues[f.name] ?? ''}
+                onChange={(e) =>
+                  setSearch({
+                    fields: stringifyFieldsParam({ ...fieldValues, [f.name]: e.target.value }),
+                  })
+                }
+                aria-label={f.label}
+                className="h-8 rounded-full border border-border bg-surface px-3 text-sm"
+                data-testid={`field-filter-${f.name}`}
+              >
+                <option value="">
+                  {f.label}：{t('entry.allKinds')}
+                </option>
+                {f.options.map((o) => (
+                  <option key={String(o.value)} value={String(o.value)}>
+                    {o.label}
                   </option>
-                  {f.options.map((o) => (
-                    <option key={String(o)} value={String(o)}>
-                      {f.raw ? String(o) : t(`entry.fieldValue.${o}`, { defaultValue: String(o) })}
-                    </option>
-                  ))}
-                </select>
-              ) : null,
-            )}
+                ))}
+              </select>
+            ))}
             <TagFilter value={search.tag} onChange={(tag) => setSearch({ tag })} />
             <SaveViewButton
               current={{ ...search, ...(spaceId ? { spaceId: undefined } : {}) }}
@@ -499,7 +502,9 @@ export function EntriesPage({
                 <option value="">{t('entry.group.none')}</option>
                 {groupOptions.map((g) => (
                   <option key={g} value={g}>
-                    {t('entry.group.by', { field: t(`entry.field.${g}`) })}
+                    {t('entry.group.by', {
+                      field: kindSpecs.find((f) => f.name === g)?.label ?? t(`entry.field.${g}`),
+                    })}
                   </option>
                 ))}
               </select>
@@ -549,6 +554,10 @@ export function EntriesPage({
               kinds={kinds}
               typeId={typeId}
               showSpace={!effSpaceId}
+              editable={(e) => canWrite(e) && !e.archivedAt && !e.deletedAt}
+              rowMenu={(e) => (
+                <EntryRowMenu entryId={e.id} title={e.title} entry={e} canWrite={canWrite(e)} />
+              )}
               group={
                 group ? { key: group, counts: statsByValue(groupStats.data, group) } : undefined
               }

@@ -1,6 +1,7 @@
 /**
  * 编辑空间（ADR-0012、REQ-KB-002）：名称、简介、类型（决定概览形态）、大类；需 space admin（服务端 space.manage）。
- * ADR-0019（REQ-KB-010）：在此空间新建记录的默认类型（内置）与默认模板（内置 / 工作区模板——个人模板别人用不了）。
+ * ADR-0019（REQ-KB-010）：在此空间新建记录的默认类型与默认模板（内置 / 工作区模板——个人模板别人用不了）。
+ * ADR-0036（REQ-KB-017）：默认类型可为内置类型或本空间的空间类型（个人类型别人用不了）；选项值 = kind 名或类型 id。
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useEffect, useState } from 'react'
@@ -8,7 +9,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { type Space, type SpaceKind, spaceGroupsQuery } from '../../hooks/useSpaces.ts'
 import { api, unwrap } from '../../lib/api.ts'
-import { useKindOptions } from '../../lib/entry-types.ts'
+import { entryTypesQuery, useKindOptions } from '../../lib/entry-types.ts'
 import { templatesQuery } from '../../lib/template-queries.ts'
 import { Button } from '../ui/button.tsx'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../ui/dialog.tsx'
@@ -32,14 +33,23 @@ export function KbEditDialog({
   const [description, setDescription] = useState(space.description ?? '')
   const [kind, setKind] = useState(space.kind as SpaceKind)
   const [groupId, setGroupId] = useState(space.groupId ?? '')
-  const [defaultKind, setDefaultKind] = useState(space.defaultKind ?? '')
+  const [defaultKind, setDefaultKind] = useState(space.defaultTypeId ?? space.defaultKind ?? '')
   const [defaultTemplateId, setDefaultTemplateId] = useState(space.defaultTemplateId ?? '')
   const templates = useQuery({ ...templatesQuery, enabled: open })
   const sharedTemplates = (templates.data ?? []).filter((x) => x.source !== 'personal')
-  const builtinKinds = useKindOptions().filter((o) => o.kind !== 'custom')
+  const types = useQuery({ ...entryTypesQuery, enabled: open })
+  const spaceTypeIds = new Set(
+    (types.data?.items ?? []).filter((x) => x.spaceId === space.id).map((x) => x.id),
+  )
+  // 默认类型候选：内置 + 本空间的空间类型
+  const defaultOptions = useKindOptions().filter(
+    (o) => o.kind !== 'custom' || (!!o.typeId && spaceTypeIds.has(o.typeId)),
+  )
+  // 内置 kind 是小写单词，类型 id 是 uuid（类型列表未到位时也能分辨）
+  const isTypeId = (v: string) => /^[0-9a-f]{8}-/.test(v)
   useEffect(() => {
     if (!open) return
-    setDefaultKind(space.defaultKind ?? '')
+    setDefaultKind(space.defaultTypeId ?? space.defaultKind ?? '')
     setDefaultTemplateId(space.defaultTemplateId ?? '')
     setName(space.name)
     setDescription(space.description ?? '')
@@ -54,7 +64,8 @@ export function KbEditDialog({
           json: {
             ...(space.isPersonal ? {} : { name: name.trim(), kind, groupId: groupId || null }),
             description: description.trim() || null,
-            defaultKind: (defaultKind || null) as never,
+            defaultKind: (defaultKind && !isTypeId(defaultKind) ? defaultKind : null) as never,
+            defaultTypeId: defaultKind && isTypeId(defaultKind) ? defaultKind : null,
             defaultTemplateId: defaultTemplateId || null,
             ifUpdatedAt: space.updatedAt,
           },
@@ -128,8 +139,8 @@ export function KbEditDialog({
               data-testid="kb-edit-default-kind"
             >
               <option value="">{t('kb.defaultNone')}</option>
-              {builtinKinds.map((o) => (
-                <option key={o.kind} value={o.kind}>
+              {defaultOptions.map((o) => (
+                <option key={o.typeId ?? o.kind} value={o.typeId ?? o.kind}>
                   {o.label}
                 </option>
               ))}

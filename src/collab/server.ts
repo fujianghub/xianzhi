@@ -88,6 +88,26 @@ function entryIdOf(documentName: string): string | null {
   return UUID_RE.test(id) ? id : null
 }
 
+/** 模板注入用的 clientID：由记录 id 派生（FNV-1a 32 位），同一记录每次注入得到相同的 Yjs 条目 ID */
+export function templateClientId(entryId: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < entryId.length; i++) {
+    h ^= entryId.charCodeAt(i)
+    h = Math.imul(h, 0x01000193) >>> 0
+  }
+  return h
+}
+
+/** 模板正文 → Yjs update（确定性：固定 clientID、从空文档开始，时钟从 0 起） */
+export function templateUpdate(entryId: string, template: Parameters<typeof appendPmJson>[1]) {
+  const seed = new Y.Doc({ gc: false }) // 不变量 7：与前后端一致
+  seed.clientID = templateClientId(entryId)
+  seed.transact(() => appendPmJson(seed.getXmlFragment(YDOC_FRAGMENT), template))
+  const update = Y.encodeStateAsUpdate(seed)
+  seed.destroy()
+  return update
+}
+
 export function createCollabServer(deps: CollabDeps) {
   const jti = new JtiCache()
   const appOrigin = new URL(deps.appUrl).origin
@@ -439,12 +459,14 @@ export function createCollabServer(deps: CollabDeps) {
       if (row.ydoc.length) Y.applyUpdate(document, row.ydoc)
       docSize.set(documentName, row.ydoc.length)
       const frag = document.getXmlFragment(YDOC_FRAGMENT)
-      // 模板：仅在从未落库过的空文档注入（03 §6）
-      if (frag.length === 0 && row.version === 0) {
-        document.transact(() =>
-          appendPmJson(frag, entryTemplate(row.kind as EntryKind, context?.locale)),
+      // 模板：仅在从未落库过的空文档注入（03 §6）。注入是确定性的（固定 clientID 的临时文档 → 同一批条目 ID），
+      // 从未落库就离开再打开时服务端会再注入一次，与客户端本地缓存（y-indexeddb）里上次的注入合并后按 ID 去重，
+      // 不会出现两份骨架（debug/2026-09-30-template-double-inject）
+      if (frag.length === 0 && row.version === 0)
+        Y.applyUpdate(
+          document,
+          templateUpdate(entryId, entryTemplate(row.kind as EntryKind, context?.locale)),
         )
-      }
       // schema 迁移（03 §3.3）：当前无迁移脚本，只 bump 版本
       if (row.schema < EDITOR_SCHEMA_VERSION) {
         await deps.db

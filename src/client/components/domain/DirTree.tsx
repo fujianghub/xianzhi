@@ -3,6 +3,7 @@
  * 层级表达（ADR-0015、REQ-KB-006）：每级 `indent` 缩进 + 祖先引导线 + 类型色块 + 字重递减 + 折叠时子项计数 + 展开入场。
  * `level` = 根节点所在层级（外层还有大类 / 空间行时为 1、2），引导线从第 0 级画起，与外层行的展开指示对齐。
  * 节点展开状态保存在组件内：默认全部收起，只展开 `active` 的祖先链。
+ * `rowMenu`（ADR-0035、REQ-KB-013）：节点悬停出 ⋯ / 右键 = 行菜单（改名 · 新建子页 · 置顶 · 归档 · 删除），就地完成。
  */
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
@@ -12,9 +13,11 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn.ts'
 import { treeQuery } from '../../lib/entry-queries.ts'
 import { flatten } from '../../lib/tree.ts'
+import type { Point } from '../ui/context-anchor.tsx'
 import { Disclosure } from '../ui/disclosure.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
 import { staggerIndex, TreeGuides, treeLevelClass } from '../ui/tree-guides.tsx'
+import { EntryRowMenu } from './EntryRowMenu.tsx'
 import { KindIcon } from './KindIcon.tsx'
 
 /** 行内展开指示的中心相对行起点的偏移（size-6 指示的一半） */
@@ -33,6 +36,7 @@ export function DirTree({
   active,
   onSelect,
   onNewChild,
+  rowMenu = false,
   testId = 'entries-nav-tree',
 }: {
   spaceId: string
@@ -44,12 +48,15 @@ export function DirTree({
   onSelect?: (id: string) => void
   /** 传入 = 节点悬停出「+ 新建子页」（ADR-0019；可写与否由调用方决定，DirTree 不知道角色） */
   onNewChild?: (id: string) => void
+  /** 节点行菜单（可写空间才传 true；DirTree 不知道角色） */
+  rowMenu?: boolean
   testId?: string
 }) {
   const { t } = useTranslation()
   const tree = useQuery(treeQuery(spaceId))
   const nodes = tree.data ?? []
   const [open, setOpen] = useState<Set<string>>(() => new Set())
+  const [ctx, setCtx] = useState<{ id: string; point: Point } | null>(null)
   useEffect(() => {
     if (!active || !tree.data) return
     const byId = new Map(tree.data.map((n) => [n.id, n]))
@@ -111,6 +118,14 @@ export function DirTree({
             data-testid="entries-nav-node"
             data-entry-id={n.id}
             data-depth={n.depth}
+            onContextMenu={
+              rowMenu
+                ? (e) => {
+                    e.preventDefault()
+                    setCtx({ id: n.id, point: { x: e.clientX, y: e.clientY } })
+                  }
+                : undefined
+            }
           >
             <TreeGuides depth={d} x0={TWISTY_CENTER} indent={indent} active={isActive} />
             <div className="xz-tree-in flex min-w-0 flex-1 items-center">
@@ -165,6 +180,17 @@ export function DirTree({
                 >
                   <Plus className="size-3.5" />
                 </button>
+              ) : null}
+              {rowMenu ? (
+                <EntryRowMenu
+                  entryId={n.id}
+                  title={n.title}
+                  canWrite
+                  onNewChild={onNewChild ? () => onNewChild(n.id) : undefined}
+                  contextPoint={ctx?.id === n.id ? ctx.point : null}
+                  onContextClose={() => setCtx(null)}
+                  triggerClassName="opacity-0 focus-visible:opacity-100 group-hover/node:opacity-100 data-[state=open]:opacity-100 max-lg:opacity-100"
+                />
               ) : null}
             </div>
           </li>

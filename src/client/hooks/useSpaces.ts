@@ -199,6 +199,33 @@ export function useSpaceGroupActions() {
   return { create, patch, move, remove }
 }
 
+/**
+ * 就地改空间的名称 / 图标 / 颜色（ADR-0035、REQ-KB-011）：`PATCH /spaces/:id { …, ifUpdatedAt }`，需 space.manage。
+ * 成功后回填 `['space', slug]` 并失效空间列表（侧栏 / 卡片同步）。
+ */
+export function usePatchSpace() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      space,
+      change,
+    }: {
+      space: Space
+      change: { name?: string; icon?: string | null; color?: string | null }
+    }) =>
+      unwrap<Space>(
+        api.spaces[':id'].$patch({
+          param: { id: space.id },
+          json: { ...change, ifUpdatedAt: space.updatedAt } as never,
+        }),
+      ),
+    onSuccess: (s) => {
+      qc.setQueryData(['space', s.slug], s)
+      return qc.invalidateQueries({ queryKey: ['spaces'] })
+    },
+  })
+}
+
 /** 把空间移到某大类（null = 未分类）：`PATCH /spaces/:id { groupId, ifUpdatedAt }`，需 space.manage。 */
 export function useMoveSpaceToGroup() {
   const qc = useQueryClient()

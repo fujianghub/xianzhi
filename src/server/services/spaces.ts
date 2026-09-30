@@ -17,17 +17,19 @@ import {
   isNull,
   ne,
   not,
+  or,
   type SQL,
   sql,
 } from 'drizzle-orm'
 import { generateKeyBetween } from 'fractional-indexing'
 import type { z } from 'zod'
 import type { SpaceRole, WorkspaceRole } from '../../shared/schemas/enums.ts'
-import type {
-  batchSpacesSchema,
-  createSpaceSchema,
-  listSpacesQuery,
-  patchSpaceSchema,
+import {
+  type batchSpacesSchema,
+  type createSpaceSchema,
+  type listSpacesQuery,
+  type patchSpaceSchema,
+  resolveEnabledKinds,
 } from '../../shared/schemas/spaces.ts'
 import {
   type Actor,
@@ -41,13 +43,21 @@ import {
 } from '../authz.ts'
 import type { Db, DbOrTx } from '../db/index.ts'
 import { member as memberTable, user as userTable } from '../db/schema/auth.ts'
-import { entries, spaceMembers, spaces, tasks } from '../db/schema/business.ts'
+import {
+  entries,
+  entryKindOverrides,
+  entryTypes,
+  spaceMembers,
+  spaces,
+  tasks,
+} from '../db/schema/business.ts'
 import { purgeSpace } from '../jobs/gc.ts'
 import { type BatchFailure, batchFailure } from '../lib/batch.ts'
 import { decodeCursor, encodeCursor } from '../lib/cursor.ts'
 import { AppError } from '../lib/errors.ts'
 import { type EventBus, getEventBus } from '../lib/event-bus.ts'
 import { audit } from './audit.ts'
+import { loadEntryType } from './entry-types.ts'
 import { emit } from './events.ts'
 import { requireGroupId } from './space-groups.ts'
 import { assertSharedTemplate } from './templates.ts'
@@ -85,6 +95,15 @@ export interface SpaceView {
   /** 在此空间新建记录的默认类型 / 模板（ADR-0019） */
   defaultKind: string | null
   defaultTemplateId: string | null
+  /** 默认类型为本空间的空间类型时（ADR-0036） */
+  defaultTypeId: string | null
+  /**
+   * 启用类型（ADR-0036、REQ-KB-014）：已解析（null → 按空间种类推导 + 本空间全部空间类型；悬空项已去掉）。
+   * 列表接口里不含空间类型推导（只有详情解析完整）。
+   */
+  enabledKinds: string[]
+  /** 原值：null = 用默认（编辑对话框据此显示「恢复默认」） */
+  enabledKindsRaw: string[] | null
   sortKey: string
   /** 当前用户的有效空间角色（01 §5，取较高者）；前端据此显示管理入口。 */
   myRole: SpaceRole | null
@@ -234,6 +253,14 @@ function toView(
     groupId: row.groupId,
     defaultKind: row.defaultKind,
     defaultTemplateId: row.defaultTemplateId,
+    defaultTypeId: row.defaultTypeId,
+    enabledKinds: resolveEnabledKinds({
+      raw: row.enabledKinds,
+      spaceKind: row.kind,
+      isPersonal: row.isPersonal,
+      spaceTypeIds: [],
+    }),
+    enabledKindsRaw: row.enabledKinds ?? null,
     sortKey: row.sortKey,
     myRole: effectiveSpaceRole(actor, toRef(row, memberRole)),
     isMember: memberRole !== null,
@@ -261,7 +288,40 @@ export async function viewOf(db: DbOrTx, ctx: SpaceCtx, id: string): Promise<Spa
     )
     .where(eq(spaces.id, id))
   if (!r) throw AppError.notFound('空间不存在')
-  return toView(ctx.actor, r.s, (r.role as SpaceRole | null) ?? null, r.n)
+  const view = toView(ctx.actor, r.s, (r.role as SpaceRole | null) ?? null, r.n)
+  // 启用类型完整解析：本空间的空间类型 + 本人的个人类型（悬空项去掉）+ 已删除内置类型去掉
+  const [types, deleted] = await Promise.all([
+    db
+      .select({ id: entryTypes.id, spaceId: entryTypes.spaceId, createdBy: entryTypes.createdBy })
+      .from(entryTypes)
+      .where(
+        and(
+          eq(entryTypes.workspaceId, r.s.workspaceId),
+          or(
+            eq(entryTypes.spaceId, id),
+            and(isNull(entryTypes.spaceId), eq(entryTypes.createdBy, ctx.actor.id)),
+          ),
+        ),
+      ),
+    db
+      .select({ kind: entryKindOverrides.kind })
+      .from(entryKindOverrides)
+      .where(
+        and(
+          eq(entryKindOverrides.workspaceId, r.s.workspaceId),
+          eq(entryKindOverrides.deleted, true),
+        ),
+      ),
+  ])
+  view.enabledKinds = resolveEnabledKinds({
+    raw: r.s.enabledKinds,
+    spaceKind: r.s.kind,
+    isPersonal: r.s.isPersonal,
+    spaceTypeIds: types.filter((t) => t.spaceId === id).map((t) => t.id),
+    knownTypeIds: types.map((t) => t.id),
+    deletedKinds: deleted.map((d) => d.kind),
+  })
+  return view
 }
 
 export const accessChanged = (ctx: SpaceCtx, payload: { spaceId: string; userIds?: string[] }) =>
@@ -446,7 +506,32 @@ export async function patchSpace(
   if (patch.visibility !== undefined) set.visibility = patch.visibility
   if (patch.description !== undefined) set.description = patch.description
   if (patch.kind !== undefined) set.kind = patch.kind
-  if (patch.defaultKind !== undefined) set.defaultKind = patch.defaultKind
+  if (patch.defaultKind !== undefined) {
+    set.defaultKind = patch.defaultKind
+    if (patch.defaultKind) set.defaultTypeId = null
+  }
+  if (patch.defaultTypeId !== undefined) {
+    // 只能是本空间的空间类型：个人类型他人用不了（ADR-0036 修订 ADR-0019）
+    if (patch.defaultTypeId) {
+      const t = await loadEntryType(db, ctx.workspaceId, patch.defaultTypeId)
+      if (!t || t.spaceId !== row.id)
+        throw AppError.validation([{ path: 'defaultTypeId', message: '默认类型须为本空间的类型' }])
+      set.defaultKind = null
+    }
+    set.defaultTypeId = patch.defaultTypeId
+  }
+  if (patch.enabledKinds !== undefined) {
+    // 启用清单（REQ-KB-014）：类型项须为本空间的空间类型或本人的个人类型
+    if (patch.enabledKinds) {
+      for (const [i, k] of patch.enabledKinds.entries()) {
+        if (!k.startsWith('type:')) continue
+        const t = await loadEntryType(db, ctx.workspaceId, k.slice(5))
+        const ok = !!t && (t.spaceId ? t.spaceId === row.id : t.createdBy === ctx.actor.id)
+        if (!ok) throw AppError.validation([{ path: `enabledKinds.${i}`, message: '类型不存在' }])
+      }
+      set.enabledKinds = [...new Set(patch.enabledKinds)]
+    } else set.enabledKinds = null
+  }
   if (patch.defaultTemplateId !== undefined) {
     if (patch.defaultTemplateId)
       await assertSharedTemplate(db, ctx.workspaceId, patch.defaultTemplateId)

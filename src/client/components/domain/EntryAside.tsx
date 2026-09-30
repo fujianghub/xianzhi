@@ -36,7 +36,6 @@ import { RelativeTime } from '../ui/relative-time.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
 import { Comments } from './Comments.tsx'
 import { EntryRelations } from './EntryRelations.tsx'
-import { TagPicker, tagsQuery } from './TagPicker.tsx'
 
 type SnapshotMeta = import('../../editor/SnapshotPreview.tsx').SnapshotMeta
 const SnapshotPreview = lazy(() => import('../../editor/SnapshotPreview.tsx'))
@@ -208,7 +207,6 @@ function Props({
   const qc = useQueryClient()
   const actions = useEntryActions()
   const spaces = useQuery(spacesQuery())
-  const allTags = useQuery(tagsQuery)
   const snaps = useQuery({
     queryKey: ['entry', entry.id, 'snapshots'],
     queryFn: () =>
@@ -257,8 +255,8 @@ function Props({
   // 改类型（ADR-0016）：fields 按目标类型重建，保留仍合法的状态 / 进度；有必填属性的类型 422 → 提示原因
   const kindOf = useKindLabel()
   const cur = kindOf(entry.kind, entry.typeId)
-  const options = useKindOptions()
-  const kindOptions = options.some((o) => kindKey(o) === kindKey(cur)) ? options : [cur, ...options]
+  // 可改成：所在空间启用且本人可用的类型（ADR-0036）；当前类型即使未启用也保留
+  const kindOptions = useKindOptions(current ?? null, { keep: cur })
   const retype = async (key: string) => {
     const m = kindOptions.find((o) => kindKey(o) === key)
     if (!m || key === kindKey(cur)) return
@@ -355,16 +353,6 @@ function Props({
         }}
       />
       {current && !personal ? <TreePosition entry={entry} disabled={!canWrite} /> : null}
-      <div className={row} data-testid="entry-tags">
-        <span className={labelCls}>{t('kb.tags')}</span>
-        <TagPicker
-          value={(entry.tagIds ?? [])
-            .map((id) => allTags.data?.find((x) => x.id === id))
-            .filter((x): x is NonNullable<typeof x> => !!x)}
-          onChange={(ids) => void actions.patch(entry, { tagIds: ids })}
-          disabled={!canWrite}
-        />
-      </div>
       <div className={row}>
         <span className={labelCls}>{t('entry.aside.author')}</span>
         <span>{entry.author.displayName}</span>

@@ -139,6 +139,7 @@ export const AUDIT_ACTIONS = [
   'backup.failed',
   // ADR-0016：删自定义类型会把其下记录转为随手记，留痕
   'entry_type.deleted',
+  'entry_type.fields_changed',
 ] as const
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]
 

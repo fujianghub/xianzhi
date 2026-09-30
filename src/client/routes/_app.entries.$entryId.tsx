@@ -1,6 +1,6 @@
 /**
  * 记录编辑（08 §2.9）：paper 纸面居中，版心 / 字体 / 行距 / 纸张等取阅读偏好（ADR-0024；`?wide=1` 仍强制 1080）；
- * 标题就地编辑 + kind 徽章 + 固定 + fields 表单（自动保存）；正文走协同（编辑器 chunk 懒加载）；Aside 由 `?aside=` 选页（T1-017）。
+ * 标题就地编辑 + kind 徽章 + 固定 + 属性面板（常显、点值即改，ADR-0035）；正文走协同（编辑器 chunk 懒加载）；Aside 由 `?aside=` 选页（T1-017）。
  * 阅读胶囊（字体 / 纸张 / 排版 / 目录）与「专注」在正文上方的吸顶工具栏里（ADR-0025）；⌘⇧↵ 在此捕获。
  */
 import { useQuery } from '@tanstack/react-query'
@@ -9,9 +9,9 @@ import { ChevronRight, Pin, Star } from 'lucide-react'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type AsideTab, EntryAside } from '../components/domain/EntryAside.tsx'
+import EntryProperties from '../components/domain/EntryFieldsPanel.tsx'
 import { EntryMenu } from '../components/domain/EntryMenu.tsx'
 import { KindBadge } from '../components/domain/KindIcon.tsx'
-import { Disclosure } from '../components/ui/disclosure.tsx'
 import { InlineEdit } from '../components/ui/inline-edit.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
 import { useEntryActions } from '../hooks/useEntries.ts'
@@ -28,7 +28,6 @@ import { spaceQuery } from '../lib/space-queries.ts'
 import { useAsideSlot, useCommandContext, useCommentDraft } from '../lib/stores.ts'
 
 const EntryEditor = lazy(() => import('../editor/EntryEditor.tsx'))
-const FieldsPanel = lazy(() => import('../components/domain/EntryFieldsPanel.tsx'))
 
 type Search = { aside?: AsideTab; wide?: '1'; c?: string }
 
@@ -60,7 +59,6 @@ function EntryPage() {
   const actions = useEntryActions()
   const sharedTarget = useSharedTarget(entryId)
   const setAside = useAsideSlot((s) => s.set)
-  const [fieldsOpen, setFieldsOpen] = useState(false)
   const [docBarSlot, setDocBarSlot] = useState<HTMLDivElement | null>(null)
   // 写权限由服务端票据最终判定（onAuthenticated scope）；此处按角色给乐观值
   const canWrite = !!e && (e.authorId === me.id || me.workspaceRole !== 'guest')
@@ -162,11 +160,7 @@ function EntryPage() {
                   {t(e.pinned ? 'entry.unpin' : 'entry.pin')}
                 </button>
               ) : null}
-              <EntryMenu
-                entry={e}
-                canWrite={canWrite}
-                onDeleted={() => void nav({ to: '/entries', search: {} })}
-              />
+              <EntryMenu entry={e} canWrite={canWrite} navigateAfterDelete />
             </div>
           </div>
           <div ref={sharedTarget}>
@@ -189,29 +183,10 @@ function EntryPage() {
               </h1>
             )}
           </div>
+          {/* 属性面板（ADR-0035，REQ-ENTRY-024）：标题下常显，在文档栏之前；专注时隐藏 */}
+          {focus ? null : <EntryProperties entry={e} disabled={!canWrite} />}
           {/* 文档栏插槽（ADR-0029）：阅读 / 保存 / 字数，由编辑器 portal 进来；预留高度避免加载时跳动 */}
           <div ref={setDocBarSlot} className="xz-doc-bar-slot" />
-          {e.kind !== 'note' && !focus ? (
-            <div className="mb-6">
-              <button
-                type="button"
-                aria-expanded={fieldsOpen}
-                onClick={() => setFieldsOpen((v) => !v)}
-                className="inline-flex items-center gap-1 text-fg-muted text-xs hover:text-fg"
-                data-testid="entry-fields-toggle"
-              >
-                <Disclosure open={fieldsOpen} />
-                {t('entry.fieldsLabel')}
-              </button>
-              {fieldsOpen ? (
-                <Suspense fallback={<Skeleton className="mt-2 h-16 w-full" />}>
-                  <div className="mt-3">
-                    <FieldsPanel entry={e} disabled={!canWrite} />
-                  </div>
-                </Suspense>
-              ) : null}
-            </div>
-          ) : null}
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
             <EntryEditor
               entryId={entryId}

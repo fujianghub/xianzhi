@@ -1,28 +1,18 @@
 /**
- * 空间卡片（08 §2.5）：纸面卡；空间管理员可归档 / 取消归档（REQ-SPACE-004），可移到大类（ADR-0018、REQ-KB-008）。
- * 工作区 owner / admin 可「合并到…」另一个空间（ADR-0022、REQ-SPACE-015）。
+ * 空间卡片（08 §2.5）：纸面卡；⋯ = 共用的空间菜单（ADR-0035、REQ-KB-011：改名 / 图标与颜色 / 归档 / 移到大类 / 合并 / 删除，
+ * 见 SpaceMenu），卡片上右键同样打开。
  * 批量管理模式（ADR-0021、REQ-SPACE-010）：传 `selection` 时整卡是一个勾选按钮（不跳转、不显示 ⋯）；不可选的卡片变淡。
  */
-import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Archive, ArchiveRestore, Check, Lock, Merge, MoreHorizontal, Users } from 'lucide-react'
-import { useState } from 'react'
+import { Lock, MoreHorizontal, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
-import { isAdmin, useMe } from '../../hooks/useMe.ts'
-import {
-  type Space,
-  spaceGroupsQuery,
-  useArchiveSpace,
-  useMoveSpaceToGroup,
-} from '../../hooks/useSpaces.ts'
-import { ApiError } from '../../lib/api.ts'
+import type { Space } from '../../hooks/useSpaces.ts'
 import { cn } from '../../lib/cn.ts'
 import { Button } from '../ui/button.tsx'
 import { Checkbox } from '../ui/checkbox.tsx'
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.tsx'
-import { MergeSpaceDialog } from './MergeSpaceDialog.tsx'
+import { useContextPoint } from '../ui/context-anchor.tsx'
 import { SpaceIcon } from './SpaceIcon.tsx'
+import { SpaceMenu, useSpacePerms } from './SpaceMenu.tsx'
 
 export interface SpaceSelection {
   selected: boolean
@@ -42,40 +32,10 @@ export function SpaceCard({
   selection?: SpaceSelection
 }) {
   const { t } = useTranslation()
-  const archive = useArchiveSpace()
-  const moveTo = useMoveSpaceToGroup()
   const name = space.isPersonal ? t('space.personal') : space.name
-  const canManage = space.myRole === 'admin' && !space.isPersonal
+  const { canManage } = useSpacePerms(space)
   const selecting = !!selection
-  // 合并会删掉本空间：与删除同权限（工作区 owner / admin，ADR-0022）
-  const { data: me } = useMe()
-  const canMerge = canManage && isAdmin(me)
-  const [merging, setMerging] = useState(false)
-  const groups = useQuery({ ...spaceGroupsQuery, enabled: canManage && !selecting })
-  const setGroup = (groupId: string | null) =>
-    moveTo.mutate(
-      { space, groupId },
-      {
-        onSuccess: () =>
-          toast.success(
-            t('space.movedToGroup', {
-              name,
-              group: groups.data?.find((g) => g.id === groupId)?.name ?? t('space.ungrouped'),
-            }),
-          ),
-        onError: (err) => toast.error(err instanceof ApiError ? err.message : t('task.saveFailed')),
-      },
-    )
-  const toggleArchive = () =>
-    archive.mutate(
-      { id: space.id, archived: !space.archivedAt },
-      {
-        onSuccess: () =>
-          toast.success(
-            t(space.archivedAt ? 'space.unarchivedToast' : 'space.archivedToast', { name }),
-          ),
-      },
-    )
+  const ctx = useContextPoint()
   return (
     <li
       style={{ '--i': index } as React.CSSProperties}
@@ -88,6 +48,7 @@ export function SpaceCard({
       data-testid="space-card"
       data-space-id={space.id}
       data-selected={selection?.selected || undefined}
+      onContextMenu={canManage && !selecting ? ctx.open : undefined}
     >
       {selection?.selectable ? (
         <button
@@ -133,8 +94,11 @@ export function SpaceCard({
           </p>
         </div>
         {canManage && !selecting ? (
-          <Popover>
-            <PopoverTrigger asChild>
+          <SpaceMenu
+            space={space}
+            contextPoint={ctx.point}
+            onContextClose={ctx.clear}
+            trigger={
               <Button
                 variant="icon"
                 className="relative z-1 -mt-1 -mr-1"
@@ -143,55 +107,8 @@ export function SpaceCard({
               >
                 <MoreHorizontal />
               </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-52 p-1">
-              <button
-                type="button"
-                className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-sm hover:bg-hover"
-                onClick={toggleArchive}
-                data-testid="space-archive-toggle"
-              >
-                {space.archivedAt ? (
-                  <ArchiveRestore className="size-4" />
-                ) : (
-                  <Archive className="size-4" />
-                )}
-                {space.archivedAt ? t('space.unarchive') : t('space.archive')}
-              </button>
-              {canMerge ? (
-                <button
-                  type="button"
-                  className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-sm hover:bg-hover"
-                  onClick={() => setMerging(true)}
-                  data-testid="space-merge"
-                >
-                  <Merge className="size-4" />
-                  {t('space.merge.menu')}
-                </button>
-              ) : null}
-              <p className="mt-1 border-divider border-t px-2 pt-2 pb-1 text-fg-muted text-xs">
-                {t('space.moveToGroup')}
-              </p>
-              {[...(groups.data ?? []), null].map((g) => {
-                const on = (space.groupId ?? null) === (g?.id ?? null)
-                return (
-                  <button
-                    key={g?.id ?? 'none'}
-                    type="button"
-                    disabled={on}
-                    aria-current={on || undefined}
-                    className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-sm hover:bg-hover disabled:text-fg-muted"
-                    onClick={() => setGroup(g?.id ?? null)}
-                    data-testid="space-move-group"
-                    data-group-id={g?.id ?? 'none'}
-                  >
-                    <span className="truncate">{g?.name ?? t('space.ungrouped')}</span>
-                    {on ? <Check className="ms-auto size-4" /> : null}
-                  </button>
-                )
-              })}
-            </PopoverContent>
-          </Popover>
+            }
+          />
         ) : null}
       </div>
       <div className="flex items-center gap-3 text-fg-muted text-xs">
@@ -210,9 +127,6 @@ export function SpaceCard({
           </span>
         ) : null}
       </div>
-      {canMerge ? (
-        <MergeSpaceDialog space={space} open={merging} onOpenChange={setMerging} />
-      ) : null}
     </li>
   )
 }

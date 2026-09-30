@@ -21,8 +21,9 @@ import { toast } from 'sonner'
 import { useEntryActions } from '../../hooks/useEntries.ts'
 import { cn } from '../../lib/cn.ts'
 import type { Entry, EntryKind } from '../../lib/entry-queries.ts'
-import { keyFields } from './EntryCard.tsx'
+import { KeyFieldPills } from './EntryCard.tsx'
 import { fieldSpecs } from './EntryFieldsForm.tsx'
+import { type FieldSpec, StatusPill, useFieldSpecs } from './FieldValue.tsx'
 
 /** 该类型的 status 枚举；没有则不可用看板。 */
 export function boardStatuses(kind: EntryKind | undefined): string[] | null {
@@ -42,6 +43,10 @@ export function EntryBoard({
 }) {
   const { t } = useTranslation()
   const actions = useEntryActions()
+  const specsOf = useFieldSpecs()
+  const statusSpec = items[0]
+    ? specsOf(items[0].kind, items[0].typeId).find((f) => f.name === 'status')
+    : undefined
   // 放下即本地移动（乐观），请求失败再回原列
   const [override, setOverride] = useState<Record<string, string>>({})
   const statusOf = (e: Entry) => override[e.id] ?? String(e.fields.status ?? statuses[0])
@@ -79,7 +84,12 @@ export function EntryBoard({
         data-testid="entry-board"
       >
         {statuses.map((s) => (
-          <Column key={s} status={s} items={items.filter((e) => statusOf(e) === s)}>
+          <Column
+            key={s}
+            status={s}
+            spec={statusSpec}
+            items={items.filter((e) => statusOf(e) === s)}
+          >
             {(e) => <BoardCard key={e.id} entry={e} draggable={canWrite} />}
           </Column>
         ))}
@@ -90,10 +100,12 @@ export function EntryBoard({
 
 function Column({
   status,
+  spec,
   items,
   children,
 }: {
   status: string
+  spec?: FieldSpec
   items: Entry[]
   children: (e: Entry) => React.ReactNode
 }) {
@@ -112,7 +124,7 @@ function Column({
       )}
     >
       <h3 className="flex items-center justify-between px-1 font-medium text-sm">
-        {label}
+        <StatusPill value={status} spec={spec} />
         <span className="text-fg-muted text-xs tabular-nums">{items.length}</span>
       </h3>
       {items.length ? (
@@ -173,13 +185,7 @@ function BoardCard({ entry, draggable }: { entry: Entry; draggable: boolean }) {
         </p>
       ) : null}
       <div className="mt-2 flex flex-wrap gap-1 text-[11px]">
-        {keyFields(entry)
-          .filter((f) => f.name !== 'status')
-          .map((f) => (
-            <span key={f.name} className="rounded bg-surface px-1.5 py-0.5 text-fg-muted">
-              {t(`entry.fieldValue.${f.value}`, { defaultValue: f.value })}
-            </span>
-          ))}
+        <KeyFieldPills entry={entry} exclude={['status']} />
       </div>
     </div>
   )

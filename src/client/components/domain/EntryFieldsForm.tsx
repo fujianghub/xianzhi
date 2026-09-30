@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import type { z } from 'zod'
 import { BUG_CLOSED_STATUSES, entryFieldsByKind } from '../../../shared/schemas/entryFields.ts'
+import type { FieldDef } from '../../../shared/schemas/fieldDefs.ts'
 import { type EntryKind, entryStatsQuery } from '../../lib/entry-queries.ts'
 import { useKindLabel } from '../../lib/entry-types.ts'
 import { Input } from '../ui/input.tsx'
@@ -98,14 +99,17 @@ export function EntryFieldsForm({
   only?: string[]
 }) {
   const { t } = useTranslation()
-  const specs = fieldSpecs(kind, useKindLabel()(kind, typeId).statuses).filter(
+  const meta = useKindLabel()(kind, typeId)
+  // 类型的自定义字段（ADR-0036）：精简模式（only）不显示
+  const extras = only ? [] : meta.fieldDefs
+  const specs = fieldSpecs(kind, meta.statuses).filter(
     (f) =>
       (!only || only.includes(f.name)) &&
       // 解决日期只在已关闭时显示（服务端维护，ADR-0033）
       !(kind === 'bug' && f.name === 'resolvedAt' && !isBugClosed(value.status)),
   )
   const modules = useBugModules(kind === 'bug' && specs.some((f) => f.name === 'module'))
-  if (!specs.length) return null
+  if (!specs.length && !extras.length) return null
   const set = (name: string, v: unknown) => {
     const next = { ...value }
     if (v === '' || v === undefined) delete next[name]
@@ -176,6 +180,16 @@ export function EntryFieldsForm({
           </label>
         )
       })}
+      {extras.map((d) => (
+        <ExtraField
+          key={d.key}
+          def={d}
+          value={value[d.key]}
+          error={errors?.[d.key]}
+          disabled={disabled}
+          onChange={(v) => set(d.key, v)}
+        />
+      ))}
       {modules.length ? (
         <datalist id="bug-modules">
           {modules.map((m) => (
@@ -189,8 +203,129 @@ export function EntryFieldsForm({
 
 const isBugClosed = (s: unknown) => BUG_CLOSED_STATUSES.includes(String(s))
 
+/** 自定义字段输入（ADR-0036、REQ-ENTRY-027）：id = `field-<key>`，与内置字段同一形态 */
+function ExtraField({
+  def,
+  value,
+  error,
+  disabled,
+  onChange,
+}: {
+  def: FieldDef
+  value: unknown
+  error?: string
+  disabled?: boolean
+  onChange: (v: unknown) => void
+}) {
+  const id = `field-${def.key}`
+  const ctl = 'h-9 rounded-md border border-border bg-surface px-2'
+  const input = (() => {
+    switch (def.type) {
+      case 'select':
+        return (
+          <select
+            id={id}
+            disabled={disabled}
+            value={value === undefined ? '' : String(value)}
+            onChange={(e) => onChange(e.target.value || undefined)}
+            className={ctl}
+            aria-invalid={!!error}
+          >
+            <option value="">—</option>
+            {(def.options ?? []).map((o) => (
+              <option key={o.name} value={o.name}>
+                {o.name}
+              </option>
+            ))}
+          </select>
+        )
+      case 'multiselect': {
+        const cur = Array.isArray(value) ? value.map(String) : []
+        return (
+          <span id={id} className="flex flex-wrap gap-x-3 gap-y-1 py-1">
+            {(def.options ?? []).map((o) => (
+              <label key={o.name} className="inline-flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  disabled={disabled}
+                  checked={cur.includes(o.name)}
+                  onChange={(e) => {
+                    const next = e.target.checked
+                      ? (def.options ?? [])
+                          .map((x) => x.name)
+                          .filter((n) => n === o.name || cur.includes(n))
+                      : cur.filter((n) => n !== o.name)
+                    onChange(next.length ? next : undefined)
+                  }}
+                />
+                {o.name}
+              </label>
+            ))}
+          </span>
+        )
+      }
+      case 'checkbox':
+        return (
+          <input
+            id={id}
+            type="checkbox"
+            disabled={disabled}
+            checked={value === true}
+            onChange={(e) => onChange(e.target.checked || undefined)}
+            className="size-4 self-start"
+          />
+        )
+      default: {
+        const numeric = def.type === 'number' || def.type === 'progress'
+        return (
+          <Input
+            id={id}
+            type={
+              def.type === 'date'
+                ? 'date'
+                : numeric
+                  ? 'number'
+                  : def.type === 'url'
+                    ? 'url'
+                    : 'text'
+            }
+            min={def.type === 'progress' ? 0 : undefined}
+            max={def.type === 'progress' ? 100 : undefined}
+            disabled={disabled}
+            value={value === undefined ? '' : String(value)}
+            onChange={(e) =>
+              onChange(
+                e.target.value === ''
+                  ? undefined
+                  : numeric
+                    ? Number(e.target.value)
+                    : e.target.value,
+              )
+            }
+            aria-invalid={!!error}
+          />
+        )
+      }
+    }
+  })()
+  return (
+    <label htmlFor={id} className="flex flex-col gap-1 text-sm" data-field={def.key}>
+      <span className="text-fg-muted text-xs">
+        {def.label}
+        {def.required ? ' *' : ''}
+      </span>
+      {input}
+      {error ? (
+        <span className="text-danger text-xs" role="alert" data-testid={`field-error-${def.key}`}>
+          {error}
+        </span>
+      ) : null}
+    </label>
+  )
+}
+
 /** 本人可见 Bug 已用过的模块（按使用次数），作输入候选。 */
-function useBugModules(enabled: boolean): string[] {
+export function useBugModules(enabled: boolean): string[] {
   const { data } = useQuery({
     ...entryStatsQuery({ kind: 'bug', groupBy: 'module' }),
     enabled,

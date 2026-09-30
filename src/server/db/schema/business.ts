@@ -4,6 +4,7 @@
  */
 import { sql } from 'drizzle-orm'
 import {
+  type AnyPgColumn,
   boolean,
   check,
   date,
@@ -45,6 +46,7 @@ import {
   TEMPLATE_SCOPES,
   TRACKED_ENTRY_FIELDS,
 } from '../../../shared/schemas/enums.ts'
+import type { FieldDef } from '../../../shared/schemas/fieldDefs.ts'
 import { createdAt, inList, pk, timestamptz, updatedAt } from './_helpers.ts'
 import { bytea, tsvector, vector } from './_types.ts'
 import { organization, user } from './auth.ts'
@@ -98,6 +100,13 @@ export const spaces = pgTable(
     defaultKind: text(),
     /** 在此空间新建记录时的默认模板（ADR-0019）：`builtin:<key>` 或工作区模板 uuid；个人模板不可（他人用不了） */
     defaultTemplateId: text(),
+    /** 默认类型为自定义 / 空间类型时（ADR-0036）；与 defaultKind 互斥（service 校验） */
+    defaultTypeId: uuid().references((): AnyPgColumn => entryTypes.id, { onDelete: 'set null' }),
+    /**
+     * 启用类型清单（ADR-0036、REQ-KB-014）：有序，元素为内置 kind 名或 `type:<uuid>`；
+     * null = 按空间种类推导的默认（不做数据迁移）。无外键：删类型时 service 清理，读时忽略悬空项。
+     */
+    enabledKinds: jsonb().$type<string[]>(),
     // 列级 COLLATE "C"（drizzle/0003_sort_key_collate_c.sql）：fractional-indexing 键须按字节序比较
     sortKey: text().notNull(),
     archivedAt: timestamptz(),
@@ -222,14 +231,25 @@ export const entryTypes = pgTable(
     name: text().notNull(),
     color: text().notNull(),
     statuses: jsonb().$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-    /** 所有者（ADR-0017：自定义类型是个人的，只有本人能用来新建 / 改类型、能管理；读者只看名 / 色 / 状态） */
+    /** 状态颜色（ADR-0036）：状态名 → 色板色；未设按位置轮换 */
+    statusColors: jsonb().$type<Record<string, string>>().notNull().default(sql`'{}'::jsonb`),
+    /** 字段定义（ADR-0036、REQ-ENTRY-027）：值存于 entries.fields 的 x 键 */
+    fieldDefs: jsonb().$type<FieldDef[]>().notNull().default(sql`'[]'::jsonb`),
+    /** 空间类型（ADR-0036）：非 null = 属于该空间、空间成员共用；null = 个人类型（ADR-0017） */
+    spaceId: uuid().references(() => spaces.id, { onDelete: 'cascade' }),
+    /** 所有者（ADR-0017：个人类型只有本人能用来新建 / 改类型、能管理；空间类型为创建者，仅作记录） */
     createdBy: userRef(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
-    // 自定义类型是个人的（ADR-0017）
-    unique('entry_types_owner_name_uq').on(t.workspaceId, t.createdBy, t.name),
+    // 个人类型按人唯一（ADR-0017）；空间类型按空间唯一（ADR-0036）
+    uniqueIndex('entry_types_owner_name_uq')
+      .on(t.workspaceId, t.createdBy, t.name)
+      .where(sql`${t.spaceId} is null`),
+    uniqueIndex('entry_types_space_name_uq')
+      .on(t.spaceId, t.name)
+      .where(sql`${t.spaceId} is not null`),
     check('entry_types_color_ck', inList(t.color, PALETTE_COLORS)),
   ],
 )
@@ -246,6 +266,8 @@ export const entryKindOverrides = pgTable(
     name: text(),
     color: text(),
     deleted: boolean().notNull().default(false),
+    /** 内置类型追加的字段（ADR-0036、REQ-ENTRY-028）：工作区统一，仅所有者维护 */
+    fieldDefs: jsonb().$type<FieldDef[]>().notNull().default(sql`'[]'::jsonb`),
     updatedAt: updatedAt(),
   },
   (t) => [
@@ -343,6 +365,8 @@ export const entryTemplates = pgTable(
     name: text().notNull(),
     description: text().notNull().default(''),
     kind: text().notNull(),
+    /** 绑自定义 / 空间类型时（ADR-0036、REQ-TPL-011）；类型删除前 service 把模板转随笔 */
+    typeId: uuid().references(() => entryTypes.id, { onDelete: 'set null' }),
     spaceKind: text(),
     body: jsonb().notNull(),
     fields: jsonb().notNull().default({}),
@@ -353,7 +377,11 @@ export const entryTemplates = pgTable(
     index('entry_templates_workspace_scope_idx').on(t.workspaceId, t.scope),
     index('entry_templates_owner_idx').on(t.ownerId),
     check('entry_templates_scope_ck', inList(t.scope, TEMPLATE_SCOPES)),
-    check('entry_templates_kind_ck', inList(t.kind, BUILTIN_ENTRY_KINDS)),
+    check('entry_templates_kind_ck', inList(t.kind, ENTRY_KINDS)),
+    check(
+      'entry_templates_custom_type_ck',
+      sql`(${t.kind} = 'custom') = (${t.typeId} is not null)`,
+    ),
     check(
       'entry_templates_space_kind_ck',
       sql`${t.spaceKind} is null or ${inList(t.spaceKind, SPACE_KINDS)}`,

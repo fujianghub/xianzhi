@@ -12,6 +12,7 @@ import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 import { strToU8, zipSync } from 'fflate'
 import { pmToHtmlDocument } from '../../shared/editor/serializers/html.ts'
 import { frontmatter, pmToMarkdown } from '../../shared/editor/serializers/markdown.ts'
+import { type FieldDef, isExtraFieldKey } from '../../shared/schemas/fieldDefs.ts'
 import type { PmNode } from '../../shared/schemas/pm.ts'
 import { type Actor, can, visibleEntriesWhere, visibleTasksWhere } from '../authz.ts'
 import type { Db } from '../db/index.ts'
@@ -20,6 +21,7 @@ import {
   attachments,
   cycles,
   entries,
+  entryKindOverrides,
   entryTags,
   entryTypes,
   links,
@@ -87,6 +89,7 @@ export async function buildExport(db: Db, dataDir: string, actor: Actor, d: Expo
     .select({
       e: entries,
       typeName: entryTypes.name,
+      typeDefs: entryTypes.fieldDefs,
       slug: spaces.slug,
       author: userTable.name,
       authorDisplay: userTable.displayName,
@@ -167,6 +170,15 @@ export async function buildExport(db: Db, dataDir: string, actor: Actor, d: Expo
 
   const files: Record<string, Uint8Array> = {}
   const used = new Set<string>()
+  // 自定义字段（x 键，ADR-0036）在导出里换成字段名，读者看不懂系统键
+  const builtinDefs = new Map(
+    (
+      await db
+        .select({ kind: entryKindOverrides.kind, defs: entryKindOverrides.fieldDefs })
+        .from(entryKindOverrides)
+        .where(eq(entryKindOverrides.workspaceId, d.workspaceId))
+    ).map((o) => [o.kind, o.defs ?? []]),
+  )
   for (const r of es) {
     // 自定义类型按类型名分目录（ADR-0016）
     const kindDir = r.typeName ? fileSlug(r.typeName) : r.e.kind
@@ -182,7 +194,10 @@ export async function buildExport(db: Db, dataDir: string, actor: Actor, d: Expo
       space: r.slug,
       visibility: r.e.visibility,
       author: r.authorDisplay || r.author || '',
-      fields: r.e.fields ?? {},
+      fields: labelFields(
+        (r.e.fields ?? {}) as Record<string, unknown>,
+        r.typeDefs ?? builtinDefs.get(r.e.kind) ?? [],
+      ),
       tags: tagRows.filter((t) => t.entryId === r.e.id).map((t) => t.name),
       links: linkRows
         .filter((l) => l.fromId === r.e.id)
@@ -339,3 +354,17 @@ export const EXPORT_JOBS: JobDef[] = [
       runExport({ db: ctx.db, dataDir: ctx.dataDir }, data as unknown as ExportJobData, jobId),
   },
 ]
+
+/** x 键 → 字段名（重名时保留原键）；未定义的 x 键丢弃 */
+function labelFields(fields: Record<string, unknown>, defs: FieldDef[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(fields)) {
+    if (!isExtraFieldKey(k)) {
+      out[k] = v
+      continue
+    }
+    const def = defs.find((x) => x.key === k)
+    if (def) out[def.label in out || def.label in fields ? k : def.label] = v
+  }
+  return out
+}

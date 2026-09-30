@@ -2,7 +2,16 @@
 
 > 只记规范文件的变更；代码变更看 git log。格式：日期 → 文件 → 一行一条。每个 Phase 结束前的一致性审查结果也记在这里。
 
-## 2026-09-29
+## 2026-09-30
+
+**就地管理 · 记录页属性面板 · 元数据配色（ADR-0035）；空间类型 · 启用清单 · 字段定义 · 模板绑类型（ADR-0036）**
+- 新增 ADR-0035（修订 ADR-0029 记录页纵向顺序为 标题 → 属性面板 → 文档栏 → 吸顶格式栏 → 正文；修订 ADR-0033 默认收起的流转 → 彩色时间线）与 ADR-0036（修订 ADR-0017 §2、ADR-0019 §3、ADR-0033 否决项「自定义类型任意属性」、ADR-0011 §2 / ADR-0023 模板只绑内置、ADR-0012 概览按 `space.kind` 写死）；计划评审 16 条意见已并入。
+- 00：§6c +REQ-KB-011 ~ 017；§6 +REQ-ENTRY-024 ~ 029；§6b +REQ-TPL-011；§16 +REQ-UI-044。加注：REQ-KB-003（被 REQ-KB-016 取代，个人空间不受影响）· REQ-KB-010 · REQ-ENTRY-018 · REQ-TPL-007 · REQ-BUG-006 · REQ-READ-007。
+- 01：§3.1 spaces +`default_type_id` `enabled_kinds`（null = 按 kind 推导默认，不迁移数据）；§3.4 entry_templates +`type_id`、kind 放开 custom；§3.4c entry_types +`space_id` `field_defs` `status_colors`，唯一约束改两个 partial unique index，entry_kind_overrides +`field_defs`；§3.5 +自定义字段（x 键 `FieldDef`）；§3.12 +`entry_type.fields_changed`；§5 内置类型追加字段 / 空间类型走 `space.manage` 两行。
+- 02 §9：无新路由；`/entry-types`（GET / POST / PATCH / builtin PATCH）、`/spaces/:id`（GET / PATCH）、`/spaces/:id/merge`、`/entries`（GET 的 x 键与多选筛选、PATCH、batch）、`/entries/stats`、`/templates`（GET / POST / PATCH）行加注。
+- 08：§2.5 `SpaceMenu` / `GroupMenu`；§2.5b 空间首页改为启用类型页签 + 状态概要 + 可编辑表格、`SpaceTypesDialog`；§2.8 统一配色 / 就地编辑 / 类型按空间过滤；§2.9 属性面板与 DOM 顺序；§2.13 `/settings/types` 字段编辑、模板绑类型。glossary：原「空间类型」（`space.kind`）改称「空间种类」，+个人类型 · 空间类型 · 启用类型 · 字段定义 · 属性面板。
+- 迁移 0022（待实现）。CLAUDE.md「记录页 = 标题 → 文档栏 → …」坐标行需用户更新（不自动改）。
+
 
 **认证页「衔枝小院」：双栏插画 + 会反应的小燕（ADR-0034）**
 - 新增 ADR-0034（兑现 ADR-0007 预留的柳枝构图 D）。00 §16：+REQ-UI-041 ~ 043。06 §5.6 注（认证四页改双栏，窄屏探头小燕）。08 §2.1 注（情绪 / 成功延迟跳转）。glossary §2 +衔枝小院 · 小燕。tokens +`--xz-bird-*` `--xz-scene-*` `--xz-willow*` `--xz-branch`（两主题）。评审跟进：去掉燕巢 / 雏燕（不聚焦）；造型两版正面被否后改 3/4 侧身，三方向候选中用户选定 A「豆豆燕」；再出三种渲染质感，选定 T1「绒光」（无描边 · 右上主光 · 釉光 / 反光 / 柔影 · 栗红下巴 + 藏蓝胸带）。跟随与去机械感重做（喙指向指针 · 指针在背后转身 · 眼先头后身尾跟随链 · 微顿挫 / 错相呼吸 / 换重心 · 嘴只画一个喙）；定稿「幼燕 + A 墨青」（头宽约为躯干长 45% · 蛋形躯干 · 大眼偏低 · 嘴角笑线 · 叉尾白斑 · 低饱和墨青 / 陶土红 / 暖奶油，`--xz-bird-gape`，柳叶改鼠尾草绿）；此前比例曾改为真家燕 N2「自然」（修长身 · 长刀翅 · 深叉尾 · 捂眼改扭头躲开，`--xz-bird-band`）；动作按真鸟规律重做（头身拆开、扫视 + 头部稳定、眼先头后身、歪头打量、燕子停栖小动作清单、开发用 `?birdlab` 实验台）。tokens 相应改为 `--xz-bird-back-hi/-lo` `wing-hi/-lo` `belly-lo` `throat-lo` `eye-hi` `reflect` `gloss` `rim` `shadow` 与 `--xz-branch-lo/-light`。debug 记一条（减弱档 CSS 被情绪规则特异性压过 / 0ms 过渡带 delay 仍生成 transition）。

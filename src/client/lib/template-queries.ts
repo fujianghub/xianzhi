@@ -2,7 +2,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { TemplateView } from '../../server/services/templates.ts'
-import type { BuiltinEntryKind, SpaceKind, TemplateScope } from '../../shared/schemas/enums.ts'
+import type { EntryKind, SpaceKind, TemplateScope } from '../../shared/schemas/enums.ts'
 import type { PmNode } from '../../shared/schemas/pm.ts'
 import { ApiError, api, unwrap } from './api.ts'
 import { newId } from './uuid.ts'
@@ -57,7 +57,10 @@ export interface TemplatePatch {
   description?: string
   scope?: TemplateScope
   spaceKind?: SpaceKind | null
-  kind?: BuiltinEntryKind
+  /** 绑自定义 / 空间类型时 kind = custom 且给 typeId（ADR-0036） */
+  kind?: EntryKind
+  typeId?: string
+  fields?: Record<string, unknown>
   body?: PmNode
 }
 

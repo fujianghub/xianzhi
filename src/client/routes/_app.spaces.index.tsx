@@ -9,6 +9,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { CheckSquare, FolderCog, Plus } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { GroupMenu } from '../components/domain/GroupMenu.tsx'
 import { SpaceBatchBar } from '../components/domain/SpaceBatchBar.tsx'
 import { SpaceCard, type SpaceSelection } from '../components/domain/SpaceCard.tsx'
 import { SpaceGroupsDialog } from '../components/domain/SpaceGroupsDialog.tsx'
@@ -215,7 +216,7 @@ function SpacesPage() {
             const name = sec.group?.name ?? t('space.ungrouped')
             return (
               <div key={key} data-testid="spaces-section" data-group-id={key}>
-                <div className="mb-3 flex items-center gap-2">
+                <div className="group/section mb-3 flex items-center gap-2">
                   <span
                     className={cn(
                       'size-2.5 rounded-full',
@@ -249,6 +250,8 @@ function SpacesPage() {
                       {t('space.groups.newHere')}
                     </button>
                   ) : null}
+                  {/* 大类就地管理（ADR-0035、REQ-KB-012）：与侧栏分区同一个 ⋯ 菜单 */}
+                  {isAdmin(me) && sec.group && !selecting ? <GroupMenu group={sec.group} /> : null}
                 </div>
                 {sec.items.length ? (
                   <Grid

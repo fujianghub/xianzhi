@@ -3,6 +3,8 @@
  * - 内置类型：全工作区统一，仅所有者可改名 · 改色（可恢复默认）· 删除（其下记录转到另一内置类型）· 恢复；属性与状态流转由代码定义。
  * - 自定义类型：个人的，只列本人的；本人可新建（名 + 色 + 状态列表）· 改名 · 改色 · 编辑状态 · 删除（其下记录转到所选类型）；guest 只读。
  * - 用量 · 查看记录。
+ * - ADR-0036：个人类型可展开「字段与状态颜色」（字段定义 + 每个状态的颜色）；内置类型可展开「追加字段」（仅所有者可改）。
+ *   空间类型不在这里，在各空间的「类型与字段」里管理。
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
@@ -12,10 +14,12 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { defaultEntryFields, entryFieldsByKind } from '../../shared/schemas/entryFields.ts'
 import { ColorPicker } from '../components/domain/ColorPicker.tsx'
+import { TypeFieldsSection } from '../components/domain/FieldDefsEditor.tsx'
 import { KindIcon } from '../components/domain/KindIcon.tsx'
 import type { PaletteName } from '../components/domain/SpaceIcon.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { ConfirmDialog } from '../components/ui/confirm-dialog.tsx'
+import { Disclosure } from '../components/ui/disclosure.tsx'
 import { InlineEdit } from '../components/ui/inline-edit.tsx'
 import { Input } from '../components/ui/input.tsx'
 import { PageHeader } from '../components/ui/page-header.tsx'
@@ -31,6 +35,7 @@ import {
   useKindLabel,
   useKindOptions,
 } from '../lib/entry-types.ts'
+import { positionTone } from '../lib/field-tones.ts'
 import { newId } from '../lib/uuid.ts'
 
 export const Route = createFileRoute('/_app/settings/types')({ component: TypesPage })
@@ -81,6 +86,7 @@ function useTypeMutations() {
       color?: PaletteName
       statuses?: string[]
       renames?: Record<string, string>
+      statusColors?: Record<string, PaletteName>
     }) => {
       const { id, ...json } = v
       return unwrap<EntryType>(
@@ -217,6 +223,7 @@ function TypesPage() {
     )
   }
   const items = (q.data?.items ?? []).filter((ty) => ty.mine)
+  const spaceTypes = (q.data?.items ?? []).filter((ty) => ty.spaceId).length
   const builtin = q.data?.builtin ?? []
   const alive = builtin.filter((b) => !b.deleted)
   const gone = builtin.filter((b) => b.deleted)
@@ -308,6 +315,9 @@ function TypesPage() {
             ))}
           </ul>
         ) : null}
+        <p className="text-fg-muted text-xs" data-testid="space-types-note">
+          {t('settings.types.spaceTypesNote', { count: spaceTypes })}
+        </p>
       </section>
     </div>
   )
@@ -403,6 +413,14 @@ function BuiltinRow({
           />
         </>
       ) : null}
+      <div className="basis-full">
+        <Expand
+          label={t('settings.types.extraFields', { count: b.fieldDefs.length })}
+          testId="builtin-fields-toggle"
+        >
+          <TypeFieldsSection kind={b.kind} defs={b.fieldDefs} canManage={canManage} compact />
+        </Expand>
+      </div>
     </li>
   )
 }
@@ -463,6 +481,36 @@ function TypeRow({ ty, m }: { ty: EntryType; m: M }) {
         )}
       </div>
       <StatusEditor ty={ty} readOnly={ro} m={m} />
+      <Expand label={t('settings.types.fieldsAndColors')} testId="type-fields-toggle">
+        {ty.statuses.length ? (
+          <div className="flex flex-wrap items-center gap-2" data-testid="type-status-colors">
+            <span className="text-fg-muted text-xs">{t('settings.types.statusColors')}</span>
+            {ty.statuses.map((st, i) => (
+              <span key={st} className="inline-flex items-center gap-0.5 text-sm">
+                <ColorPicker
+                  value={
+                    (ty.statusColors[st] ?? positionTone(i, ty.statuses.length)) as PaletteName
+                  }
+                  onChange={(c) =>
+                    m.patch.mutate({
+                      id: ty.id,
+                      statusColors: {
+                        ...(ty.statusColors as Record<string, PaletteName>),
+                        [st]: c,
+                      },
+                    })
+                  }
+                  label={t('settings.types.statusColor', { status: st })}
+                  disabled={ro}
+                  testId="type-status-color"
+                />
+                {st}
+              </span>
+            ))}
+          </div>
+        ) : null}
+        <TypeFieldsSection typeId={ty.id} defs={ty.fieldDefs} canManage={!ro} compact />
+      </Expand>
       {ro ? null : (
         <DeleteTypeDialog
           open={del}
@@ -589,6 +637,34 @@ function StatusEditor({ ty, readOnly, m }: { ty: EntryType; readOnly: boolean; m
       {dirty ? (
         <p className="basis-full text-fg-muted text-xs">{t('settings.types.statusesHint')}</p>
       ) : null}
+    </div>
+  )
+}
+
+/** 行内可展开区（字段 / 状态颜色） */
+function Expand({
+  label,
+  testId,
+  children,
+}: {
+  label: string
+  testId: string
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="flex flex-col gap-2 ps-12">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex w-fit items-center gap-1 text-fg-muted text-xs hover:text-fg"
+        data-testid={testId}
+      >
+        <Disclosure open={open} />
+        {label}
+      </button>
+      {open ? children : null}
     </div>
   )
 }
