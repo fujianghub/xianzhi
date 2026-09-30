@@ -2,7 +2,7 @@
 import { z } from 'zod'
 import { isoDateTime, uuidSchema } from './common.ts'
 import { entryFieldsIssues } from './entryFields.ts'
-import { BUILTIN_ENTRY_KINDS, SPACE_KINDS, TEMPLATE_SCOPES } from './enums.ts'
+import { ENTRY_KINDS, SPACE_KINDS, TEMPLATE_SCOPES } from './enums.ts'
 import { fullDocSchema } from './pm.ts'
 
 /** 模板 id：内置 `builtin:<key>` 或用户模板 uuid。 */
@@ -12,7 +12,9 @@ export const templateIdSchema = z.union([
 ])
 
 export const listTemplatesQuery = z.object({
-  kind: z.enum(BUILTIN_ENTRY_KINDS).optional(),
+  kind: z.enum(ENTRY_KINDS).optional(),
+  /** 绑自定义 / 空间类型的模板（ADR-0036） */
+  typeId: uuidSchema.optional(),
   spaceKind: z.enum(SPACE_KINDS).optional(),
 })
 
@@ -30,7 +32,9 @@ const meta = {
 export const createTemplateSchema = z
   .object({
     ...meta,
-    kind: z.enum(BUILTIN_ENTRY_KINDS).optional(),
+    kind: z.enum(ENTRY_KINDS).optional(),
+    /** kind = custom 时必给（ADR-0036、REQ-TPL-011） */
+    typeId: uuidSchema.optional(),
     fields: z.record(z.string(), z.unknown()).optional(),
     body: fullDocSchema.optional(),
     fromEntryId: uuidSchema.optional(),
@@ -44,6 +48,8 @@ export const createTemplateSchema = z
         path: ['body'],
       })
     if (v.body && !v.kind) ctx.addIssue({ code: 'custom', message: '需要 kind', path: ['kind'] })
+    if (v.kind && (v.kind === 'custom') !== !!v.typeId)
+      ctx.addIssue({ code: 'custom', message: '自定义类型须给 typeId', path: ['typeId'] })
     if (v.kind && v.fields) entryFieldsIssues(v.kind, v.fields, ctx)
   })
 
@@ -57,9 +63,14 @@ export const patchTemplateSchema = z
     description: z.string().trim().max(200).optional(),
     scope: z.enum(TEMPLATE_SCOPES).optional(),
     spaceKind: z.enum(SPACE_KINDS).nullable().optional(),
-    kind: z.enum(BUILTIN_ENTRY_KINDS).optional(),
+    kind: z.enum(ENTRY_KINDS).optional(),
+    typeId: uuidSchema.optional(),
     fields: z.record(z.string(), z.unknown()).optional(),
     body: fullDocSchema.optional(),
     ifUpdatedAt: isoDateTime,
   })
   .refine((v) => Object.keys(v).length > 1, { message: '至少一个字段', path: ['name'] })
+  .refine((v) => !v.kind || (v.kind === 'custom') === !!v.typeId, {
+    message: '自定义类型须给 typeId',
+    path: ['typeId'],
+  })

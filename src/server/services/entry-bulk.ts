@@ -13,7 +13,7 @@ import { entries, entryFavorites, entryTags } from '../db/schema/business.ts'
 import { type BatchFailure, batchFailure } from '../lib/batch.ts'
 import { AppError } from '../lib/errors.ts'
 import { archiveEntry, type EntryCtx, loadEntry, patchEntry, softDeleteEntry } from './entries.ts'
-import { loadOwnEntryType } from './entry-types.ts'
+import { loadEntryType } from './entry-types.ts'
 import { assertOwnTags } from './tags.ts'
 
 export async function setFavorite(db: Db, ctx: EntryCtx, id: string, on: boolean) {
@@ -49,7 +49,12 @@ export async function batchEntries(
     await assertOwnTags(db, ctx, [...input.add, ...input.remove], 'add')
     tagIds = { add: input.add, remove: input.remove }
   }
-  if (input.op === 'retype' && input.typeId && !(await loadOwnEntryType(db, ctx, input.typeId)))
+  // 类型是否对本人在各记录所在空间可用，由 patchEntry 逐条判定（ADR-0036：空间类型只在其空间可用）
+  if (
+    input.op === 'retype' &&
+    input.typeId &&
+    !(await loadEntryType(db, ctx.workspaceId, input.typeId))
+  )
     throw AppError.validation([{ path: 'typeId', message: '类型不存在' }])
   /** 读当前 updatedAt / fields，再走 patchEntry（与单条 PATCH 同一套鉴权、校验与失效） */
   const current = async (id: string) => {

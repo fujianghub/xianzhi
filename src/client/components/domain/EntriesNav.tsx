@@ -146,6 +146,7 @@ export function EntriesNav({
                 ? (id) => openNew(true, { spaceId: fixedSpace.id, parentId: id })
                 : undefined
             }
+            rowMenu={canCreateIn(fixedSpace)}
           />
         </div>
       </nav>
@@ -254,6 +255,7 @@ export function EntriesNav({
                                 ? (id) => openNew(true, { spaceId: sp.id, parentId: id })
                                 : undefined
                             }
+                            rowMenu={canCreateIn(sp)}
                           />
                         ) : null}
                       </li>

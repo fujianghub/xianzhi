@@ -4,6 +4,7 @@
  */
 import { eq } from 'drizzle-orm'
 import { BUG_CLOSED_STATUSES, bugFields } from '../../shared/schemas/entryFields.ts'
+import { splitExtraFields } from '../../shared/schemas/fieldDefs.ts'
 import { formatLocalDate, isValidTimeZone, localDateOf } from '../../shared/tz.ts'
 import type { DbOrTx } from '../db/index.ts'
 import { user } from '../db/schema/auth.ts'
@@ -34,7 +35,8 @@ export function normalizeBugFields(
   if (!isBugClosed(out.status)) delete out.resolvedAt
   else if (prev && isBugClosed(prev.status)) out.resolvedAt ??= prev.resolvedAt ?? today
   else out.resolvedAt ??= today
-  const r = bugFields.safeParse(out)
+  // 追加字段（x 键，ADR-0036）已按定义校验过，这里只校验内置字段
+  const r = bugFields.safeParse(splitExtraFields(out).base)
   if (!r.success)
     throw AppError.validation(
       r.error.issues.map((i) => ({ path: ['fields', ...i.path].join('.'), message: i.message })),

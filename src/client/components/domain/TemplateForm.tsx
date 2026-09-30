@@ -1,6 +1,8 @@
 /**
- * 新建 / 编辑模板（ADR-0023、REQ-TPL-010）：名称 · 描述 · 记录类型（内置）· 适用空间 · 共享给工作区成员（服务端 canShare）· 正文编辑器。
+ * 新建 / 编辑模板（ADR-0023、REQ-TPL-010）：名称 · 描述 · 记录类型 · 适用空间 · 共享给工作区成员（服务端 canShare）· 正文编辑器。
  * 编辑时只提交改动过的字段并带 ifUpdatedAt（409 → 提示刷新）；不可管理的模板只读，可「复制到我的」。
+ * ADR-0036（REQ-TPL-011）：类型可选内置 / 空间类型 / 本人个人类型（工作区模板不能绑个人类型）；
+ * 「字段预填」按所绑类型的字段（含自定义字段）预置值；可就地编辑该类型的字段定义（有权限时，影响该类型全部记录）。
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
@@ -8,15 +10,17 @@ import { ArrowLeft } from 'lucide-react'
 import { lazy, Suspense, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { defaultEntryFields } from '../../../shared/schemas/entryFields.ts'
 import {
   type BuiltinEntryKind,
+  type EntryKind,
   SPACE_KINDS,
   type SpaceKind,
 } from '../../../shared/schemas/enums.ts'
 import type { PmNode } from '../../../shared/schemas/pm.ts'
 import type { TemplateEditorHandle } from '../../editor/TemplateEditor.tsx'
 import { api, unwrap } from '../../lib/api.ts'
-import { useKindOptions } from '../../lib/entry-types.ts'
+import { entryTypesQuery, kindKey, useKindLabel, useKindOptions } from '../../lib/entry-types.ts'
 import {
   copyTemplate,
   invalidateTemplates,
@@ -31,10 +35,13 @@ import {
 import { newId } from '../../lib/uuid.ts'
 import { Button } from '../ui/button.tsx'
 import { Checkbox } from '../ui/checkbox.tsx'
+import { Disclosure } from '../ui/disclosure.tsx'
 import { Input } from '../ui/input.tsx'
 import { Label } from '../ui/label.tsx'
 import { PageHeader } from '../ui/page-header.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
+import { TypeFieldsSection } from './FieldDefsEditor.tsx'
+import { FieldEditor, FieldValue, fieldIcon, useFieldSpecs } from './FieldValue.tsx'
 
 const TemplateEditor = lazy(() => import('../../editor/TemplateEditor.tsx'))
 
@@ -49,18 +56,32 @@ export function TemplateForm({ tpl }: { tpl?: TemplateDetail }) {
   const canShare = list.data?.canShare ?? false
   // 新建：列表未到前先按可编辑渲染，避免成员看到禁用闪烁；guest（canShare=false）只读
   const editable = tpl ? tpl.canManage : (list.data?.canShare ?? true)
-  const kindOptions = useKindOptions().filter((k) => k.kind !== 'custom')
+  const types = useQuery(entryTypesQuery)
+  const kindOf = useKindLabel()
   const [name, setName] = useState(tpl?.name ?? '')
   const [description, setDescription] = useState(tpl?.description ?? '')
-  const [kind, setKind] = useState<BuiltinEntryKind>((tpl?.kind as BuiltinEntryKind) ?? 'note')
+  const [kind, setKind] = useState<EntryKind>(tpl?.kind ?? 'note')
+  const [typeId, setTypeId] = useState<string | null>(tpl?.typeId ?? null)
+  const [fields, setFields] = useState<Record<string, unknown>>(tpl?.fields ?? {})
   const [spaceKind, setSpaceKind] = useState<SpaceKind | ''>(tpl?.spaceKinds[0] ?? '')
   const [shared, setShared] = useState(tpl?.source === 'workspace')
   const editorRef = useRef<TemplateEditorHandle | null>(null)
   const back = () => void nav({ to: '/settings/templates' })
-  // 当前类型已被删除时仍列出，避免下拉框空值
-  const kinds = kindOptions.some((k) => k.kind === kind)
-    ? kindOptions
-    : [{ kind, label: t(`entry.kind.${kind}`) }, ...kindOptions]
+  // 可绑的类型：内置 + 本人可用的空间类型 + 本人个人类型（工作区模板排除个人类型，别人用不了）；当前值总保留
+  const isPersonalType = (id: string | null) =>
+    !!types.data?.items.find((x) => x.id === id && !x.spaceId)
+  const kinds = useKindOptions(null, { keep: { kind, typeId } }).filter(
+    (o) => !(shared && o.kind === 'custom' && isPersonalType(o.typeId) && o.typeId !== typeId),
+  )
+  const curKey = kindKey({ kind, typeId })
+  const pickKind = (key: string) => {
+    const m = kinds.find((o) => kindKey(o) === key)
+    if (!m) return
+    setKind(m.kind)
+    setTypeId(m.typeId)
+    setFields(m.kind === 'custom' ? {} : { ...defaultEntryFields[m.kind] })
+  }
+  const bindsPersonal = kind === 'custom' && isPersonalType(typeId)
 
   const save = useMutation({
     mutationFn: async () => {
@@ -74,6 +95,8 @@ export function TemplateForm({ tpl }: { tpl?: TemplateDetail }) {
                 name: name.trim(),
                 description: description.trim(),
                 kind,
+                ...(kind === 'custom' && typeId ? { typeId } : {}),
+                fields,
                 spaceKind: spaceKind || null,
                 scope,
                 body: body as never,
@@ -85,7 +108,11 @@ export function TemplateForm({ tpl }: { tpl?: TemplateDetail }) {
       const patch: TemplatePatch = {}
       if (name.trim() !== tpl.name) patch.name = name.trim()
       if (description.trim() !== tpl.description) patch.description = description.trim()
-      if (kind !== tpl.kind) patch.kind = kind
+      if (kind !== tpl.kind || typeId !== (tpl.typeId ?? null)) {
+        patch.kind = kind
+        if (kind === 'custom' && typeId) patch.typeId = typeId
+      }
+      if (JSON.stringify(fields) !== JSON.stringify(tpl.fields)) patch.fields = fields
       if ((spaceKind || null) !== (tpl.spaceKinds[0] ?? null)) patch.spaceKind = spaceKind || null
       if (scope !== tpl.source) patch.scope = scope
       if (JSON.stringify(body) !== JSON.stringify(tpl.body)) patch.body = body
@@ -202,16 +229,21 @@ export function TemplateForm({ tpl }: { tpl?: TemplateDetail }) {
           <select
             id="tpl-kind"
             className={select}
-            value={kind}
-            onChange={(e) => setKind(e.target.value as BuiltinEntryKind)}
+            value={curKey}
+            onChange={(e) => pickKind(e.target.value)}
             data-testid="template-kind"
           >
             {kinds.map((k) => (
-              <option key={k.kind} value={k.kind}>
+              <option key={kindKey(k)} value={kindKey(k)}>
                 {k.label}
               </option>
             ))}
           </select>
+          {bindsPersonal && shared ? (
+            <p className="text-danger text-xs" data-testid="template-kind-personal">
+              {t('template.personalTypeShared')}
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="tpl-space-kind">{t('template.spaceKind')}</Label>
@@ -231,6 +263,19 @@ export function TemplateForm({ tpl }: { tpl?: TemplateDetail }) {
           </select>
         </div>
       </fieldset>
+      <TemplateFieldPresets
+        kind={kind}
+        typeId={typeId}
+        value={fields}
+        onChange={setFields}
+        editable={editable}
+        canManageType={
+          kind === 'custom'
+            ? !!types.data?.items.find((x) => x.id === typeId)?.canManage
+            : !!types.data?.canManageBuiltin
+        }
+        typeLabel={kindOf(kind, typeId).label}
+      />
       {editable && canShare ? (
         <div className="flex flex-col gap-1">
           <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
@@ -258,6 +303,116 @@ export function TemplateForm({ tpl }: { tpl?: TemplateDetail }) {
         />
       </Suspense>
     </form>
+  )
+}
+
+/**
+ * 字段预填（REQ-TPL-011）：按所绑类型的字段逐个预置值（与记录页属性面板同一套彩色值 / 编辑器）；
+ * 下方可折叠「编辑该类型的字段」。模板不带日期类 Bug 字段（服务端剔除）。
+ */
+function TemplateFieldPresets({
+  kind,
+  typeId,
+  value,
+  onChange,
+  editable,
+  canManageType,
+  typeLabel,
+}: {
+  kind: EntryKind
+  typeId: string | null
+  value: Record<string, unknown>
+  onChange: (v: Record<string, unknown>) => void
+  editable: boolean
+  canManageType: boolean
+  typeLabel: string
+}) {
+  const { t } = useTranslation()
+  const specs = useFieldSpecs()(kind, typeId).filter(
+    (f) => !(kind === 'bug' && (f.name === 'foundAt' || f.name === 'resolvedAt')),
+  )
+  const meta = useKindLabel()(kind, typeId)
+  const [open, setOpen] = useState(false)
+  const set = (name: string, v: unknown) => {
+    const next = { ...value }
+    if (v === undefined) delete next[name]
+    else next[name] = v
+    onChange(next)
+  }
+  return (
+    <section
+      className="flex flex-col gap-2 rounded-lg border border-divider p-3"
+      data-testid="template-fields"
+    >
+      <h3 className="font-medium text-sm">{t('template.fieldsPreset')}</h3>
+      {specs.length ? (
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
+          {specs.map((f) => {
+            const Icon = fieldIcon(f)
+            const shown = (
+              <FieldValue
+                spec={f}
+                value={value[f.name]}
+                fields={value}
+                empty={<span className="text-fg-faint text-sm">{t('field.empty')}</span>}
+              />
+            )
+            return (
+              <div key={f.name} className="xz-prop-row" data-field={f.name}>
+                <dt className="xz-prop-label">
+                  <Icon className="size-3.5" aria-hidden />
+                  <span className="truncate">{f.label}</span>
+                </dt>
+                <dd className="min-w-0">
+                  {editable ? (
+                    <FieldEditor
+                      spec={f}
+                      value={value[f.name]}
+                      onCommit={(v) => set(f.name, v)}
+                      trigger={
+                        <button
+                          type="button"
+                          className="xz-prop-value"
+                          data-testid={`template-field-${f.name}`}
+                        >
+                          {shown}
+                        </button>
+                      }
+                    />
+                  ) : (
+                    <span className="inline-flex min-h-8 items-center">{shown}</span>
+                  )}
+                </dd>
+              </div>
+            )
+          })}
+        </dl>
+      ) : (
+        <p className="text-fg-muted text-sm">{t('template.noFields')}</p>
+      )}
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex w-fit items-center gap-1 text-fg-muted text-xs hover:text-fg"
+        data-testid="template-type-fields-toggle"
+      >
+        <Disclosure open={open} />
+        {t('template.editTypeFields', { type: typeLabel })}
+      </button>
+      {open ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-fg-muted text-xs">{t('template.editTypeFieldsHint')}</p>
+          <TypeFieldsSection
+            typeId={kind === 'custom' ? (typeId ?? undefined) : undefined}
+            kind={kind === 'custom' ? undefined : (kind as BuiltinEntryKind)}
+            defs={meta.fieldDefs}
+            canManage={canManageType}
+            compact
+          />
+        </div>
+      ) : null}
+    </section>
   )
 }
 

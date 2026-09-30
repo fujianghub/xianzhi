@@ -5,6 +5,8 @@
  * - 新建记录套模板（`resolveTemplateBody`）：占位符替换后写成初始 ydoc，之后正文只经协同编辑（不变量 1）。
  * - ADR-0023：非 guest 成员可把模板共享到工作区；可直接改正文 / 类型 / fields（乐观锁）；「复制到我的」；
  *   取消共享或删除时同事务清掉引用它的空间默认模板（`spaces.default_template_id` 无外键）。
+ * - ADR-0036（REQ-TPL-011）：模板可绑自定义 / 空间类型（kind = custom + type_id），fields 可预填该类型的自定义字段；
+ *   工作区模板只能绑内置或空间类型，个人模板还可绑本人的个人类型；类型删除时模板转随笔（entry-types service）。
  */
 import { and, count, desc, eq, inArray, or } from 'drizzle-orm'
 import type { z } from 'zod'
@@ -16,12 +18,8 @@ import {
   fillTemplateVars,
 } from '../../shared/editor/builtin-templates.ts'
 import { defaultEntryFields, entryFieldsByKind } from '../../shared/schemas/entryFields.ts'
-import type {
-  BuiltinEntryKind,
-  EntryKind,
-  SpaceKind,
-  TemplateScope,
-} from '../../shared/schemas/enums.ts'
+import type { EntryKind, SpaceKind, TemplateScope } from '../../shared/schemas/enums.ts'
+import { splitExtraFields } from '../../shared/schemas/fieldDefs.ts'
 import type { PmNode } from '../../shared/schemas/pm.ts'
 import type {
   createTemplateSchema,
@@ -34,7 +32,13 @@ import type { Db, DbOrTx } from '../db/index.ts'
 import { user } from '../db/schema/auth.ts'
 import { entryTemplates, spaces } from '../db/schema/business.ts'
 import { AppError } from '../lib/errors.ts'
-import { type EntryCtx, loadEntry } from './entries.ts'
+import { type EntryCtx, loadEntry, loadSpaceRef } from './entries.ts'
+import {
+  builtinFieldDefs,
+  loadEntryType,
+  normalizeCustomFields,
+  normalizeExtraFields,
+} from './entry-types.ts'
 
 export interface TemplateView {
   id: string
@@ -43,6 +47,8 @@ export interface TemplateView {
   name: string
   description: string
   kind: EntryKind
+  /** 绑自定义 / 空间类型时（ADR-0036） */
+  typeId: string | null
   spaceKinds: SpaceKind[]
   fields: Record<string, unknown>
   ownerId: string | null
@@ -74,6 +80,7 @@ const builtinView = (t: BuiltinTemplate): TemplateView => ({
   name: t.name,
   description: t.description,
   kind: t.kind,
+  typeId: null,
   spaceKinds: t.spaceKinds,
   fields: t.fields ?? { ...defaultEntryFields[t.kind] },
   ownerId: null,
@@ -89,6 +96,7 @@ const rowView = (actor: Actor, r: Row, x: RowExtra): TemplateView => ({
   name: r.name,
   description: r.description,
   kind: r.kind as EntryKind,
+  typeId: r.typeId,
   spaceKinds: r.spaceKind ? [r.spaceKind as SpaceKind] : [],
   fields: (r.fields as Record<string, unknown>) ?? {},
   ownerId: r.ownerId,
@@ -140,20 +148,58 @@ async function clearSpaceDefaults(tx: DbOrTx, workspaceId: string, id: string) {
     .where(and(eq(spaces.workspaceId, workspaceId), eq(spaces.defaultTemplateId, id)))
 }
 
-/** fields 按 kind 严格校验（与 POST /entries 同一 schema）。 */
-function checkFields(kind: BuiltinEntryKind, fields: unknown) {
-  const r = entryFieldsByKind[kind].safeParse(fields)
+/**
+ * 模板可绑的类型（ADR-0036、REQ-TPL-011）：空间类型须可读其空间；个人类型须是本人的且模板为个人模板
+ * （工作区模板绑个人类型，别人用不了）。
+ */
+async function assertTemplateType(db: DbOrTx, ctx: EntryCtx, typeId: string, scope: TemplateScope) {
+  const bad = (message: string) => AppError.validation([{ path: 'typeId', message }])
+  const t = await loadEntryType(db, ctx.workspaceId, typeId)
+  if (!t) throw bad('类型不存在')
+  if (t.spaceId) {
+    const sp = await loadSpaceRef(db, ctx.actor, t.spaceId)
+    if (!sp || !can(ctx.actor, 'space.read', sp.ref)) throw bad('类型不存在')
+    return t
+  }
+  if (t.createdBy !== ctx.actor.id) throw bad('类型不存在')
+  if (scope === 'workspace') throw bad('工作区模板不能绑个人类型（其他成员用不了）')
+  return t
+}
+
+/** fields 按类型校验并规范化（与 POST /entries 同一套：内置字段 strict，自定义字段按定义；未定义的 x 键丢弃）。 */
+async function checkFields(
+  db: DbOrTx,
+  ctx: EntryCtx,
+  kind: EntryKind,
+  typeId: string | null,
+  fields: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const { base, extra } = splitExtraFields(fields)
+  const r = entryFieldsByKind[kind].safeParse(base)
   if (!r.success)
     throw AppError.validation(
       r.error.issues.map((i) => ({ path: ['fields', ...i.path].join('.'), message: i.message })),
     )
+  if (kind !== 'custom')
+    return {
+      ...base,
+      ...normalizeExtraFields(await builtinFieldDefs(db, ctx.workspaceId, kind), extra),
+    }
+  const t = typeId ? await loadEntryType(db, ctx.workspaceId, typeId) : null
+  if (!t) throw AppError.validation([{ path: 'typeId', message: '类型不存在' }])
+  return {
+    ...normalizeCustomFields(t.statuses ?? [], r.data as Record<string, unknown>, {
+      fillDefault: true,
+    }),
+    ...normalizeExtraFields(t.fieldDefs ?? [], extra),
+  }
 }
 
 /** 模板不带日期（ADR-0033）：Bug 的发现 / 解决日期在用模板新建时由服务端重新补。 */
-const TEMPLATE_DROP_KEYS: Partial<Record<BuiltinEntryKind, string[]>> = {
+const TEMPLATE_DROP_KEYS: Partial<Record<EntryKind, string[]>> = {
   bug: ['foundAt', 'resolvedAt'],
 }
-function templateFields(kind: BuiltinEntryKind, fields: Record<string, unknown>) {
+function templateFields(kind: EntryKind, fields: Record<string, unknown>) {
   const drop = TEMPLATE_DROP_KEYS[kind]
   if (!drop) return fields
   return Object.fromEntries(Object.entries(fields).filter(([k]) => !drop.includes(k)))
@@ -183,6 +229,7 @@ export async function listTemplates(
   return all.filter(
     (t) =>
       (!q.kind || t.kind === q.kind) &&
+      (!q.typeId || t.typeId === q.typeId) &&
       (!q.spaceKind || !t.spaceKinds.length || t.spaceKinds.includes(q.spaceKind)),
   )
 }
@@ -217,18 +264,34 @@ export async function createTemplate(
 ): Promise<TemplateView> {
   assertCan(ctx.actor, 'template.create', { id: '', ownerId: ctx.actor.id, scope: input.scope })
   let body = input.body as PmNode | undefined
-  let kind = input.kind
+  let kind: EntryKind | undefined = input.kind
+  let typeId: string | null = input.typeId ?? null
   let fields = input.fields
+  /** 来源（记录 / 模板）绑的类型：本模板能绑就沿用，否则退回随笔（如工作区模板不能绑个人类型） */
+  const inherit = async (src: { kind: EntryKind; typeId: string | null; fields: unknown }) => {
+    if (kind) return
+    kind = src.kind
+    typeId = src.typeId
+    if (kind === 'custom' && typeId) {
+      try {
+        await assertTemplateType(db, ctx, typeId, input.scope)
+      } catch {
+        kind = 'note'
+        typeId = null
+      }
+    }
+    fields = fields ?? (kind === src.kind ? (src.fields as Record<string, unknown>) : undefined)
+  }
   if (input.fromEntryId) {
     const loaded = await loadEntry(db, ctx.actor, input.fromEntryId)
     if (!loaded || !can(ctx.actor, 'entry.read', loaded.ref)) throw AppError.notFound('记录不存在')
     // 取 ydoc（唯一真源）即时派生，而不是 pm_json：从未编辑过的记录 pm_json 为空（只读派生，不写库）
     body = deriveFromYdoc(loaded.row.ydoc).pmJson
-    // 自定义类型的记录存为模板 → 随手记（模板只认内置类型，ADR-0016）
-    kind = kind ?? (loaded.row.kind === 'custom' ? 'note' : (loaded.row.kind as BuiltinEntryKind))
-    fields =
-      fields ??
-      (kind === loaded.row.kind ? (loaded.row.fields as Record<string, unknown>) : undefined)
+    await inherit({
+      kind: loaded.row.kind as EntryKind,
+      typeId: loaded.row.typeId,
+      fields: loaded.row.fields,
+    })
     if (JSON.stringify(body).length > 100 * 1024)
       throw AppError.validation([{ path: 'fromEntryId', message: '正文超过 100KB，不能存为模板' }])
   }
@@ -236,11 +299,22 @@ export async function createTemplate(
     // 复制到我的（ADR-0023）：不可见 / 不存在 → 404（与 GET 一致）
     const src = await getTemplate(db, ctx, input.fromTemplateId)
     body = src.body
-    kind = kind ?? (src.kind as BuiltinEntryKind)
-    fields = fields ?? (kind === src.kind ? src.fields : undefined)
+    await inherit(src)
   }
-  if (kind && fields && !input.fromEntryId) checkFields(kind, fields)
   if (!body || !kind) throw AppError.validation([{ path: 'body', message: '缺少正文或类型' }])
+  if (kind === 'custom' && typeId) await assertTemplateType(db, ctx, typeId, input.scope)
+  if (kind !== 'custom') typeId = null
+  const checked = await checkFields(
+    db,
+    ctx,
+    kind,
+    typeId,
+    fields ?? { ...defaultEntryFields[kind] },
+  ).catch((err) => {
+    // 另存为模板：记录上的旧值不合规（如定义已变）不拦，退回默认值
+    if (input.fromEntryId && !input.fields) return { ...defaultEntryFields[kind as EntryKind] }
+    throw err
+  })
   const [row] = await db
     .insert(entryTemplates)
     .values({
@@ -250,9 +324,10 @@ export async function createTemplate(
       name: input.name,
       description: input.description,
       kind,
+      typeId,
       spaceKind: input.spaceKind ?? null,
       body,
-      fields: templateFields(kind, fields ?? { ...defaultEntryFields[kind] }),
+      fields: templateFields(kind, checked),
     })
     .returning()
   if (!row) throw new Error('insert entry_templates failed')
@@ -275,10 +350,17 @@ export async function patchTemplate(
       throw new AppError(409, 'CONFLICT_STALE', '模板已被他人修改', {
         current: await viewOne(tx, ctx, r),
       })
-    const kind = input.kind ?? (r.kind as BuiltinEntryKind)
+    const kind = input.kind ?? (r.kind as EntryKind)
+    const typeId = input.kind ? (input.typeId ?? null) : r.typeId
+    const scope = input.scope ?? (r.scope as TemplateScope)
+    // 换类型 / 改共享范围时重新校验绑定（工作区模板不能绑个人类型）
+    if (kind === 'custom' && typeId && (input.kind || input.scope))
+      await assertTemplateType(tx, ctx, typeId, scope)
+    const retyped = kind !== r.kind || typeId !== r.typeId
     let fields = input.fields
-    if (fields) checkFields(kind, fields)
-    else if (input.kind && input.kind !== r.kind) fields = { ...defaultEntryFields[kind] }
+    if (fields) fields = await checkFields(tx, ctx, kind, typeId, fields)
+    else if (retyped)
+      fields = await checkFields(tx, ctx, kind, typeId, { ...defaultEntryFields[kind] })
     const [row] = await tx
       .update(entryTemplates)
       .set({
@@ -286,7 +368,7 @@ export async function patchTemplate(
         ...(input.description !== undefined ? { description: input.description } : {}),
         ...(input.scope !== undefined ? { scope: input.scope } : {}),
         ...(input.spaceKind !== undefined ? { spaceKind: input.spaceKind } : {}),
-        ...(input.kind !== undefined ? { kind: input.kind } : {}),
+        ...(input.kind !== undefined ? { kind: input.kind, typeId } : {}),
         ...(fields !== undefined ? { fields: templateFields(kind, fields) } : {}),
         ...(input.body !== undefined ? { body: input.body } : {}),
         updatedAt: new Date(),

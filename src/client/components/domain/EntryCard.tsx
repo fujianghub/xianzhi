@@ -13,6 +13,7 @@ import type { Entry } from '../../lib/entry-queries.ts'
 import { usePeek } from '../../lib/stores.ts'
 import { RelativeTime } from '../ui/relative-time.tsx'
 import { EntryMenu } from './EntryMenu.tsx'
+import { FieldValue, useFieldSpecs } from './FieldValue.tsx'
 import { ENTRY_KIND_TONE, KindBadge } from './KindIcon.tsx'
 import { PALETTE_CLASS, type PaletteName } from './SpaceIcon.tsx'
 import { SpaceTag } from './SpaceTag.tsx'
@@ -136,8 +137,17 @@ function CardLink({ entry, showSpace }: { entry: Entry; showSpace?: boolean }) {
   )
 }
 
-/** 卡片 / 表格共用：按优先级挑出最多 3 个关键字段（ADR-0012）。 */
-const KEY_FIELDS = ['severity', 'status', 'version', 'progress', 'releasedAt', 'endDate'] as const
+/** 卡片 / 看板共用：按优先级挑出最多 3 个关键字段（ADR-0012；ADR-0035 +优先级 / 截止日）。 */
+const KEY_FIELDS = [
+  'status',
+  'priority',
+  'severity',
+  'dueDate',
+  'endDate',
+  'version',
+  'progress',
+  'releasedAt',
+] as const
 export function keyFields(entry: Entry): { name: string; value: string }[] {
   const out: { name: string; value: string }[] = []
   for (const name of KEY_FIELDS) {
@@ -148,8 +158,31 @@ export function keyFields(entry: Entry): { name: string; value: string }[] {
   return out
 }
 
+/** 关键字段的彩色胶囊（REQ-UI-044）；`exclude` 去掉已另行显示的字段（看板列已表明状态） */
+export function KeyFieldPills({ entry, exclude = [] }: { entry: Entry; exclude?: string[] }) {
+  const specs = useFieldSpecs()(entry.kind, entry.typeId)
+  return (
+    <>
+      {keyFields(entry)
+        .filter((f) => !exclude.includes(f.name))
+        .map((f) => {
+          const spec = specs.find((s) => s.name === f.name)
+          return spec ? (
+            <span key={f.name} data-field={f.name} className="inline-flex">
+              <FieldValue
+                spec={spec}
+                value={entry.fields[f.name]}
+                fields={entry.fields}
+                size="sm"
+              />
+            </span>
+          ) : null
+        })}
+    </>
+  )
+}
+
 function EntryMeta({ entry }: { entry: Entry }) {
-  const { t } = useTranslation()
   const { data: tags = [] } = useQuery(tagsQuery)
   const f = keyFields(entry)
   const tg = (entry.tagIds ?? [])
@@ -158,17 +191,7 @@ function EntryMeta({ entry }: { entry: Entry }) {
   if (!f.length && !tg.length) return null
   return (
     <div className="flex flex-wrap gap-1 text-[11px]" data-testid="entry-card-meta">
-      {f.map((x) => (
-        <span
-          key={x.name}
-          className="rounded bg-surface-2 px-1.5 py-0.5 text-fg-muted"
-          data-field={x.name}
-        >
-          {x.name === 'progress'
-            ? `${x.value}%`
-            : t(`entry.fieldValue.${x.value}`, { defaultValue: x.value })}
-        </span>
-      ))}
+      <KeyFieldPills entry={entry} />
       {tg.map((x) => (
         <span
           key={x.id}

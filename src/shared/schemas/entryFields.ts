@@ -5,6 +5,7 @@
 import { z } from 'zod'
 import { isoDate, uuidSchema } from './common.ts'
 import { ENTRY_KINDS, type EntryKind } from './enums.ts'
+import { splitExtraFields } from './fieldDefs.ts'
 
 export const decisionFields = z.strictObject({
   status: z.enum(['proposed', 'accepted', 'superseded', 'rejected']),
@@ -120,7 +121,12 @@ export function entryFieldsSchemaFor(kind: EntryKind): z.ZodType {
  * strictObject 的 unrecognized_keys 展开为每个未知键一条。
  */
 export function entryFieldsIssues(kind: EntryKind, fields: unknown, ctx: z.RefinementCtx): void {
-  const r = entryFieldsByKind[kind].safeParse(fields)
+  // 自定义字段（x 键，ADR-0036）按类型的字段定义在 service 校验；这里只校验内置字段
+  const base =
+    fields && typeof fields === 'object' && !Array.isArray(fields)
+      ? splitExtraFields(fields as Record<string, unknown>).base
+      : fields
+  const r = entryFieldsByKind[kind].safeParse(base)
   if (r.success) return
   for (const i of r.error.issues) {
     if (i.code === 'unrecognized_keys') {

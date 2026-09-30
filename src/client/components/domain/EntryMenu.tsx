@@ -3,6 +3,9 @@
  * ADR-0018（REQ-ENTRY-023）：新建子页面（仅当本篇在目录里）· 新建关联记录（同级、自动关联「相关」）。
  * 详情页页头与卡片悬停共用；写操作按乐观权限显示，最终由服务端 `can()` 判定。
  */
+
+import { useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import {
   Archive,
   ArchiveRestore,
@@ -23,6 +26,7 @@ import { ApiError } from '../../lib/api.ts'
 import { cn } from '../../lib/cn.ts'
 import { downloadEntryExport } from '../../lib/entry-export.ts'
 import type { Entry } from '../../lib/entry-queries.ts'
+import type { Space } from '../../lib/space-queries.ts'
 import { useNewEntry } from '../../lib/stores.ts'
 import { ConfirmDialog } from '../ui/confirm-dialog.tsx'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.tsx'
@@ -31,15 +35,32 @@ export function EntryMenu({
   entry,
   canWrite,
   onDeleted,
+  navigateAfterDelete,
   className,
 }: {
   entry: Entry
   canWrite: boolean
-  /** 删除成功后（详情页据此返回列表） */
+  /** 删除成功后 */
   onDeleted?: () => void
+  /**
+   * 详情页用（ADR-0035、REQ-KB-013）：删除后回到父页 → 否则所在空间概览 → 个人空间（或空间未缓存）回 /entries。
+   */
+  navigateAfterDelete?: boolean
   className?: string
 }) {
   const { t } = useTranslation()
+  const qc = useQueryClient()
+  const nav = useNavigate()
+  const afterDelete = () => {
+    onDeleted?.()
+    if (!navigateAfterDelete) return
+    if (entry.parentId)
+      return void nav({ to: '/entries/$entryId', params: { entryId: entry.parentId } })
+    const space = qc.getQueryData<Space>(['space', entry.spaceSlug])
+    if (space && !space.isPersonal)
+      return void nav({ to: '/spaces/$spaceSlug/home', params: { spaceSlug: entry.spaceSlug } })
+    void nav({ to: '/entries', search: {} })
+  }
   const actions = useEntryActions()
   const openNew = useNewEntry((s) => s.setOpen)
   const [open, setOpen] = useState(false)
@@ -185,32 +206,61 @@ export function EntryMenu({
           </ul>
         </PopoverContent>
       </Popover>
-      <ConfirmDialog
+      <EntryDeleteConfirm
+        entry={entry}
         open={confirm}
         onOpenChange={setConfirm}
-        title={t('entry.menu.deleteTitle')}
-        description={t('entry.menu.deleteBody')}
-        confirmLabel={t('entry.menu.delete')}
-        onConfirm={async () => {
-          try {
-            await actions.remove(entry)
-          } catch (err) {
-            fail(err)
-            return
-          }
-          onDeleted?.()
-          toast.success(t('entry.menu.deleted', { title }), {
-            action: {
-              label: t('entry.menu.undo'),
-              onClick: () =>
-                void actions
-                  .restore(entry.id)
-                  .then(() => toast.success(t('entry.menu.restored')))
-                  .catch(fail),
-            },
-          })
-        }}
+        onDeleted={afterDelete}
       />
     </>
+  )
+}
+
+/**
+ * 删除记录的确认弹层 + 撤销 Toast（REQ-ENTRY-014）：记录 ⋯ 菜单与行菜单（ADR-0035、REQ-KB-013）共用。
+ */
+export function EntryDeleteConfirm({
+  entry,
+  open,
+  onOpenChange,
+  onDeleted,
+}: {
+  entry: Pick<Entry, 'id' | 'title'>
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  onDeleted?: () => void
+}) {
+  const { t } = useTranslation()
+  const actions = useEntryActions()
+  const title = entry.title || t('entry.untitled')
+  const fail = (err: unknown) =>
+    toast.error(err instanceof ApiError ? err.message : t('task.saveFailed'))
+  return (
+    <ConfirmDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('entry.menu.deleteTitle')}
+      description={t('entry.menu.deleteBody')}
+      confirmLabel={t('entry.menu.delete')}
+      onConfirm={async () => {
+        try {
+          await actions.remove(entry)
+        } catch (err) {
+          fail(err)
+          return
+        }
+        onDeleted?.()
+        toast.success(t('entry.menu.deleted', { title }), {
+          action: {
+            label: t('entry.menu.undo'),
+            onClick: () =>
+              void actions
+                .restore(entry.id)
+                .then(() => toast.success(t('entry.menu.restored')))
+                .catch(fail),
+          },
+        })
+      }}
+    />
   )
 }

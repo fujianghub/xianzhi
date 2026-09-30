@@ -60,13 +60,19 @@ test('REQ-BUG-005 表格按优先级分组；新建对话框对 Bug 只填优先
   expect(String(f.foundAt)).toMatch(/^\d{4}-\d{2}-\d{2}$/)
 })
 
-test('REQ-BUG-006 属性栏改状态后「流转」出现该变化', async ({ page, request }) => {
+test('REQ-BUG-006 · REQ-ENTRY-024 · 025 属性面板点状态改值后「流转」出现该变化', async ({
+  page,
+  request,
+}) => {
   const s = await mkSpace(request)
   const id = await bug(request, s.id, '流转用例')
   await page.goto(`/entries/${id}`)
-  const toggle = page.getByTestId('entry-fields-toggle')
-  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click()
-  await page.locator('#field-status').selectOption('pending')
+  // 属性面板常显（ADR-0035）：点值弹出选项，选定即保存
+  await page.getByTestId('entry-prop-status').click()
+  await page.getByTestId('field-editor-status').locator('[data-value="pending"]').click()
+  await expect(
+    page.getByTestId('entry-prop-status').locator('[data-status="pending"]'),
+  ).toBeVisible()
   await expect.poll(async () => (await fieldsOf(request, id)).status).toBe('pending')
   await page.getByTestId('entry-changes-toggle').click()
   const list = page.getByTestId('entry-changes')

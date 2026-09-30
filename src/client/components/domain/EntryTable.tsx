@@ -4,19 +4,21 @@
  * 状态：任何带 status 的类型都显示（内置类型译名；自定义类型原样）；进度：学习计划 / 自定义类型的百分比条。
  * 点列头在已加载数据内排序；枚举字段按 schema 定义顺序，日期 / 文本按字典序，数字按数值。
  * 勾选列常驻（有 `select` 时）：表头复选框全选 / 取消本页。
+ * 值统一彩色展示（FieldValue，ADR-0035 §C）；`editable` 时点单元格弹出编辑器、选定即保存（REQ-ENTRY-026）。
  */
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { ArrowDown, ArrowUp } from 'lucide-react'
-import { Fragment, useState } from 'react'
+import { Fragment, type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useFieldCommit } from '../../hooks/useFieldCommit.ts'
 import { cn } from '../../lib/cn.ts'
 import type { Entry, EntryKind } from '../../lib/entry-queries.ts'
 import { useKindLabel } from '../../lib/entry-types.ts'
 import { Checkbox } from '../ui/checkbox.tsx'
 import { RelativeTime } from '../ui/relative-time.tsx'
-import { fieldSpecs } from './EntryFieldsForm.tsx'
-import { KindBadge, toneClass } from './KindIcon.tsx'
+import { FieldEditor, type FieldSpec, FieldValue, useFieldSpecs } from './FieldValue.tsx'
+import { KindBadge } from './KindIcon.tsx'
 import { PALETTE_CLASS, type PaletteName } from './SpaceIcon.tsx'
 import { SpaceTag } from './SpaceTag.tsx'
 import { tagsQuery } from './TagPicker.tsx'
@@ -26,72 +28,7 @@ type Col = { key: string; label: string; rank?: (v: unknown) => number }
 /** 不进列表的属性（ADR-0033：Bug 的提交 / 踩坑目录很少填、又长，留在属性栏） */
 const TABLE_HIDDEN = ['commit', 'debugDir']
 
-/** 内置状态的语义色（不单靠颜色：旁边有文字） */
-const STATUS_TONE: Record<string, PaletteName> = {
-  new: 'red',
-  pending: 'orange',
-  fixed: 'green',
-  wontfix: 'gray',
-  proposed: 'blue',
-  accepted: 'green',
-  superseded: 'gray',
-  rejected: 'gray',
-  planned: 'cyan',
-  doing: 'orange',
-  shipped: 'green',
-  dropped: 'gray',
-  planning: 'blue',
-  active: 'orange',
-  paused: 'yellow',
-  done: 'green',
-}
-/** 自定义状态按在列表中的位置取色：首项灰、末项绿、其余依次蓝 / 橙 / 紫… */
-const CUSTOM_TONES: PaletteName[] = ['blue', 'orange', 'purple', 'cyan', 'pink', 'yellow']
-export function statusTone(v: string, statuses: string[] | null): PaletteName {
-  if (!statuses) return STATUS_TONE[v] ?? 'gray'
-  const i = statuses.indexOf(v)
-  if (i <= 0) return 'gray'
-  if (i === statuses.length - 1) return 'green'
-  return CUSTOM_TONES[(i - 1) % CUSTOM_TONES.length] ?? 'blue'
-}
-
-export function StatusPill({ value, statuses }: { value: string; statuses: string[] | null }) {
-  const { t } = useTranslation()
-  return (
-    <span
-      className={cn(
-        'xz-kind-badge h-5 gap-1 px-1.5 text-[11px]',
-        toneClass(statusTone(value, statuses)),
-      )}
-      data-status={value}
-    >
-      {statuses ? value : t(`entry.fieldValue.${value}`, { defaultValue: value })}
-    </span>
-  )
-}
-
-export function ProgressBar({ value }: { value: number }) {
-  const { t } = useTranslation()
-  const v = Math.max(0, Math.min(100, value))
-  return (
-    <span className="inline-flex items-center gap-2" data-testid="entry-progress">
-      <span
-        className="relative h-1.5 w-16 overflow-hidden rounded-full bg-active"
-        role="progressbar"
-        aria-label={t('entry.list.progress')}
-        aria-valuenow={v}
-        aria-valuemin={0}
-        aria-valuemax={100}
-      >
-        <span
-          className="absolute inset-y-0 left-0 rounded-full bg-primary"
-          style={{ width: `${v}%` }}
-        />
-      </span>
-      <span className="text-fg-muted text-xs tabular-nums">{v}%</span>
-    </span>
-  )
-}
+export { ProgressBar, StatusPill } from './FieldValue.tsx'
 
 export function EntryTable({
   items,
@@ -100,6 +37,8 @@ export function EntryTable({
   showSpace,
   select,
   group,
+  editable,
+  rowMenu,
 }: {
   /** 勾选（ADR-0016：列表视图常驻） */
   select?: {
@@ -114,37 +53,41 @@ export function EntryTable({
   showSpace: boolean
   /** 分组（ADR-0033）：在已加载的行内按该属性分组；counts = 服务端各组总数（取值缺失为 ''） */
   group?: { key: string; counts: Map<string, number> }
+  /** 就地编辑（REQ-ENTRY-026）：返回 true 的行可点单元格改值（写权限由调用方判断，服务端 can() 为准） */
+  editable?: (e: Entry) => boolean
+  /** 行末 ⋯ 菜单（REQ-KB-013） */
+  rowMenu?: (e: Entry) => ReactNode
 }) {
   const { t } = useTranslation()
   const { data: tags = [] } = useQuery(tagsQuery)
   const kindOf = useKindLabel()
+  const specsOf = useFieldSpecs()
+  const commit = useFieldCommit()
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(null)
   const single: EntryKind | undefined = typeId
     ? 'custom'
     : kinds.length === 1
       ? kinds[0]
       : undefined
-  const singleStatuses = single ? kindOf(single, typeId).statuses : null
   // 状态常驻；进度只在该类型有进度属性（或多类型混排）时出现；单一类型的其它字段附在后面（很少填的长字段不进列表）
-  const singleSpecs = single ? fieldSpecs(single, singleStatuses) : []
+  const singleSpecs = single ? specsOf(single, typeId) : []
   const specs = singleSpecs.filter(
     (f) => f.name !== 'status' && f.name !== 'progress' && !TABLE_HIDDEN.includes(f.name),
   )
   const showProgress = !single || singleSpecs.some((f) => f.name === 'progress')
-  const statusSpec = single
-    ? fieldSpecs(single, singleStatuses).find((f) => f.name === 'status')
-    : undefined
-  const cols: Col[] = specs.map((f) => ({
+  const statusSpec = singleSpecs.find((f) => f.name === 'status')
+  const cols: (Col & { spec: FieldSpec })[] = specs.map((f) => ({
     key: `f.${f.name}`,
-    label: t(`entry.field.${f.name}`),
+    label: f.label,
+    spec: f,
     rank:
       f.kind === 'select'
-        ? (v: unknown) => f.options.findIndex((o) => String(o) === String(v))
+        ? (v: unknown) => f.options.findIndex((o) => String(o.value) === String(v))
         : undefined,
   }))
   const statusRank =
     statusSpec?.kind === 'select'
-      ? (v: unknown) => statusSpec.options.findIndex((o) => String(o) === String(v))
+      ? (v: unknown) => statusSpec.options.findIndex((o) => String(o.value) === String(v))
       : undefined
   const cellValue = (e: Entry, key: string): unknown =>
     key === 'title'
@@ -197,17 +140,41 @@ export function EntryTable({
       </button>
     </th>
   )
-  const show = (v: unknown, name: string) => {
-    if (v === undefined || v === null || v === '') return <span className="text-fg-faint">—</span>
-    if (name === 'progress') return `${String(v)}%`
-    return single === 'custom'
-      ? String(v)
-      : t(`entry.fieldValue.${String(v)}`, { defaultValue: String(v) })
+  /** 单元格：彩色值；可编辑时包一层按钮弹出编辑器 */
+  const cell = (e: Entry, spec: FieldSpec | undefined, name: string, canEdit: boolean) => {
+    const v = e.fields[name]
+    if (!spec) return <span className="text-fg-faint">—</span>
+    const shown = (
+      <FieldValue
+        spec={spec}
+        value={v}
+        fields={e.fields}
+        statuses={kindOf(e.kind, e.typeId).statuses}
+        size="sm"
+      />
+    )
+    if (!canEdit) return shown
+    return (
+      <FieldEditor
+        spec={spec}
+        value={v}
+        onCommit={(nv) => void commit(e, name, nv)}
+        trigger={
+          <button
+            type="button"
+            className="xz-cell-edit"
+            aria-label={t('field.edit', { name: spec.label })}
+            data-testid={`cell-${name}`}
+          >
+            {shown}
+          </button>
+        }
+      />
+    )
   }
   const row = (e: Entry) => {
-    const meta = kindOf(e.kind, e.typeId)
-    const status = e.fields.status
-    const progress = e.fields.progress
+    const rowSpecs = single ? singleSpecs : specsOf(e.kind, e.typeId)
+    const canEdit = !!editable?.(e)
     const on = !!select?.has(e.id)
     return (
       <tr
@@ -259,24 +226,26 @@ export function EntryTable({
           </td>
         )}
         <td className="whitespace-nowrap px-3 py-2" data-field="status">
-          {typeof status === 'string' && status ? (
-            <StatusPill value={status} statuses={meta.statuses} />
-          ) : (
-            <span className="text-fg-faint">—</span>
+          {cell(
+            e,
+            rowSpecs.find((f) => f.name === 'status'),
+            'status',
+            canEdit,
           )}
         </td>
         {showProgress ? (
           <td className="whitespace-nowrap px-3 py-2" data-field="progress">
-            {typeof progress === 'number' ? (
-              <ProgressBar value={progress} />
-            ) : (
-              <span className="text-fg-faint">—</span>
+            {cell(
+              e,
+              rowSpecs.find((f) => f.name === 'progress'),
+              'progress',
+              canEdit,
             )}
           </td>
         ) : null}
         {cols.map((c) => (
           <td key={c.key} className="whitespace-nowrap px-3 py-2" data-field={c.key.slice(2)}>
-            {show(e.fields[c.key.slice(2)], c.key.slice(2))}
+            {cell(e, c.spec, c.spec.name, canEdit)}
           </td>
         ))}
         <td className="px-3 py-2">
@@ -305,6 +274,7 @@ export function EntryTable({
         <td className="whitespace-nowrap px-3 py-2 text-fg-muted text-xs">
           <RelativeTime date={e.updatedAt} />
         </td>
+        {rowMenu ? <td className="w-8 px-1 py-1.5">{rowMenu(e)}</td> : null}
       </tr>
     )
   }
@@ -317,12 +287,10 @@ export function EntryTable({
       const k = v === undefined || v === null ? '' : String(v)
       buckets.set(k, [...(buckets.get(k) ?? []), e])
     }
-    const spec = single
-      ? fieldSpecs(single, singleStatuses).find((f) => f.name === group.key)
-      : undefined
+    const spec = singleSpecs.find((f) => f.name === group.key)
     const order =
       spec?.kind === 'select'
-        ? spec.options.map(String)
+        ? spec.options.map((o) => String(o.value))
         : [...new Set([...group.counts.keys(), ...buckets.keys()])]
             .filter(Boolean)
             .sort((a, b) => (group.counts.get(b) ?? 0) - (group.counts.get(a) ?? 0))
@@ -339,7 +307,9 @@ export function EntryTable({
     cols.length +
     1 +
     (showSpace ? 1 : 0) +
-    1
+    1 +
+    (rowMenu ? 1 : 0)
+  const groupSpec = group ? singleSpecs.find((f) => f.name === group.key) : undefined
   const allOn = !!select && items.length > 0 && items.every((e) => select.has(e.id))
   const someOn = !!select && items.some((e) => select.has(e.id))
   return (
@@ -372,6 +342,11 @@ export function EntryTable({
               </th>
             ) : null}
             {header('updatedAt', t('entry.aside.updatedAt'))}
+            {rowMenu ? (
+              <th scope="col" className="w-8">
+                <span className="sr-only">{t('entry.menu.label')}</span>
+              </th>
+            ) : null}
           </tr>
         </thead>
         <tbody>
@@ -385,7 +360,13 @@ export function EntryTable({
                       className="px-3 py-1.5 text-left font-medium text-fg-muted text-xs"
                       data-group={g.value}
                     >
-                      {g.value ? show(g.value, group?.key ?? '') : t('entry.group.empty')}
+                      {g.value && groupSpec ? (
+                        <FieldValue spec={groupSpec} value={g.value} size="sm" />
+                      ) : g.value ? (
+                        g.value
+                      ) : (
+                        t('entry.group.empty')
+                      )}
                       <span className="ms-2 tabular-nums" data-testid="entry-group-count">
                         {g.total !== undefined && g.total > g.items.length
                           ? t('entry.group.partial', { loaded: g.items.length, total: g.total })

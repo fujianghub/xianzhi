@@ -8,6 +8,7 @@
  * - 「已归档」折叠，展开时才请求。
  * - 大类管理就地可达（ADR-0018、REQ-KB-008）：owner / admin 在「空间」标题旁有「管理大类」，
  *   每个大类分区标题悬停出 ⋯（改名 / 改色 / 在此新建空间 / 删除）；拖动时「未分类」始终作为放置区出现。
+ * - 空间行就地管理（ADR-0035、REQ-KB-011）：空间管理员悬停出 ⋯ / 右键 = 空间菜单（改名 / 图标与颜色 / 归档 / 移到大类 / 删除…）。
  */
 import {
   closestCenter,
@@ -47,12 +48,18 @@ import {
 import { cn } from '../../lib/cn.ts'
 import { canCreateIn } from '../../lib/space-queries.ts'
 import { useCreateSpaceDialog, useNewEntry } from '../../lib/stores.ts'
+import { useContextPoint } from '../ui/context-anchor.tsx'
 import { Disclosure } from '../ui/disclosure.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
 import { GroupMenu } from './GroupMenu.tsx'
 import { IconChip } from './KindIcon.tsx'
 import { SpaceGroupsDialog } from './SpaceGroupsDialog.tsx'
 import { type PaletteName, SpaceIcon } from './SpaceIcon.tsx'
+import { SpaceMenu, useSpacePerms } from './SpaceMenu.tsx'
+
+/** 行尾悬停按钮的槽位（从右往左：拖动手柄 · ⋯ · +），与链接右内边距对应 */
+const SLOT_RIGHT = ['right-1.5', 'right-8', 'right-[3.625rem]'] as const
+const SLOT_PAD = ['', 'pr-8', 'pr-14', 'pr-20'] as const
 
 const FOLDS_KEY = 'xz:kb-folds:v1'
 function readFolds(): Record<string, boolean> {
@@ -85,6 +92,11 @@ function SpaceRow({
   const openNew = useNewEntry((s) => s.setOpen)
   // 在该空间目录顶层新建记录（ADR-0019、REQ-KB-009）；可写 = 个人空间或我是 admin / member（服务端 can() 为准）
   const canCreate = canCreateIn(space)
+  const { canManage } = useSpacePerms(space)
+  const ctx = useContextPoint()
+  // 槽位从右往左依次分配
+  const slots = [sortable && 'drag', canManage && 'menu', canCreate && 'plus'].filter(Boolean)
+  const right = (k: string) => SLOT_RIGHT[slots.indexOf(k)] ?? 'right-1.5'
   const {
     attributes,
     listeners,
@@ -101,13 +113,14 @@ function SpaceRow({
       className={cn('group relative', isDragging && 'z-10 opacity-80')}
       data-testid="space-row"
       data-space-id={space.id}
+      onContextMenu={canManage ? ctx.open : undefined}
     >
       <Link
         to="/spaces/$spaceSlug/home"
         params={{ spaceSlug: space.slug }}
         onClick={onNavigate}
         // 与主导航同一套样式（app.css .xz-nav-item；当前项 data-active = 翡翠胶囊，REQ-UI-020 · 032）
-        className={cn('xz-nav-item', sortable ? 'pr-14' : canCreate && 'pr-8')}
+        className={cn('xz-nav-item', SLOT_PAD[slots.length])}
         data-active={active || undefined}
         aria-current={active ? 'page' : undefined}
       >
@@ -134,12 +147,23 @@ function SpaceRow({
           })}
           className={cn(
             'absolute top-1.5 inline-flex size-6 items-center justify-center rounded-md text-fg-muted opacity-0 hover:bg-hover hover:text-fg focus-visible:opacity-100 group-hover:opacity-100 max-lg:opacity-100',
-            sortable ? 'right-8' : 'right-1.5',
+            right('plus'),
           )}
           data-testid="space-row-new-entry"
         >
           <Plus className="size-4" />
         </button>
+      ) : null}
+      {canManage ? (
+        <SpaceMenu
+          space={space}
+          contextPoint={ctx.point}
+          onContextClose={ctx.clear}
+          triggerClassName={cn(
+            'absolute top-1.5 opacity-0 focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100 max-lg:opacity-100',
+            right('menu'),
+          )}
+        />
       ) : null}
       {sortable ? (
         <button

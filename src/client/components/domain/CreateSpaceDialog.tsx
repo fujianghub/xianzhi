@@ -4,7 +4,7 @@
  */
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { type FormEvent, type ReactNode, useEffect, useId, useState } from 'react'
+import { type FormEvent, useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -14,59 +14,15 @@ import {
   useCreateSpace,
 } from '../../hooks/useSpaces.ts'
 import { ApiError } from '../../lib/api.ts'
-import { cn } from '../../lib/cn.ts'
 import { useCreateSpaceDialog } from '../../lib/stores.ts'
 import { Button } from '../ui/button.tsx'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../ui/dialog.tsx'
 import { Input } from '../ui/input.tsx'
 import { FieldError, Label } from '../ui/label.tsx'
-import { PALETTE, PALETTE_CLASS, type PaletteName, SPACE_ICONS, SpaceIcon } from './SpaceIcon.tsx'
+import { Choice, SpaceIconPicker } from './SpaceIconPicker.tsx'
 
 const KINDS: SpaceKind[] = ['project', 'learning', 'work']
 const VISIBILITIES: SpaceVisibility[] = ['workspace', 'members']
-
-/** 单选组：原生 radio + 胶囊外观（键盘方向键切换由浏览器提供）。 */
-function Choice<T extends string>({
-  legend,
-  name,
-  value,
-  options,
-  onChange,
-  render,
-  className,
-}: {
-  legend: string
-  name: string
-  value: T
-  options: readonly T[]
-  onChange: (v: T) => void
-  render: (v: T) => ReactNode
-  className?: string
-}) {
-  return (
-    <fieldset className="min-w-0">
-      <legend className="mb-1.5 font-medium text-fg-muted text-sm">{legend}</legend>
-      <div className={cn('flex flex-wrap gap-1.5', className)}>
-        {options.map((o) => (
-          <label
-            key={o}
-            className="relative inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-sm has-[:checked]:border-selected-border has-[:checked]:bg-selected has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-(--xz-focus-color)"
-          >
-            <input
-              type="radio"
-              className="sr-only"
-              name={name}
-              value={o}
-              checked={value === o}
-              onChange={() => onChange(o)}
-            />
-            {render(o)}
-          </label>
-        ))}
-      </div>
-    </fieldset>
-  )
-}
 
 export function CreateSpaceDialog() {
   const { t } = useTranslation()
@@ -202,43 +158,12 @@ export function CreateSpaceDialog() {
             onChange={setVisibility}
             render={(v) => t(`space.visibility.${v}`)}
           />
-          <Choice
-            legend={t('space.color')}
-            name={`${id}-color`}
-            value={color}
-            options={['none', ...PALETTE] as const}
-            onChange={setColor}
-            render={(c) =>
-              c === 'none' ? (
-                t('space.noIcon')
-              ) : (
-                <>
-                  <span
-                    className={cn('size-3.5 rounded-full', PALETTE_CLASS[c as PaletteName])}
-                    aria-hidden
-                  />
-                  {t(`ui.palette.${c}`)}
-                </>
-              )
-            }
-          />
-          <Choice
-            legend={t('space.icon')}
-            name={`${id}-icon`}
-            value={icon}
-            options={['none', ...Object.keys(SPACE_ICONS)] as const}
-            onChange={setIcon}
-            className="max-h-28 overflow-y-auto"
-            render={(i) =>
-              i === 'none' ? (
-                t('space.noIcon')
-              ) : (
-                <>
-                  <SpaceIcon icon={i} kind={kind} color={null} plain className="size-5" />
-                  <span className="sr-only">{i}</span>
-                </>
-              )
-            }
+          <SpaceIconPicker
+            kind={kind}
+            color={color === 'none' ? null : color}
+            icon={icon === 'none' ? null : icon}
+            onColor={(c) => setColor(c ?? 'none')}
+            onIcon={(i) => setIcon(i ?? 'none')}
           />
           <FieldError>
             {errors.color ?? errors.icon ?? errors.kind ?? errors.visibility ?? errors.groupId}

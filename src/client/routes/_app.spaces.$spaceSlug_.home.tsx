@@ -1,27 +1,39 @@
 /**
- * 空间概览（ADR-0012、REQ-KB-003、08 §2.5b）：进入空间的默认页（侧栏 / 卡片链接到此）。
- * 按空间类型给出不同面板：
- * - project / work（产品开发）：未关闭 Bug（按严重度）· 最近迭代 · 最新版本 · 决策与优化 · 最近更新；
- * - learning（学习）：学习计划进度 · 最近笔记 · 最近更新。
- * 每个面板「查看全部」跳到记录页并带上类型 / 字段过滤与表格视图；快捷新建带好类型与内置模板。
+ * 空间概览（ADR-0012 · 0036、REQ-KB-016、08 §2.5b）：进入空间的默认页（侧栏 / 卡片链接到此）。
+ * 按空间启用的类型分页签（ADR-0036）：每个类型一张可编辑表格 + 状态概要，「全部」= 最近更新；
+ * 快捷新建带好类型与内置模板。
  * 个人空间（ADR-0015、REQ-KB-007）换成个人工作台：「空间目录」（大类 → 空间 → 目录树，逐级展开、目录懒加载）
  * + 个人记录 + 各空间最近更新；快捷新建为随笔 / 笔记 / 计划。
  */
-import { useQuery } from '@tanstack/react-query'
-import { createFileRoute, Link, notFound } from '@tanstack/react-router'
-import { ArrowUpRight, Clock, FolderTree, Layers, type LucideIcon, UserRound } from 'lucide-react'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { createFileRoute, Link, notFound, useNavigate } from '@tanstack/react-router'
+import {
+  ArrowUpRight,
+  Clock,
+  FolderTree,
+  Layers,
+  type LucideIcon,
+  Plus,
+  Shapes,
+  UserRound,
+} from 'lucide-react'
 import { type ReactNode, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DirTree, TWISTY_CENTER } from '../components/domain/DirTree.tsx'
+import { EntryRowMenu } from '../components/domain/EntryRowMenu.tsx'
+import { EntryTable } from '../components/domain/EntryTable.tsx'
+import { useFieldSpecs } from '../components/domain/FieldValue.tsx'
 import { KbHeader } from '../components/domain/KbHeader.tsx'
-import { IconChip, KindBadge, KindIcon } from '../components/domain/KindIcon.tsx'
+import { IconChip, KindBadge, KindIcon, toneClass } from '../components/domain/KindIcon.tsx'
 import { SpaceIcon } from '../components/domain/SpaceIcon.tsx'
 import { SpaceTag } from '../components/domain/SpaceTag.tsx'
+import { SpaceTypesDialog } from '../components/domain/SpaceTypesDialog.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { Disclosure } from '../components/ui/disclosure.tsx'
 import { RelativeTime } from '../components/ui/relative-time.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
 import { TreeGuides } from '../components/ui/tree-guides.tsx'
+import { useMe } from '../hooks/useMe.ts'
 import { useNewEntryContext } from '../hooks/useNewEntryContext.ts'
 import { ApiError, api, unwrap } from '../lib/api.ts'
 import { cn } from '../lib/cn.ts'
@@ -29,9 +41,18 @@ import {
   type Entry,
   type EntryKind,
   type EntryPage,
+  entriesInfiniteQuery,
   entryStatsQuery,
+  flattenEntries,
   statsByValue,
 } from '../lib/entry-queries.ts'
+import {
+  type KindMeta,
+  kindKey,
+  useEnabledKinds,
+  useKindLabel,
+  useKindOptions,
+} from '../lib/entry-types.ts'
 import {
   canCreateIn,
   groupSpaces,
@@ -42,7 +63,16 @@ import {
 } from '../lib/space-queries.ts'
 import { useNewEntry } from '../lib/stores.ts'
 
+type HomeSearch = { type?: string; status?: string }
+
 export const Route = createFileRoute('/_app/spaces/$spaceSlug_/home')({
+  validateSearch: (s: Record<string, unknown>): HomeSearch => ({
+    type: typeof s.type === 'string' && /^[\w-]{1,64}$/.test(s.type) ? s.type : undefined,
+    status:
+      typeof s.status === 'string' && s.status.length <= 20 && !/[,|=]/.test(s.status)
+        ? s.status
+        : undefined,
+  }),
   loader: async ({ context, params }) => {
     try {
       await context.queryClient.ensureQueryData(spaceQuery(params.spaceSlug))
@@ -53,17 +83,6 @@ export const Route = createFileRoute('/_app/spaces/$spaceSlug_/home')({
   },
   component: KbHome,
 })
-
-/** 未关闭的 Bug（ADR-0033：新建 / 待决策）。 */
-const OPEN_BUGS = 'status=new|pending'
-/** 严重度排序与色调（Bug 面板）。 */
-export const SEVERITIES = ['critical', 'high', 'medium', 'low'] as const
-const SEVERITY_TONE: Record<string, string> = {
-  critical: 'bg-red-bg text-red-fg',
-  high: 'bg-orange-bg text-orange-fg',
-  medium: 'bg-yellow-bg text-yellow-fg',
-  low: 'bg-gray-bg text-gray-fg',
-}
 
 /** spaceId 为空串 = 跨全部可见空间 */
 function useEntryList(spaceId: string, query: Record<string, string>, limit: number) {
@@ -157,7 +176,6 @@ function List({
   )
 }
 
-const str = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? String(v) : '')
 const chip = (icon: LucideIcon, tone: string) => <IconChip icon={icon} tone={tone} size="md" />
 
 function KbHome() {
@@ -167,247 +185,326 @@ function KbHome() {
   return space.isPersonal ? <PersonalHome space={space} /> : <SpaceHome space={space} />
 }
 
+/** 快捷新建的内置模板（沿用原概览的快捷按钮；空间设了默认模板且类型一致时用默认模板） */
+const KIND_TEMPLATE: Partial<Record<EntryKind, string>> = {
+  bug: 'builtin:bug-fix',
+  optimize: 'builtin:product-optimize',
+  plan: 'builtin:learning-plan',
+}
+const LEARNING_TEMPLATE: Partial<Record<EntryKind, string>> = {
+  note: 'builtin:study-note',
+  journal: 'builtin:learning-weekly',
+}
+const ALL_TAB = 'all'
+
+/** 列表 / 统计参数：内置 = kind，自定义 = typeId */
+const kindParams = (m: { kind: string; typeId: string | null }) =>
+  m.kind === 'custom' && m.typeId ? { typeId: m.typeId } : { kind: m.kind }
+
+/**
+ * 空间首页（ADR-0036、REQ-KB-016；取代按空间种类写死的版块）：启用类型的页签（带计数）+「全部」；
+ * 选中类型 → 状态概要（彩色胶囊，点击筛选）+ 可编辑表格（点单元格即改，写回记录，REQ-ENTRY-026）；
+ * 「全部」= 最近更新。页签与状态筛选记在 `?type=` `?status=`。
+ */
 function SpaceHome({ space }: { space: Space }) {
   const { t } = useTranslation()
-  const spaceSlug = space.slug
+  const search = Route.useSearch()
+  const nav = useNavigate({ from: Route.fullPath })
   const openNew = useNewEntry((s) => s.setOpen)
-  const id = space.id
-  useNewEntryContext({ spaceId: id, parentId: null }) // 在概览按 e = 建在本空间目录根（ADR-0018）
-  const learning = space.kind === 'learning'
-  // 未关闭 Bug（ADR-0033）：计数走服务端统计（不受条数限制），列表按优先级取前 6 条
-  const bugs = useEntryList(id, { kind: 'bug', fields: OPEN_BUGS, sort: 'priority' }, 6)
-  const bugStats = useQuery(
-    entryStatsQuery({ spaceId: id, kind: 'bug', fields: OPEN_BUGS, groupBy: 'severity' }),
+  const { data: me } = useMe()
+  useNewEntryContext({ spaceId: space.id, parentId: null }) // 在概览按 e = 建在本空间目录根（ADR-0018）
+  const kindOf = useKindLabel()
+  const options = useKindOptions(space)
+  const enabled = useEnabledKinds(space) ?? []
+  // 页签 = 启用清单（本人不可用的空间类型也显示，只是不能新建）
+  const tabs = enabled.map((k) =>
+    k.startsWith('type:') ? kindOf('custom', k.slice(5)) : kindOf(k as EntryKind),
   )
-  const iterations = useEntryList(id, { kind: 'iteration', sort: '-createdAt' }, 3)
-  const releases = useEntryList(id, { kind: 'changelog', sort: '-createdAt' }, 3)
-  const decisions = useEntryList(id, { kind: 'decision,optimize' }, 5)
-  const plans = useEntryList(id, { kind: 'plan' }, 20)
-  const notes = useEntryList(id, { kind: 'note,journal,review' }, 6)
-  const recent = useEntryList(id, {}, 8)
+  const defaultKey = space.defaultTypeId ?? space.defaultKind ?? null
+  const fallback = (defaultKey && tabs.find((m) => kindKey(m) === defaultKey)) || tabs[0] || null
+  const active =
+    search.type === ALL_TAB ? null : (tabs.find((m) => kindKey(m) === search.type) ?? fallback)
+  const [typesOpen, setTypesOpen] = useState(false)
+  const canManage = space.myRole === 'admin'
+  const canWrite = canCreateIn(space)
+  const writeEntry = (e: Entry) => !!me && (e.authorId === me.id || me.workspaceRole !== 'guest')
+  const setTab = (key: string) =>
+    void nav({ search: (s) => ({ ...s, type: key, status: undefined }), replace: true })
 
-  const more = (query: Record<string, string>) => (
-    <Link
-      to="/spaces/$spaceSlug/entries"
-      params={{ spaceSlug }}
-      search={query}
-      className="text-primary-text hover:underline"
-    >
-      {t('kb.viewAll')}
-    </Link>
-  )
-  const quick = (kind: EntryKind, templateId?: string) => (
-    <Button
-      key={`${kind}-${templateId ?? ''}`}
-      size="sm"
-      variant="ghost"
-      className="group"
-      onClick={() => openNew(true, { spaceId: space.id, kind, templateId, parentId: null })}
-      data-testid={`kb-quick-${kind}`}
-    >
-      <KindIcon kind={kind} size="sm" />
-      {t(`entry.kind.${kind}`)}
-    </Button>
-  )
-  const severityCounts = statsByValue(bugStats.data, 'severity')
-  const bySeverity = SEVERITIES.map((s) => ({ s, n: severityCounts.get(s) ?? 0 }))
-  const topBugs = bugs.data
+  const quick = (m: KindMeta) => {
+    const usable = options.some((o) => kindKey(o) === kindKey(m))
+    if (!canWrite || !usable) return null
+    const k = m.kind as EntryKind
+    const templateId =
+      m.kind === 'custom'
+        ? undefined
+        : space.defaultKind === k && space.defaultTemplateId
+          ? space.defaultTemplateId
+          : (KIND_TEMPLATE[k] ?? (space.kind === 'learning' ? LEARNING_TEMPLATE[k] : undefined))
+    return (
+      <Button
+        size="sm"
+        onClick={() =>
+          openNew(true, {
+            spaceId: space.id,
+            kind: k,
+            ...(m.typeId ? { typeId: m.typeId } : {}),
+            templateId,
+            parentId: null,
+          })
+        }
+        data-testid={`kb-quick-${kindKey(m)}`}
+      >
+        <Plus className="size-4" />
+        {t('kb.home.new', { kind: m.label })}
+      </Button>
+    )
+  }
 
   return (
     <section className="mx-auto max-w-[100rem]" data-testid="kb-home">
       <KbHeader space={space} active="home" />
-      <div className="mt-4 flex flex-wrap gap-1" data-testid="kb-quick">
-        {learning
-          ? [
-              quick('plan', 'builtin:learning-plan'),
-              quick('note', 'builtin:study-note'),
-              quick('journal', 'builtin:learning-weekly'),
-            ]
-          : [
-              quick('bug', 'builtin:bug-fix'),
-              quick('iteration'),
-              quick('changelog'),
-              quick('decision'),
-              quick('optimize', 'builtin:product-optimize'),
-            ]}
-      </div>
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-        {learning ? (
-          <>
-            <Panel
-              title={t('kb.panel.plans')}
-              icon={<KindIcon kind="plan" />}
-              count={plans.data?.length}
-              more={more({ kind: 'plan', view: 'table' })}
-              testId="kb-panel-plans"
-            >
-              {plans.isPending ? (
-                <Skeleton className="h-20 w-full" />
-              ) : plans.data?.length ? (
-                <ul className="flex flex-col gap-3">
-                  {plans.data.map((e) => {
-                    const p = Math.max(0, Math.min(100, Number(e.fields.progress ?? 0)))
-                    return (
-                      <li key={e.id}>
-                        <Link
-                          to="/entries/$entryId"
-                          params={{ entryId: e.id }}
-                          className="block rounded-md px-2 py-1 hover:bg-hover"
-                        >
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="min-w-0 flex-1 truncate">{e.title}</span>
-                            <span className="text-fg-muted text-xs">
-                              {t(`entry.fieldValue.${str(e.fields.status)}`, {
-                                defaultValue: str(e.fields.status),
-                              })}
-                              {e.fields.endDate ? ` · ${str(e.fields.endDate)}` : ''}
-                            </span>
-                          </div>
-                          <div
-                            className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-2"
-                            role="progressbar"
-                            aria-valuenow={p}
-                            aria-valuemin={0}
-                            aria-valuemax={100}
-                            aria-label={e.title}
-                          >
-                            <div
-                              className="h-full rounded-full bg-primary"
-                              style={{ width: `${p}%` }}
-                            />
-                          </div>
-                        </Link>
-                      </li>
-                    )
-                  })}
-                </ul>
-              ) : (
-                <p className="px-2 text-fg-muted text-sm">{t('kb.empty.plans')}</p>
-              )}
-            </Panel>
-            <Panel
-              title={t('kb.panel.notes')}
-              icon={<KindIcon kind="note" />}
-              more={more({ kind: 'note,journal,review' })}
-              testId="kb-panel-notes"
-            >
-              <List items={notes.data} loading={notes.isPending} empty={t('kb.empty.notes')} />
-            </Panel>
-          </>
-        ) : (
-          <>
-            <Panel
-              title={t('kb.panel.bugs')}
-              icon={<KindIcon kind="bug" />}
-              count={bugStats.data?.total}
-              more={more({ kind: 'bug', fields: OPEN_BUGS, view: 'table', sort: 'priority' })}
-              testId="kb-panel-bugs"
-            >
-              <div className="flex flex-wrap gap-1.5" data-testid="kb-bug-severity">
-                {bySeverity.map(({ s, n }) => (
-                  <Link
-                    key={s}
-                    to="/spaces/$spaceSlug/entries"
-                    params={{ spaceSlug }}
-                    search={{ kind: 'bug', fields: `${OPEN_BUGS},severity=${s}`, view: 'table' }}
-                    className={cn(
-                      'rounded-full px-2 py-0.5 text-xs tabular-nums',
-                      SEVERITY_TONE[s],
-                    )}
-                    data-severity={s}
-                  >
-                    {t(`entry.fieldValue.${s}`)} {n}
-                  </Link>
-                ))}
-              </div>
-              <List
-                items={topBugs}
-                loading={bugs.isPending}
-                empty={t('kb.empty.bugs')}
-                meta={(e) => (
-                  <span
-                    className={cn(
-                      'shrink-0 rounded-full px-1.5 text-[11px]',
-                      SEVERITY_TONE[str(e.fields.severity)],
-                    )}
-                  >
-                    {t(`entry.fieldValue.${str(e.fields.severity)}`, { defaultValue: '' })}
-                  </span>
-                )}
-              />
-            </Panel>
-            <Panel
-              title={t('kb.panel.iterations')}
-              icon={<KindIcon kind="iteration" />}
-              more={more({ kind: 'iteration', view: 'table' })}
-              testId="kb-panel-iterations"
-            >
-              <List
-                items={iterations.data}
-                loading={iterations.isPending}
-                empty={t('kb.empty.iterations')}
-                meta={(e) => (
-                  <span className="shrink-0 text-fg-muted text-xs">
-                    {[
-                      str(e.fields.version),
-                      [str(e.fields.periodStart), str(e.fields.periodEnd)]
-                        .filter(Boolean)
-                        .join(' ~ '),
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </span>
-                )}
-              />
-            </Panel>
-            <Panel
-              title={t('kb.panel.releases')}
-              icon={<KindIcon kind="changelog" />}
-              more={more({ kind: 'changelog', view: 'table' })}
-              testId="kb-panel-releases"
-            >
-              <List
-                items={releases.data}
-                loading={releases.isPending}
-                empty={t('kb.empty.releases')}
-                meta={(e) => (
-                  <span className="shrink-0 font-mono text-fg-muted text-xs">
-                    {[str(e.fields.version), str(e.fields.releasedAt)].filter(Boolean).join(' · ')}
-                  </span>
-                )}
-              />
-            </Panel>
-            <Panel
-              title={t('kb.panel.decisions')}
-              icon={<KindIcon kind="decision" />}
-              more={more({ kind: 'decision,optimize', view: 'table' })}
-              testId="kb-panel-decisions"
-            >
-              <List
-                items={decisions.data}
-                loading={decisions.isPending}
-                empty={t('kb.empty.decisions')}
-                meta={(e) => (
-                  <span className="shrink-0 text-fg-muted text-xs">
-                    {t(`entry.fieldValue.${str(e.fields.status)}`, {
-                      defaultValue: str(e.fields.status),
-                    })}
-                  </span>
-                )}
-              />
-            </Panel>
-          </>
-        )}
-        <Panel
-          title={t('kb.panel.recent')}
-          icon={chip(Clock, 'green')}
-          more={more({})}
-          testId="kb-panel-recent"
+      <div
+        className="mt-4 flex flex-wrap items-center gap-1"
+        role="tablist"
+        data-testid="kb-type-tabs"
+      >
+        {tabs.map((m) => (
+          <TypeTab
+            key={kindKey(m)}
+            meta={m}
+            spaceId={space.id}
+            on={!!active && kindKey(active) === kindKey(m)}
+            onClick={() => setTab(kindKey(m))}
+          />
+        ))}
+        <button
+          type="button"
+          role="tab"
+          aria-selected={!active}
+          onClick={() => setTab(ALL_TAB)}
+          className={cn('xz-type-tab', !active && 'xz-type-tab-on')}
+          data-testid="kb-type-tab"
+          data-key={ALL_TAB}
         >
-          <List items={recent.data} loading={recent.isPending} empty={t('kb.empty.recent')} />
-        </Panel>
+          <Clock className="size-3.5" aria-hidden />
+          {t('kb.home.all')}
+        </button>
+        {canManage ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ms-auto"
+            onClick={() => setTypesOpen(true)}
+            data-testid="kb-manage-types"
+          >
+            <Shapes className="size-4" />
+            {t('spaceTypes.menu')}
+          </Button>
+        ) : null}
       </div>
+      {active ? (
+        <TypeSection
+          key={kindKey(active)}
+          space={space}
+          meta={active}
+          status={search.status}
+          onStatus={(status) => void nav({ search: (s) => ({ ...s, status }), replace: true })}
+          canWrite={writeEntry}
+          quick={quick(active)}
+        />
+      ) : (
+        <RecentSection space={space} canWrite={writeEntry} />
+      )}
+      {typesOpen ? (
+        <SpaceTypesDialog
+          space={space}
+          open={typesOpen}
+          onOpenChange={setTypesOpen}
+          canManage={canManage}
+        />
+      ) : null}
     </section>
+  )
+}
+
+/** 类型页签：色块 + 名 + 该类型在本空间的记录数 */
+function TypeTab({
+  meta,
+  spaceId,
+  on,
+  onClick,
+}: {
+  meta: KindMeta
+  spaceId: string
+  on: boolean
+  onClick: () => void
+}) {
+  const stats = useQuery(entryStatsQuery({ spaceId, ...kindParams(meta) }))
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={on}
+      onClick={onClick}
+      className={cn('xz-type-tab group', toneClass(meta.tone), on && 'xz-type-tab-on')}
+      data-testid="kb-type-tab"
+      data-key={kindKey(meta)}
+    >
+      <KindIcon kind={meta.kind} typeId={meta.typeId} size="xs" />
+      {meta.label}
+      {stats.data ? (
+        <span className="xz-type-tab-count tabular-nums">{stats.data.total}</span>
+      ) : null}
+    </button>
+  )
+}
+
+function TypeSection({
+  space,
+  meta,
+  status,
+  onStatus,
+  canWrite,
+  quick,
+}: {
+  space: Space
+  meta: KindMeta
+  status?: string
+  onStatus: (s: string | undefined) => void
+  canWrite: (e: Entry) => boolean
+  quick: ReactNode
+}) {
+  const { t } = useTranslation()
+  const specs = useFieldSpecs()(meta.kind as EntryKind, meta.typeId)
+  const statusSpec = specs.find((f) => f.name === 'status' && f.kind === 'select')
+  const base = { spaceId: space.id, ...kindParams(meta) }
+  const stats = useQuery({
+    ...entryStatsQuery({ ...base, groupBy: 'status' }),
+    enabled: !!statusSpec,
+  })
+  const counts = statsByValue(stats.data, 'status')
+  const list = useInfiniteQuery(
+    entriesInfiniteQuery(
+      {
+        ...base,
+        ...(status ? { fields: `status=${status}` } : {}),
+        sort: meta.kind === 'bug' ? 'priority' : '-updatedAt',
+      },
+      100,
+    ),
+  )
+  const items = flattenEntries(list.data)
+  return (
+    <div
+      className="mt-3 flex flex-col gap-3"
+      data-testid="kb-type-section"
+      data-key={kindKey(meta)}
+    >
+      <div className="flex flex-wrap items-center gap-1.5">
+        {statusSpec ? (
+          <div className="flex flex-wrap items-center gap-1.5" data-testid="kb-status-summary">
+            <button
+              type="button"
+              aria-pressed={!status}
+              onClick={() => onStatus(undefined)}
+              className={cn('xz-status-filter', !status && 'xz-status-filter-on')}
+              data-status=""
+            >
+              {t('kb.home.allStatuses')}
+              <span className="tabular-nums">{stats.data?.total ?? '…'}</span>
+            </button>
+            {statusSpec.options.map((o) => (
+              <button
+                key={String(o.value)}
+                type="button"
+                aria-pressed={status === String(o.value)}
+                onClick={() => onStatus(status === String(o.value) ? undefined : String(o.value))}
+                className={cn(
+                  'xz-status-filter',
+                  toneClass(o.tone),
+                  status === String(o.value) && 'xz-status-filter-on',
+                )}
+                data-status={String(o.value)}
+              >
+                <span className="xz-pill-dot" aria-hidden />
+                {o.label}
+                <span className="tabular-nums">{counts.get(String(o.value)) ?? 0}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <div className="ms-auto flex items-center gap-2">
+          <Link
+            to="/spaces/$spaceSlug/entries"
+            params={{ spaceSlug: space.slug }}
+            search={{
+              ...kindParams(meta),
+              view: 'table',
+              ...(status ? { fields: `status=${status}` } : {}),
+            }}
+            className="text-primary-text text-xs hover:underline"
+          >
+            {t('kb.home.openInEntries')}
+          </Link>
+          {quick}
+        </div>
+      </div>
+      {list.isPending ? (
+        <Skeleton className="h-40 w-full" />
+      ) : items.length ? (
+        <EntryTable
+          items={items}
+          kinds={meta.kind === 'custom' ? [] : [meta.kind as EntryKind]}
+          typeId={meta.typeId ?? undefined}
+          showSpace={false}
+          editable={(e) => canWrite(e) && !e.archivedAt}
+          rowMenu={(e) => (
+            <EntryRowMenu entryId={e.id} title={e.title} entry={e} canWrite={canWrite(e)} />
+          )}
+        />
+      ) : (
+        <p
+          className="paper rounded-xl px-4 py-8 text-center text-fg-muted text-sm"
+          data-testid="kb-type-empty"
+        >
+          {status ? t('kb.home.emptyStatus') : t('kb.home.empty', { kind: meta.label })}
+        </p>
+      )}
+      {list.hasNextPage ? (
+        <Button variant="ghost" size="sm" onClick={() => void list.fetchNextPage()}>
+          {t('kb.home.more')}
+        </Button>
+      ) : null}
+    </div>
+  )
+}
+
+/** 「全部」页签：本空间最近更新（可编辑表格，多类型混排） */
+function RecentSection({ space, canWrite }: { space: Space; canWrite: (e: Entry) => boolean }) {
+  const { t } = useTranslation()
+  const list = useInfiniteQuery(entriesInfiniteQuery({ spaceId: space.id, sort: '-updatedAt' }, 30))
+  const items = flattenEntries(list.data)
+  return (
+    <div className="mt-3 flex flex-col gap-3" data-testid="kb-panel-recent">
+      {list.isPending ? (
+        <Skeleton className="h-40 w-full" />
+      ) : items.length ? (
+        <EntryTable
+          items={items}
+          kinds={[]}
+          showSpace={false}
+          editable={(e) => canWrite(e) && !e.archivedAt}
+          rowMenu={(e) => (
+            <EntryRowMenu entryId={e.id} title={e.title} entry={e} canWrite={canWrite(e)} />
+          )}
+        />
+      ) : (
+        <p className="paper rounded-xl px-4 py-8 text-center text-fg-muted text-sm">
+          {t('kb.empty.recent')}
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -647,6 +744,7 @@ function DirSpaceRow({
               ? (id) => openNew(true, { spaceId: space.id, parentId: id })
               : undefined
           }
+          rowMenu={canCreateIn(space)}
         />
       ) : null}
     </li>

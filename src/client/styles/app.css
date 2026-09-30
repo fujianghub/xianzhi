@@ -1589,6 +1589,161 @@ select:disabled {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-solid) 28%, transparent);
 }
 
+/* 元数据胶囊前的实色圆点（状态，ADR-0035 §C）与进度条填充：都取所在色调的 --k-solid */
+.xz-pill-dot {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--k-solid);
+}
+.xz-progress-fill {
+  border-radius: 999px;
+  background: var(--k-solid);
+  transition: width var(--xz-dur-base) var(--xz-ease-out);
+}
+
+/*
+ * 记录页属性面板（ADR-0035 §B）：两列「图标 · 名 | 值」，值是可点的彩色胶囊；
+ * 行高固定避免加载时文档栏跳动；悬停整行浅底，值按钮悬停 / 聚焦加描边。
+ */
+.xz-props {
+  padding: 0.25rem 0 0.5rem;
+  border-bottom: 1px solid var(--xz-divider);
+}
+.xz-prop-row {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.5rem;
+  min-height: 2.25rem;
+  padding: 0.125rem 0;
+}
+.xz-prop-label {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2rem;
+  color: var(--xz-fg-muted);
+  font-size: 0.8125rem;
+}
+.xz-prop-value {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 2rem;
+  padding: 0.125rem 0.375rem;
+  margin-inline-start: -0.375rem;
+  border-radius: var(--xz-radius-md);
+  text-align: left;
+  transition: background-color var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-prop-value:hover,
+.xz-prop-value[data-state="open"] {
+  background: var(--xz-hover-bg);
+}
+.xz-prop-value-empty {
+  min-width: 4rem;
+}
+
+/* 表格可编辑单元格（REQ-ENTRY-026）：透明按钮，悬停浅底提示可点 */
+.xz-cell-edit {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding: 0.125rem 0.25rem;
+  margin-inline-start: -0.25rem;
+  border-radius: var(--xz-radius-sm);
+  cursor: pointer;
+}
+.xz-cell-edit:hover,
+.xz-cell-edit[data-state="open"] {
+  background: var(--xz-hover-bg);
+}
+
+/*
+ * 空间首页类型页签（REQ-KB-016）：胶囊按钮，选中时取类型色调的浅底 + 同色描边；计数为淡色小字。
+ * 状态筛选（概要条）：色点 + 名 + 计数，选中加同色描边。
+ */
+.xz-type-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 2rem;
+  padding: 0 0.75rem 0 0.375rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  color: var(--xz-fg-muted);
+  transition:
+    background-color var(--xz-dur-fast) var(--xz-ease-out),
+    color var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-type-tab:hover {
+  background: var(--xz-hover-bg);
+  color: var(--xz-fg);
+}
+.xz-type-tab-on {
+  color: var(--k-fg, var(--xz-fg));
+  background: var(--k-bg, var(--xz-selected-bg));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-solid, var(--xz-primary)) 30%, transparent);
+}
+.xz-type-tab-on:hover {
+  background: var(--k-bg, var(--xz-selected-bg));
+  color: var(--k-fg, var(--xz-fg));
+}
+.xz-type-tab-count {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+.xz-status-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 1.75rem;
+  padding: 0 0.625rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: var(--k-fg, var(--xz-fg-muted));
+  background: var(--k-bg, var(--xz-surface-2));
+  transition: box-shadow var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-status-filter:hover,
+.xz-status-filter-on {
+  box-shadow: inset 0 0 0 1.5px
+    color-mix(in srgb, var(--k-solid, var(--xz-fg-muted)) 55%, transparent);
+}
+
+/* 流转时间线（REQ-ENTRY-025）：左侧竖线 + 每项取新值色调的实色圆点 */
+.xz-timeline {
+  position: relative;
+  padding-inline-start: 1rem;
+}
+.xz-timeline::before {
+  content: "";
+  position: absolute;
+  inset-block: 0.375rem;
+  inset-inline-start: 0.25rem;
+  width: 1px;
+  background: var(--xz-divider);
+}
+.xz-timeline-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+.xz-timeline-item::before {
+  content: "";
+  position: absolute;
+  top: 0.4375rem;
+  inset-inline-start: -0.9375rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--k-solid);
+  box-shadow: 0 0 0 2px var(--xz-read-paper-bg, var(--xz-surface));
+}
+
 /* 着色图标（REQ-UI-037）：导航快捷项等单色图标沿用 --xz-icon-* 专属色，静止 85%，悬停 / 当前 100% */
 .xz-hue {
   color: color-mix(in srgb, var(--xz-ico, var(--xz-fg-muted)) 85%, var(--xz-fg-muted));

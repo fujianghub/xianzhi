@@ -9,6 +9,7 @@ import { Copy, Eye, FilePlus2, Link2, Pencil, Plus, SquarePen, Trash2 } from 'lu
 import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { KindBadge } from '../components/domain/KindIcon.tsx'
 import { buttonVariants } from '../components/ui/button.tsx'
 import { Checkbox } from '../components/ui/checkbox.tsx'
 import { ConfirmDialog } from '../components/ui/confirm-dialog.tsx'
@@ -56,9 +57,13 @@ function TemplatesPage() {
   const openNew = useNewEntry((s) => s.setOpen)
   const setPreview = (id: string | undefined) =>
     void nav({ search: (s) => ({ ...s, preview: id }), replace: true })
-  const use = (tpl: Pick<Template, 'id' | 'kind'>) => {
+  const use = (tpl: Pick<Template, 'id' | 'kind' | 'typeId'>) => {
     setPreview(undefined)
-    openNew(true, { kind: tpl.kind, templateId: tpl.id })
+    openNew(true, {
+      kind: tpl.kind,
+      ...(tpl.typeId ? { typeId: tpl.typeId } : {}),
+      templateId: tpl.id,
+    })
   }
   const previewing = preview ? items.find((x) => x.id === preview) : undefined
   const groups = [
@@ -201,7 +206,9 @@ function TemplateRow({
         ) : (
           <span className="min-w-0 flex-1 truncate font-medium text-sm">{tpl.name}</span>
         )}
-        <span className="me-1 shrink-0 text-fg-faint text-xs">{t(`entry.kind.${tpl.kind}`)}</span>
+        <span className="me-1 shrink-0">
+          <KindBadge kind={tpl.kind} typeId={tpl.typeId} />
+        </span>
         <button
           type="button"
           className={icon}

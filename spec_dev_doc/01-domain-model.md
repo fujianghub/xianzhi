@@ -70,6 +70,8 @@
 | group_id | uuid? | FK space_groups（on delete set null）；null = 未分类；个人空间恒为 null（ADR-0012） |
 | default_kind | text? | 在此空间新建记录的默认类型（仅内置，check；ADR-0019） |
 | default_template_id | text? | 默认模板：`builtin:*` 或工作区模板 uuid（个人模板不可；ADR-0019） |
+| default_type_id | uuid? | FK entry_types（on delete set null）：默认类型为本空间的空间类型（ADR-0036）；与 `default_kind` 互斥（service 422） |
+| enabled_kinds | jsonb? | 启用类型清单（有序，= 首页页签顺序）：元素为内置 kind 或 `type:<uuid>`；null = 按 `kind` 推导默认（见下；ADR-0036） |
 | sort_key | text | fractional indexing；列级 `COLLATE "C"`（注 2026-09-24：键须按字节序比较，库默认 en_US.utf8 大小写不敏感会排错，迁移 0003） |
 | archived_at | timestamptz? | 归档后空间只读：其任务与记录的写操作 403；列表默认隐藏（`?archived=1` 显示） |
 | deleted_at | timestamptz? | 软删 |
@@ -78,6 +80,7 @@
 | updated_at | timestamptz | |
 
 - 唯一：`(workspace_id, slug)`。
+- `enabled_kinds` 为 null 时的推导默认（不做数据迁移）：`project` / `work` = bug · iteration · changelog · decision · optimize · note；`learning` = plan · note · journal · review；个人空间 = 全部未删除内置类型 + 读者本人的个人类型。读时忽略悬空项；删自定义类型 / 删内置类型时 service 从各空间清单中移除；合并空间写出「目标已解析清单 + 源空间类型」（ADR-0036）。改清单与默认类型需 `space.manage`。
 - **个人空间**（`is_personal=true`）：每个成员加入工作区时自动创建一个（`kind=work`、`visibility=members`、成员仅本人、名「个人」、slug `me-<userId ~~前~~ **末** 8 位>`；注（2026-09-23）：UUID v7 前 8 位是时间戳，同一分钟加入的成员会撞唯一约束，改取末 8 位随机段）；不可删除、不可加人、不可改可见性；是收件箱任务与个人记录（随笔、日志）的默认落点。每用户恰好一个：唯一 `(workspace_id, created_by) WHERE is_personal`。
 
 **space_members**
@@ -210,10 +213,11 @@
 | scope | text | `personal`（仅本人）\| `workspace`（全员可用；~~管理员创建~~ 非 guest 可共享，ADR-0023） |
 | name | text | ≤ 60 |
 | description | text | ≤ 200，默认 '' |
-| kind | text | 同 entries.kind |
+| kind | text | 同 entries.kind（注 2026-09-30 ADR-0036：check 放开 `custom`） |
+| type_id | uuid? | FK entry_types（on delete set null）；check `(kind = 'custom') = (type_id is not null)`；workspace 模板只能绑内置 / 空间类型，personal 还可绑本人个人类型（service）；类型删除时 service 同事务改为 `kind='note', type_id=null`（ADR-0036） |
 | space_kind | text? | 推荐的空间类型 `project` \| `learning` \| `work` |
 | body | jsonb | PM JSON 正文种子（≤ 100KB）；只在新建记录时写成初始 ydoc，不是正文真源 |
-| fields | jsonb | 该 kind 的默认 fields |
+| fields | jsonb | 该 kind 的默认 fields（可含所绑类型的 x 键预填值，ADR-0036） |
 | created_at | timestamptz | |
 | updated_at | timestamptz | |
 
@@ -228,14 +232,18 @@
 |---|---|---|
 | id | uuid | PK |
 | workspace_id | text | FK organization |
-| name | text | 1–20 字；唯一 `(workspace_id, created_by, name)`（ADR-0017：同一人名下不重名） |
+| name | text | 1–20 字；~~唯一 `(workspace_id, created_by, name)`（ADR-0017：同一人名下不重名）~~ 注 2026-09-30 ADR-0036：改为两个 partial unique index——个人类型 `(workspace_id, created_by, name) where space_id is null`，空间类型 `(space_id, name) where space_id is not null` |
 | color | text | 9 色板 token 名（check） |
 | statuses | jsonb | 有序状态名 `string[]`（0–12，去重，不含 `, \| =`）；第一项 = 新建默认值 |
-| created_by | text? | FK user：类型属于此人（ADR-0017）——只有本人能用它新建 / 改类型、能管理；读者可见名 / 色 / 状态 |
+| status_colors | jsonb | 状态名 → 9 色板色名，默认 `{}`；键须在 `statuses` 内，状态改名同步键（ADR-0036） |
+| field_defs | jsonb | 字段定义 `FieldDef[]`（≤ 20，见 §3.5），默认 `[]`（ADR-0036） |
+| space_id | uuid? | FK spaces（on delete cascade）：null = 个人类型（ADR-0017 语义）；非 null = 空间类型，只能用于该空间的记录，由 `space.manage` 管理；个人空间不可有（ADR-0036） |
+| created_by | text? | FK user：个人类型属于此人（ADR-0017）——只有本人能用它新建 / 改类型、能管理；读者可见名 / 色 / 状态。空间类型为创建者（仅记录，不决定权限） |
 | created_at | timestamptz | |
 | updated_at | timestamptz | |
 
-- 自定义类型记录的 `fields` = `{ status?: string ∈ statuses, progress?: 0–100, dueDate?: date }`（strict；status 归属由 service 校验）。
+- 自定义类型记录的 `fields` = `{ status?: string ∈ statuses, progress?: 0–100, dueDate?: date }`（strict；status 归属由 service 校验）+ 该类型 `field_defs` 定义的 x 键（ADR-0036，§3.5）。
+- 注 2026-09-30（ADR-0036）：记录可用类型 = 未删除内置 + 本人个人类型 + 记录所在空间的空间类型（`loadUsableEntryType`）；空间类型的记录不能移到别的空间（422）；合并空间时源空间类型改挂目标（重名加「（合并）」后缀，截断 20 字）；彻底删除空间前把仍引用其类型的记录转随笔、绑它的模板转随笔。改 `field_defs`：删字段 → 同事务 `fields - key`（含回收站）；`optionRenames` 同步值；删选项 → 单选清空、多选去掉；字段 `type` 不可改；批量改值审计 `entry_type.fields_changed`，不写流转，不改 `entryQuery` / 保存视图里的条件。
 - 改 `statuses`：`renames` 一对一改名同步到记录；不再存在的状态改为新列表第一项（空列表 = 去掉 status）。删类型：其下记录（含回收站）转到 `moveTo`（缺省随笔；ADR-0017），fields 按目标重建，同事务 + 审计 `entry_type.deleted`。
 
 **entry_kind_overrides**
@@ -249,6 +257,7 @@
 | name | text? | 改过的名；null = 默认（前端 i18n） |
 | color | text? | 改过的色（9 色板 check）；null = 固定色 |
 | deleted | bool | 已删除（其下记录已转走；可恢复）；默认 false |
+| field_defs | jsonb | 内置类型追加的字段定义 `FieldDef[]`（≤ 20），默认 `[]`；代码字段不在此；仅 owner 可改（`entry_kind.manage`，ADR-0036） |
 | updated_at | timestamptz | |
 
 ### 3.4d 流转与保存视图（2026-09-29 ADR-0033）
@@ -301,6 +310,20 @@ optimize : { status: 'proposed'|'planned'|'doing'|'shipped'|'dropped', metric?: 
 plan     : { status: 'planning'|'active'|'paused'|'done', startDate?: date, endDate?: date, progress?: 0..100 }  // ADR-0011 §3
 ```
 叙述结构（背景/选项/决定/后果 等）由**正文模板**承载（03 §6），不进 `fields`。
+
+**自定义字段（x 键，2026-09-30 ADR-0036）**：类型（`entry_types.field_defs`，内置类型为 `entry_kind_overrides.field_defs`）可定义字段，值写在 `fields` 顶层的 x 键上。
+```ts
+FieldDef = { key: /^x[A-Z]{6}$/   // 系统生成、不可改，与内置 camelCase 键不撞
+             label: string(1–20)   // 同类型不重复
+             type: 'text'|'number'|'date'|'select'|'multiselect'|'checkbox'|'url'|'progress'
+             options?: { name: string(1–20，不含 , | =), color: PaletteColor }[]   // ≤ 30，仅 select / multiselect
+             required?: boolean }  // 只做界面提示，不拦写入
+// 值：text ≤ 500 · number · date(isoDate) · select = 选项名 · multiselect = 选项名 string[]（去重）
+//     · checkbox = bool · url ≤ 2000（http/https）· progress = 0..100 整数
+```
+- 校验两段：内置 strict schema 先剥离 x 键再校验（shared，前后端一致）；service `normalizeExtraFields(defs, fields)`：未定义的 x 键**静默丢弃**，类型 / 选项不符 422（`path = fields.<key>`），必填不拦。
+- 改类型保留目标类型里同 key 的 x 值，其余丢弃（`fieldsForRetype`）。
+- `fields=` 筛选支持 x 键，multiselect 为「包含任一」；`/entries/stats groupBy` 可用单选 x 键，multiselect 422。
 
 ### 3.6 links —— 链接（双向）
 
@@ -532,6 +555,7 @@ plan     : { status: 'planning'|'active'|'paused'|'done', startDate?: date, endD
 - `action` 枚举（Zod `AuditAction`，新增值先改本表）：
   注（2026-09-25，ADR-0008）：+ `member.registered`（自助注册，actor 为空）· `member.approved` · `member.rejected`（驳回即删号，`meta` 留邮箱 / 用户名）。
   注（2026-09-25，ADR-0010）：+ `auth.password_changed`（本人改密，`meta.otherSessionsRevoked`）· `user.created`（owner 直建）· `user.updated`（改显示名 / 用户名 / 邮箱，`meta.byAdmin` 区分本人与 owner，含新旧值）；owner 重置他人密码记 `auth.password_reset`（`meta.byAdmin`），删号记 `user.deleted`（`meta.byAdmin`）。迁移 0007 同步 `audit_log_action_ck`。
+  注（2026-09-30，ADR-0036）：+ `entry_type.fields_changed`（改字段定义 / 选项改名或删除导致批量改值；`meta` 含增删改的字段与受影响记录数；内置类型 `targetType = entry_kind`；迁移 0022 重建 check 约束）。
   注（2026-09-27，ADR-0022）：+ `space.merged`（合并空间，target = 源空间，`meta` 含目标、记录 / 任务 / 成员数、`visibilityWidened`；迁移 0018 重建 check 约束）。
   `auth.login` · `auth.logout` · `auth.login_failed` · `auth.locked` · `auth.password_reset` · `auth.2fa_enabled` · `auth.2fa_disabled` · `auth.2fa_reset_by_admin` · `member.invited` · `member.joined` · `member.registered` · `member.approved` · `member.rejected` · `member.role_changed` · `member.suspended` · `member.unsuspended` · `member.removed` · `member.content_transferred` · `user.deleted` · `workspace.owner_transferred` · `workspace.settings_changed` · `space.deleted` · `space.permanently_deleted` · `task.permanently_deleted` · `entry.permanently_deleted` · `entry.restored`（ADR-0011）· `export.requested` · `export.done` · `export.failed` · `api_key.created` · `api_key.revoked` · `gc.failed` · `backup.failed` · `entry_type.deleted`（ADR-0016）
 
@@ -709,8 +733,9 @@ Workspace 角色 × Space 角色 → 有效角色取**较高者**，`guest` 只�
 | member.approve（审批注册申请，ADR-0008） | ✓ | ✗ | ✗ |
 | group.manage（大类增删改排，ADR-0012；把空间移入大类走 space.manage） | ✓ | ✗ | ✗ |
 | tag.create / tag.manage（标签个人私有，ADR-0017：新建 = 非 guest；改名 / 改色 / 删除 / 合并 = 本人，管理员不例外） | 建 ✓ / 管本人的 | 建 ✓ / 管本人的 | ✗ |
-| entry_type.create / entry_type.manage（自定义类型个人所有，ADR-0017：新建 = 非 guest；管理 = 本人） | 建 ✓ / 管本人的 | 建 ✓ / 管本人的 | ✗ |
-| entry_kind.manage（内置类型改名 / 改色 / 删除 / 恢复，ADR-0017） | 仅 owner | ✗ | ✗ |
+| entry_type.create / entry_type.manage（个人类型个人所有，ADR-0017：新建 = 非 guest；管理 = 本人；空间类型见下行，ADR-0036） | 建 ✓ / 管本人的 | 建 ✓ / 管本人的 | ✗ |
+| entry_kind.manage（内置类型改名 / 改色 / 删除 / 恢复，ADR-0017；追加字段 `field_defs`，ADR-0036） | 仅 owner | ✗ | ✗ |
+| 空间类型（建 / 改 / 删 / 改字段）· 启用清单 · 默认类型（ADR-0036，不另设 action） | 走 `space.manage`，另需空间未归档、非个人空间（service 校验） | space admin（同左） | ✗ |
 | template.read（记录模板，ADR-0011） | personal 仅本人；workspace 全员 | 同左 | 同左 |
 | template.create | 非 guest（personal 与 workspace；~~workspace 仅 owner / admin~~，ADR-0023 共享模板） | ✓ | ✗ |
 | template.manage（改名 / 范围 / 删除） | 本人的（非 guest）；workspace 模板管理员可管 | 本人的 | ✗ |

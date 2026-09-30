@@ -8,6 +8,8 @@ import {
   attachments,
   comments,
   entries,
+  entryTemplates,
+  entryTypes,
   events,
   idempotencyKeys,
   notificationDeliveries,
@@ -199,6 +201,20 @@ export async function purgeSpace(
       await tx.update(tasks).set({ parentId: null }).where(inArray(tasks.id, taskIds))
       await tx.delete(tasks).where(inArray(tasks.id, taskIds))
     }
+    // 空间类型随空间级联删除（ADR-0036）：先把别处仍引用它的记录转随笔、绑它的模板转随笔，
+    // 否则 entries.type_id 外键 / 模板 check 会让硬删失败（gc 永远卡住）
+    const typeIds = tx
+      .select({ id: entryTypes.id })
+      .from(entryTypes)
+      .where(eq(entryTypes.spaceId, spaceId))
+    await tx
+      .update(entries)
+      .set({ kind: 'note', typeId: null, fields: {}, updatedAt: new Date() })
+      .where(inArray(entries.typeId, typeIds))
+    await tx
+      .update(entryTemplates)
+      .set({ kind: 'note', typeId: null, fields: {}, updatedAt: new Date() })
+      .where(inArray(entryTemplates.typeId, typeIds))
     await tx.delete(spaces).where(eq(spaces.id, spaceId))
   })
   return { tasks: taskIds.length, entries: entryIds.length, comments: commentIds.length }

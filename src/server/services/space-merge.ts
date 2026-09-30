@@ -16,7 +16,7 @@ import { SPACE_ROLES, type SpaceRole } from '../../shared/schemas/enums.ts'
 import type { mergeSpaceSchema } from '../../shared/schemas/spaces.ts'
 import { assertCan } from '../authz.ts'
 import type { Db, DbOrTx } from '../db/index.ts'
-import { entries, spaceMembers, spaces, tasks } from '../db/schema/business.ts'
+import { entries, entryTypes, spaceMembers, spaces, tasks } from '../db/schema/business.ts'
 import { AppError } from '../lib/errors.ts'
 import { audit } from './audit.ts'
 import { accessChanged, loadSpace, type SpaceCtx, type SpaceView, viewOf } from './spaces.ts'
@@ -140,6 +140,40 @@ export async function mergeSpace(
           .where(eq(tasks.id, t.id))
     }
     await tx.update(tasks).set({ spaceId: into.id }).where(eq(tasks.spaceId, from.id))
+
+    // 空间类型（ADR-0036）：改挂到 B（记录已随之搬过去）；与 B 已有类型重名时加后缀（截到 20 字）
+    const moving = await tx
+      .select({ id: entryTypes.id, name: entryTypes.name })
+      .from(entryTypes)
+      .where(eq(entryTypes.spaceId, from.id))
+    if (moving.length) {
+      const taken = new Set(
+        (
+          await tx
+            .select({ name: entryTypes.name })
+            .from(entryTypes)
+            .where(eq(entryTypes.spaceId, into.id))
+        ).map((r) => r.name),
+      )
+      for (const t of moving) {
+        let name = t.name
+        for (let n = 1; taken.has(name); n++) {
+          const suffix = n === 1 ? '（合并）' : `（合并${n}）`
+          name = `${t.name.slice(0, 20 - suffix.length)}${suffix}`
+        }
+        taken.add(name)
+        await tx
+          .update(entryTypes)
+          .set({ spaceId: into.id, name, updatedAt: now })
+          .where(eq(entryTypes.id, t.id))
+      }
+      // B 有显式启用清单：把搬来的类型追加进去（null 清单本就包含全部空间类型）
+      await tx.execute(sql`
+        update ${spaces} set enabled_kinds = enabled_kinds || ${JSON.stringify(
+          moving.map((t) => `type:${t.id}`),
+        )}::jsonb
+        where id = ${into.id} and enabled_kinds is not null`)
+    }
 
     // 成员：并入 B，角色取较高者（memberChanges 已算好）
     for (const m of members)

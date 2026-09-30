@@ -203,14 +203,14 @@
 | GET | `/workspace/audit-log` | 游标；`action / actorId / from / to / jobId` 筛选（admin） | REQ-WS-005 |
 | GET | `/spaces` | 筛选 `archived=1`、`deleted=1`；sort 白名单 `sortKey name createdAt` | REQ-SPACE-001 · 004 |
 | POST | `/spaces` | 创建，创建者为 space admin | REQ-SPACE-001 |
-| GET | `/spaces/:id` | 详情（不可见 → 404）；含 `groupId` | REQ-SPACE-002 |
+| GET | `/spaces/:id` | 详情（不可见 → 404）；含 `groupId`（注 ADR-0036：+`enabledKinds`（已解析：null → 按 kind 推导默认、去掉悬空项）、`enabledKindsRaw`（原值）、`defaultTypeId`） | REQ-SPACE-002 · REQ-KB-014 |
 | GET | `/spaces/:id/tree` | 目录树：目录内全部可见记录的 `{ id, title, kind, parentId, treeOrder }`（扁平，前端组树；读不到的父页连同子树不出现） | REQ-KB-005 |
-| PATCH | `/spaces/:id` | 改名、可见性、颜色、图标（space admin+）（注 ADR-0019：+`defaultKind`（内置类型）、`defaultTemplateId`（内置 / 工作区模板，个人模板 422）） | REQ-SPACE-003 · REQ-KB-010 |
+| PATCH | `/spaces/:id` | 改名、可见性、颜色、图标（space admin+）（注 ADR-0019：+`defaultKind`（内置类型）、`defaultTemplateId`（内置 / 工作区模板，个人模板 422）；注 ADR-0036：+`enabledKinds: string[] \| null`（内置 kind 或 `type:<uuid>`，null = 推导默认）、`defaultTypeId`（本空间的空间类型，与 `defaultKind` 同给 422）） | REQ-SPACE-003 · REQ-KB-010 · 014 · 017 |
 | DELETE | `/spaces/:id` | 软删；`?permanent=1` 永久；仅工作区 owner/admin | REQ-SPACE-003 · 007 |
 | POST | `/spaces/:id/archive` | 归档（只读） | REQ-SPACE-004 |
 | POST | `/spaces/:id/unarchive` | 取消归档 | REQ-SPACE-004 |
 | POST | `/spaces/:id/restore` | 从回收站恢复 | REQ-SPACE-007 |
-| POST | `/spaces/:id/merge` | `{ into, dryRun? }` 源空间整体并入 `into`：记录 / 任务 / 成员搬过去，源进回收站，审计 `space.merged`；仅工作区 owner / admin → `{ preview{entries, tasks, members, visibilityWidened, from, into}, into? }`（ADR-0022） | REQ-SPACE-013 · 014 |
+| POST | `/spaces/:id/merge` | `{ into, dryRun? }` 源空间整体并入 `into`：记录 / 任务 / 成员搬过去，源进回收站，审计 `space.merged`；仅工作区 owner / admin → `{ preview{entries, tasks, members, visibilityWidened, from, into}, into? }`（ADR-0022）（注 ADR-0036：源空间类型改挂 `into`，重名加「（合并）」后缀；`into` 的启用清单写成已解析清单 + 源空间类型） | REQ-SPACE-013 · 014 · REQ-KB-015 |
 | GET | `/spaces/:id/members` | 空间成员 | REQ-SPACE-006 |
 | POST | `/spaces/:id/members` | `{ userId, role }`；发 `space.invited`；个人空间 403 | REQ-SPACE-006 · 009 |
 | PATCH | `/spaces/:id/members/:userId` | 改空间角色 | REQ-SPACE-003 |
@@ -262,16 +262,16 @@
 | GET | `/cycles/current` | `kind`；按用户时区与 `weekStartsOn` | REQ-CYCLE-002 |
 | GET | `/cycles/:id` | 详情（含任务列表与完成数） | REQ-CYCLE-006 · REQ-TASK-018 |
 | PATCH | `/cycles/:id` | `goals / status`（单向流转） | REQ-CYCLE-003 · 005 |
-| GET | `/entries` | 筛选 `spaceId kind authorId tag q pinned deleted`；sort 白名单 `updatedAt createdAt title`；不返回正文列（注 2026-09-26 ADR-0012：`kind` 逗号多值；`fields=status=open\|fixed,severity=high` 按 fields 过滤；`inTree=1\|0`；每项带 `tagIds`；注 ADR-0014：+`under` 目录子树、`groupId`（uuid \| `none`）、`favorite=1`、`ids` csv ≤ 50，每项带 `path` `favorited`；注 ADR-0016：+`typeId` csv（自定义类型，与 `kind` 同给为任一命中），每项带 `typeId`） | REQ-ENTRY-002 · REQ-KB-004 · REQ-ENTRY-012 · 018 |
-| POST | `/entries/batch` | `{ op: move\|tags\|archive\|unarchive\|delete, ids ≤ 100, spaceId? / add? / remove? }` 逐条鉴权 → `{ ok, failed[{id, code, message}] }`（ADR-0014；注 ADR-0016：op 增 `retype {kind, typeId?}` · `fields {set:{status?, progress?}}` · `pin` · `unpin`；注 ADR-0033：`fields.set` 增 `priority`） | REQ-ENTRY-013 · 017 |
-| GET | `/entries/stats` | 与列表同名的筛选参数（无游标 / 排序）+ `groupBy`（1 ~ 2 个 fields 键）→ `{ total, groups[{ values:{键:值\|null}, n }] }`；权限同列表（ADR-0033） | REQ-BUG-004 |
+| GET | `/entries` | 筛选 `spaceId kind authorId tag q pinned deleted`；sort 白名单 `updatedAt createdAt title`；不返回正文列（注 2026-09-26 ADR-0012：`kind` 逗号多值；`fields=status=open\|fixed,severity=high` 按 fields 过滤；`inTree=1\|0`；每项带 `tagIds`；注 ADR-0014：+`under` 目录子树、`groupId`（uuid \| `none`）、`favorite=1`、`ids` csv ≤ 50，每项带 `path` `favorited`；注 ADR-0016：+`typeId` csv（自定义类型，与 `kind` 同给为任一命中），每项带 `typeId`；注 ADR-0036：`fields=` 支持自定义字段 x 键，multiselect 为「包含任一」（`fields->>k in (…)` 或数组 `?|`）；排序白名单不含 x 键） | REQ-ENTRY-002 · REQ-KB-004 · REQ-ENTRY-012 · 018 · 027 |
+| POST | `/entries/batch` | `{ op: move\|tags\|archive\|unarchive\|delete, ids ≤ 100, spaceId? / add? / remove? }` 逐条鉴权 → `{ ok, failed[{id, code, message}] }`（ADR-0014；注 ADR-0016：op 增 `retype {kind, typeId?}` · `fields {set:{status?, progress?}}` · `pin` · `unpin`；注 ADR-0033：`fields.set` 增 `priority`；注 ADR-0036：`move` 对空间类型记录逐条 422 进 failed，`retype` 的 `typeId` 按每条记录所在空间判定可用，保留同 key 的 x 值） | REQ-ENTRY-013 · 017 · 029 · REQ-KB-015 |
+| GET | `/entries/stats` | 与列表同名的筛选参数（无游标 / 排序）+ `groupBy`（1 ~ 2 个 fields 键）→ `{ total, groups[{ values:{键:值\|null}, n }] }`；权限同列表（ADR-0033）（注 ADR-0036：`groupBy` 可为单选 x 键，multiselect 键 422） | REQ-BUG-004 · REQ-KB-016 |
 | GET | `/entries/bug-stats` | 列表筛选（kind 固定 bug）+ `from? to?`（isoDate，缺省近 12 周）+ `bucket=week\|month` → `{ summary, trend[{start, created, resolved, open}], mttr[{priority, n, avgDays, medianDays}], aging[{key, n}] }`；周桶按 `weekStartsOn` 与时区对齐，≤ 104 桶（ADR-0033） | REQ-BUG-007 |
 | PUT | `/entries/:id/favorite` | 收藏（个人；需可读；幂等）（ADR-0014） | REQ-ENTRY-012 |
 | DELETE | `/entries/:id/favorite` | 取消收藏（ADR-0014） | REQ-ENTRY-012 |
 | PATCH | `/entries/:id/move` | `{ parentId, after }` 移到目录某处 / `{ detach: true }` 移出目录；需 entry.write；防环、after 须同级 | REQ-KB-005 |
 | POST | `/entries` | `{ kind, title, spaceId?, fields, visibility, templateId? }` → `{ id }`；正文经 collab；`templateId`（`builtin:<key>` / uuid / `builtin:blank`）→ 模板正文写成初始 ydoc（ADR-0011 §2）（注 ADR-0018：+`linkFrom?: { entryId, kind ∈ relates\|blocks\|caused_by\|resolves }`，源端按 `POST /links` 同一套 can() 校验，同事务建关联） | REQ-ENTRY-001 · REQ-TPL-003 |
 | GET | `/entries/:id` | 元数据详情（无 `ydoc`；`pmJson` 仅 `?withBody=1`） | REQ-ENTRY-003 |
-| PATCH | `/entries/:id` | 标题、fields、可见性、`spaceId`（移动）、`pinned`；带 `ifUpdatedAt`（注 ADR-0016：可改 `kind`（自定义再给 `typeId`），未给 fields 时按目标类型重建） | REQ-ENTRY-004 · 006 · 011 · 017 |
+| PATCH | `/entries/:id` | 标题、fields、可见性、`spaceId`（移动）、`pinned`；带 `ifUpdatedAt`（注 ADR-0016：可改 `kind`（自定义再给 `typeId`），未给 fields 时按目标类型重建；注 ADR-0036：fields 未定义的 x 键静默丢弃、类型 / 选项不符 422；改类型保留同 key 的 x 值；空间类型记录改 `spaceId` 到别的空间 422；`typeId` 须为本人个人类型或所在空间的空间类型） | REQ-ENTRY-004 · 006 · 011 · 017 · 026 · 027 · 029 |
 | DELETE | `/entries/:id` | 软删；`?permanent=1` | REQ-ENTRY-007 |
 | POST | `/entries/:id/restore` | 恢复 | REQ-ENTRY-007 |
 | POST | `/entries/:id/archive` | 归档 | REQ-ENTRY-006 |
@@ -298,11 +298,11 @@
 | DELETE | `/comments/:id` | 软删，保留占位 | REQ-COMMENT-007 |
 | POST | `/comments/:id/resolve` | 解决线程 | REQ-COMMENT-003 |
 | POST | `/comments/:id/unresolve` | 取消解决 | REQ-COMMENT-003 |
-| GET | `/entry-types` | `{ builtin[{kind, name?, color?, deleted, usage}], items[{id, name, color, statuses, mine, canManage, usage}], canManageBuiltin, canCreate }`；items 含全部自定义类型（显示用），`mine` 标本人的（ADR-0016 · 0017） | REQ-ENTRY-018 · 020 |
-| POST | `/entry-types` | `{ name, color, statuses? }`；本人名下重名 409；`Idempotency-Key`；非 guest（ADR-0017） | REQ-ENTRY-018 |
-| PATCH | `/entry-types/:id` | `{ name?, color?, statuses?, renames? }`；需 `entry_type.manage` | REQ-ENTRY-018 |
+| GET | `/entry-types` | `{ builtin[{kind, name?, color?, deleted, usage}], items[{id, name, color, statuses, mine, canManage, usage}], canManageBuiltin, canCreate }`；items 含全部自定义类型（显示用），`mine` 标本人的（ADR-0016 · 0017）（注 ADR-0036：`?spaceId=`；`builtin[]` +`fieldDefs`；`items[]` +`spaceId` `fieldDefs` `statusColors` `usable`（本人能否用它在 `spaceId` 新建）；空间类型按 `visibleSpacesWhere` 过滤，回收站空间的隐藏；空间类型的 `canManage` = `space.manage` + 未归档） | REQ-ENTRY-018 · 020 · 029 |
+| POST | `/entry-types` | `{ name, color, statuses? }`；本人名下重名 409；`Idempotency-Key`；非 guest（ADR-0017）（注 ADR-0036：+`spaceId?`（空间类型：需 `space.manage`、空间未归档、非个人空间；同空间重名 409）、`fieldDefs?`（新字段 `key` 由服务端生成）、`statusColors?`） | REQ-ENTRY-018 · 027 · REQ-KB-015 |
+| PATCH | `/entry-types/:id` | `{ name?, color?, statuses?, renames? }`；需 `entry_type.manage`（注 ADR-0036：+`fieldDefs?`（已有字段带原 `key`，`type` 不可改；删字段同事务清值）、`optionRenames? {key:{旧:新}}`、`statusColors?`；批量改值审计 `entry_type.fields_changed`；空间类型需 `space.manage`） | REQ-ENTRY-018 · 027 · REQ-KB-015 |
 | DELETE | `/entry-types/:id` | `?moveTo=kind\|uuid`（缺省随笔）其下记录转走后删除；审计 `entry_type.deleted` | REQ-ENTRY-019 · 020 |
-| PATCH | `/entry-types/builtin/:kind` | `{ name?, color? }`（null = 恢复默认）；仅所有者（`entry_kind.manage`，ADR-0017） | REQ-ENTRY-020 |
+| PATCH | `/entry-types/builtin/:kind` | `{ name?, color? }`（null = 恢复默认）；仅所有者（`entry_kind.manage`，ADR-0017）（注 ADR-0036：+`fieldDefs?`、`optionRenames?`：内置类型追加字段，规则同自定义类型） | REQ-ENTRY-020 · 028 |
 | DELETE | `/entry-types/builtin/:kind` | `?moveTo=<内置 kind>`（删随笔时必填）全员该类型记录转走后标记已删除；仅所有者 | REQ-ENTRY-020 |
 | POST | `/entry-types/builtin/:kind/restore` | 恢复已删除的内置类型 | REQ-ENTRY-020 |
 | GET | `/entry-views` | 本人的保存视图 `{ items[{id, name, spaceId, search, createdAt, updatedAt}] }`（ADR-0033） | REQ-BUG-009 |
@@ -314,10 +314,10 @@
 | PATCH | `/tags/:id` | 改名 / 颜色 | REQ-TAG-001 |
 | DELETE | `/tags/:id` | 删除并解除关联 | REQ-TAG-001 |
 | POST | `/tags/:id/merge` | `{ intoId }` 关联并入目标（去重）后删源；需两者 `tag.manage`（ADR-0014） | REQ-TAG-005 |
-| GET | `/templates` | 内置 + 本人个人 + 工作区模板（`?kind=&spaceKind=`）；不返回正文；另返回 `canShare`，每行 `ownerName` `spaceDefaults`（ADR-0023） | REQ-TPL-001 · 004 · 006 · 009 |
-| POST | `/templates` | `{ name, scope, description?, spaceKind?, body+kind \| fromEntryId \| fromTemplateId }`（三选一；fromTemplateId = 复制到我的）；workspace 范围需非 guest（~~需管理员~~，ADR-0023）；幂等 | REQ-TPL-004 · 006 · 008 |
+| GET | `/templates` | 内置 + 本人个人 + 工作区模板（`?kind=&spaceKind=`）；不返回正文；另返回 `canShare`，每行 `ownerName` `spaceDefaults`（ADR-0023）（注 ADR-0036：+`?typeId=`，每行带 `typeId`） | REQ-TPL-001 · 004 · 006 · 009 · 011 |
+| POST | `/templates` | `{ name, scope, description?, spaceKind?, body+kind \| fromEntryId \| fromTemplateId }`（三选一；fromTemplateId = 复制到我的）；workspace 范围需非 guest（~~需管理员~~，ADR-0023）；幂等（注 ADR-0036：`kind` 可为 `custom` + `typeId`；workspace 模板只能绑内置 / 空间类型，personal 还可绑本人个人类型；`fields` 可含所绑类型的 x 键） | REQ-TPL-004 · 006 · 008 · 011 |
 | GET | `/templates/:id` | 详情带 `body`（id 可为 `builtin:<key>`） | REQ-TPL-001 · 005 |
-| PATCH | `/templates/:id` | 改名 / 说明 / 范围 / 推荐空间类型 / 正文 `body` / `kind` / `fields`（ADR-0023）；必带 `ifUpdatedAt`（409 `CONFLICT_STALE`）；改回 personal 时清掉引用它的空间默认模板；内置 403 | REQ-TPL-004 · 007 · 009 |
+| PATCH | `/templates/:id` | 改名 / 说明 / 范围 / 推荐空间类型 / 正文 `body` / `kind` / `fields`（ADR-0023）；必带 `ifUpdatedAt`（409 `CONFLICT_STALE`）；改回 personal 时清掉引用它的空间默认模板；内置 403（注 ADR-0036：+`typeId`；改为 workspace 时若绑的是个人类型 422） | REQ-TPL-004 · 007 · 009 · 011 |
 | DELETE | `/templates/:id` | 删除；内置 403；已建记录不受影响；同事务清掉引用它的空间默认模板 | REQ-TPL-004 · 009 |
 
 注（2026-09-24，T1-021 / T1-022）：

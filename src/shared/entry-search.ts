@@ -22,11 +22,12 @@ export const ENTRY_SORT_VALUES = [
   'priority',
   '-foundAt',
 ] as const
-/** 表格分组键（ADR-0033）：只对单一内置类型有意义，其余忽略。 */
+/** 表格分组键（ADR-0033）：只对单一类型有意义，其余忽略；ADR-0036 另可按自定义单选字段（x 键）分组。 */
 export const ENTRY_GROUP_VALUES = ['status', 'priority', 'severity', 'module'] as const
+const EXTRA_GROUP_RE = /^x[A-Z]{6}$/
 
 export type EntryView = (typeof ENTRY_VIEW_VALUES)[number]
-export type EntryGroup = (typeof ENTRY_GROUP_VALUES)[number]
+export type EntryGroup = (typeof ENTRY_GROUP_VALUES)[number] | `x${string}`
 
 /** 可持久化的筛选（保存视图 / 查询块）：不含 recent / select 这类只属本机本次的状态。 */
 export interface EntryFilterSearch {
@@ -78,7 +79,10 @@ export function sanitizeEntryFilter(s: Record<string, unknown>): EntryFilterSear
     typeId: uuidCsv(s.typeId),
     fields: fields && FIELDS_RE.test(fields) ? fields : undefined,
     view: oneOf(ENTRY_VIEW_VALUES)(s.view),
-    group: oneOf(ENTRY_GROUP_VALUES)(s.group),
+    group:
+      typeof s.group === 'string' && EXTRA_GROUP_RE.test(s.group)
+        ? (s.group as EntryGroup)
+        : oneOf(ENTRY_GROUP_VALUES)(s.group),
     authorId: s.authorId === 'me' ? 'me' : uuid(s.authorId),
     tag: str(s.tag)?.slice(0, 400),
     q: str(s.q)?.slice(0, 200),

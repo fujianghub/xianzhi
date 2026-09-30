@@ -37,7 +37,6 @@ export default function NewEntryDialog() {
   const nav = useNavigate()
   const [kind, setKind] = useState<EntryKind>(defaults.kind ?? 'note')
   const [typeId, setTypeId] = useState<string | undefined>(defaults.typeId)
-  const kindOptions = useKindOptions()
   const [title, setTitle] = useState('')
   const [fields, setFields] = useState<Record<string, unknown>>(defaultEntryFields[kind])
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -58,9 +57,15 @@ export default function NewEntryDialog() {
   const tree = useQuery({ ...treeQuery(targetSpace), enabled: open && !!targetSpace })
   const treeItems = useMemo(() => flatten(tree.data ?? []), [tree.data])
   const spaceKind = spaces.data?.find((s) => s.id === targetSpace)?.kind as SpaceKind | undefined
-  const sorted = useMemo(
-    () => sortTemplates(templates.data ?? [], spaceKind),
-    [templates.data, spaceKind],
+  // 类型选项按目标空间的启用清单（ADR-0036、REQ-KB-014）
+  // 当前选中的类型（如模板带出的、未在该空间启用的内置类型）始终保留在选项里
+  const kindOptions = useKindOptions(spaces.data?.find((s) => s.id === targetSpace) ?? null, {
+    keep: { kind, typeId: typeId ?? null },
+  })
+  const usableKey = new Set(kindOptions.map((o) => kindKey(o)))
+  // 模板：绑自定义 / 空间类型的只在该类型可用时出现
+  const sorted = sortTemplates(templates.data ?? [], spaceKind).filter(
+    (tpl) => tpl.kind !== 'custom' || (!!tpl.typeId && usableKey.has(tpl.typeId)),
   )
 
   const applyTemplate = (tpl: Template | null) => {
@@ -68,7 +73,7 @@ export default function NewEntryDialog() {
     setErrors({})
     if (!tpl) return
     setKind(tpl.kind)
-    setTypeId(undefined)
+    setTypeId(tpl.typeId ?? undefined)
     setFields({ ...defaultEntryFields[tpl.kind], ...tpl.fields })
   }
 
@@ -99,7 +104,7 @@ export default function NewEntryDialog() {
     if (!tpl) return
     setTemplateId(tpl.id)
     setKind(tpl.kind)
-    setTypeId(undefined)
+    setTypeId(tpl.typeId ?? undefined)
     setFields({ ...defaultEntryFields[tpl.kind], ...tpl.fields })
   }, [open, defaults.templateId, templates.data])
 
@@ -109,7 +114,7 @@ export default function NewEntryDialog() {
     setFields({ ...defaultEntryFields[k] })
     setErrors({})
     const cur = templates.data?.find((x) => x.id === templateId)
-    if (cur && cur.kind !== k) setTemplateId(null)
+    if (cur && (cur.kind !== k || (cur.typeId ?? undefined) !== tid)) setTemplateId(null)
   }
 
   // 空间默认类型 / 模板（ADR-0019、REQ-KB-010）：打开时与换空间时，按目标空间预选；
@@ -132,6 +137,12 @@ export default function NewEntryDialog() {
       if (tpl) return applyTemplate(tpl)
     }
     appliedFor.current = targetSpace
+    // 默认类型：内置 kind，或本空间的空间类型（ADR-0036、REQ-KB-017）；不在可选项里（已删除 / 未启用）则不预选
+    if (sp.defaultTypeId) {
+      if (kindOptions.some((o) => o.typeId === sp.defaultTypeId))
+        pickKind('custom', sp.defaultTypeId)
+      return
+    }
     const k = sp.defaultKind as EntryKind | null
     if (k && kindOptions.some((o) => o.kind === k)) pickKind(k)
   }, [open, explicit, targetSpace, spaces.data, templates.data])

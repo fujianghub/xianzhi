@@ -32,9 +32,11 @@ import {
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { EntryRowMenu } from '../components/domain/EntryRowMenu.tsx'
 import { KbHeader } from '../components/domain/KbHeader.tsx'
 import { KindBadge, KindIcon } from '../components/domain/KindIcon.tsx'
 import { Button } from '../components/ui/button.tsx'
+import { useContextPoint } from '../components/ui/context-anchor.tsx'
 import { Disclosure } from '../components/ui/disclosure.tsx'
 import { Input } from '../components/ui/input.tsx'
 import { RelativeTime } from '../components/ui/relative-time.tsx'
@@ -304,6 +306,8 @@ function TreeRow({
   } = useSortable({ id: item.id, disabled: !canWrite })
   const icon =
     'grid size-7 place-items-center rounded-md text-fg-muted transition-colors hover:bg-active hover:text-fg active:scale-[.92]'
+  // 行菜单（ADR-0035、REQ-KB-013）：⋯ / 右键 = 改名 · 新建子页 · 置顶 · 归档 · 删除
+  const ctx = useContextPoint()
   return (
     <li
       ref={setNodeRef}
@@ -317,6 +321,7 @@ function TreeRow({
       data-testid="tree-row"
       data-entry-id={item.id}
       data-depth={item.depth}
+      onContextMenu={canWrite ? ctx.open : undefined}
     >
       <TreeGuides depth={depth} x0={GUIDE_X0} indent={INDENT} />
       <div className="xz-tree-in flex items-center gap-1 rounded-md py-1 pe-1 transition-colors hover:bg-hover">
@@ -432,6 +437,17 @@ function TreeRow({
               <FolderMinus className="size-4" />
             </button>
           </div>
+        ) : null}
+        {canWrite ? (
+          <EntryRowMenu
+            entryId={item.id}
+            title={item.title}
+            canWrite
+            onNewChild={onNewChild}
+            contextPoint={ctx.point}
+            onContextClose={ctx.clear}
+            triggerClassName="size-7 opacity-0 focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100 max-lg:opacity-100"
+          />
         ) : null}
       </div>
     </li>

@@ -27,6 +27,7 @@ import type {
 } from '../../shared/schemas/entries.ts'
 import { defaultEntryFields, entryFieldsByKind } from '../../shared/schemas/entryFields.ts'
 import type { EntryKind, EntryVisibility, SpaceRole } from '../../shared/schemas/enums.ts'
+import { isExtraFieldKey, splitExtraFields } from '../../shared/schemas/fieldDefs.ts'
 import {
   type Actor,
   assertCan,
@@ -55,9 +56,11 @@ import { weightedTsv } from './derived.ts'
 import { entryPath, entryPaths, liftChildren, placeNew } from './entry-tree.ts'
 import {
   assertBuiltinAlive,
+  builtinFieldDefs,
   loadEntryType,
-  loadOwnEntryType,
+  loadUsableEntryType,
   normalizeCustomFields,
+  normalizeExtraFields,
 } from './entry-types.ts'
 import { type FieldChangeView, listFieldChanges, recordFieldChanges } from './field-changes.ts'
 import { assertLinkSource, purgeLinksOf } from './links.ts'
@@ -274,13 +277,16 @@ export async function entryListConds(db: DbOrTx, ctx: EntryCtx, q: ListFilter): 
     conds.push(or(inArray(entries.kind, q.kind), inArray(entries.typeId, q.typeId))!)
   else if (q.kind?.length) conds.push(inArray(entries.kind, q.kind))
   else if (q.typeId?.length) conds.push(inArray(entries.typeId, q.typeId))
-  for (const [name, vals] of Object.entries(q.fields ?? {}))
-    conds.push(
-      sql`${entries.fields} ->> ${name} in (${sql.join(
-        vals.map((v) => sql`${v}`),
-        sql`, `,
-      )})`,
+  // 单值按相等；多选（数组，ADR-0036）按「含任一」
+  for (const [name, vals] of Object.entries(q.fields ?? {})) {
+    const list = sql.join(
+      vals.map((v) => sql`${v}`),
+      sql`, `,
     )
+    conds.push(
+      sql`(${entries.fields} ->> ${name} in (${list}) or (jsonb_typeof(${entries.fields} -> ${name}) = 'array' and ${entries.fields} -> ${name} ?| array[${list}]::text[]))`,
+    )
+  }
   if (q.authorId) conds.push(eq(entries.authorId, q.authorId === 'me' ? ctx.actor.id : q.authorId))
   if (q.pinned !== undefined) conds.push(eq(entries.pinned, q.pinned))
   if (q.inTree !== undefined)
@@ -442,7 +448,13 @@ export async function entryStats(
   const conds = await entryListConds(db, ctx, q)
   const keys = q.groupBy ?? []
   // 键名已按 /^[a-zA-Z]+$/ 校验，直接内联（select 与 group by 须是同一表达式，参数化会被视为不同表达式）
-  const exprs = keys.map((k) => sql<string | null>`${entries.fields} ->> ${sql.raw(`'${k}'`)}`)
+  // 多选（数组值，ADR-0036）不参与分组：按缺值计
+  const exprs = keys.map((k) => {
+    const key = sql.raw(`'${k}'`)
+    return sql<
+      string | null
+    >`case when jsonb_typeof(${entries.fields} -> ${key}) = 'array' then null else ${entries.fields} ->> ${key} end`
+  })
   const rows = await db
     .select({
       n: sql<number>`count(*)::int`,
@@ -492,7 +504,8 @@ function assertPersonalPrivate(isPersonal: boolean, visibility: EntryVisibility)
 }
 
 /**
- * 按（目标）类型校验并规范化 fields（ADR-0016）：内置类型走各自 strict schema；
+ * 按（目标）类型校验并规范化 fields（ADR-0016 · 0036）：内置字段走各自 strict schema；
+ * 自定义字段（x 键）按类型的字段定义校验——未定义的静默丢弃（定义可能刚被删），类型 / 选项不符 422。
  * 自定义类型须属本工作区，status ∈ 其状态列表（新建未给 → 第一项）。返回写库用的 { kind, typeId, fields }。
  */
 export async function resolveKindFields(
@@ -501,30 +514,41 @@ export async function resolveKindFields(
   kind: EntryKind,
   typeId: string | null | undefined,
   fields: Record<string, unknown>,
-  /** fillDefault：新建 / 改类型时补默认状态；同时要求自定义类型是本人的（ADR-0017，改已有记录的属性不要求） */
-  opts: { fillDefault: boolean },
+  /**
+   * fillDefault：新建 / 改类型时补默认状态，并要求类型对本人在该空间可用（本人的个人类型或该空间的空间类型，
+   * ADR-0017 · 0036）；改已有记录的属性不要求。spaceId = 记录（将）所在空间。
+   */
+  opts: { fillDefault: boolean; spaceId: string },
 ): Promise<{ kind: EntryKind; typeId: string | null; fields: Record<string, unknown> }> {
-  const r = entryFieldsByKind[kind].safeParse(fields)
+  const { base, extra } = splitExtraFields(fields)
+  const r = entryFieldsByKind[kind].safeParse(base)
   if (!r.success)
     throw AppError.validation(
       r.error.issues.map((i) => ({ path: ['fields', ...i.path].join('.'), message: i.message })),
     )
-  if (kind !== 'custom') return { kind, typeId: null, fields }
+  if (kind !== 'custom') {
+    const defs = await builtinFieldDefs(db, ctx.workspaceId, kind)
+    return { kind, typeId: null, fields: { ...base, ...normalizeExtraFields(defs, extra) } }
+  }
   const type = !typeId
     ? null
     : opts.fillDefault
-      ? await loadOwnEntryType(db, ctx, typeId)
+      ? await loadUsableEntryType(db, ctx, typeId, opts.spaceId)
       : await loadEntryType(db, ctx.workspaceId, typeId)
   if (!type) throw AppError.validation([{ path: 'typeId', message: '类型不存在' }])
   return {
     kind,
     typeId: type.id,
-    fields: normalizeCustomFields(type.statuses ?? [], r.data as Record<string, unknown>, opts),
+    fields: {
+      ...normalizeCustomFields(type.statuses ?? [], r.data as Record<string, unknown>, opts),
+      ...normalizeExtraFields(type.fieldDefs ?? [], extra),
+    },
   }
 }
 
 /**
- * 改类型时重建 fields（ADR-0016）：从目标类型默认值出发，保留在目标类型仍合法的 status / progress。
+ * 改类型时重建 fields（ADR-0016 · 0036）：从目标类型默认值出发，保留在目标类型仍合法的 status / progress，
+ * 以及目标类型里同键的自定义字段值（resolveKindFields 再按定义校验）。
  * 目标类型有无默认值的必填字段（迭代 / 变更 / 复盘）→ 422，请在属性栏里填好后再改。
  */
 export async function fieldsForRetype(
@@ -535,10 +559,8 @@ export async function fieldsForRetype(
   typeId: string | null | undefined,
 ): Promise<Record<string, unknown>> {
   const base: Record<string, unknown> = { ...defaultEntryFields[kind] }
-  const statuses =
-    kind === 'custom' && typeId
-      ? ((await loadEntryType(db, ctx.workspaceId, typeId))?.statuses ?? [])
-      : null
+  const type = kind === 'custom' && typeId ? await loadEntryType(db, ctx.workspaceId, typeId) : null
+  const statuses = type ? (type.statuses ?? []) : null
   for (const key of ['status', 'progress'] as const) {
     if (from[key] === undefined) continue
     const trial = { ...base, [key]: from[key] }
@@ -551,6 +573,9 @@ export async function fieldsForRetype(
     throw AppError.validation([
       { path: 'kind', message: '目标类型有必填属性，请在记录的属性栏里改类型并填写' },
     ])
+  const defs = type ? (type.fieldDefs ?? []) : await builtinFieldDefs(db, ctx.workspaceId, kind)
+  const keep = new Set(defs.map((d) => d.key))
+  for (const [k, v] of Object.entries(from)) if (isExtraFieldKey(k) && keep.has(k)) base[k] = v
   return base
 }
 
@@ -572,6 +597,7 @@ export async function createEntry(
   if (input.linkFrom) await assertLinkSource(db, ctx, 'entry', input.linkFrom.entryId)
   const typed = await resolveKindFields(db, ctx, input.kind, input.typeId, input.fields, {
     fillDefault: true,
+    spaceId,
   })
   if (typed.kind === 'bug')
     typed.fields = normalizeBugFields(null, typed.fields, {
@@ -666,6 +692,21 @@ export async function patchEntry(
   const targetKind = (retype ? patch.kind : loaded.row.kind) as EntryKind
   const targetTypeId = retype ? (patch.typeId ?? null) : loaded.row.typeId
   if (retype) await assertBuiltinAlive(db, ctx.workspaceId, targetKind)
+  let targetSpaceId = loaded.row.spaceId
+  if (patch.spaceId && patch.spaceId !== loaded.row.spaceId) {
+    const sp = await loadSpaceRef(db, ctx.actor, patch.spaceId)
+    if (!sp || !can(ctx.actor, 'space.read', sp.ref)) throw AppError.notFound('空间不存在')
+    assertCan(ctx.actor, 'entry.create', sp.ref)
+    targetSpaceId = patch.spaceId
+  }
+  // 空间类型只能用于其所在空间（ADR-0036、REQ-KB-015）：移到别的空间须先改类型
+  if (targetKind === 'custom' && targetTypeId && targetSpaceId !== loaded.row.spaceId) {
+    const ty = await loadEntryType(db, ctx.workspaceId, targetTypeId)
+    if (ty?.spaceId && ty.spaceId !== targetSpaceId)
+      throw AppError.validation([
+        { path: 'spaceId', message: '该记录使用的是空间类型，移到别的空间前请先改类型' },
+      ])
+  }
   let nextFields: Record<string, unknown> | undefined
   if (patch.fields !== undefined || retype) {
     const raw =
@@ -678,7 +719,10 @@ export async function patchEntry(
         targetTypeId,
       ))
     nextFields = (
-      await resolveKindFields(db, ctx, targetKind, targetTypeId, raw, { fillDefault: retype })
+      await resolveKindFields(db, ctx, targetKind, targetTypeId, raw, {
+        fillDefault: retype,
+        spaceId: targetSpaceId,
+      })
     ).fields
     if (targetKind === 'bug') {
       const tz = await timezoneOf(db, ctx.actor.id, ctx.timezone)
@@ -688,13 +732,6 @@ export async function patchEntry(
         { today: localDay(tz, new Date()), createdOn: localDay(tz, loaded.row.createdAt) },
       )
     }
-  }
-  let targetSpaceId = loaded.row.spaceId
-  if (patch.spaceId && patch.spaceId !== loaded.row.spaceId) {
-    const sp = await loadSpaceRef(db, ctx.actor, patch.spaceId)
-    if (!sp || !can(ctx.actor, 'space.read', sp.ref)) throw AppError.notFound('空间不存在')
-    assertCan(ctx.actor, 'entry.create', sp.ref)
-    targetSpaceId = patch.spaceId
   }
   const targetIsPersonal =
     targetSpaceId === loaded.row.spaceId
