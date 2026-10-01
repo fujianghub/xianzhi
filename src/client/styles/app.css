@@ -1866,3 +1866,463 @@ select:disabled {
 .xz-twisty:active {
   transform: scale(0.88);
 }
+
+/*
+ * ---- 任务页 2.0（ADR-0044）：圆形优先级勾选圈 · 日期胶囊 · 快速添加框 · 清单栏 · 分组头。
+ * 颜色只取 token；动效时长走 token，减弱档无位移只淡入（不变量 5）。
+ */
+/* 优先级色（行尾旗标用 data-priority，勾选圈用 data-check-priority，免得与 PriorityIcon 的选择器撞）：04 §2.1 低 = info · 中 = primary（描边用 primary-text）· 高 = warning · 紧急 = danger */
+[data-priority="1"],
+[data-check-priority="1"] {
+  --xz-prio: var(--xz-info);
+}
+[data-priority="2"],
+[data-check-priority="2"] {
+  --xz-prio: var(--xz-primary-text);
+}
+[data-priority="3"],
+[data-check-priority="3"] {
+  --xz-prio: var(--xz-warning);
+}
+[data-priority="4"],
+[data-check-priority="4"] {
+  --xz-prio: var(--xz-danger);
+}
+.xz-task-check {
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 999px;
+  border-width: 1.5px;
+  border-color: var(--xz-prio, var(--xz-fg-faint));
+  /* 只设底色：勾选态的渐变是 background-image（Checkbox 的工具类），不能被简写覆盖 */
+  background-color: color-mix(in srgb, var(--xz-prio, transparent) 8%, var(--xz-surface-solid));
+  transition:
+    background var(--xz-dur-base) var(--xz-ease-spring),
+    transform var(--xz-dur-fast) var(--xz-ease-out),
+    box-shadow var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-task-check:hover {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xz-prio, var(--xz-fg-faint)) 18%, transparent);
+}
+.xz-task-check:active {
+  transform: scale(0.88);
+}
+.xz-task-check[data-state="checked"] {
+  border-color: transparent;
+}
+:root[data-motion="reduce"] .xz-task-check:active {
+  transform: none;
+}
+.xz-task-check-ghost {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1.5px solid var(--xz-fg-faint);
+}
+.xz-prio-flag {
+  color: var(--xz-prio, var(--xz-fg-muted));
+}
+
+/* 日期胶囊：逾期 danger · 今天 success · 明天 info · 7 天内 primary 软底 · 更晚 / 完成 surface-2 */
+.xz-due {
+  display: inline-flex;
+  align-items: center;
+  height: 1.375rem;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  background: var(--xz-surface-solid-2);
+  white-space: nowrap;
+}
+.xz-due[data-tone="overdue"] {
+  background: var(--xz-danger-soft);
+  color: var(--xz-danger);
+}
+.xz-due[data-tone="today"] {
+  background: var(--xz-success-soft);
+  color: var(--xz-success);
+}
+.xz-due[data-tone="tomorrow"] {
+  background: var(--xz-info-soft);
+  color: var(--xz-info);
+}
+.xz-due[data-tone="week"] {
+  background: var(--xz-primary-soft);
+  color: var(--xz-primary-text);
+}
+.xz-task-list {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  max-width: 8rem;
+  font-size: 0.75rem;
+  color: var(--xz-fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 快速添加框 */
+.xz-qa-box {
+  border: 1px solid var(--xz-border);
+  border-radius: var(--xz-radius-lg);
+  background: var(--xz-surface-solid);
+  box-shadow: var(--xz-shadow-soft);
+  transition:
+    border-color var(--xz-dur-fast) var(--xz-ease-out),
+    box-shadow var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-qa-box:focus-within {
+  border-color: var(--xz-selected-border);
+  box-shadow:
+    var(--xz-shadow-soft),
+    0 0 0 3px color-mix(in srgb, var(--xz-selected-border) 22%, transparent);
+}
+.xz-qa-compact .xz-qa-box {
+  box-shadow: none;
+  border-style: dashed;
+  background: transparent;
+}
+.xz-qa-compact .xz-qa-box:focus-within {
+  border-style: solid;
+  background: var(--xz-surface-solid);
+}
+.xz-qa-more {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem 0.625rem 2.25rem;
+  border-top: 1px solid var(--xz-divider);
+  animation: xz-fade-in var(--xz-dur-base) var(--xz-ease-out);
+}
+.xz-qa-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 1.75rem;
+  min-width: 1.75rem;
+  justify-content: center;
+  padding: 0 0.375rem;
+  border-radius: var(--xz-radius-sm);
+  font-size: 0.75rem;
+  color: var(--xz-fg-muted);
+  transition: background var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-qa-btn:hover {
+  background: var(--xz-hover-bg);
+  color: var(--xz-fg);
+}
+.xz-qa-btn-on {
+  background: var(--xz-selected-bg);
+  color: var(--xz-primary-text);
+}
+/* 优先级旗按钮（快速添加、单个菜单）：始终按优先级着色；当前值（aria-pressed）带软底 */
+.xz-qa-btn.xz-prio-flag {
+  color: var(--xz-prio, var(--xz-fg-muted));
+}
+.xz-qa-btn.xz-prio-flag[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--xz-prio, var(--xz-fg-muted)) 14%, transparent);
+}
+.xz-qa-btn.xz-prio-flag.xz-qa-btn-on {
+  color: var(--xz-prio);
+  background: color-mix(in srgb, var(--xz-prio) 12%, transparent);
+}
+.xz-qa-submit {
+  height: 1.75rem;
+  padding: 0 0.75rem;
+  border-radius: var(--xz-radius-sm);
+  background: var(--xz-primary-gradient);
+  color: var(--xz-primary-fg);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+.xz-qa-submit:disabled {
+  opacity: 0.5;
+}
+.xz-qa-token {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 1.5rem;
+  padding: 0 0.25rem 0 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: var(--xz-primary-soft);
+  color: var(--xz-primary-text);
+  animation: xz-pop-in var(--xz-dur-fast) var(--xz-ease-spring);
+}
+.xz-qa-token-miss {
+  background: var(--xz-surface-solid-2);
+  color: var(--xz-fg-muted);
+  text-decoration: line-through;
+}
+.xz-picker-quick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.125rem;
+  padding: 0.375rem 0;
+  border-radius: var(--xz-radius-sm);
+  color: var(--xz-fg-muted);
+}
+.xz-picker-quick:hover {
+  background: var(--xz-hover-bg);
+  color: var(--xz-fg);
+}
+.xz-picker-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2rem;
+  padding: 0 0.5rem;
+  border-radius: var(--xz-radius-sm);
+  font-size: 0.875rem;
+  text-align: start;
+}
+.xz-picker-item:hover {
+  background: var(--xz-hover-bg);
+}
+
+/* 清单栏：选中 = selected 底 + 左侧 3px 条（同任务行焦点语言） */
+.xz-rail-item {
+  position: relative;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.625rem;
+  height: 2.125rem;
+  padding: 0 0.625rem;
+  border-radius: var(--xz-radius-md);
+  font-size: 0.875rem;
+  color: var(--xz-fg);
+  transition: background var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-rail-item:hover {
+  background: var(--xz-hover-bg);
+}
+.xz-rail-item[aria-current="page"] {
+  background: var(--xz-selected-bg);
+  font-weight: 500;
+}
+.xz-rail-item[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  inset-block: 0.5rem;
+  inset-inline-start: 0;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--xz-primary);
+}
+.xz-rail-count {
+  margin-inline-start: auto;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--xz-fg-muted);
+}
+.xz-rail-count[data-alert] {
+  color: var(--xz-danger);
+  font-weight: 600;
+}
+.xz-rail-head {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.75rem 0.625rem 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--xz-fg-muted);
+}
+
+/* 分组头：粗体 + 计数胶囊 + 旋转箭头；悬停显出「+ 添加」 */
+.xz-group-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--xz-fg);
+}
+.xz-group-head[data-tone="overdue"] {
+  color: var(--xz-danger);
+}
+.xz-group-count {
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.375rem;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  background: var(--xz-surface-solid-2);
+  color: var(--xz-fg-muted);
+}
+.xz-group-chevron {
+  transition: transform var(--xz-dur-base) var(--xz-ease-out);
+}
+[aria-expanded="false"] > .xz-group-chevron {
+  transform: rotate(-90deg);
+}
+.xz-group-add {
+  opacity: 0;
+  transition: opacity var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-group:hover .xz-group-add,
+.xz-group-add:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .xz-group-add {
+    opacity: 1;
+  }
+}
+.xz-group-body {
+  animation: xz-rise var(--xz-dur-base) var(--xz-ease-out) backwards;
+}
+:root[data-motion="reduce"] .xz-group-body,
+:root[data-motion="reduce"] .xz-qa-token,
+:root[data-motion="reduce"] .xz-qa-more {
+  animation: xz-fade-in var(--xz-dur-fast) linear;
+}
+
+/* 移动端浮动「+」：在底栏之上 */
+.xz-fab {
+  position: fixed;
+  inset-inline-end: 1rem;
+  bottom: calc(var(--xz-bottomnav-h) + env(safe-area-inset-bottom) + 1rem);
+  z-index: var(--xz-z-sticky);
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 999px;
+  background: var(--xz-primary-gradient);
+  color: var(--xz-primary-fg);
+  box-shadow: var(--xz-shadow-float);
+}
+/* 宽屏有侧栏与页顶快速添加，不要浮动按钮（display 在未分层样式里，工具类 lg:hidden 盖不住） */
+@media (min-width: 64rem) {
+  .xz-fab {
+    display: none;
+  }
+}
+
+/*
+ * 任务行内编辑（ADR-0045）：行尾 ⋯ / › 悬停或聚焦才显（触屏常显 ›）；胶囊可点时悬停描边；
+ * 无日期 / 无优先级的占位在悬停时淡出；改名输入框与标题同字号、细描边。
+ */
+.xz-row-act {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--xz-radius-sm);
+  color: var(--xz-fg-muted);
+  opacity: 0;
+  transition: opacity var(--xz-dur-fast) var(--xz-ease-out);
+}
+.group:hover .xz-row-act,
+.group[data-focused] .xz-row-act,
+.xz-row-act:focus-visible,
+.xz-row-act-on {
+  opacity: 1;
+}
+.xz-row-act:hover {
+  background: var(--xz-hover-bg);
+  color: var(--xz-fg);
+}
+@media (hover: none) {
+  .xz-row-act[data-testid="task-open"] {
+    opacity: 1;
+  }
+}
+.xz-chip-btn {
+  transition: box-shadow var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-chip-btn:not(:disabled):hover {
+  box-shadow: 0 0 0 1.5px var(--xz-selected-border);
+}
+.xz-row-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 1.375rem;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  border: 1px dashed var(--xz-border);
+  font-size: 0.75rem;
+  color: var(--xz-fg-muted);
+  opacity: 0;
+  transition: opacity var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-row-ghost-icon {
+  opacity: 0;
+  transition: opacity var(--xz-dur-fast) var(--xz-ease-out);
+}
+.group:hover .xz-row-ghost,
+.group:hover .xz-row-ghost-icon,
+.xz-row-ghost:focus-visible,
+.xz-row-ghost-icon:focus-visible,
+.xz-row-ghost-on {
+  opacity: 1;
+}
+.xz-row-input {
+  height: 1.75rem;
+  padding: 0 0.375rem;
+  margin-inline-start: -0.375rem;
+  border-radius: var(--xz-radius-sm);
+  border: 1px solid var(--xz-selected-border);
+  background: var(--xz-surface-solid);
+  font: inherit;
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xz-selected-border) 22%, transparent);
+}
+
+/* 任务拖放（ADR-0044）：落点虚线描边 + 选中底；拖动浮层 = 带阴影的标题胶囊 */
+.xz-drop-over {
+  background: var(--xz-selected-bg);
+  box-shadow: inset 0 0 0 1.5px var(--xz-selected-border);
+}
+.xz-drag-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 20rem;
+  height: 2rem;
+  padding: 0 0.875rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  background: var(--xz-surface-solid);
+  color: var(--xz-fg);
+  box-shadow: var(--xz-shadow-float);
+  border: 1px solid var(--xz-selected-border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: grabbing;
+}
+.xz-drop-hint {
+  display: grid;
+  place-items: center;
+  height: var(--xz-row-h);
+  border: 1.5px dashed var(--xz-border);
+  border-radius: var(--xz-radius-lg);
+  font-size: 0.75rem;
+  color: var(--xz-fg-muted);
+}
+
+/* 任务页宽屏（≥ 1440）常驻详情栏：纸面底、左边线，从右侧滑入 */
+.xz-task-panel {
+  width: 26rem;
+  flex-shrink: 0;
+  border-inline-start: 1px solid var(--xz-divider);
+  background: var(--xz-surface-solid);
+  animation: xz-slide-left var(--xz-dur-base) var(--xz-ease-out);
+}
+:root[data-motion="reduce"] .xz-task-panel {
+  animation: xz-fade-in var(--xz-dur-fast) linear;
+}

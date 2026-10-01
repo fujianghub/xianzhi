@@ -4,6 +4,21 @@
 
 ## 2026-10-01
 
+**任务行内编辑 · 单个管理菜单 · 页面级批量（ADR-0045）**
+- 新增 ADR-0045（修订 08 §2.3 · 2.3b · 2.4 · 2.6「点标题打开详情」、REQ-TASK-020 键盘、REQ-TASK-016 批量 op、REQ-MOBILE-002 长按）。无迁移。
+- 00：+REQ-TASK-037 ~ 041；REQ-TASK-016 · 020 · 034、REQ-MOBILE-002 注。02 §9 `/tasks/batch` 行注。08 §2.3b 注。glossary +行内编辑、批量条。
+- debug +`2026-10-01-task-undo-lost-when-group-empties`（完成分组最后一条后撤销条随分组消失，今日页同修）。
+
+**任务页 2.0：个人清单 · 更强的添加 · 清爽工具感（ADR-0044）**
+- 新增 ADR-0044（修订 ADR-0043 §B · §C、REQ-MOBILE-001 底栏）。迁移 0026（`task_lists` · `task_list_items`，手写 `COLLATE "C"`）。
+- 00：+REQ-TASK-029 ~ 036（036 = 拖拽，同日追加）；REQ-TASK-026 · 027、REQ-MOBILE-001 注。01 +§3.7b。02 §9 +`/task-lists` ×4、`/tasks/counts`，`/tasks` 行注（`listId` · `due=tomorrow|next7` · 只改归类的 PATCH 语义 · PATCH 无默认值修正）。07 §5 +清单上限。08 §2.3b 注（三栏布局）。glossary +清单、智能清单、未归类，快速添加注。
+- debug +`2026-10-01-task-patch-defaults`（既有缺陷：只改标题的 PATCH 把状态改回 inbox、优先级清零）。
+
+**内置字段覆盖层（ADR-0042）· 任务页与快速添加（ADR-0043）**
+- 新增 ADR-0042（修订 ADR-0017 §3、ADR-0036 §A.2、ADR-0033 §A 路由层必填校验）、ADR-0043。迁移 0025（`entry_kind_overrides` +`base_fields` `field_order`）。
+- 00：+REQ-ENTRY-034 ~ 037、REQ-TASK-025 ~ 028。01 §3.4c entry_kind_overrides 两列。02 §9 `/entry-types/builtin/:kind` 行注、`GET /tasks` 行注 `view=mine`。03 §7 liteKit 描述贴图。08 §1 +`/tasks`，+§2.3b 任务页，§2.3 注（常驻快速添加），§2.13 注（内置字段编辑）。glossary +内置字段覆盖、任务页、快速添加。
+- shared `schemas.test`：路由层 `createEntrySchema` 不再拦必填缺失（由 service 按覆盖层 422，路径不变）。
+
 **查询块的条件支持类型自定义字段与模板属性（ADR-0041）**
 - 新增 ADR-0041（修订 ADR-0033 查询块条件只列内置枚举、ADR-0040 §5「查询块本轮不动」→ 采纳）；ADR-0040 §5 加注。无迁移、无接口变化。
 - 00：§6d +REQ-BUG-013；REQ-BUG-011 加注。03 §3.2 entryQuery 注。

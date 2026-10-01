@@ -6,9 +6,12 @@
  *   淡出 / 折叠期间行由 `leaving` 保住原位：列表查询按状态过滤（不含 done），完成后几十毫秒内的重取就会把它从数据里拿掉，
  *   不保住的话动画被跳过、行直接消失（debug/2026-09-27-task-complete-fade-skipped）。
  * - 多选：底部批量条（改状态 / 删除），一条 POST /tasks/batch。
+ * - `draggable`（任务页，ADR-0044）：行可用鼠标拖到清单栏 / 其它分组；页面提供 DndContext。
+ *   只挂监听到虚拟行外壳（不加 role / tabIndex，网格语义不变）；触屏不拖，留给左滑完成 / 右滑改期。
  */
+import { useDraggable } from '@dnd-kit/core'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
-import { Undo2, X } from 'lucide-react'
+import { Undo2 } from 'lucide-react'
 import {
   type KeyboardEvent,
   type ReactNode,
@@ -20,12 +23,60 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { useTaskActions } from '../../hooks/useTasks.ts'
+import { type TaskPatch, useTaskActions } from '../../hooks/useTasks.ts'
 import { cn } from '../../lib/cn.ts'
 import { useCommandContext, useLayout, usePeek } from '../../lib/stores.ts'
-import { TASK_STATUSES, type Task } from '../../lib/task-queries.ts'
+import type { Task } from '../../lib/task-queries.ts'
+import {
+  registerSelectable,
+  unregisterSelectable,
+  useSelectionEnabled,
+  useTaskSelectionStore,
+} from '../../lib/task-selection.ts'
 import { Button } from '../ui/button.tsx'
-import { TaskRow } from './TaskRow.tsx'
+import { type RowUi, TaskRow } from './TaskRow.tsx'
+import { useTaskWritable } from './TaskRowMenu.tsx'
+
+/** 虚拟行外壳；可拖时挂 dnd-kit 的监听（不加 attributes：不改网格语义） */
+function RowSlot({
+  task,
+  draggable,
+  index,
+  offset,
+  className,
+  children,
+}: {
+  task: Task
+  draggable: boolean
+  index: number
+  offset: number
+  className: string
+  children: ReactNode
+}) {
+  const drag = useDraggable({ id: `task:${task.id}`, data: { task }, disabled: !draggable })
+  return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: 拖拽激活（鼠标按下）挂在虚拟行外壳上；键盘与读屏走网格与行内控件
+    <div
+      ref={draggable ? drag.setNodeRef : undefined}
+      // 只从行本身开始拖：弹层（portal，事件沿组件树冒泡上来）、行内输入框里的按下不算（审查 P0-1）
+      onMouseDown={
+        draggable
+          ? (e) => {
+              const t = e.target as HTMLElement
+              if (!e.currentTarget.contains(t) || t.closest('input,textarea,[data-no-drag]')) return
+              drag.listeners?.onMouseDown?.(e)
+            }
+          : undefined
+      }
+      data-index={index}
+      data-dragging={drag.isDragging ? '' : undefined}
+      className={cn(className, drag.isDragging && 'opacity-40')}
+      style={{ transform: `translateY(${offset}px)` }}
+    >
+      {children}
+    </div>
+  )
+}
 
 const FADE_MS = 400
 const UNDO_MS = 8000
@@ -43,6 +94,10 @@ export function TaskList({
   onLoadMore,
   empty,
   showSpace,
+  showList,
+  draggable,
+  groupKey,
+  groupRank = 0,
   label,
   testId = 'task-list',
 }: {
@@ -53,6 +108,13 @@ export function TaskList({
   onLoadMore?: () => void
   empty?: ReactNode
   showSpace?: boolean
+  /** 行尾显示本人清单（ADR-0044）；默认显示 */
+  showList?: boolean
+  /** 行可拖（须在 DndContext 内，ADR-0044） */
+  draggable?: boolean
+  /** 页面级选择的登记键与组序（Shift 跨组连选按组序，ADR-0045）；缺省用 testId */
+  groupKey?: string
+  groupRank?: number
   label: string
   testId?: string
 }) {
@@ -67,7 +129,12 @@ export function TaskList({
   useEffect(() => () => setCmdFocus(null), [setCmdFocus])
   const openPeek = usePeek((s) => s.open)
   const peek = onPeek ?? ((x: Task) => openPeek({ kind: 'task', id: x.id, spaceSlug: x.spaceSlug }))
-  const [selected, setSelected] = useState<Set<string>>(new Set())
+  // 页面级选择（ADR-0045）：在 TaskSelectionScope 里才启用；本列表按组序登记可见任务供 Shift 连选
+  const selectable = useSelectionEnabled()
+  const regKey = groupKey ?? testId
+  const sel = useTaskSelectionStore.getState
+  // 行的界面状态（改名 / 菜单 / 选择器）：同一时刻只一行
+  const [rowUi, setRowUi] = useState<{ id: string; ui: RowUi } | null>(null)
   const [completing, setCompleting] = useState<Set<string>>(new Set())
   const [collapsing, setCollapsing] = useState<Set<string>>(new Set())
   const [hidden, setHidden] = useState<Set<string>>(new Set())
@@ -224,23 +291,34 @@ export function TaskList({
       .patch(x, { dueAt: d.toISOString() })
       .then(() => toast.success(t('task.rescheduled')))
   }
-  const latest = useRef({ toggle, onOpen, peek, reschedule })
-  latest.current = { toggle, onOpen, peek, reschedule }
+  const latest = useRef({ toggle, onOpen, peek, reschedule, actions })
+  latest.current = { toggle, onOpen, peek, reschedule, actions }
+  // 写权限按空间统一算一次（行内不各自订阅空间列表，REQ-UI-017）；保存回调保持稳定引用
+  const canWriteOf = useTaskWritable()
+  const rowPatch = useCallback(
+    (x: Task, change: TaskPatch) =>
+      void latest.current.actions.patch(x, change).catch(() => undefined),
+    [],
+  )
   const rowToggle = useCallback((x: Task) => latest.current.toggle(x), [])
   const rowOpen = useCallback((x: Task) => latest.current.onOpen(x), [])
   const rowPeek = useCallback((x: Task) => latest.current.peek(x), [])
   const rowFocus = useCallback((x: Task) => setFocusId(x.id), [])
   // 触摸手势（REQ-MOBILE-002）：右滑改期到明天 18:00；长按切换多选
   const rowReschedule = useCallback((x: Task) => latest.current.reschedule(x), [])
-  const rowLongPress = useCallback(
-    (x: Task) =>
-      setSelected((cur) => {
-        const n = new Set(cur)
-        n.has(x.id) ? n.delete(x.id) : n.add(x.id)
-        return n
-      }),
+  const rowUiChange = useCallback(
+    (x: Task, ui: RowUi | null) => setRowUi(ui ? { id: x.id, ui } : null),
     [],
   )
+  const refocus = useCallback(() => listRef.current?.focus({ preventScroll: true }), [])
+  useEffect(() => {
+    if (!selectable) return
+    registerSelectable(regKey, groupRank, visible)
+  }, [selectable, regKey, groupRank, visible])
+  useEffect(() => {
+    if (!selectable) return
+    return () => unregisterSelectable(regKey)
+  }, [selectable, regKey])
 
   const focusIndex = Math.max(
     0,
@@ -255,8 +333,21 @@ export function TaskList({
     if (hasMore && i >= visible.length - 20) onLoadMore?.()
   }
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    // 只处理网格自身的按键：行内输入框、弹层（portal 但 React 事件沿树冒泡）里的按键一律放过（审查 P0-1）
+    if (e.target !== e.currentTarget) return
     if (e.metaKey || e.ctrlKey || e.altKey) return
     const cur = visible.find((x) => x.id === focusId) ?? null
+    // Shift+J/K、Shift+↑↓：扩选（当前行与下一行都选上）
+    if (e.shiftKey && selectable && ['J', 'K', 'ArrowDown', 'ArrowUp'].includes(e.key)) {
+      const d = e.key === 'J' || e.key === 'ArrowDown' ? 1 : -1
+      const i = focusId ? Math.min(visible.length - 1, Math.max(0, focusIndex + d)) : 0
+      const next = visible[i]
+      if (cur) sel().add([cur])
+      if (next) sel().add([next])
+      move(d)
+      e.preventDefault()
+      return
+    }
     switch (e.key) {
       case 'j':
       case 'ArrowDown':
@@ -267,12 +358,19 @@ export function TaskList({
         move(-1)
         break
       case 'x':
+        if (!cur || !selectable) return
+        sel().toggle(cur)
+        break
+      case 'r':
+      case 'F2':
+        // 改名（ADR-0045）
         if (!cur) return
-        setSelected((s) => {
-          const n = new Set(s)
-          n.has(cur.id) ? n.delete(cur.id) : n.add(cur.id)
-          return n
-        })
+        setRowUi({ id: cur.id, ui: { kind: 'edit' } })
+        break
+      case 'm':
+      case 'ContextMenu':
+        if (!cur) return
+        setRowUi({ id: cur.id, ui: { kind: 'menu' } })
         break
       case ' ':
         if (!cur) return
@@ -288,8 +386,8 @@ export function TaskList({
         peek(cur)
         break
       case 'Escape':
-        if (!selected.size) return
-        setSelected(new Set())
+        if (!selectable || !sel().selected.size) return
+        sel().clear()
         break
       default:
         return
@@ -298,32 +396,7 @@ export function TaskList({
     e.stopPropagation()
   }
 
-  const selectedTasks = visible.filter((x) => selected.has(x.id))
-  const batchStatus = async (status: Task['status']) => {
-    const r = await actions
-      .batch(
-        selectedTasks.map((x) => ({
-          op: 'update' as const,
-          id: x.id,
-          patch: { status, ifUpdatedAt: x.updatedAt },
-        })),
-      )
-      .catch(() => null)
-    if (r) toast.success(t('task.batchDone', { count: selectedTasks.length }))
-    else toast.error(t('task.saveFailed'))
-    setSelected(new Set())
-  }
-  const batchDelete = async () => {
-    const r = await actions
-      .batch(selectedTasks.map((x) => ({ op: 'delete' as const, id: x.id })))
-      .catch(() => null)
-    if (r) toast.success(t('task.batchDone', { count: selectedTasks.length }))
-    else toast.error(t('task.saveFailed'))
-    setSelected(new Set())
-  }
-
   if (!visible.length && !undo.length && empty) return <>{empty}</>
-
   return (
     <div className="relative">
       {/* biome-ignore lint/a11y/useSemanticElements: 虚拟列表靠绝对定位，无法用 <table>；grid + aria-activedescendant 是 APG 的键盘列表模式 */}
@@ -348,29 +421,35 @@ export function TaskList({
           const task = visible[v.index]
           if (!task) return null
           return (
-            <div
+            <RowSlot
               key={v.key}
-              data-index={v.index}
+              task={task}
+              draggable={!!draggable}
+              index={v.index}
               className={cn(
                 'absolute inset-x-0 top-0 overflow-hidden border-divider border-b transition-[height,opacity,transform] duration-(--xz-dur-base) ease-(--xz-ease-out) last:border-b-0',
                 collapsing.has(task.id) ? 'h-0 opacity-0' : 'h-(--xz-row-h)',
               )}
-              style={{ transform: `translateY(${v.start - virtualizer.options.scrollMargin}px)` }}
+              offset={v.start - virtualizer.options.scrollMargin}
             >
               <TaskRow
                 task={task}
                 focused={focusId === task.id}
-                selected={selected.has(task.id)}
                 completing={completing.has(task.id)}
                 onToggle={rowToggle}
                 onOpen={rowOpen}
                 onFocus={rowFocus}
                 onPeek={rowPeek}
                 onReschedule={rowReschedule}
-                onLongPress={rowLongPress}
+                ui={rowUi?.id === task.id ? rowUi.ui : null}
+                canWrite={canWriteOf(task)}
+                onPatch={rowPatch}
+                onUi={rowUiChange}
+                onEditEnd={refocus}
                 showSpace={showSpace}
+                showList={showList}
               />
-            </div>
+            </RowSlot>
           )
         })}
       </div>
@@ -402,43 +481,6 @@ export function TaskList({
               </Button>
             </div>
           ))}
-        </div>
-      ) : null}
-      {selected.size ? (
-        <div
-          className="glass-thick-flat fixed inset-x-0 bottom-[calc(var(--xz-bottomnav-h)+1rem)] z-(--xz-z-sticky) mx-auto flex w-fit items-center gap-2 rounded-full px-3 py-2 text-sm lg:bottom-6"
-          data-testid="batch-bar"
-        >
-          <span className="px-1">{t('task.selected', { count: selected.size })}</span>
-          <select
-            aria-label={t('task.batchStatus')}
-            className="h-8 rounded-md border border-border bg-surface px-2 text-sm"
-            defaultValue=""
-            onChange={(e) => {
-              if (e.target.value) void batchStatus(e.target.value as Task['status'])
-            }}
-            data-testid="batch-status"
-          >
-            <option value="" disabled>
-              {t('task.batchStatus')}
-            </option>
-            {TASK_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {t(`task.status.${s}`)}
-              </option>
-            ))}
-          </select>
-          <Button size="sm" variant="destructive" onClick={batchDelete}>
-            {t('task.batchDelete')}
-          </Button>
-          <Button
-            size="sm"
-            variant="icon"
-            aria-label={t('task.clearSelection')}
-            onClick={() => setSelected(new Set())}
-          >
-            <X />
-          </Button>
         </div>
       ) : null}
     </div>

@@ -25,7 +25,11 @@ export type TaskPatch = Partial<
     | 'sortKey'
     | 'cycleId'
   >
-> & { descriptionPm?: unknown; tagIds?: string[] }
+> & {
+  descriptionPm?: unknown
+  tagIds?: string[] /** 本人清单（ADR-0044） */
+  listId?: string | null
+}
 
 /** 把某个任务的改动应用到所有已缓存的列表页与详情。 */
 function mapTask(data: unknown, id: string, fn: (t: Task) => Task): unknown {
@@ -45,6 +49,27 @@ const keysFor = (qc: QueryClient, id: string): QueryKey[] => [
   ['task', id],
 ]
 
+/**
+ * PATCH 体 → 视图字段（乐观更新）：`listId` 映射为 `list`、`tagIds` 映射为 `tags`（取本人清单 / 标签缓存），
+ * 否则清单胶囊与标签要等请求返回才变（ADR-0045 审查）。
+ */
+function optimisticView(qc: QueryClient, change: TaskPatch): Partial<Task> {
+  const { listId, tagIds, ...rest } = change
+  const out = { ...rest } as Partial<Task>
+  if (listId !== undefined) {
+    const lists = qc.getQueryData<{ items: { id: string; name: string; color: string | null }[] }>([
+      'task-lists',
+    ])
+    const l = listId ? lists?.items.find((x) => x.id === listId) : undefined
+    out.list = l ? { id: l.id, name: l.name, color: l.color ?? 'gray' } : null
+  }
+  if (tagIds !== undefined) {
+    const tags = qc.getQueryData<{ id: string; name: string; color: string }[]>(['tags']) ?? []
+    out.tags = tags.filter((x) => tagIds.includes(x.id))
+  }
+  return out
+}
+
 export function useTaskActions() {
   const qc = useQueryClient()
   const { t } = useTranslation()
@@ -54,7 +79,7 @@ export function useTaskActions() {
     optimisticPatch<Task>({
       qc,
       keys: keysFor(qc, task.id),
-      apply: (d) => mapTask(d, task.id, (x) => ({ ...x, ...(change as Partial<Task>) })),
+      apply: (d) => mapTask(d, task.id, (x) => ({ ...x, ...optimisticView(qc, change) })),
       settle: (d, server) => mapTask(d, task.id, () => server),
       request: () =>
         unwrap<Task>(
@@ -101,6 +126,12 @@ export function useTaskActions() {
     dueAt?: string | null
     parentId?: string
     assigneeId?: string
+    /** 快速添加识别出的优先级 / 标签（ADR-0043） */
+    priority?: number
+    tagIds?: string[]
+    /** 本人清单（ADR-0044） */
+    listId?: string | null
+    descriptionPm?: unknown
   }) => {
     const r = await unwrap<Task>(
       api.tasks.$post({ json: input as never }, { headers: { 'idempotency-key': newId() } }),
@@ -131,7 +162,7 @@ export function useTaskActions() {
 
   const batch = async (
     ops: {
-      op: 'update' | 'complete' | 'delete'
+      op: 'update' | 'complete' | 'delete' | 'restore' | 'uncomplete'
       id: string
       patch?: TaskPatch & { ifUpdatedAt: string }
     }[],

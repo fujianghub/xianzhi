@@ -4,7 +4,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, Plus, Tag as TagIcon } from 'lucide-react'
-import { type KeyboardEvent, useState } from 'react'
+import { type KeyboardEvent, type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useMe } from '../../hooks/useMe.ts'
@@ -14,7 +14,7 @@ import { newId } from '../../lib/uuid.ts'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.tsx'
 import { PALETTE, PALETTE_CLASS, type PaletteName } from './SpaceIcon.tsx'
 
-interface Tag {
+export interface Tag {
   id: string
   name: string
   color: string
@@ -24,7 +24,7 @@ export const tagsQuery = {
   queryFn: () => unwrap<{ items: Tag[] }>(api.tags.$get()).then((r) => r.items),
   staleTime: 60_000,
 }
-const colorFor = (name: string): PaletteName =>
+export const colorFor = (name: string): PaletteName =>
   PALETTE[
     [...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % PALETTE.length
   ] as PaletteName
@@ -34,9 +34,17 @@ export function TagPicker({
   onChange,
   disabled,
   placeholder,
+  trigger,
+  open,
+  onOpenChange,
 }: {
   value: Tag[]
   onChange: (ids: string[]) => void
+  /** 自定义触发按钮（快速添加框里的图标按钮，ADR-0044） */
+  trigger?: ReactNode
+  /** 受控开关（ADR-0045） */
+  open?: boolean
+  onOpenChange?: (o: boolean) => void
   disabled?: boolean
   /** 空时的按钮文字（属性列表里已有「标签」名称，用「添加」避免重复，ADR-0037） */
   placeholder?: string
@@ -90,32 +98,34 @@ export function TagPicker({
     else if (name && canCreate) create.mutate(name) // 输入即创建（REQ-TAG-003；guest 不可）
   }
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild disabled={disabled}>
-        <button
-          type="button"
-          className="flex min-h-8 flex-wrap items-center gap-1 rounded-md px-1 text-left hover:bg-hover"
-          data-testid="tag-picker"
-        >
-          {value.length ? (
-            value.map((tag) => (
-              <span
-                key={tag.id}
-                className={cn(
-                  'rounded-full px-2 py-0.5 text-xs',
-                  PALETTE_CLASS[tag.color as PaletteName],
-                )}
-              >
-                {tag.name}
+        {trigger ?? (
+          <button
+            type="button"
+            className="flex min-h-8 flex-wrap items-center gap-1 rounded-md px-1 text-left hover:bg-hover"
+            data-testid="tag-picker"
+          >
+            {value.length ? (
+              value.map((tag) => (
+                <span
+                  key={tag.id}
+                  className={cn(
+                    'rounded-full px-2 py-0.5 text-xs',
+                    PALETTE_CLASS[tag.color as PaletteName],
+                  )}
+                >
+                  {tag.name}
+                </span>
+              ))
+            ) : (
+              <span className="inline-flex items-center gap-1 text-fg-muted text-sm">
+                {placeholder ? <Plus className="size-3.5" /> : <TagIcon className="size-4" />}
+                {placeholder ?? t('task.tags')}
               </span>
-            ))
-          ) : (
-            <span className="inline-flex items-center gap-1 text-fg-muted text-sm">
-              {placeholder ? <Plus className="size-3.5" /> : <TagIcon className="size-4" />}
-              {placeholder ?? t('task.tags')}
-            </span>
-          )}
-        </button>
+            )}
+          </button>
+        )}
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64 p-2">
         <input

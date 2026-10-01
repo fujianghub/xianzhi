@@ -32,7 +32,7 @@ import type {
   listTasksQuery,
   patchTaskSchema,
 } from '../../shared/schemas/tasks.ts'
-import { dayRange, weekRange } from '../../shared/tz.ts'
+import { addDays, dayRange, localDateOf, weekRange, zonedMidnight } from '../../shared/tz.ts'
 import {
   type Actor,
   assertCan,
@@ -49,6 +49,8 @@ import {
   spaceMembers,
   spaces,
   tags,
+  taskListItems,
+  taskLists,
   tasks,
   taskTags,
   taskWatchers,
@@ -61,6 +63,7 @@ import { taskDerivedSet } from './derived.ts'
 import { emit } from './events.ts'
 import { publishChange } from './realtime.ts'
 import { assertOwnTags, ownTagIdsSql } from './tags.ts'
+import { assertOwnList, inOwnListSql, notInOwnListSql, setTaskList } from './task-lists.ts'
 
 type TaskRow = typeof tasks.$inferSelect
 const CLOSED: TaskStatus[] = ['done', 'cancelled']
@@ -100,6 +103,8 @@ export interface TaskView {
   recurrence: unknown
   sortKey: string
   tags: { id: string; name: string; color: string }[]
+  /** 本人把它归进的清单（ADR-0044）；别人的归类不返回 */
+  list: { id: string; name: string; color: string } | null
   hasDescription: boolean
   deletedAt: string | null
   createdAt: string
@@ -169,28 +174,46 @@ async function requireReadableSpace(db: DbOrTx, actor: Actor, spaceId: string) {
 
 const LEFT_MEMBER = '已离开的成员'
 
-type JoinedRow = { t: TaskRow; slug: string; assigneeName: string | null }
+type JoinedRow = {
+  t: TaskRow
+  slug: string
+  assigneeName: string | null
+  listId: string | null
+  listName: string | null
+  listColor: string | null
+}
 
 /** 任务 + 空间 slug + 指派人显示名（仍是工作区成员才有名字）：一条查询。 */
 function selectJoined(db: DbOrTx, ctx: TaskCtx) {
-  return db
-    .select({
-      t: tasks,
-      slug: spaces.slug,
-      assigneeName: sql<
-        string | null
-      >`coalesce(nullif(${userTable.displayName}, ''), ${userTable.name})`,
-    })
-    .from(tasks)
-    .innerJoin(spaces, eq(spaces.id, tasks.spaceId))
-    .leftJoin(
-      memberTable,
-      and(
-        eq(memberTable.userId, tasks.assigneeId),
-        eq(memberTable.organizationId, ctx.workspaceId),
-      ),
-    )
-    .leftJoin(userTable, eq(userTable.id, memberTable.userId))
+  return (
+    db
+      .select({
+        t: tasks,
+        slug: spaces.slug,
+        assigneeName: sql<
+          string | null
+        >`coalesce(nullif(${userTable.displayName}, ''), ${userTable.name})`,
+        listId: taskLists.id,
+        listName: taskLists.name,
+        listColor: taskLists.color,
+      })
+      .from(tasks)
+      .innerJoin(spaces, eq(spaces.id, tasks.spaceId))
+      // 本人的清单归类（ADR-0044）：只连本人那一行，别人的归类看不到；同一条查询
+      .leftJoin(
+        taskListItems,
+        and(eq(taskListItems.taskId, tasks.id), eq(taskListItems.userId, ctx.actor.id)),
+      )
+      .leftJoin(taskLists, eq(taskLists.id, taskListItems.listId))
+      .leftJoin(
+        memberTable,
+        and(
+          eq(memberTable.userId, tasks.assigneeId),
+          eq(memberTable.organizationId, ctx.workspaceId),
+        ),
+      )
+      .leftJoin(userTable, eq(userTable.id, memberTable.userId))
+  )
 }
 
 /** 附标签（一条查询）并序列化。 */
@@ -222,7 +245,7 @@ async function decorate(
     list.push({ id: t.id, name: t.name, color: t.color })
     tagsOf.set(t.taskId, list)
   }
-  return joined.map(({ t: r, slug, assigneeName }) => {
+  return joined.map(({ t: r, slug, assigneeName, listId, listName, listColor }) => {
     const v: TaskView = {
       id: r.id,
       spaceId: r.spaceId,
@@ -244,6 +267,7 @@ async function decorate(
       recurrence: r.recurrence ?? null,
       sortKey: r.sortKey,
       tags: tagsOf.get(r.id) ?? [],
+      list: listId && listName ? { id: listId, name: listName, color: listColor ?? 'gray' } : null,
       hasDescription: r.descriptionPm !== null,
       deletedAt: r.deletedAt?.toISOString() ?? null,
       createdAt: r.createdAt.toISOString(),
@@ -287,6 +311,12 @@ function cursorParam(field: SortField, v: string | number | null): SQL {
   if (field === 'title') return sql`${String(v)}`
   if (field === 'sortKey') return sql`${String(v)} collate "C"`
   return sql`${String(v)}::timestamptz`
+}
+
+/** 用户时区「今日起第 n 天」的 00:00 */
+const dayEdge = (tz: string, now: Date) => {
+  const today = localDateOf(tz, now)
+  return (n: number) => zonedMidnight(tz, addDays(today, n))
 }
 
 /** 「我的」任务：指派给我，或未指派且由我创建（今日视图的人员范围，02 §9 注）。 */
@@ -337,6 +367,7 @@ export async function listTasks(db: DbOrTx, ctx: TaskCtx, q: z.infer<typeof list
         sql`, `,
       )}))`,
     )
+  if (q.listId) conds.push(q.listId === 'none' ? notInOwnListSql(me) : inOwnListSql(me, q.listId))
   if (q.dueBefore) conds.push(lt(tasks.dueAt, new Date(q.dueBefore)))
   if (q.dueAfter) conds.push(gte(tasks.dueAt, new Date(q.dueAfter)))
   if (q.q)
@@ -359,6 +390,11 @@ export async function listTasks(db: DbOrTx, ctx: TaskCtx, q: z.infer<typeof list
     )
   } else if (q.view === 'inbox') {
     conds.push(eq(tasks.status, 'inbox'), or(eq(tasks.creatorId, me), eq(tasks.assigneeId, me))!)
+  } else if (q.view === 'mine') {
+    // 任务页（ADR-0043、REQ-TASK-025）：人员范围同今日；子任务在父任务详情里看。
+    // 看本人某个清单时（ADR-0044）以「归在我的这个清单里」为准，不再要求指派给我
+    conds.push(isNull(tasks.parentId))
+    if (!q.listId || q.listId === 'none') conds.push(mine(me))
   }
   if (q.due === 'today' || q.due === 'week') {
     const { start, end } =
@@ -366,6 +402,11 @@ export async function listTasks(db: DbOrTx, ctx: TaskCtx, q: z.infer<typeof list
         ? dayRange(ctx.timezone, now)
         : weekRange(ctx.timezone, ctx.weekStartsOn, now)
     conds.push(gte(tasks.dueAt, start), lt(tasks.dueAt, end))
+  } else if (q.due === 'tomorrow' || q.due === 'next7') {
+    // 智能清单（ADR-0044）：明天 = [明日 00:00, 后日 00:00)；最近 7 天 = 逾期未完成 ∪ [今日, 今日 + 7 天)
+    const day = dayEdge(ctx.timezone, now)
+    if (q.due === 'tomorrow') conds.push(gte(tasks.dueAt, day(1)), lt(tasks.dueAt, day(2)))
+    else conds.push(lt(tasks.dueAt, day(7)), notInArray(tasks.status, CLOSED))
   } else if (q.due === 'overdue') {
     conds.push(lt(tasks.dueAt, now), notInArray(tasks.status, CLOSED))
   }
@@ -407,6 +448,76 @@ export async function listTasks(db: DbOrTx, ctx: TaskCtx, q: z.infer<typeof list
 }
 
 /** GET /tasks/:id：含 descriptionPm；不可见 → 404。 */
+export interface TaskCounts {
+  all: number
+  /** 同 view=today：逾期未完成 ∪ 今日到期 ∪ 今日开始 */
+  today: number
+  tomorrow: number
+  /** 逾期 ∪ 7 天内到期 */
+  next7: number
+  overdue: number
+  /** 不在本人任何清单里 */
+  unlisted: number
+  /** 本人各清单的未完成数 */
+  lists: Record<string, number>
+}
+
+/**
+ * GET /tasks/counts（ADR-0044、REQ-TASK-031）：任务页左栏计数，口径 = view=mine 的未完成顶层任务，
+ * 时间边界按用户时区。两条查询（总表一条 count(*) filter，清单一条 group by）。
+ */
+export async function taskCounts(
+  db: DbOrTx,
+  ctx: TaskCtx,
+  q: { spaceId?: string },
+): Promise<TaskCounts> {
+  const me = ctx.actor.id
+  const now = ctx.now ?? new Date()
+  const day = dayEdge(ctx.timezone, now)
+  const [t0, t1, t2, t7] = [day(0), day(1), day(2), day(7)]
+  // 「今天」与今日页（view=today）同口径、含子任务；其余只算顶层任务（同 view=mine）
+  const base: SQL[] = [
+    eq(tasks.workspaceId, ctx.workspaceId),
+    visibleTasksWhere(ctx.actor),
+    notInArray(tasks.status, CLOSED),
+  ]
+  if (q.spaceId) {
+    await requireReadableSpace(db, ctx.actor, q.spaceId)
+    base.push(eq(tasks.spaceId, q.spaceId))
+  }
+  const where = and(...base, mine(me))
+  const n = (cond: SQL) => sql<number>`(count(*) filter (where ${cond}))::int`
+  const top = sql`${tasks.parentId} is null`
+  const [r] = await db
+    .select({
+      all: n(top),
+      today: n(
+        sql`(${tasks.dueAt} < ${t1} or (${tasks.scheduledAt} >= ${t0} and ${tasks.scheduledAt} < ${t1}))`,
+      ),
+      tomorrow: n(sql`${top} and ${tasks.dueAt} >= ${t1} and ${tasks.dueAt} < ${t2}`),
+      next7: n(sql`${top} and ${tasks.dueAt} < ${t7}`),
+      overdue: n(sql`${tasks.dueAt} < ${t0}`),
+      unlisted: n(sql`${top} and ${notInOwnListSql(me)}`),
+    })
+    .from(tasks)
+    .where(where)
+  const byList = await db
+    .select({ id: taskListItems.listId, n: sql<number>`count(*)::int` })
+    .from(tasks)
+    .innerJoin(taskListItems, and(eq(taskListItems.taskId, tasks.id), eq(taskListItems.userId, me)))
+    .where(where)
+    .groupBy(taskListItems.listId)
+  return {
+    all: r?.all ?? 0,
+    today: r?.today ?? 0,
+    tomorrow: r?.tomorrow ?? 0,
+    next7: r?.next7 ?? 0,
+    overdue: r?.overdue ?? 0,
+    unlisted: r?.unlisted ?? 0,
+    lists: Object.fromEntries(byList.map((x) => [x.id, x.n])),
+  }
+}
+
 export async function getTask(db: DbOrTx, ctx: TaskCtx, id: string): Promise<TaskView> {
   await requireTask(db, ctx, id)
   const joined = await selectJoined(db, ctx).where(eq(tasks.id, id)).limit(1)
@@ -618,6 +729,7 @@ export async function createTask(
   if (input.cycleId) await assertCycle(db, ctx, input.cycleId)
   if (input.tagIds) await assertTags(db, ctx, input.tagIds)
   if (input.parentId) await assertParent(db, ctx, input.parentId, spaceId)
+  if (input.listId) await assertOwnList(db, ctx, input.listId)
   const id = await db.transaction(async (tx) => {
     const [row] = await tx
       .insert(tasks)
@@ -642,6 +754,7 @@ export async function createTask(
       })
       .returning({ id: tasks.id })
     if (!row) throw new Error('insert tasks failed')
+    if (input.listId) await setTaskList(tx, ctx, row.id, input.listId)
     if (input.tagIds?.length)
       await tx
         .insert(taskTags)
@@ -676,7 +789,15 @@ export async function patchTask(
   patch: z.infer<typeof patchTaskSchema>,
 ): Promise<TaskView> {
   const t = await requireTask(db, ctx, id)
+  // 只改本人的清单归类（ADR-0044）：私人分类，读得到即可归；不动 tasks 行、不查乐观锁、不改 updatedAt
+  const { listId, ifUpdatedAt: _stale, ...rest } = patch
+  if (listId !== undefined && !Object.values(rest).some((v) => v !== undefined)) {
+    await setTaskList(db, ctx, id, listId)
+    publishChange(ctx, [t.row.spaceId], [['tasks'], ['task', id]])
+    return getTask(db, ctx, id)
+  }
   assertCan(ctx.actor, 'task.write', t.ref)
+  if (listId) await assertOwnList(db, ctx, listId)
   if (t.row.updatedAt.toISOString() !== new Date(patch.ifUpdatedAt).toISOString())
     throw new AppError(409, 'CONFLICT_STALE', '任务已被他人修改', {
       current: await getTask(db, ctx, id),
@@ -756,6 +877,7 @@ export async function patchTask(
         set.status as TaskStatus,
         now,
       )
+    if (listId !== undefined) await setTaskList(tx, ctx, id, listId)
     if (patch.tagIds) {
       // 只替换本人的标签；别人打在这个任务上的标签不动（ADR-0017）
       await tx
@@ -923,11 +1045,15 @@ export async function uncompleteTask(
   ctx: TaskCtx,
   id: string,
   ifUpdatedAt?: string,
+  /** 批量撤销用（ADR-0045）：已非完成态 → 原样返回，不报 409（同 completeTask 的幂等） */
+  idempotent = false,
 ): Promise<TaskView> {
   const t = await requireTask(db, ctx, id)
   assertCan(ctx.actor, 'task.write', t.ref)
-  if (t.row.status !== 'done')
+  if (t.row.status !== 'done') {
+    if (idempotent) return getTask(db, ctx, id)
     throw new AppError(409, 'CONFLICT_STALE', '任务未完成', { current: await getTask(db, ctx, id) })
+  }
   const [last] = await db
     .select({ payload: events.payload })
     .from(events)
@@ -981,6 +1107,8 @@ export async function batchTasks(
           const task = await tx.transaction(async (sp) => {
             if (op.op === 'update') return patchTask(sp, inner, op.id, op.patch)
             if (op.op === 'complete') return completeTask(sp, inner, op.id)
+            if (op.op === 'restore') return restoreTask(sp, inner, op.id)
+            if (op.op === 'uncomplete') return uncompleteTask(sp, inner, op.id, undefined, true)
             await softDeleteTask(sp, inner, op.id)
             return null
           })
@@ -1005,17 +1133,12 @@ export async function batchTasks(
   }
   if (!failed) {
     const touched = results.flatMap((r) => (r.task ? [r.task.spaceId] : []))
-    // 删除项没有返回体：按操作者可见空间以外无从得知，统一失效 ['tasks'] 前缀即可
-    publishChange(
-      ctx,
-      touched.length
-        ? touched
-        : await opSpaces(
-            db,
-            ops.map((o) => o.id),
-          ),
-      [['tasks']],
-    )
+    // 删除项没有返回体：其空间另查（混合批量里只靠 touched 会漏掉删除项所在空间，ADR-0045 审查）
+    const deleted = ops.filter((o) => o.op === 'delete').map((o) => o.id)
+    const spaces = [
+      ...new Set([...touched, ...(deleted.length ? await opSpaces(db, deleted) : [])]),
+    ]
+    publishChange(ctx, spaces, [['tasks']])
     return { results }
   }
   const first = results.find((r) => !r.ok) as BatchOpResult

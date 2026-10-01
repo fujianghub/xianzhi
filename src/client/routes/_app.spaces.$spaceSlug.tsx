@@ -9,7 +9,9 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Board } from '../components/domain/Board.tsx'
 import { KbTabs } from '../components/domain/KbTabs.tsx'
+import { QuickAddTask } from '../components/domain/QuickAddTask.tsx'
 import { SpaceIcon } from '../components/domain/SpaceIcon.tsx'
+import { SelectModeButton, TaskSelectionScope } from '../components/domain/TaskBatchBar.tsx'
 import { TaskList } from '../components/domain/TaskList.tsx'
 import { EmptyState } from '../components/ui/empty-state.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
@@ -215,6 +217,12 @@ function SpacePage() {
           </button>
         ) : null}
       </div>
+      {view === 'list' ? (
+        <div className="mb-3 flex items-start gap-2">
+          <QuickAddTask className="min-w-0 flex-1" />
+          <SelectModeButton />
+        </div>
+      ) : null}
       {view === 'board' ? (
         <Board params={{ ...filters, spaceId: space.id }} onOpen={open} />
       ) : list.isError ? (
@@ -233,24 +241,27 @@ function SpacePage() {
           </div>
         ) : null
       ) : (
-        <TaskList
-          tasks={flattenPages(list.data)}
-          label={name}
-          onOpen={open}
-          hasMore={list.hasNextPage}
-          onLoadMore={() => void list.fetchNextPage()}
-          empty={
-            <EmptyState
-              illustration="board"
-              title={t('ui.empty.board')}
-              hint={t('ui.empty.boardHint')}
-              input={{
-                placeholder: t('ui.empty.newTaskPlaceholder'),
-                onSubmit: (title) => actions.create({ title, spaceId: space.id, status: 'todo' }),
-              }}
-            />
-          }
-        />
+        // 页面级选择与批量只在列表视图（看板是卡片，不在本轮范围，ADR-0045）
+        <TaskSelectionScope scopeKey={`space:${space.id}:${JSON.stringify(filters)}`}>
+          <TaskList
+            tasks={flattenPages(list.data)}
+            label={name}
+            onOpen={open}
+            hasMore={list.hasNextPage}
+            onLoadMore={() => void list.fetchNextPage()}
+            empty={
+              <EmptyState
+                illustration="board"
+                title={t('ui.empty.board')}
+                hint={t('ui.empty.boardHint')}
+                input={{
+                  placeholder: t('ui.empty.newTaskPlaceholder'),
+                  onSubmit: (title) => actions.create({ title, spaceId: space.id, status: 'todo' }),
+                }}
+              />
+            }
+          />
+        </TaskSelectionScope>
       )}
       <Outlet />
     </section>
