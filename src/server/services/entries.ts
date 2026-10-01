@@ -19,13 +19,18 @@ import {
 import type { z } from 'zod'
 import { emptyYdoc } from '../../collab/derive.ts'
 import { ydocFromPm } from '../../collab/ydoc-json.ts'
+import { fillHiddenDefaults, hiddenBaseFields } from '../../shared/schemas/baseFields.ts'
 import type {
   createEntrySchema,
   entryStatsQuery,
   listEntriesQuery,
   patchEntrySchema,
 } from '../../shared/schemas/entries.ts'
-import { defaultEntryFields, entryFieldsByKind } from '../../shared/schemas/entryFields.ts'
+import {
+  defaultEntryFields,
+  entryFieldsByKind,
+  entryFieldsSchema,
+} from '../../shared/schemas/entryFields.ts'
 import type { EntryKind, EntryVisibility, SpaceRole } from '../../shared/schemas/enums.ts'
 import {
   isExtraFieldKey,
@@ -60,7 +65,8 @@ import { weightedTsv } from './derived.ts'
 import { entryPath, entryPaths, liftChildren, placeNew } from './entry-tree.ts'
 import {
   assertBuiltinAlive,
-  builtinFieldDefs,
+  builtinKindMeta,
+  checkBaseFields,
   loadEntryType,
   loadUsableEntryType,
   normalizeCustomFields,
@@ -515,6 +521,8 @@ function assertPersonalPrivate(isPersonal: boolean, visibility: EntryVisibility)
  * 自定义字段（x 键）按类型的字段定义校验——未定义的静默丢弃（定义可能刚被删），类型 / 选项不符 422。
  * 自定义类型须属本工作区，status ∈ 其状态列表（新建未给 → 第一项）。返回写库用的 { kind, typeId, fields }。
  * 记录有来源模板时（ADR-0039、REQ-ENTRY-032），模板自有字段与类型的字段一并作为合法的自定义字段。
+ * 内置类型按工作区的代码字段覆盖校验（ADR-0042、REQ-ENTRY-035）：隐藏的必填字段补默认或可省；
+ * 给了 `prev`（改同一类型记录的属性）→ 被隐藏字段的原值并回（界面不显示它们，不能因此丢值）。
  */
 export async function resolveKindFields(
   db: DbOrTx,
@@ -526,19 +534,28 @@ export async function resolveKindFields(
    * fillDefault：新建 / 改类型时补默认状态，并要求类型对本人在该空间可用（本人的个人类型或该空间的空间类型，
    * ADR-0017 · 0036）；改已有记录的属性不要求。spaceId = 记录（将）所在空间。
    */
-  opts: { fillDefault: boolean; spaceId: string; templateId?: string | null },
+  opts: {
+    fillDefault: boolean
+    spaceId: string
+    templateId?: string | null
+    prev?: Record<string, unknown>
+  },
 ): Promise<{ kind: EntryKind; typeId: string | null; fields: Record<string, unknown> }> {
   const { base, extra } = splitExtraFields(fields)
   const own = (await templateMeta(db, ctx.workspaceId, opts.templateId))?.fieldDefs ?? []
+  if (kind !== 'custom') {
+    const meta = await builtinKindMeta(db, ctx.workspaceId, kind)
+    for (const k of hiddenBaseFields(meta.baseFields))
+      if (base[k] === undefined && opts.prev?.[k] !== undefined) base[k] = opts.prev[k]
+    const checked = checkBaseFields(kind, base, meta.baseFields)
+    const defs = mergeFieldDefs(meta.fieldDefs, own)
+    return { kind, typeId: null, fields: { ...checked, ...normalizeExtraFields(defs, extra) } }
+  }
   const r = entryFieldsByKind[kind].safeParse(base)
   if (!r.success)
     throw AppError.validation(
       r.error.issues.map((i) => ({ path: ['fields', ...i.path].join('.'), message: i.message })),
     )
-  if (kind !== 'custom') {
-    const defs = mergeFieldDefs(await builtinFieldDefs(db, ctx.workspaceId, kind), own)
-    return { kind, typeId: null, fields: { ...base, ...normalizeExtraFields(defs, extra) } }
-  }
   const type = !typeId
     ? null
     : opts.fillDefault
@@ -568,23 +585,26 @@ export async function fieldsForRetype(
   typeId: string | null | undefined,
   templateId?: string | null,
 ): Promise<Record<string, unknown>> {
-  const base: Record<string, unknown> = { ...defaultEntryFields[kind] }
   const type = kind === 'custom' && typeId ? await loadEntryType(db, ctx.workspaceId, typeId) : null
+  const meta = type ? null : await builtinKindMeta(db, ctx.workspaceId, kind)
+  // 目标类型隐藏的必填字段补默认或可省（ADR-0042）
+  const base = fillHiddenDefaults(kind, { ...defaultEntryFields[kind] }, meta?.baseFields)
+  const schema = entryFieldsSchema(kind, hiddenBaseFields(meta?.baseFields))
   const statuses = type ? (type.statuses ?? []) : null
   for (const key of ['status', 'progress'] as const) {
     if (from[key] === undefined) continue
     const trial = { ...base, [key]: from[key] }
     const ok =
-      entryFieldsByKind[kind].safeParse(trial).success &&
+      schema.safeParse(trial).success &&
       (key !== 'status' || statuses === null || statuses.includes(String(from[key])))
     if (ok) base[key] = from[key]
   }
-  if (!entryFieldsByKind[kind].safeParse(base).success)
+  if (!schema.safeParse(base).success)
     throw AppError.validation([
       { path: 'kind', message: '目标类型有必填属性，请在记录的属性栏里改类型并填写' },
     ])
   const defs = mergeFieldDefs(
-    type ? (type.fieldDefs ?? []) : await builtinFieldDefs(db, ctx.workspaceId, kind),
+    type ? (type.fieldDefs ?? []) : (meta?.fieldDefs ?? []),
     (await templateMeta(db, ctx.workspaceId, templateId))?.fieldDefs ?? [],
   )
   const keep = new Set(defs.map((d) => d.key))
@@ -743,6 +763,8 @@ export async function patchEntry(
         fillDefault: retype,
         spaceId: targetSpaceId,
         templateId: loaded.row.templateId,
+        // 同类型改属性：并回被隐藏字段的原值（ADR-0042）；改类型不并（旧类型的键在新类型里可能未知）
+        ...(retype ? {} : { prev: (loaded.row.fields ?? {}) as Record<string, unknown> }),
       })
     ).fields
     if (targetKind === 'bug') {

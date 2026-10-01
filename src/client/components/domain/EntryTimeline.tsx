@@ -9,8 +9,13 @@ import type { Entry, EntryKind } from '../../lib/entry-queries.ts'
 import { ENTRY_KIND_TONE, KindGlyph, toneClass } from './KindIcon.tsx'
 
 export const TIMELINE_KINDS = ['iteration', 'changelog'] as const satisfies readonly EntryKind[]
-export const hasTimeline = (k: EntryKind | undefined) =>
-  !!k && (TIMELINE_KINDS as readonly string[]).includes(k)
+/** 时间线取的日期字段（迭代起始 / 变更发布） */
+const TIMELINE_FIELD: Record<string, string> = { iteration: 'periodStart', changelog: 'releasedAt' }
+/** `specs` = 该类型可见字段；日期字段被代码字段覆盖隐藏则没有时间线（ADR-0042） */
+export const hasTimeline = (k: EntryKind | undefined, specs?: readonly { name: string }[]) =>
+  !!k &&
+  (TIMELINE_KINDS as readonly string[]).includes(k) &&
+  (!specs || specs.some((f) => f.name === TIMELINE_FIELD[k]))
 
 const dateOf = (e: Entry): string | null => {
   const v = e.kind === 'iteration' ? e.fields.periodStart : e.fields.releasedAt

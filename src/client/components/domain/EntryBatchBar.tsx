@@ -21,11 +21,8 @@ import {
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import {
-  BUG_PRIORITIES,
-  defaultEntryFields,
-  entryFieldsByKind,
-} from '../../../shared/schemas/entryFields.ts'
+import { defaultsSatisfy } from '../../../shared/schemas/baseFields.ts'
+import type { BUG_PRIORITIES } from '../../../shared/schemas/entryFields.ts'
 import { type BatchInput, useEntryActions } from '../../hooks/useEntries.ts'
 import { ApiError } from '../../lib/api.ts'
 import { cn } from '../../lib/cn.ts'
@@ -35,7 +32,7 @@ import { spacesQuery } from '../../lib/space-queries.ts'
 import { Button } from '../ui/button.tsx'
 import { ConfirmDialog } from '../ui/confirm-dialog.tsx'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.tsx'
-import { fieldSpecs } from './EntryFieldsForm.tsx'
+import { pickableOptions, useFieldSpecs } from './FieldValue.tsx'
 import { KindIcon } from './KindIcon.tsx'
 import { PALETTE_CLASS, type PaletteName } from './SpaceIcon.tsx'
 import { tagsQuery } from './TagPicker.tsx'
@@ -64,9 +61,10 @@ export function EntryBatchBar({
   const tags = useQuery(tagsQuery)
   const kindOf = useKindLabel()
   // 批量改类型的目标：默认 fields 能通过校验的类型
-  const retypeTargets = useKindOptions().filter(
-    (o) => entryFieldsByKind[o.kind].safeParse(defaultEntryFields[o.kind]).success,
+  const retypeTargets = useKindOptions().filter((o) =>
+    defaultsSatisfy(o.kind, kindOf(o.kind, o.typeId).baseFields),
   )
+  const specsOf = useFieldSpecs()
   const [busy, setBusy] = useState(false)
   const [confirm, setConfirm] = useState(false)
   const n = selected.length
@@ -78,16 +76,16 @@ export function EntryBatchBar({
   ]
     .map((e) => {
       const meta = kindOf(e.kind, e.typeId)
-      const spec = fieldSpecs(e.kind, meta.statuses).find((f) => f.name === 'status')
+      // 状态规格已套代码字段覆盖（ADR-0042）：被隐藏的状态 / 选项不出现
+      const spec = specsOf(e.kind, e.typeId).find((f) => f.name === 'status')
       const ids = chosen.filter((x) => x.kind === e.kind && x.typeId === e.typeId).map((x) => x.id)
-      return spec?.kind === 'select'
-        ? { meta, ids, options: spec.options.map(String), raw: !!spec.raw }
-        : null
+      return spec?.kind === 'select' ? { meta, ids, options: pickableOptions(spec) } : null
     })
     .filter((g) => g !== null)
 
-  // Bug 批量改优先级（ADR-0033）：只对所选中的 Bug 下发
-  const bugIds = chosen.filter((e) => e.kind === 'bug').map((e) => e.id)
+  // Bug 批量改优先级（ADR-0033）：只对所选中的 Bug 下发；优先级被隐藏则不出（ADR-0042）
+  const prioritySpec = specsOf('bug').find((f) => f.name === 'priority')
+  const bugIds = prioritySpec ? chosen.filter((e) => e.kind === 'bug').map((e) => e.id) : []
 
   const run = async (input: OpInput, ids: string[] = selected) => {
     setBusy(true)
@@ -186,14 +184,16 @@ export function EntryBatchBar({
               </p>
               {g.options.map((o) => (
                 <button
-                  key={o}
+                  key={String(o.value)}
                   type="button"
-                  onClick={() => void run({ op: 'fields', set: { status: o } }, g.ids)}
+                  onClick={() =>
+                    void run({ op: 'fields', set: { status: String(o.value) } }, g.ids)
+                  }
                   className={menuItem}
                   data-testid="batch-status-option"
-                  data-status={o}
+                  data-status={String(o.value)}
                 >
-                  {g.raw ? o : t(`entry.fieldValue.${o}`, { defaultValue: o })}
+                  {o.label}
                 </button>
               ))}
             </div>
@@ -212,18 +212,28 @@ export function EntryBatchBar({
             <p className="px-2 pb-1 text-fg-muted text-xs">
               {t('entry.batch.count', { count: bugIds.length })}
             </p>
-            {BUG_PRIORITIES.map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => void run({ op: 'fields', set: { priority: p } }, bugIds)}
-                className={menuItem}
-                data-testid="batch-priority-option"
-                data-priority={p}
-              >
-                {t(`entry.fieldValue.${p}`)}
-              </button>
-            ))}
+            {prioritySpec
+              ? pickableOptions(prioritySpec).map((o) => (
+                  <button
+                    key={String(o.value)}
+                    type="button"
+                    onClick={() =>
+                      void run(
+                        {
+                          op: 'fields',
+                          set: { priority: String(o.value) as (typeof BUG_PRIORITIES)[number] },
+                        },
+                        bugIds,
+                      )
+                    }
+                    className={menuItem}
+                    data-testid="batch-priority-option"
+                    data-priority={String(o.value)}
+                  >
+                    {o.label}
+                  </button>
+                ))
+              : null}
           </PopoverContent>
         </Popover>
       ) : null}

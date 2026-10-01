@@ -252,7 +252,8 @@ function FieldChanges({ entryId, specs }: { entryId: string; specs: FieldSpec[] 
       </Pill>
     )
   }
-  const items = data ?? []
+  // 被代码字段覆盖隐藏的字段不列其流转（ADR-0042）
+  const items = (data ?? []).filter((c) => specs.some((s) => s.name === c.field))
   const latest = items[items.length - 1]
   const groups = groupChanges(items).reverse()
   return (

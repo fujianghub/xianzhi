@@ -24,6 +24,7 @@ import { ConfirmDialog } from '../ui/confirm-dialog.tsx'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../ui/dialog.tsx'
 import { InlineEdit } from '../ui/inline-edit.tsx'
 import { Input } from '../ui/input.tsx'
+import { BuiltinFieldsEditor } from './BuiltinFieldsEditor.tsx'
 import { ColorPicker } from './ColorPicker.tsx'
 import { TypeFieldsSection } from './FieldDefsEditor.tsx'
 import { StatusPill } from './FieldValue.tsx'
@@ -302,6 +303,8 @@ function TypeEditor({
           name={m.label}
           note={t('spaceTypes.builtinNote')}
         />
+        <h4 className="font-medium text-sm">{t('builtinFields.title')}</h4>
+        <BuiltinFieldsEditor kind={kind} canManage={canManageBuiltin} />
         <h4 className="font-medium text-sm">{t('spaceTypes.extraFields')}</h4>
         <TypeFieldsSection kind={kind} defs={defs} canManage={canManageBuiltin} compact />
       </div>

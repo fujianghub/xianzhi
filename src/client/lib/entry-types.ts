@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { EntryTypesList, EntryTypeView } from '../../server/services/entry-types.ts'
+import type { BaseFieldOverrides } from '../../shared/schemas/baseFields.ts'
 import type { PaletteColor } from '../../shared/schemas/enums.ts'
 import type { FieldDef } from '../../shared/schemas/fieldDefs.ts'
 import { resolveEnabledKinds } from '../../shared/schemas/spaces.ts'
@@ -46,6 +47,10 @@ export interface KindMeta {
   statusColors: Record<string, string> | null
   /** 自定义字段定义（自定义 / 空间类型的属性，或内置类型追加的属性，ADR-0036） */
   fieldDefs: FieldDef[]
+  /** 内置类型的代码字段覆盖（隐藏 / 显示名 / 选项名与色，ADR-0042）；自定义类型为空 */
+  baseFields: BaseFieldOverrides
+  /** 属性顺序（ADR-0042）；空 = 代码顺序 + 追加字段 */
+  fieldOrder: string[]
 }
 
 type WithDefs = { fieldDefs?: FieldDef[]; statusColors?: Record<string, string> }
@@ -66,6 +71,8 @@ export function useKindLabel() {
           statuses: ty?.statuses ?? [],
           statusColors: (ty as WithDefs | undefined)?.statusColors ?? null,
           fieldDefs: (ty as WithDefs | undefined)?.fieldDefs ?? [],
+          baseFields: {},
+          fieldOrder: [],
         }
       }
       const ov = data?.builtin.find((b) => b.kind === kind)
@@ -77,6 +84,8 @@ export function useKindLabel() {
         statuses: null,
         statusColors: null,
         fieldDefs: (ov as WithDefs | undefined)?.fieldDefs ?? [],
+        baseFields: ov?.baseFields ?? {},
+        fieldOrder: ov?.fieldOrder ?? [],
       }
     },
     [data, t],

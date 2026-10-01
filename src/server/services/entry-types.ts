@@ -3,8 +3,8 @@
  * - 个人类型（space_id null）：本人所有、本人使用与管理（ADR-0017）。
  * - 空间类型（space_id 非 null，ADR-0036）：属于该空间，空间管理员维护（空间须可写、非个人空间），
  *   空间成员在该空间里使用；列表按空间可见性过滤（回收站 / 不可读空间的类型不出现）。
- * - 内置类型：固定 9 种（属性 schema / 图标 / 正文模板在代码里）；可改名、改色、追加字段（entry_kind_overrides，仅所有者），
- *   可删除、可恢复。
+ * - 内置类型：固定 9 种（属性 schema / 图标 / 正文模板在代码里）；可改名、改色、追加字段、
+ *   覆盖代码字段（隐藏 / 显示名 / 选项名与色 / 顺序，ADR-0042）（entry_kind_overrides，仅所有者），可删除、可恢复。
  * - 自定义 / 空间类型 fields = { status?, progress?, dueDate? } + 字段定义给出的 x 键；status ∈ 状态列表。
  * - 改字段定义：整组替换；去掉的字段、删掉的选项同事务清空记录与模板里的值，选项改名同步值，审计 entry_type.fields_changed。
  * - 删除（内置或自定义）：其下全部记录（含回收站）转到 moveTo（缺省随笔），fields 按目标类型重建；
@@ -13,10 +13,14 @@
 import { and, asc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import type { z } from 'zod'
 import {
-  type customFields,
-  defaultEntryFields,
-  entryFieldsByKind,
-} from '../../shared/schemas/entryFields.ts'
+  type BaseFieldOverrides,
+  defaultsSatisfy,
+  fillHiddenDefaults,
+  hiddenBaseFields,
+  normalizeBaseFields,
+  normalizeFieldOrder,
+} from '../../shared/schemas/baseFields.ts'
+import { type customFields, entryFieldsSchema } from '../../shared/schemas/entryFields.ts'
 import type {
   createEntryTypeSchema,
   fieldDefsInputSchema,
@@ -89,6 +93,9 @@ export interface BuiltinKindView {
   deleted: boolean
   /** 追加的字段（ADR-0036、REQ-ENTRY-028） */
   fieldDefs: FieldDef[]
+  /** 代码字段覆盖与属性顺序（ADR-0042） */
+  baseFields: BaseFieldOverrides
+  fieldOrder: string[]
   usage: number
 }
 export interface EntryTypesList {
@@ -177,6 +184,8 @@ export async function listEntryTypes(db: DbOrTx, ctx: EntryTypeCtx): Promise<Ent
       color: ov.get(kind)?.color ?? null,
       deleted: ov.get(kind)?.deleted ?? false,
       fieldDefs: ov.get(kind)?.fieldDefs ?? [],
+      baseFields: ov.get(kind)?.baseFields ?? {},
+      fieldOrder: ov.get(kind)?.fieldOrder ?? [],
       usage: byKind.get(kind) ?? 0,
     })),
     items: rows.map((r) => {
@@ -260,18 +269,58 @@ export async function loadUsableEntryType(
   return row.createdBy === ctx.actor.id ? row : null
 }
 
+export interface BuiltinKindMeta {
+  /** 追加字段（ADR-0036、REQ-ENTRY-028） */
+  fieldDefs: FieldDef[]
+  /** 代码字段覆盖（ADR-0042、REQ-ENTRY-034） */
+  baseFields: BaseFieldOverrides
+  fieldOrder: string[]
+}
+const NO_META: BuiltinKindMeta = { fieldDefs: [], baseFields: {}, fieldOrder: [] }
+
+/** 内置类型的工作区元数据（一次查询）；自定义类型 / 无覆盖行 → 空 */
+export async function builtinKindMeta(
+  db: DbOrTx,
+  workspaceId: string,
+  kind: EntryKind,
+): Promise<BuiltinKindMeta> {
+  if (kind === 'custom') return NO_META
+  const [o] = await db
+    .select({
+      fieldDefs: entryKindOverrides.fieldDefs,
+      baseFields: entryKindOverrides.baseFields,
+      fieldOrder: entryKindOverrides.fieldOrder,
+    })
+    .from(entryKindOverrides)
+    .where(and(eq(entryKindOverrides.workspaceId, workspaceId), eq(entryKindOverrides.kind, kind)))
+  return o ? { ...NO_META, ...o } : NO_META
+}
+
 /** 内置类型追加的字段定义（ADR-0036、REQ-ENTRY-028） */
 export async function builtinFieldDefs(
   db: DbOrTx,
   workspaceId: string,
   kind: EntryKind,
 ): Promise<FieldDef[]> {
-  if (kind === 'custom') return []
-  const [o] = await db
-    .select({ defs: entryKindOverrides.fieldDefs })
-    .from(entryKindOverrides)
-    .where(and(eq(entryKindOverrides.workspaceId, workspaceId), eq(entryKindOverrides.kind, kind)))
-  return o?.defs ?? []
+  return (await builtinKindMeta(db, workspaceId, kind)).fieldDefs
+}
+
+/**
+ * 内置字段按覆盖层校验（ADR-0042、REQ-ENTRY-035）：隐藏的必填字段有默认值则补、无默认值则可省；
+ * 其余照 strict schema。错误路径 `fields.<key>`（REQ-ENTRY-001）。
+ */
+export function checkBaseFields(
+  kind: EntryKind,
+  base: Record<string, unknown>,
+  ov: BaseFieldOverrides,
+): Record<string, unknown> {
+  const filled = fillHiddenDefaults(kind, base, ov)
+  const r = entryFieldsSchema(kind, hiddenBaseFields(ov)).safeParse(filled)
+  if (!r.success)
+    throw AppError.validation(
+      r.error.issues.map((i) => ({ path: ['fields', ...i.path].join('.'), message: i.message })),
+    )
+  return r.data as Record<string, unknown>
 }
 
 /**
@@ -654,8 +703,8 @@ async function resolveMoveTo(
     if (!ok) throw bad('目标类型不存在')
     return target
   }
-  if (!entryFieldsByKind[target.kind].safeParse(defaultEntryFields[target.kind]).success)
-    throw bad('目标类型有必填属性，不能作为批量转入目标')
+  const ov = (await builtinKindMeta(db, ctx.workspaceId, target.kind)).baseFields
+  if (!defaultsSatisfy(target.kind, ov)) throw bad('目标类型有必填属性，不能作为批量转入目标')
   try {
     await assertBuiltinAlive(db, ctx.workspaceId, target.kind)
   } catch {
@@ -763,7 +812,14 @@ async function upsertOverride(
   db: DbOrTx,
   ctx: EntryTypeCtx,
   kind: BuiltinEntryKind,
-  set: { name?: string | null; color?: string | null; deleted?: boolean; fieldDefs?: FieldDef[] },
+  set: {
+    name?: string | null
+    color?: string | null
+    deleted?: boolean
+    fieldDefs?: FieldDef[]
+    baseFields?: BaseFieldOverrides
+    fieldOrder?: string[]
+  },
 ) {
   await db
     .insert(entryKindOverrides)
@@ -774,7 +830,10 @@ async function upsertOverride(
     })
 }
 
-/** PATCH /entry-types/builtin/:kind { name?, color?, fieldDefs? }：改名 / 改色（null = 恢复默认）/ 追加字段。 */
+/**
+ * PATCH /entry-types/builtin/:kind { name?, color?, fieldDefs?, baseFields?, fieldOrder? }：改名 / 改色（null = 恢复默认）/
+ * 追加字段 / 代码字段覆盖与顺序（ADR-0042；null = 恢复默认）。覆盖层只改展示，不动记录数据，不写审计（同改名 / 改色）。
+ */
 export async function patchBuiltinKind(
   db: Db,
   ctx: EntryTypeCtx,
@@ -795,13 +854,37 @@ export async function patchBuiltinKind(
       )
     if (clash.length) throw conflict()
   }
-  const prevDefs = await builtinFieldDefs(db, ctx.workspaceId, kind)
+  const prev = await builtinKindMeta(db, ctx.workspaceId, kind)
+  const prevDefs = prev.fieldDefs
   const nextDefs = input.fieldDefs ? resolveFieldDefs(prevDefs, input.fieldDefs) : null
+  const defs = nextDefs ?? prevDefs
+  let baseFields: BaseFieldOverrides | undefined
+  if (input.baseFields !== undefined || nextDefs) {
+    // 追加字段改名后也要重查显示名是否与覆盖名重复
+    const r = normalizeBaseFields(
+      kind,
+      input.baseFields === undefined ? prev.baseFields : (input.baseFields ?? {}),
+      defs,
+    )
+    if (r.issues.length) throw AppError.validation(r.issues)
+    baseFields = r.value
+  }
+  // 顺序：给了就规范化；追加字段变了则去掉失效键
+  const fieldOrder =
+    input.fieldOrder !== undefined || nextDefs
+      ? normalizeFieldOrder(
+          kind,
+          input.fieldOrder === undefined ? prev.fieldOrder : (input.fieldOrder ?? []),
+          defs,
+        )
+      : undefined
   await db.transaction(async (tx) => {
     await upsertOverride(tx, ctx, kind, {
       ...(input.name !== undefined ? { name: input.name } : {}),
       ...(input.color !== undefined ? { color: input.color } : {}),
       ...(nextDefs ? { fieldDefs: nextDefs } : {}),
+      ...(baseFields ? { baseFields } : {}),
+      ...(fieldOrder ? { fieldOrder } : {}),
     })
     if (nextDefs) {
       const n = await applyFieldDefChanges(

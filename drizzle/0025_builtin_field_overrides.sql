@@ -1,0 +1,2 @@
+ALTER TABLE "entry_kind_overrides" ADD COLUMN "base_fields" jsonb DEFAULT '{}'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "entry_kind_overrides" ADD COLUMN "field_order" jsonb DEFAULT '[]'::jsonb NOT NULL;

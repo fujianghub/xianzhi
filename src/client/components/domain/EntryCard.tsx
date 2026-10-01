@@ -148,9 +148,14 @@ const KEY_FIELDS = [
   'progress',
   'releasedAt',
 ] as const
-export function keyFields(entry: Entry): { name: string; value: string }[] {
+/** `shown` = 该类型可见的字段名（代码字段覆盖隐藏的不占名额，ADR-0042） */
+export function keyFields(
+  entry: Entry,
+  shown: (name: string) => boolean = () => true,
+): { name: string; value: string }[] {
   const out: { name: string; value: string }[] = []
   for (const name of KEY_FIELDS) {
+    if (!shown(name)) continue
     const v = entry.fields[name]
     if (typeof v === 'string' || typeof v === 'number') out.push({ name, value: String(v) })
     if (out.length >= 3) break
@@ -163,28 +168,22 @@ export function KeyFieldPills({ entry, exclude = [] }: { entry: Entry; exclude?:
   const specs = useFieldSpecs()(entry.kind, entry.typeId, entry.templateId)
   return (
     <>
-      {keyFields(entry)
-        .filter((f) => !exclude.includes(f.name))
-        .map((f) => {
-          const spec = specs.find((s) => s.name === f.name)
-          return spec ? (
-            <span key={f.name} data-field={f.name} className="inline-flex">
-              <FieldValue
-                spec={spec}
-                value={entry.fields[f.name]}
-                fields={entry.fields}
-                size="sm"
-              />
-            </span>
-          ) : null
-        })}
+      {keyFields(entry, (n) => !exclude.includes(n) && specs.some((s) => s.name === n)).map((f) => {
+        const spec = specs.find((s) => s.name === f.name)
+        return spec ? (
+          <span key={f.name} data-field={f.name} className="inline-flex">
+            <FieldValue spec={spec} value={entry.fields[f.name]} fields={entry.fields} size="sm" />
+          </span>
+        ) : null
+      })}
     </>
   )
 }
 
 function EntryMeta({ entry }: { entry: Entry }) {
   const { data: tags = [] } = useQuery(tagsQuery)
-  const f = keyFields(entry)
+  const specs = useFieldSpecs()(entry.kind, entry.typeId, entry.templateId)
+  const f = keyFields(entry, (n) => specs.some((s) => s.name === n))
   const tg = (entry.tagIds ?? [])
     .map((id) => tags.find((x) => x.id === id))
     .filter((x): x is NonNullable<typeof x> => !!x)

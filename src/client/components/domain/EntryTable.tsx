@@ -104,8 +104,10 @@ export function EntryTable({
   const specs = [...singleSpecs, ...templateSpecs].filter(
     (f) => f.name !== 'status' && f.name !== 'progress' && !TABLE_HIDDEN.includes(f.name),
   )
+  // 状态 / 进度专列：单一类型时只在该字段可见时出（代码字段覆盖可隐藏，ADR-0042）
   const showProgress = !single || singleSpecs.some((f) => f.name === 'progress')
   const statusSpec = singleSpecs.find((f) => f.name === 'status')
+  const showStatus = !single || !!statusSpec
   const cols: (Col & { spec: FieldSpec })[] = specs.map((f) => ({
     key: `f.${f.name}`,
     label: f.label,
@@ -255,14 +257,16 @@ export function EntryTable({
             <KindBadge kind={e.kind} typeId={e.typeId} />
           </td>
         )}
-        <td className="whitespace-nowrap px-3 py-2" data-field="status">
-          {cell(
-            e,
-            rowSpecs.find((f) => f.name === 'status'),
-            'status',
-            canEdit,
-          )}
-        </td>
+        {showStatus ? (
+          <td className="whitespace-nowrap px-3 py-2" data-field="status">
+            {cell(
+              e,
+              rowSpecs.find((f) => f.name === 'status'),
+              'status',
+              canEdit,
+            )}
+          </td>
+        ) : null}
         {showProgress ? (
           <td className="whitespace-nowrap px-3 py-2" data-field="progress">
             {cell(
@@ -337,7 +341,7 @@ export function EntryTable({
     (select ? 1 : 0) +
     1 +
     (single ? 0 : 1) +
-    1 +
+    (showStatus ? 1 : 0) +
     (showProgress ? 1 : 0) +
     cols.length +
     1 +
@@ -367,8 +371,13 @@ export function EntryTable({
             ) : null}
             {header('title', t('entry.title'))}
             {single ? null : header('kind', t('entry.props.kind'))}
-            {header('f.status', t('entry.field.status'))}
-            {showProgress ? header('f.progress', t('entry.list.progress')) : null}
+            {showStatus ? header('f.status', statusSpec?.label ?? t('entry.field.status')) : null}
+            {showProgress
+              ? header(
+                  'f.progress',
+                  singleSpecs.find((f) => f.name === 'progress')?.label ?? t('entry.list.progress'),
+                )
+              : null}
             {cols.map((c) => header(c.key, c.label))}
             <th scope="col" className="px-3 py-2 text-left font-medium">
               {t('kb.tags')}

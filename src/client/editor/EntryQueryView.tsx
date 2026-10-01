@@ -18,7 +18,11 @@ import {
 } from '../../shared/entry-search.ts'
 import { BugStats } from '../components/domain/BugStats.tsx'
 import { EntryTable } from '../components/domain/EntryTable.tsx'
-import { useFieldSpecs, useTypeTemplateSpecs } from '../components/domain/FieldValue.tsx'
+import {
+  pickableOptions,
+  useFieldSpecs,
+  useTypeTemplateSpecs,
+} from '../components/domain/FieldValue.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../components/ui/dialog.tsx'
 import { Input } from '../components/ui/input.tsx'
@@ -26,7 +30,7 @@ import { Skeleton } from '../components/ui/skeleton.tsx'
 import { api, unwrap } from '../lib/api.ts'
 import { cn } from '../lib/cn.ts'
 import {
-  BUG_SORTS,
+  bugSorts,
   ENTRY_SORTS,
   type EntryKind,
   type EntryPage,
@@ -53,7 +57,9 @@ export function EntryQueryView({ node, editor, updateAttributes }: NodeViewProps
   const isStatic = !!(editor.storage as unknown as Record<string, unknown>).xzStaticDoc
   const writable = editor.isEditable && !isStatic
   const href = `/entries?${stringifyEntryFilter(filter)}`
-  const isBug = filter.kind === 'bug'
+  const specsOf = useFieldSpecs()
+  // 统计视图只对 Bug、且状态未被代码字段覆盖隐藏（ADR-0042）
+  const isBug = filter.kind === 'bug' && specsOf('bug').some((f) => f.name === 'status')
 
   if (isStatic)
     return (
@@ -238,6 +244,8 @@ function QuerySettings({
   const specsOf = useFieldSpecs()
   const templateSpecsOf = useTypeTemplateSpecs()
   const typeSpecs = kind ? specsOf(kind) : []
+  // 统计视图只对 Bug、且状态未被代码字段覆盖隐藏（ADR-0042）
+  const bugStatsOk = kind === 'bug' && typeSpecs.some((f) => f.name === 'status')
   const specs = [
     ...typeSpecs,
     ...templateSpecsOf(kind ? { kind, typeId: null } : null, typeSpecs, Object.keys(fieldMap)),
@@ -256,7 +264,7 @@ function QuerySettings({
     onSave({
       ...v,
       title: v.title.trim(),
-      view: v.view === 'stats' && kind !== 'bug' ? 'table' : v.view,
+      view: v.view === 'stats' && !bugStatsOk ? 'table' : v.view,
     })
   }
   const sel = 'h-9 w-full rounded-md border border-border bg-surface px-2 text-sm'
@@ -347,7 +355,7 @@ function QuerySettings({
                   {kind === 'bug' && f.name === 'status' ? (
                     <option value="new|pending">{t('bug.stats.open')}</option>
                   ) : null}
-                  {f.options.map((o) => (
+                  {pickableOptions(f, fieldMap[f.name]).map((o) => (
                     <option key={String(o.value)} value={String(o.value)}>
                       {o.label}
                     </option>
@@ -370,7 +378,7 @@ function QuerySettings({
                 })
               }
             >
-              {[...ENTRY_SORTS, ...(kind === 'bug' ? BUG_SORTS : [])].map((s) => (
+              {[...ENTRY_SORTS, ...(kind === 'bug' ? bugSorts(typeSpecs) : [])].map((s) => (
                 <option key={s} value={s}>
                   {t(`entry.sort.${s}`)}
                 </option>
@@ -385,7 +393,7 @@ function QuerySettings({
               onChange={(e) => setV((s) => ({ ...s, view: e.target.value as QueryView }))}
               data-testid="entry-query-view-select"
             >
-              {ENTRY_QUERY_VIEWS.filter((x) => x !== 'stats' || kind === 'bug').map((x) => (
+              {ENTRY_QUERY_VIEWS.filter((x) => x !== 'stats' || bugStatsOk).map((x) => (
                 <option key={x} value={x}>
                   {t(`editor.query.views.${x}`)}
                 </option>

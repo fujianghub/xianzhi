@@ -6,8 +6,8 @@
  */
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import type { z } from 'zod'
-import { BUG_CLOSED_STATUSES, entryFieldsByKind } from '../../../shared/schemas/entryFields.ts'
+import { baseFieldCatalog, sortByFieldOrder } from '../../../shared/schemas/baseFields.ts'
+import { BUG_CLOSED_STATUSES } from '../../../shared/schemas/entryFields.ts'
 import { type FieldDef, mergeFieldDefs } from '../../../shared/schemas/fieldDefs.ts'
 import { type EntryKind, entryStatsQuery } from '../../lib/entry-queries.ts'
 import { useKindLabel } from '../../lib/entry-types.ts'
@@ -24,19 +24,11 @@ type Spec =
     }
   | { name: string; kind: 'date' | 'text' | 'number'; required: boolean }
 
-interface Def {
-  type: string
-  innerType?: z.ZodType
-  entries?: Record<string, string>
-  options?: z.ZodType[]
-  values?: unknown[]
-  format?: string
-}
-const defOf = (s: z.ZodType) => (s as unknown as { _zod: { def: Def } })._zod.def
-
-/** Zod shape → 表单项规格（仅覆盖 entryFields 用到的类型）。 */
+/**
+ * 代码字段目录（ADR-0042：由 shared `baseFieldCatalog` 反射 Zod shape；不含覆盖层）。
+ * 业务展示一律走 `useFieldSpecs`（套上隐藏 / 显示名 / 选项覆盖与顺序）；这里只给目录与设置页用。
+ */
 export function fieldSpecs(kind: EntryKind, statuses?: string[] | null): Spec[] {
-  const shape = (entryFieldsByKind[kind] as unknown as { shape: Record<string, z.ZodType> }).shape
   if (kind === 'custom')
     return [
       ...(statuses?.length
@@ -53,27 +45,11 @@ export function fieldSpecs(kind: EntryKind, statuses?: string[] | null): Spec[] 
       { name: 'progress', kind: 'number', required: false },
       { name: 'dueDate', kind: 'date', required: false },
     ]
-  return Object.entries(shape).map(([name, raw]) => {
-    let s = raw
-    let required = true
-    while (['optional', 'default', 'nullable'].includes(defOf(s).type)) {
-      required = false
-      s = defOf(s).innerType as z.ZodType
-    }
-    const d = defOf(s)
-    if (d.type === 'enum')
-      return { name, kind: 'select', options: Object.values(d.entries ?? {}), required }
-    if (d.type === 'union' && d.options?.every((o) => defOf(o).type === 'literal'))
-      return {
-        name,
-        kind: 'select',
-        options: d.options.flatMap((o) => (defOf(o).values ?? []) as (string | number)[]),
-        required,
-      }
-    if (d.type === 'number') return { name, kind: 'number', required }
-    const isDate = d.format === 'date' || /date$|Date$|At$|Start$|End$/.test(name)
-    return { name, kind: isDate ? 'date' : 'text', required }
-  })
+  return baseFieldCatalog(kind).map((f) =>
+    f.kind === 'select'
+      ? { name: f.name, kind: 'select', options: f.options, required: f.required }
+      : { name: f.name, kind: f.kind, required: f.required },
+  )
 }
 
 /** 新建对话框里 Bug 只填这些（ADR-0033 快速提 Bug）；状态默认新建、发现日期服务端补，其余在属性栏补。 */
@@ -120,8 +96,15 @@ export function EntryFieldsForm({
         meta.fieldDefs.filter((d) => !removed.includes(d.key)),
         template?.fieldDefs ?? [],
       )
-  const specs = fieldSpecs(kind, meta.statuses).filter(
+  // 代码字段覆盖（ADR-0042）：隐藏的不出现，显示名 / 选项名取覆盖，按属性顺序
+  const ov = meta.baseFields
+  const specs = sortByFieldOrder(
+    fieldSpecs(kind, meta.statuses),
+    (f) => f.name,
+    meta.fieldOrder,
+  ).filter(
     (f) =>
+      !ov[f.name]?.hidden &&
       (!only || only.includes(f.name)) &&
       (f.required || !removed.includes(f.name)) &&
       // 解决日期只在已关闭时显示（服务端维护，ADR-0033）
@@ -144,7 +127,7 @@ export function EntryFieldsForm({
         return (
           <label key={f.name} htmlFor={id} className="flex flex-col gap-1 text-sm">
             <span className="text-fg-muted text-xs">
-              {t(`entry.field.${f.name}`)}
+              {ov[f.name]?.label ?? t(`entry.field.${f.name}`)}
               {f.required ? ' *' : ''}
             </span>
             {f.kind === 'select' ? (
@@ -161,13 +144,18 @@ export function EntryFieldsForm({
                 aria-invalid={!!err}
               >
                 <option value="">—</option>
-                {f.options.map((o) => (
-                  <option key={String(o)} value={String(o)}>
-                    {typeof o === 'number' || f.raw
-                      ? o
-                      : t(`entry.fieldValue.${o}`, { defaultValue: o })}
-                  </option>
-                ))}
+                {f.options
+                  .filter(
+                    (o) => !ov[f.name]?.options?.[String(o)]?.hidden || String(o) === String(cur),
+                  )
+                  .map((o) => (
+                    <option key={String(o)} value={String(o)}>
+                      {ov[f.name]?.options?.[String(o)]?.label ??
+                        (typeof o === 'number' || f.raw
+                          ? o
+                          : t(`entry.fieldValue.${o}`, { defaultValue: o }))}
+                    </option>
+                  ))}
               </select>
             ) : (
               <Input
