@@ -161,6 +161,7 @@
 - 无 Collaboration；内容以 `pm_json` 直接保存（`PATCH /tasks/:id { descriptionPm, ifUpdatedAt }`）。
 - 节点子集：paragraph, heading(2–3), lists, taskList, codeBlock, link, image(attachment), mention, entryLink, callout；无表格、无 mermaid。
 - 评论：同 liteKit 再去掉 heading/callout/image；单行回车提交、Shift+Enter 换行。
+- 描述贴图（2026-10-01 ADR-0043、REQ-TASK-028）：`LiteEditor uploadTaskId` 启用拖入 / 粘贴文件与「插入图片」按钮，上传为任务附件（只收图片），占位同正文（`UploadPlaceholder`）；插入后立即保存（不等失焦）；插入前按描述 JSON 大小对照 `MAX_JSON_BYTES`（100KB）检查。评论不开。
 
 ---
 
