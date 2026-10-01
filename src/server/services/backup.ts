@@ -189,6 +189,7 @@ export const COUNTED_TABLES = [
   'spaces',
   'space_members',
   'tasks',
+  'task_lists',
   'entries',
   'entry_snapshots',
   'comments',

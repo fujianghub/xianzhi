@@ -22,6 +22,9 @@ export const ENTRY_KINDS = [
 export const ENTRY_SORTS = ['-updatedAt', '-createdAt', 'title'] as const
 /** 只选 Bug 时多出的排序（ADR-0033） */
 export const BUG_SORTS = ['priority', '-foundAt'] as const
+/** Bug 排序里字段仍可见的那些（代码字段覆盖隐藏了优先级 / 发现日期则不列，ADR-0042） */
+export const bugSorts = (specs: readonly { name: string }[]) =>
+  BUG_SORTS.filter((s) => specs.some((f) => f.name === s.replace(/^-/, '')))
 
 /** 与 02 §9 查询参数同名（kind 为 csv，前端按单值逐个请求时直接传）。 */
 export interface EntryListParams {

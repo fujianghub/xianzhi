@@ -20,16 +20,19 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useEntryActions } from '../../hooks/useEntries.ts'
 import { cn } from '../../lib/cn.ts'
-import type { Entry, EntryKind } from '../../lib/entry-queries.ts'
+import type { Entry } from '../../lib/entry-queries.ts'
 import { KeyFieldPills } from './EntryCard.tsx'
-import { fieldSpecs } from './EntryFieldsForm.tsx'
 import { type FieldSpec, StatusPill, useFieldSpecs } from './FieldValue.tsx'
 
-/** 该类型的 status 枚举；没有则不可用看板。 */
-export function boardStatuses(kind: EntryKind | undefined): string[] | null {
-  if (!kind) return null
-  const f = fieldSpecs(kind).find((x) => x.name === 'status')
-  return f && f.kind === 'select' ? f.options.map(String) : null
+/**
+ * 看板列 = 状态规格里的选项（已套代码字段覆盖，ADR-0042）；状态被隐藏 / 没有状态 → null（不可用看板）。
+ * 被隐藏的选项只在有卡片时出列（`items`）。
+ */
+export function boardStatuses(spec: FieldSpec | undefined, items: Entry[] = []): string[] | null {
+  if (spec?.kind !== 'select' || !spec.options.length) return null
+  return spec.options
+    .filter((o) => !o.hidden || items.some((e) => String(e.fields.status) === String(o.value)))
+    .map((o) => String(o.value))
 }
 
 export function EntryBoard({
@@ -47,6 +50,10 @@ export function EntryBoard({
   const statusSpec = items[0]
     ? specsOf(items[0].kind, items[0].typeId).find((f) => f.name === 'status')
     : undefined
+  const cols = boardStatuses(statusSpec, items) ?? statuses
+  const labelOf = (v: string) =>
+    statusSpec?.options.find((o) => String(o.value) === v)?.label ??
+    t(`entry.fieldValue.${v}`, { defaultValue: v })
   // 放下即本地移动（乐观），请求失败再回原列
   const [override, setOverride] = useState<Record<string, string>>({})
   const statusOf = (e: Entry) => override[e.id] ?? String(e.fields.status ?? statuses[0])
@@ -65,7 +72,7 @@ export function EntryBoard({
       .then(() =>
         toast.success(
           t('entry.board.moved', {
-            status: t(`entry.fieldValue.${to}`, { defaultValue: to }),
+            status: labelOf(to),
           }),
         ),
       )
@@ -83,10 +90,11 @@ export function EntryBoard({
         className="grid auto-cols-[minmax(15rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-2"
         data-testid="entry-board"
       >
-        {statuses.map((s) => (
+        {cols.map((s) => (
           <Column
             key={s}
             status={s}
+            label={labelOf(s)}
             spec={statusSpec}
             items={items.filter((e) => statusOf(e) === s)}
           >
@@ -100,18 +108,19 @@ export function EntryBoard({
 
 function Column({
   status,
+  label,
   spec,
   items,
   children,
 }: {
   status: string
+  label: string
   spec?: FieldSpec
   items: Entry[]
   children: (e: Entry) => React.ReactNode
 }) {
   const { t } = useTranslation()
   const { setNodeRef, isOver } = useDroppable({ id: `col:${status}` })
-  const label = t(`entry.fieldValue.${status}`, { defaultValue: status })
   return (
     <section
       ref={setNodeRef}

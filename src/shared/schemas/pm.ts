@@ -76,7 +76,7 @@ export const COMMENT_NODES = LITE_NODES.filter(
   (n) => !['heading', 'callout', 'image'].includes(n),
 ) as unknown as readonly (typeof LITE_NODES)[number][]
 
-const MAX_JSON_BYTES = 100 * 1024
+export const MAX_JSON_BYTES = 100 * 1024
 
 export interface PmNode {
   type: string

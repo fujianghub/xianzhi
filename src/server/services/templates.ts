@@ -52,6 +52,8 @@ import { type EntryCtx, loadEntry, loadSpaceRef } from './entries.ts'
 import {
   applyFieldDefChanges,
   builtinFieldDefs,
+  builtinKindMeta,
+  checkBaseFields,
   loadEntryType,
   normalizeCustomFields,
   normalizeExtraFields,
@@ -352,19 +354,19 @@ async function checkFields(
   own: FieldDef[] = [],
 ): Promise<Record<string, unknown>> {
   const { base, extra } = splitExtraFields(fields)
+  if (kind !== 'custom') {
+    // 按代码字段覆盖校验（ADR-0042）：隐藏的必填字段补默认或可省
+    const meta = await builtinKindMeta(db, ctx.workspaceId, kind)
+    return {
+      ...checkBaseFields(kind, base, meta.baseFields),
+      ...normalizeExtraFields(mergeFieldDefs(meta.fieldDefs, own), extra),
+    }
+  }
   const r = entryFieldsByKind[kind].safeParse(base)
   if (!r.success)
     throw AppError.validation(
       r.error.issues.map((i) => ({ path: ['fields', ...i.path].join('.'), message: i.message })),
     )
-  if (kind !== 'custom')
-    return {
-      ...base,
-      ...normalizeExtraFields(
-        mergeFieldDefs(await builtinFieldDefs(db, ctx.workspaceId, kind), own),
-        extra,
-      ),
-    }
   const t = typeId ? await loadEntryType(db, ctx.workspaceId, typeId) : null
   if (!t) throw AppError.validation([{ path: 'typeId', message: '类型不存在' }])
   return {

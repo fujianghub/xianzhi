@@ -80,11 +80,16 @@ interface Uploaded {
   blurhash: string | null
 }
 
-async function post(file: File, entryId: string): Promise<Uploaded> {
+/** 上传目标：记录正文（给 ydoc，按其编码大小做软限）或任务描述（liteKit，按 JSON 大小，ADR-0043） */
+export type UploadCtx =
+  | { entryId: string; ydoc: Y.Doc }
+  | { taskId: string; imagesOnly: true; maxJsonBytes: number; onInserted?: () => void }
+
+async function post(file: File, ctx: UploadCtx): Promise<Uploaded> {
   const fd = new FormData()
   fd.append('file', file)
-  fd.append('targetType', 'entry')
-  fd.append('targetId', entryId)
+  fd.append('targetType', 'entryId' in ctx ? 'entry' : 'task')
+  fd.append('targetId', 'entryId' in ctx ? ctx.entryId : ctx.taskId)
   const r = await fetch('/api/v1/attachments', {
     method: 'POST',
     body: fd,
@@ -112,9 +117,20 @@ const softLimit = (): number => {
   return DOC_SOFT_LIMIT
 }
 
-/** 插入前的软限检查；超限 Toast 并返回 false（REQ-EDITOR-017）。 */
-export function canInsertAttachment(editor: Editor, ydoc: Y.Doc, images: number): boolean {
-  if (Y.encodeStateAsUpdate(ydoc).byteLength > softLimit()) {
+/**
+ * 插入前的软限检查；超限 Toast 并返回 false（REQ-EDITOR-017）。
+ * 正文按 ydoc 编码大小；任务描述（无 ydoc）按 PM JSON 大小对照服务端上限（ADR-0043）。
+ */
+export function canInsertAttachment(
+  editor: Editor,
+  doc: Y.Doc | { maxJsonBytes: number },
+  images: number,
+): boolean {
+  const over =
+    doc instanceof Y.Doc
+      ? Y.encodeStateAsUpdate(doc).byteLength > softLimit()
+      : new Blob([JSON.stringify(editor.getJSON())]).size > doc.maxJsonBytes
+  if (over) {
     toast.error(i18n.t('editor.tooLargeSoft'))
     return false
   }
@@ -125,14 +141,14 @@ export function canInsertAttachment(editor: Editor, ydoc: Y.Doc, images: number)
   return true
 }
 
-export function uploadFiles(
-  editor: Editor,
-  files: File[],
-  at: number,
-  ctx: { entryId: string; ydoc: Y.Doc },
-) {
+export function uploadFiles(editor: Editor, files: File[], at: number, ctx: UploadCtx) {
   const valid = files.filter((f) => {
     const img = f.type.startsWith('image/')
+    // 任务描述只收图片（liteKit 无附件节点）
+    if (!img && 'imagesOnly' in ctx) {
+      toast.error(i18n.t('editor.imagesOnly', { name: f.name }))
+      return false
+    }
     const cap = img
       ? ATTACHMENT_LIMITS.image
       : f.type === 'application/pdf'
@@ -145,7 +161,7 @@ export function uploadFiles(
     return true
   })
   const images = valid.filter((f) => f.type.startsWith('image/')).length
-  if (!valid.length || !canInsertAttachment(editor, ctx.ydoc, images)) return
+  if (!valid.length || !canInsertAttachment(editor, 'ydoc' in ctx ? ctx.ydoc : ctx, images)) return
   for (const file of valid) {
     const id = newId()
     editor.view.dispatch(
@@ -157,7 +173,7 @@ export function uploadFiles(
         },
       } satisfies PhMeta),
     )
-    void slot(() => post(file, ctx.entryId))
+    void slot(() => post(file, ctx))
       .then((a) => {
         const pos = phPos(editor, id)
         editor.view.dispatch(editor.state.tr.setMeta(key, { remove: id } satisfies PhMeta))
@@ -178,6 +194,8 @@ export function uploadFiles(
               attrs: { attachmentId: a.id, name: a.filename, size: a.size, mime: a.mime },
             }
         editor.chain().insertContentAt(pos, node).run()
+        // 任务描述不走 Yjs：插入后由调用方保存（失焦保存可能早已发生）
+        if ('onInserted' in ctx) ctx.onInserted?.()
       })
       .catch(() => {
         if (!editor.isDestroyed)

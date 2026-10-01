@@ -20,6 +20,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core'
+import type { BaseFieldOverrides } from '../../../shared/schemas/baseFields.ts'
 import {
   ATTACHMENT_TARGET_TYPES,
   AUDIT_ACTIONS,
@@ -42,6 +43,7 @@ import {
   SPACE_KINDS,
   SPACE_ROLES,
   SPACE_VISIBILITIES,
+  TASK_LIST_KINDS,
   TASK_STATUSES,
   TEMPLATE_SCOPES,
   TRACKED_ENTRY_FIELDS,
@@ -268,6 +270,10 @@ export const entryKindOverrides = pgTable(
     deleted: boolean().notNull().default(false),
     /** 内置类型追加的字段（ADR-0036、REQ-ENTRY-028）：工作区统一，仅所有者维护 */
     fieldDefs: jsonb().$type<FieldDef[]>().notNull().default(sql`'[]'::jsonb`),
+    /** 内置字段覆盖（ADR-0042、REQ-ENTRY-034）：字段名 → { hidden?, label?, options? } */
+    baseFields: jsonb().$type<BaseFieldOverrides>().notNull().default(sql`'{}'::jsonb`),
+    /** 属性顺序（内置字段名与追加字段 x 键混排，ADR-0042） */
+    fieldOrder: jsonb().$type<string[]>().notNull().default(sql`'[]'::jsonb`),
     updatedAt: updatedAt(),
   },
   (t) => [
@@ -557,6 +563,54 @@ export const taskTags = pgTable(
       .references(() => tags.id, { onDelete: 'cascade' }),
   },
   (t) => [primaryKey({ columns: [t.taskId, t.tagId] })],
+)
+
+/**
+ * 个人清单（ADR-0044、REQ-TASK-029）：任务的按人分类（同标签按人私有，ADR-0017）。
+ * kind = list（带色）/ folder（无色，只装清单，深度 1）；删文件夹 → 其下清单回到根；删清单 → 归类随之删除，任务不动。
+ */
+export const taskLists = pgTable(
+  'task_lists',
+  {
+    id: pk(),
+    workspaceId: orgRef(),
+    ownerId: userRef().notNull(),
+    kind: text().notNull(),
+    parentId: uuid().references((): AnyPgColumn => taskLists.id, { onDelete: 'set null' }),
+    name: text().notNull(),
+    color: text(),
+    // 列级 COLLATE "C"（0026 手写）：fractional-indexing 键须按字节序比较
+    sortKey: text().notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique('task_lists_owner_name_uq').on(t.workspaceId, t.ownerId, t.kind, t.name),
+    index('task_lists_owner_idx').on(t.ownerId, t.sortKey),
+    check('task_lists_kind_ck', inList(t.kind, TASK_LIST_KINDS)),
+    check('task_lists_color_ck', sql`${t.color} is null or ${inList(t.color, PALETTE_COLORS)}`),
+    check('task_lists_folder_color_ck', sql`(${t.kind} = 'folder') = (${t.color} is null)`),
+  ],
+)
+
+/**
+ * 任务归入谁的哪个清单（ADR-0044）：按人一行——同一任务各人各归各的，互不覆盖；不动 tasks 行（不改 updatedAt）。
+ */
+export const taskListItems = pgTable(
+  'task_list_items',
+  {
+    taskId: uuid()
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    userId: userRef().notNull(),
+    listId: uuid()
+      .notNull()
+      .references(() => taskLists.id, { onDelete: 'cascade' }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.taskId, t.userId] }),
+    index('task_list_items_list_idx').on(t.listId),
+  ],
 )
 
 export const entryTags = pgTable(

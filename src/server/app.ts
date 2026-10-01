@@ -41,6 +41,7 @@ import { spaceGroupRoutes } from './routes/space-groups.ts'
 import { spaceRoutes } from './routes/spaces.ts'
 import { streamRoutes } from './routes/stream.ts'
 import { tagRoutes } from './routes/tags.ts'
+import { taskListRoutes } from './routes/task-lists.ts'
 import { taskRoutes } from './routes/tasks.ts'
 import { templateRoutes } from './routes/templates.ts'
 import { workspaceRoutes } from './routes/workspace.ts'
@@ -211,6 +212,7 @@ export function createApp(deps: AppDeps) {
     .route('/api/v1/spaces', spaceRoutes({ db: deps.db, dataDir: deps.dataDir }))
     .route('/api/v1/tasks', taskRoutes({ db: deps.db, dataDir: deps.dataDir }))
     .route('/api/v1/tags', tagRoutes({ db: deps.db }))
+    .route('/api/v1/task-lists', taskListRoutes({ db: deps.db }))
     .route('/api/v1/entry-types', entryTypeRoutes({ db: deps.db }))
     .route('/api/v1/entry-views', entryViewRoutes({ db: deps.db }))
     .route('/api/v1/space-groups', spaceGroupRoutes({ db: deps.db }))

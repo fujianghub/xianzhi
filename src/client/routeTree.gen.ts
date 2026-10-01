@@ -19,6 +19,7 @@ import { Route as AppInboxRouteImport } from './routes/_app.inbox'
 import { Route as AppNotificationsRouteImport } from './routes/_app.notifications'
 import { Route as AppSearchRouteImport } from './routes/_app.search'
 import { Route as AppSettingsRouteImport } from './routes/_app.settings'
+import { Route as AppTasksRouteImport } from './routes/_app.tasks'
 import { Route as AppTodayRouteImport } from './routes/_app.today'
 import { Route as AppTrashRouteImport } from './routes/_app.trash'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
@@ -94,6 +95,11 @@ const AppSearchRoute = AppSearchRouteImport.update({
 const AppSettingsRoute = AppSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTasksRoute = AppTasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTodayRoute = AppTodayRouteImport.update({
@@ -250,6 +256,7 @@ export interface FileRoutesByFullPath {
   '/notifications': typeof AppNotificationsRoute
   '/search': typeof AppSearchRoute
   '/settings': typeof AppSettingsRouteWithChildren
+  '/tasks': typeof AppTasksRoute
   '/today': typeof AppTodayRoute
   '/trash': typeof AppTrashRoute
   '/invite/$token': typeof InviteTokenRoute
@@ -287,6 +294,7 @@ export interface FileRoutesByTo {
   '/inbox': typeof AppInboxRoute
   '/notifications': typeof AppNotificationsRoute
   '/search': typeof AppSearchRoute
+  '/tasks': typeof AppTasksRoute
   '/today': typeof AppTodayRoute
   '/trash': typeof AppTrashRoute
   '/invite/$token': typeof InviteTokenRoute
@@ -327,6 +335,7 @@ export interface FileRoutesById {
   '/_app/notifications': typeof AppNotificationsRoute
   '/_app/search': typeof AppSearchRoute
   '/_app/settings': typeof AppSettingsRouteWithChildren
+  '/_app/tasks': typeof AppTasksRoute
   '/_app/today': typeof AppTodayRoute
   '/_app/trash': typeof AppTrashRoute
   '/invite/$token': typeof InviteTokenRoute
@@ -367,6 +376,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/search'
     | '/settings'
+    | '/tasks'
     | '/today'
     | '/trash'
     | '/invite/$token'
@@ -404,6 +414,7 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/notifications'
     | '/search'
+    | '/tasks'
     | '/today'
     | '/trash'
     | '/invite/$token'
@@ -443,6 +454,7 @@ export interface FileRouteTypes {
     | '/_app/notifications'
     | '/_app/search'
     | '/_app/settings'
+    | '/_app/tasks'
     | '/_app/today'
     | '/_app/trash'
     | '/invite/$token'
@@ -551,6 +563,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/tasks': {
+      id: '/_app/tasks'
+      path: '/tasks'
+      fullPath: '/tasks'
+      preLoaderRoute: typeof AppTasksRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/today': {
@@ -803,6 +822,7 @@ interface AppRouteChildren {
   AppNotificationsRoute: typeof AppNotificationsRoute
   AppSearchRoute: typeof AppSearchRoute
   AppSettingsRoute: typeof AppSettingsRouteWithChildren
+  AppTasksRoute: typeof AppTasksRoute
   AppTodayRoute: typeof AppTodayRoute
   AppTrashRoute: typeof AppTrashRoute
   AppEntriesEntryIdRoute: typeof AppEntriesEntryIdRoute
@@ -821,6 +841,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppNotificationsRoute: AppNotificationsRoute,
   AppSearchRoute: AppSearchRoute,
   AppSettingsRoute: AppSettingsRouteWithChildren,
+  AppTasksRoute: AppTasksRoute,
   AppTodayRoute: AppTodayRoute,
   AppTrashRoute: AppTrashRoute,
   AppEntriesEntryIdRoute: AppEntriesEntryIdRoute,

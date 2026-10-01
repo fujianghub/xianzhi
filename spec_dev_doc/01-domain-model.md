@@ -286,6 +286,8 @@
 | color | text? | 改过的色（9 色板 check）；null = 固定色 |
 | deleted | bool | 已删除（其下记录已转走；可恢复）；默认 false |
 | field_defs | jsonb | 内置类型追加的字段定义 `FieldDef[]`（≤ 20），默认 `[]`；代码字段不在此；仅 owner 可改（`entry_kind.manage`，ADR-0036） |
+| base_fields | jsonb | 代码字段覆盖（2026-10-01 ADR-0042，迁移 0025）：字段名 → `{ hidden?, label?, options?: { 值 → { label?, color?, hidden? } } }`，默认 `{}`；只改展示，键与值不变；隐藏的必填字段有默认值则补、无则可省；默认值选项不能隐藏 |
+| field_order | jsonb | 属性顺序（内置字段名与追加字段 x 键混排，ADR-0042），默认 `[]` = 代码顺序 + 追加字段 |
 | updated_at | timestamptz | |
 
 ### 3.4d 流转与保存视图（2026-09-29 ADR-0033）
@@ -410,6 +412,39 @@ FieldDef = { key: /^x[A-Z]{6}$/   // 系统生成、不可改，与内置 camelC
 |---|---|---|
 | entry_id | uuid | FK entries，PK 之一 |
 | tag_id | uuid | FK tags，PK 之一 |
+
+### 3.7b task_lists / task_list_items —— 个人清单（2026-10-01 ADR-0044，迁移 0026）
+
+任务的按人分类，同标签按人私有（ADR-0017）：只有本人可见、可管、往里归任务；任务仍属空间，权限不变。
+
+**task_lists**
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| id | uuid | PK |
+| workspace_id | text | FK organization |
+| owner_id | text | FK user；本人私有 |
+| kind | text | `list` \| `folder`（check） |
+| parent_id | uuid? | FK task_lists（set null）；仅清单可放进文件夹，深度 1（service 校验） |
+| name | text | 1–40，不含 `~ # !` |
+| color | text? | 9 色板；清单必有、文件夹为 null（check `(kind='folder') = (color is null)`） |
+| sort_key | text | 层内顺序（fractional-indexing，列级 COLLATE "C"） |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
+
+- 唯一 `(workspace_id, owner_id, kind, name)`；索引 `(owner_id, sort_key)`；每人 ≤ 200 项（07 §5）。
+- 删清单：归类随之级联删除，任务不动（回到「未归类」）；删文件夹：其下清单回到根。删号（purgeUser）时连同归类删除。
+
+**task_list_items**
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| task_id | uuid | FK tasks（cascade），PK 之一 |
+| user_id | text | FK user，PK 之一：谁的归类 |
+| list_id | uuid | FK task_lists（cascade）；索引 |
+
+- 同一任务各人各归各的、互不覆盖；归类不改 `tasks.updated_at`，不走乐观锁（只改本人的私人分类）。
+- 读：任务视图的 `list` 只连本人那一行（`selectJoined` 左连，零额外查询）；筛选 `listId=<id>|none` 用 `exists` 子查询。
 
 ### 3.8 attachments —— 附件
 

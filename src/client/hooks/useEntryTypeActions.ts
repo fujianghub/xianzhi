@@ -2,9 +2,11 @@
  * 类型写操作（ADR-0036）：空间类型对话框、模板表单、设置页的字段区共用。
  * 成功后失效类型列表与记录（字段定义变更会同步改记录里的值）。
  */
+
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import type { BaseFieldOverrides } from '../../shared/schemas/baseFields.ts'
 import type { BuiltinEntryKind, PaletteColor } from '../../shared/schemas/enums.ts'
 import type { FieldDef } from '../../shared/schemas/fieldDefs.ts'
 import { ApiError, api, unwrap } from '../lib/api.ts'
@@ -75,6 +77,9 @@ export function useEntryTypeActions() {
       kind: BuiltinEntryKind
       fieldDefs?: FieldDefInput[]
       optionRenames?: OptionRenames
+      /** 代码字段覆盖与顺序（ADR-0042）；null = 恢复默认 */
+      baseFields?: BaseFieldOverrides | null
+      fieldOrder?: string[] | null
     }) =>
       unwrap<EntryTypesList>(
         api['entry-types'].builtin[':kind'].$patch({ param: { kind }, json: json as never }),

@@ -46,6 +46,7 @@ test.describe('owner', () => {
       })
       for (const path of [
         '/today',
+        '/tasks',
         `/entries/${id}`,
         '/settings/security',
         '/settings',

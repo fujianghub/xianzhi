@@ -13,6 +13,9 @@ export type SpaceKind = (typeof SPACE_KINDS)[number]
 export const SPACE_VISIBILITIES = ['workspace', 'members'] as const
 
 export const TASK_STATUSES = ['inbox', 'todo', 'doing', 'blocked', 'done', 'cancelled'] as const
+/** 个人清单的种类（ADR-0044）：清单 / 清单文件夹 */
+export const TASK_LIST_KINDS = ['list', 'folder'] as const
+export type TaskListKind = (typeof TASK_LIST_KINDS)[number]
 export type TaskStatus = (typeof TASK_STATUSES)[number]
 
 export const CYCLE_KINDS = ['week', 'month', 'quarter'] as const

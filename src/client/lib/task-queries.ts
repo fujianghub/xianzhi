@@ -28,8 +28,10 @@ export interface TaskListParams {
   tag?: string
   q?: string
   sort?: string
-  view?: 'today' | 'inbox'
-  due?: 'today' | 'week' | 'overdue'
+  view?: 'today' | 'inbox' | 'mine'
+  /** 本人清单（ADR-0044）：uuid 或 none（未归类） */
+  listId?: string
+  due?: 'today' | 'week' | 'overdue' | 'tomorrow' | 'next7'
   dueBefore?: string
   dueAfter?: string
   /** 日历区间（REQ-TASK-024）：dueAt 或 scheduledAt ∈ [from, to) */

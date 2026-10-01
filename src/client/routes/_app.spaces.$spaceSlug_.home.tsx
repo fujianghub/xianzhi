@@ -38,6 +38,7 @@ import { useNewEntryContext } from '../hooks/useNewEntryContext.ts'
 import { ApiError, api, unwrap } from '../lib/api.ts'
 import { cn } from '../lib/cn.ts'
 import {
+  bugSorts,
   type Entry,
   type EntryKind,
   type EntryPage,
@@ -389,7 +390,9 @@ function TypeSection({
       {
         ...base,
         ...(status ? { fields: `status=${status}` } : {}),
-        sort: meta.kind === 'bug' ? 'priority' : '-updatedAt',
+        // Bug 按优先级（优先级被代码字段覆盖隐藏则按更新时间，ADR-0042）
+        sort:
+          meta.kind === 'bug' && bugSorts(specs).includes('priority') ? 'priority' : '-updatedAt',
       },
       100,
     ),
@@ -414,24 +417,26 @@ function TypeSection({
               {t('kb.home.allStatuses')}
               <span className="tabular-nums">{stats.data?.total ?? '…'}</span>
             </button>
-            {statusSpec.options.map((o) => (
-              <button
-                key={String(o.value)}
-                type="button"
-                aria-pressed={status === String(o.value)}
-                onClick={() => onStatus(status === String(o.value) ? undefined : String(o.value))}
-                className={cn(
-                  'xz-status-filter',
-                  toneClass(o.tone),
-                  status === String(o.value) && 'xz-status-filter-on',
-                )}
-                data-status={String(o.value)}
-              >
-                <span className="xz-pill-dot" aria-hidden />
-                {o.label}
-                <span className="tabular-nums">{counts.get(String(o.value)) ?? 0}</span>
-              </button>
-            ))}
+            {statusSpec.options
+              .filter((o) => !o.hidden || (counts.get(String(o.value)) ?? 0) > 0)
+              .map((o) => (
+                <button
+                  key={String(o.value)}
+                  type="button"
+                  aria-pressed={status === String(o.value)}
+                  onClick={() => onStatus(status === String(o.value) ? undefined : String(o.value))}
+                  className={cn(
+                    'xz-status-filter',
+                    toneClass(o.tone),
+                    status === String(o.value) && 'xz-status-filter-on',
+                  )}
+                  data-status={String(o.value)}
+                >
+                  <span className="xz-pill-dot" aria-hidden />
+                  {o.label}
+                  <span className="tabular-nums">{counts.get(String(o.value)) ?? 0}</span>
+                </button>
+              ))}
           </div>
         ) : null}
         <div className="ms-auto flex items-center gap-2">

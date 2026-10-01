@@ -230,15 +230,16 @@
 - `reorder` 要求对被拖项有 `space.manage`，因为 `sort_key` 是工作区共享顺序；`after` 只需可读。
 - 个人空间不可归档（它是收件箱默认落点），也不可改成员。`POST /spaces/:id/members` 按工作区角色封顶：guest 只能是 `viewer`，否则 422。
 - `DELETE /spaces/:id?permanent=1` 连同任务 / 记录 / 评论 / 附件一并清除，记审计 `space.permanently_deleted`；未软删的空间也可直接永久删。
-| GET | `/tasks` | 筛选 `spaceId status assigneeId cycleId tag dueBefore dueAfter q deleted`；日历区间 `from to`（dueAt 或 scheduledAt ∈ [from, to)，须同给、≤ 62 天，REQ-TASK-024）；`view=today\|inbox`（服务端按用户时区；**两者都排除 `done / cancelled`**，`today` = 逾期未完成 ∪ 今日到期 ∪ 今日开始，`inbox` = `status=inbox` 且创建者或指派人为我）；`due=today\|week\|overdue`；sort 白名单 `updatedAt createdAt dueAt priority title sortKey` | REQ-TASK-004 · 005 · 006 |
+| GET | `/tasks` | 筛选 `spaceId status assigneeId cycleId tag dueBefore dueAfter q deleted`；日历区间 `from to`（dueAt 或 scheduledAt ∈ [from, to)，须同给、≤ 62 天，REQ-TASK-024）；`view=today\|inbox`（服务端按用户时区；**两者都排除 `done / cancelled`**，`today` = 逾期未完成 ∪ 今日到期 ∪ 今日开始，`inbox` = `status=inbox` 且创建者或指派人为我）；`due=today\|week\|overdue`；sort 白名单 `updatedAt createdAt dueAt priority title sortKey`（注 2026-10-01 ADR-0043：+`view=mine` = 指派给我或未指派且由我创建的**顶层**任务，可叠加 `status`，任务页用；不排除任何状态）（注 2026-10-01 ADR-0044：+`listId=<uuid>\|none`（本人清单 / 未归类；给了具体清单时以「在我的这个清单里」替代 `mine` 人员条件）、`due=tomorrow\|next7`；create / patch / batch update +`listId?: uuid\|null`——只改本人的归类，只给 `listId` 时不查乐观锁、不改 `updatedAt`、只需可读；视图 +`list: {id,name,color}\|null`（仅本人的））；PATCH 修正：`status` / `priority` 不再带默认值（debug/2026-10-01-task-patch-defaults） | REQ-TASK-004 · 005 · 006 · 025 · 030 · 031 |
 | POST | `/tasks` | 创建；`Idempotency-Key` | REQ-TASK-001 |
+| GET | `/tasks/counts` | （2026-10-01 ADR-0044）任务页左栏计数：`view=mine` 口径的未完成任务 `{ all, today, tomorrow, next7, overdue, unlisted, lists: {id: n} }`；`today` 同 `view=today`（含子任务），其余只算顶层；边界按用户时区；可 `?spaceId=`；注册在 `/:id` 之前 | REQ-TASK-031 |
 | GET | `/tasks/:id` | 详情（含 `descriptionPm`）；Peek 复用 | REQ-TASK-012 · REQ-UI-007 |
 | PATCH | `/tasks/:id` | 带 `ifUpdatedAt`；改 `assigneeId` 发 `task.assigned` | REQ-TASK-007 · 012 |
 | DELETE | `/tasks/:id` | 软删；`?permanent=1` 仅 owner/admin | REQ-TASK-013 |
 | POST | `/tasks/:id/restore` | 恢复 | REQ-TASK-013 |
 | POST | `/tasks/:id/complete` | 完成；处理 recurrence；发 `task.completed` | REQ-TASK-002 · 011 |
 | POST | `/tasks/:id/uncomplete` | 撤销完成，回到 `prevStatus`；发 `task.uncompleted` | REQ-TASK-021 |
-| POST | `/tasks/batch` | `{ ops[] }` ≤ 100，整体事务 | REQ-TASK-016 |
+| POST | `/tasks/batch` | `{ ops[] }` ≤ 100，整体事务（注 2026-10-01 ADR-0045：op +`restore`、+`uncomplete`（已非完成态跳过）；删除项的空间另查后并入实时失效） | REQ-TASK-016 · 041 |
 | GET | `/tasks/:id/watchers` | 关注者 | REQ-TASK-014 |
 | POST | `/tasks/:id/watchers` | `{ userId }` | REQ-TASK-014 |
 | DELETE | `/tasks/:id/watchers/:userId` | 取消关注 | REQ-TASK-014 |
@@ -302,7 +303,7 @@
 | POST | `/entry-types` | `{ name, color, statuses? }`；本人名下重名 409；`Idempotency-Key`；非 guest（ADR-0017）（注 ADR-0036：+`spaceId?`（空间类型：需 `space.manage`、空间未归档、非个人空间；同空间重名 409）、`fieldDefs?`（新字段 `key` 由服务端生成）、`statusColors?`） | REQ-ENTRY-018 · 027 · REQ-KB-015 |
 | PATCH | `/entry-types/:id` | `{ name?, color?, statuses?, renames? }`；需 `entry_type.manage`（注 ADR-0036：+`fieldDefs?`（已有字段带原 `key`，`type` 不可改；删字段同事务清值）、`optionRenames? {key:{旧:新}}`、`statusColors?`；批量改值审计 `entry_type.fields_changed`；空间类型需 `space.manage`） | REQ-ENTRY-018 · 027 · REQ-KB-015 |
 | DELETE | `/entry-types/:id` | `?moveTo=kind\|uuid`（缺省随笔）其下记录转走后删除；审计 `entry_type.deleted` | REQ-ENTRY-019 · 020 |
-| PATCH | `/entry-types/builtin/:kind` | `{ name?, color? }`（null = 恢复默认）；仅所有者（`entry_kind.manage`，ADR-0017）（注 ADR-0036：+`fieldDefs?`、`optionRenames?`：内置类型追加字段，规则同自定义类型） | REQ-ENTRY-020 · 028 |
+| PATCH | `/entry-types/builtin/:kind` | `{ name?, color? }`（null = 恢复默认）；仅所有者（`entry_kind.manage`，ADR-0017）（注 ADR-0036：+`fieldDefs?`、`optionRenames?`：内置类型追加字段，规则同自定义类型）（注 2026-10-01 ADR-0042：+`baseFields?` `fieldOrder?` 代码字段覆盖与属性顺序，整组替换、null = 恢复默认，只给其一也可；`GET /entry-types` 的 `builtin[]` 同返回；不写审计） | REQ-ENTRY-020 · 028 · 034 |
 | DELETE | `/entry-types/builtin/:kind` | `?moveTo=<内置 kind>`（删随笔时必填）全员该类型记录转走后标记已删除；仅所有者 | REQ-ENTRY-020 |
 | POST | `/entry-types/builtin/:kind/restore` | 恢复已删除的内置类型 | REQ-ENTRY-020 |
 | GET | `/entry-views` | 本人的保存视图 `{ items[{id, name, spaceId, search, createdAt, updatedAt}] }`（ADR-0033） | REQ-BUG-009 |
@@ -313,6 +314,10 @@
 | POST | `/tags` | `{ name, color }`；重名 409 | REQ-TAG-001 · 003 |
 | PATCH | `/tags/:id` | 改名 / 颜色 | REQ-TAG-001 |
 | DELETE | `/tags/:id` | 删除并解除关联 | REQ-TAG-001 |
+| GET | `/task-lists` | （2026-10-01 ADR-0044）本人的清单与文件夹（按层内 sortKey），附 `canCreate` | REQ-TASK-029 |
+| POST | `/task-lists` | `{ kind?: list\|folder, name, color?, parentId? }`；`Idempotency-Key`；同名 409；guest 403；每人 ≤ 200 | REQ-TASK-029 |
+| PATCH | `/task-lists/:id` | `{ name?, color?, parentId?, after? }`（改名 / 改色 / 移到文件夹 / 排序）；别人的 404 | REQ-TASK-029 |
+| DELETE | `/task-lists/:id` | 删清单：归类删除、任务不动；删文件夹：其下清单回到根 | REQ-TASK-029 · 030 |
 | POST | `/tags/:id/merge` | `{ intoId }` 关联并入目标（去重）后删源；需两者 `tag.manage`（ADR-0014） | REQ-TAG-005 |
 | GET | `/templates` | 内置 + 本人个人 + 工作区模板（`?kind=&spaceKind=`）；不返回正文；另返回 `canShare`，每行 `ownerName` `spaceDefaults`（ADR-0023）（注 ADR-0036：+`?typeId=`，每行带 `typeId`）（注 ADR-0038：内置行为覆盖后的版本、不含已删除的，含 `scope = builtin` 的入库内置模板，每行带 `canManage`；`?deleted=1` 仅所有者，只列已删除的代码内置模板，非所有者 403）（注 ADR-0039：每行 +`fieldDefs` `hiddenFields` `entryCount`） | REQ-TPL-001 · 004 · 006 · 009 · 011 · 013 · 014 · 015 · 016 |
 | POST | `/templates` | `{ name, scope, description?, spaceKind?, body+kind \| fromEntryId \| fromTemplateId }`（三选一；fromTemplateId = 复制到我的）；workspace 范围需非 guest（~~需管理员~~，ADR-0023）；幂等（注 ADR-0036：`kind` 可为 `custom` + `typeId`；workspace 模板只能绑内置 / 空间类型，personal 还可绑本人个人类型；`fields` 可含所绑类型的 x 键）（注 ADR-0038：`scope` 可为 `builtin`，仅所有者，其余 403；绑类型规则同 workspace；`fromTemplateId` 为内置时复制覆盖后的版本，已删除的 404）（注 ADR-0039：+`fieldDefs?`〔模板属性，键由服务端生成，输入里的新键只是临时句柄〕`hiddenFields?`〔移除的类型字段，不认识的丢弃〕；`fromTemplateId` / `fromEntryId` 沿用来源的元数据） | REQ-TPL-004 · 006 · 008 · 011 · 014 · 016 · 017 · 019 |

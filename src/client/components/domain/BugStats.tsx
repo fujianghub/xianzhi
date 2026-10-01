@@ -7,13 +7,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BUG_PRIORITIES, BUG_STATUSES } from '../../../shared/schemas/entryFields.ts'
 import { api, unwrap } from '../../lib/api.ts'
 import { cn } from '../../lib/cn.ts'
 import { type EntryStatsParams, entryStatsQuery } from '../../lib/entry-queries.ts'
 import { Skeleton } from '../ui/skeleton.tsx'
+import { useFieldSpecs } from './FieldValue.tsx'
 
-const SEVERITIES = ['critical', 'high', 'medium', 'low'] as const
 const RANGES = [
   { key: '4w', bucket: 'week', days: 28 },
   { key: '12w', bucket: 'week', days: 84 },
@@ -71,9 +70,12 @@ export function BugStats({
   const report = useQuery(
     bugStatsQuery({ ...params, from: isoDaysAgo(r.days - 1), bucket: r.bucket }),
   )
+  // 字段规格已套代码字段覆盖（ADR-0042）：被隐藏的字段不出分布卡，显示名 / 选项名取覆盖
+  const specs = useFieldSpecs()('bug')
+  const specOf = (name: string) => specs.find((f) => f.name === name)
   const dist = (groupBy: string) => ({
     ...entryStatsQuery({ ...params, kind: 'bug', groupBy }),
-    enabled: !compact,
+    enabled: !compact && !!specOf(groupBy),
   })
   const byStatus = useQuery(dist('status'))
   const byPriority = useQuery(dist('priority'))
@@ -92,7 +94,9 @@ export function BugStats({
         <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-5">
           <Tile label={t('bug.stats.total')} value={s.total} testId="total" />
           <Tile label={t('bug.stats.open')} value={s.open} testId="open" />
-          <Tile label={t('bug.stats.p0Open')} value={s.p0Open} testId="p0Open" />
+          {specOf('priority') ? (
+            <Tile label={t('bug.stats.p0Open')} value={s.p0Open} testId="p0Open" />
+          ) : null}
           <Tile label={t('bug.stats.closedInRange')} value={s.closedInRange} testId="closed" />
           <Tile label={t('bug.stats.reopened')} value={s.reopened} testId="reopened" />
         </div>
@@ -118,82 +122,84 @@ export function BugStats({
       {compact ? null : (
         <>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <Card title={t('entry.field.status')}>
-              <BarList
-                rows={BUG_STATUSES.map((v) => ({
-                  key: v,
-                  label: t(`entry.fieldValue.${v}`),
-                  n: counts(byStatus.data, 'status').get(v) ?? 0,
-                }))}
-                onPick={onFilter ? (v) => onFilter('status', v) : undefined}
-                testId="dist-status"
-              />
-            </Card>
-            <Card title={t('entry.field.priority')}>
-              <BarList
-                rows={BUG_PRIORITIES.map((v) => ({
-                  key: v,
-                  label: t(`entry.fieldValue.${v}`),
-                  n: counts(byPriority.data, 'priority').get(v) ?? 0,
-                }))}
-                onPick={onFilter ? (v) => onFilter('priority', v) : undefined}
-                testId="dist-priority"
-              />
-            </Card>
-            <Card title={t('entry.field.severity')}>
-              <BarList
-                rows={SEVERITIES.map((v) => ({
-                  key: v,
-                  label: t(`entry.fieldValue.${v}`),
-                  n: counts(bySeverity.data, 'severity').get(v) ?? 0,
-                }))}
-                onPick={onFilter ? (v) => onFilter('severity', v) : undefined}
-                testId="dist-severity"
-              />
-            </Card>
-            <Card title={t('entry.field.module')}>
-              <BarList
-                rows={(byModule.data?.groups ?? []).slice(0, 8).map((g) => ({
-                  key: g.values.module ?? '',
-                  label: g.values.module ?? t('entry.group.empty'),
-                  n: g.n,
-                }))}
-                onPick={onFilter ? (v) => v && onFilter('module', v) : undefined}
-                testId="dist-module"
-              />
-            </Card>
+            {(
+              [
+                ['status', byStatus.data],
+                ['priority', byPriority.data],
+                ['severity', bySeverity.data],
+              ] as const
+            ).map(([name, d]) => {
+              const spec = specOf(name)
+              if (!spec) return null
+              const n = counts(d, name)
+              // 严重度从高到低（代码定义是低 → 高）
+              const opts = name === 'severity' ? [...spec.options].reverse() : spec.options
+              return (
+                <Card key={name} title={spec.label}>
+                  <BarList
+                    rows={opts
+                      .filter((o) => !o.hidden || (n.get(String(o.value)) ?? 0) > 0)
+                      .map((o) => ({
+                        key: String(o.value),
+                        label: o.label,
+                        n: n.get(String(o.value)) ?? 0,
+                      }))}
+                    onPick={onFilter ? (v) => onFilter(name, v) : undefined}
+                    testId={`dist-${name}`}
+                  />
+                </Card>
+              )
+            })}
+            {specOf('module') ? (
+              <Card title={specOf('module')?.label ?? ''}>
+                <BarList
+                  rows={(byModule.data?.groups ?? []).slice(0, 8).map((g) => ({
+                    key: g.values.module ?? '',
+                    label: g.values.module ?? t('entry.group.empty'),
+                    n: g.n,
+                  }))}
+                  onPick={onFilter ? (v) => v && onFilter('module', v) : undefined}
+                  testId="dist-module"
+                />
+              </Card>
+            ) : null}
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Card title={t('bug.stats.mttr')} hint={t('bug.stats.mttrHint')}>
-              <table className="w-full text-sm" data-testid="bug-mttr">
-                <thead className="text-fg-muted text-xs">
-                  <tr>
-                    <th scope="col" className="py-1 text-left font-medium">
-                      {t('entry.field.priority')}
-                    </th>
-                    <th scope="col" className="py-1 text-right font-medium">
-                      {t('bug.stats.fixedCount')}
-                    </th>
-                    <th scope="col" className="py-1 text-right font-medium">
-                      {t('bug.stats.avgDays')}
-                    </th>
-                    <th scope="col" className="py-1 text-right font-medium">
-                      {t('bug.stats.medianDays')}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="tabular-nums">
-                  {data.mttr.map((m) => (
-                    <tr key={m.priority} className="border-divider border-t">
-                      <td className="py-1.5">{t(`entry.fieldValue.${m.priority}`)}</td>
-                      <td className="py-1.5 text-right">{m.n}</td>
-                      <td className="py-1.5 text-right">{m.n ? m.avgDays : '—'}</td>
-                      <td className="py-1.5 text-right">{m.n ? m.medianDays : '—'}</td>
+            {specOf('priority') ? (
+              <Card title={t('bug.stats.mttr')} hint={t('bug.stats.mttrHint')}>
+                <table className="w-full text-sm" data-testid="bug-mttr">
+                  <thead className="text-fg-muted text-xs">
+                    <tr>
+                      <th scope="col" className="py-1 text-left font-medium">
+                        {specOf('priority')?.label}
+                      </th>
+                      <th scope="col" className="py-1 text-right font-medium">
+                        {t('bug.stats.fixedCount')}
+                      </th>
+                      <th scope="col" className="py-1 text-right font-medium">
+                        {t('bug.stats.avgDays')}
+                      </th>
+                      <th scope="col" className="py-1 text-right font-medium">
+                        {t('bug.stats.medianDays')}
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Card>
+                  </thead>
+                  <tbody className="tabular-nums">
+                    {data.mttr.map((m) => (
+                      <tr key={m.priority} className="border-divider border-t">
+                        <td className="py-1.5">
+                          {specOf('priority')?.options.find((o) => o.value === m.priority)?.label ??
+                            m.priority}
+                        </td>
+                        <td className="py-1.5 text-right">{m.n}</td>
+                        <td className="py-1.5 text-right">{m.n ? m.avgDays : '—'}</td>
+                        <td className="py-1.5 text-right">{m.n ? m.medianDays : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Card>
+            ) : null}
             <Card title={t('bug.stats.aging')} hint={t('bug.stats.agingHint')}>
               <BarList
                 rows={data.aging.map((a) => ({

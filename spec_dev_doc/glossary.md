@@ -29,6 +29,13 @@
 | ~~空间类型~~ 空间种类 | `space.kind` | `project` / `learning` / `work` | 项目 / 学习 / 工作 | `space.kind.project` 等 | 只影响图标、默认视图与启用类型的推导默认（注 2026-09-30 ADR-0036：「空间类型」一词改指空间自有的记录类型，本行改称「空间种类」，标识符不变） | 01 §3.1 |
 | 空间可见性 | `space.visibility` | `workspace` / `members` | 全员可见 / 仅成员 | `space.visibility.workspace` `.members` | | 01 §3.1 |
 | 任务 | Task / `task` | `tasks` | 任务 | `task.task` | 待办；隐喻「枝」 | 01 §3.2 |
+| 任务页 | Tasks page | 路由 `/tasks` | 任务 | `ui.page.tasks` · `tasksPage.*` | 我的全部任务按截止日分组的列表（2026-10-01 ADR-0043）；「待办」是任务状态 `todo` 的称呼，页面不叫「待办」以免撞名 | 08 §2.3b |
+| 快速添加 | Quick add / `QuickAddTask` | — | 快速添加任务 | `quickAdd.*` | 一行输入回车建任务，识别日期 / `!优先级` / `#标签` / `~空间`（ADR-0043）（注 ADR-0044：`~` 先匹配清单；框内日期 / 优先级 / 清单 / 标签按钮；展开卡片写备注与子任务；组内就地添加；全局 `c` 同一组件） | 08 §2.3b |
+| 行内编辑 | Inline edit / `TaskRow` | — | — | `taskRow.*` · `taskMenu.*` | 任务行上直接改标题与日期 / 优先级 / 清单 / 标签，及「⋯」/ 右键单个管理菜单，不进详情（2026-10-01 ADR-0045） | 08 §2.3b |
+| 批量条 | Batch bar / `TaskBatchBar` | — | 已选 N 项 | `taskBatch.*` | 任务页面级多选后底部的一条操作条（完成 / 日期 / 优先级 / 清单 / 空间 / 标签 / 状态 / 删除，可撤销），跨分组唯一一条（ADR-0045） | 08 §2.3b |
+| 清单 | Task list / `task_lists` | `task_lists` · `task_list_items` | 清单 | `taskLists.*` | 任务的按人分类（本人私有，可放进文件夹，深度 1）；同一任务各人各归各的（2026-10-01 ADR-0044）；区别于「空间」（容器、决定权限）与「标签」（多选、横切） | 01 §3.7b |
+| 智能清单 | Smart view | search `view=` | 全部 / 今天 / 明天 / 最近 7 天 / 未归类 / 已完成 | `taskLists.smart.*` | 任务页左栏按条件聚合的视图，不存库（ADR-0044） | 08 §2.3b |
+| 未归类 | Unlisted / `listId=none` | — | 未归类 | `taskLists.unlisted` | 不在本人任何清单里的任务；不叫「收集箱」以免与「收件箱」（status inbox）撞名（ADR-0044） | 08 §2.3b |
 | 任务状态 | `task.status` | `inbox` `todo` `doing` `blocked` `done` `cancelled` | 收件箱 / 待办 / 进行中 / 阻塞 / 完成 / 取消 | `task.status.<value>` | 看板列即状态 | 01 §3.2 |
 | 优先级 | `task.priority` | smallint 0–4 | 无 / 低 / 中 / 高 / 紧急 | `task.priority.<0-4>` | 色映射见 04 §2.1 | 01 §3.2 |
 | 子任务 | Subtask / `parentId` | `tasks.parent_id` | 子任务 | `task.subtask` | 最多 2 层 | 01 §3.2 |
@@ -103,6 +110,7 @@
 | 最近打开 | Recent / `recent` | 本机 `localStorage xz:recent` | 最近打开 | `entry.nav.recent` | 本机最近访问的记录，按访问顺序（ADR-0014） | 08 §2.8 |
 | 记录位置 | Entries location | URL `spaceId under groupId favorite recent archived` | 记录位置 | `entry.nav.label` | 记录页左栏选中的范围，互斥（ADR-0014） | 08 §2.8 |
 | 批量操作 | Batch / `POST /entries/batch` · `POST /spaces/batch` | — | 多选 / 批量操作；空间页入口叫「批量管理」 | `entry.batch.*` · `space.batch.*` | 逐条鉴权，部分失败不回滚（ADR-0014 · 0021）；`dryRun` 只校验与计数 | 02 §9 |
+| 内置字段覆盖 | Builtin field overrides / `baseFields` `fieldOrder` | `entry_kind_overrides.base_fields` · `field_order` | 内置字段 | `builtinFields.*` | 内置类型代码字段的工作区覆盖：隐藏 / 显示名 / 选项名与色 / 顺序，键与值不变、隐藏保留数据（2026-10-01 ADR-0042） | 01 §3.4c |
 | 自定义类型 | Custom entry type / `typeId` | `entry_types` | 我的自定义类型（管理页称「类型」，ADR-0017） | `settings.types.*` | 个人的记录类型：名 + 色 + 状态列表；只有本人能用、能管，读者可见名 / 色 / 状态；记录 `kind = custom`（ADR-0016 · 0017）（注 2026-09-30 ADR-0036：`kind = custom` 的类型分「个人类型」与「空间类型」两种，均可带字段定义） | 01 §3.4c |
 | 删除内置类型 | Deleted builtin kind | `entry_kind_overrides.deleted` | 删除 / 恢复 | `settings.types.delete` · `settings.types.restore` | 所有者操作：全员该类型记录转到另一内置类型后标记已删除，可恢复；取代 ADR-0016 的「隐藏」（ADR-0017） | 01 §3.4c |
 | 个人类型 | Personal entry type / `entry_types.space_id = null` | `entry_types` | 我的类型 | `settings.types.*` | 即 ADR-0017 的「自定义类型」：属于创建者，只有本人能用、能管；可放进空间启用清单（他人只见名 / 色）（ADR-0036） | 01 §3.4c |

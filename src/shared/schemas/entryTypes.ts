@@ -3,6 +3,7 @@
  * 个人类型本人管理；空间类型（spaceId）由空间管理员管理；内置类型仅所有者。
  */
 import { z } from 'zod'
+import { baseFieldsSchema, fieldOrderSchema } from './baseFields.ts'
 import { customStatusName } from './entryFields.ts'
 import { BUILTIN_ENTRY_KINDS, PALETTE_COLORS } from './enums.ts'
 import {
@@ -71,7 +72,10 @@ export const patchEntryTypeSchema = z
       v.fieldDefs !== undefined,
     { message: '至少一个字段', path: ['name'] },
   )
-/** 内置类型（ADR-0017）：改名 / 改色（null = 恢复默认）；状态流转由代码定义，不可改。 */
+/**
+ * 内置类型（ADR-0017）：改名 / 改色（null = 恢复默认）；状态值由代码定义，不可增删——
+ * 代码字段只能经覆盖层隐藏 / 改显示名 / 改选项显示名与色 / 排序（ADR-0042）。
+ */
 export const builtinKindParam = z.object({ kind: z.enum(BUILTIN_ENTRY_KINDS) })
 export const patchBuiltinKindSchema = z
   .object({
@@ -80,11 +84,20 @@ export const patchBuiltinKindSchema = z
     /** 追加字段（ADR-0036、REQ-ENTRY-028） */
     fieldDefs: fieldDefsInputSchema.optional(),
     optionRenames: optionRenamesSchema.optional(),
+    /** 代码字段覆盖（ADR-0042、REQ-ENTRY-034）：整组替换；null = 恢复默认 */
+    baseFields: baseFieldsSchema.nullable().optional(),
+    /** 属性顺序（ADR-0042）；null = 恢复代码顺序 */
+    fieldOrder: fieldOrderSchema.nullable().optional(),
   })
-  .refine((v) => v.name !== undefined || v.color !== undefined || v.fieldDefs !== undefined, {
-    message: '至少一个字段',
-    path: ['name'],
-  })
+  .refine(
+    (v) =>
+      v.name !== undefined ||
+      v.color !== undefined ||
+      v.fieldDefs !== undefined ||
+      v.baseFields !== undefined ||
+      v.fieldOrder !== undefined,
+    { message: '至少一个字段', path: ['name'] },
+  )
 /**
  * 删除类型（内置或自定义，ADR-0017）：其下记录（含回收站）转到 `moveTo`——内置 kind 或自定义类型 id；
  * 缺省 = 随笔（删的正是随笔时必须给出）。

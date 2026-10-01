@@ -16,11 +16,12 @@ import { LINK_KINDS, type LinkKind } from '../../../shared/schemas/enums.ts'
 import { EntryPicker } from '../../editor/EntryPicker.tsx'
 import { entryPageContext } from '../../hooks/useNewEntryContext.ts'
 import { ApiError, api, unwrap } from '../../lib/api.ts'
-import type { Entry } from '../../lib/entry-queries.ts'
+import type { Entry, EntryKind } from '../../lib/entry-queries.ts'
 import { useNewEntry } from '../../lib/stores.ts'
 import { newId } from '../../lib/uuid.ts'
 import { Button } from '../ui/button.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
+import { useFieldSpecs } from './FieldValue.tsx'
 import { KindBadge } from './KindIcon.tsx'
 
 const MANUAL_KINDS = LINK_KINDS.filter((k) => k !== 'mentions')
@@ -80,6 +81,7 @@ export function EntryRelations({ entry, canWrite }: { entry: Entry; canWrite: bo
   })
   const out = outQ.data ?? []
   const back = backQ.data ?? []
+  const specsOf = useFieldSpecs()
   const isRelease = entry.kind === 'iteration' || entry.kind === 'changelog'
   const fixedBugs = out.filter((l) => l.kind === 'resolves' && l.to.kind === 'bug')
   const fixedIn = back.filter(
@@ -87,6 +89,13 @@ export function EntryRelations({ entry, canWrite }: { entry: Entry; canWrite: bo
   )
   const manual = out.filter((l) => l.kind !== 'mentions' && !fixedBugs.includes(l))
 
+  // 关联端的状态文字取其类型的字段规格（代码字段覆盖的显示名 / 隐藏，ADR-0042）
+  const statusText = (end: LinkView['to']) => {
+    if (!end.kind) return ''
+    const spec = specsOf(end.kind as EntryKind, end.typeId).find((f) => f.name === 'status')
+    const v = end.fields?.status
+    return (spec?.options.find((o) => String(o.value) === String(v))?.label ?? '') as string
+  }
   const row = (l: LinkView, side: 'to' | 'from', removable: boolean, label?: string) => {
     const end = l[side]
     return (
@@ -127,9 +136,7 @@ export function EntryRelations({ entry, canWrite }: { entry: Entry; canWrite: bo
           </a>
         )}
         {end.kind === 'bug' || end.fields?.severity ? (
-          <span className="shrink-0 text-fg-muted text-xs">
-            {t(`entry.fieldValue.${String(end.fields?.status ?? '')}`, { defaultValue: '' })}
-          </span>
+          <span className="shrink-0 text-fg-muted text-xs">{statusText(end)}</span>
         ) : null}
         {removable && canWrite && l.kind !== 'mentions' ? (
           <button

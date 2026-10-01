@@ -7,6 +7,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query'
+import type { TFunction } from 'i18next'
 import {
   CalendarDays,
   Check,
@@ -28,11 +29,12 @@ import {
 } from 'lucide-react'
 import { type ReactNode, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { sortByFieldOrder } from '../../../shared/schemas/baseFields.ts'
 import type { PaletteColor } from '../../../shared/schemas/enums.ts'
 import type { FieldDef } from '../../../shared/schemas/fieldDefs.ts'
 import { cn } from '../../lib/cn.ts'
 import type { EntryKind } from '../../lib/entry-queries.ts'
-import { useKindLabel } from '../../lib/entry-types.ts'
+import { type KindMeta, useKindLabel } from '../../lib/entry-types.ts'
 import { dateTone, isClosedStatus, progressTone, valueTone } from '../../lib/field-tones.ts'
 import { typeTemplateFields } from '../../lib/template-fields.ts'
 import { templateFieldsQuery, useTemplateMetaOf } from '../../lib/template-queries.ts'
@@ -56,6 +58,8 @@ export interface FieldOptionSpec {
   value: string | number
   label: string
   tone: PaletteColor
+  /** 被覆盖层隐藏的选项（ADR-0042）：选择器 / 筛选 / 看板空列不列，已有的值照常显示 */
+  hidden?: boolean
 }
 export interface FieldSpec {
   name: string
@@ -135,9 +139,65 @@ export function withTemplateSpecs(
   return [...kept, ...tpl.fieldDefs.filter((d) => !have.has(d.key)).map(defSpec)]
 }
 
+/** 选择器里可选的选项：去掉隐藏的，但当前值即使隐藏也保留 */
+export const pickableOptions = (spec: FieldSpec, current?: unknown): FieldOptionSpec[] =>
+  spec.options.filter((o) => !o.hidden || String(o.value) === String(current))
+
 /**
- * (kind, typeId, templateId?) → 字段规格。内置字段在前（进度改为 progress 类型），追加 / 自定义字段在后；
- * 给了来源模板（记录的 `templateId`）再套上模板元数据。
+ * 代码字段 → 规格（ADR-0042）：套上显示名 / 选项名与色 / 选项隐藏；`includeHidden` 为设置页保留被隐藏的字段。
+ * 内置规格不含追加字段与模板元数据（见 `useFieldSpecs`）。
+ */
+export function baseSpecsOf(
+  kind: EntryKind,
+  meta: KindMeta,
+  t: TFunction,
+  opts: { includeHidden?: boolean } = {},
+): FieldSpec[] {
+  const ov = meta.baseFields
+  return fieldSpecs(kind, meta.statuses)
+    .filter((f) => opts.includeHidden || !ov[f.name]?.hidden)
+    .map((f) => {
+      const label = ov[f.name]?.label ?? t(`entry.field.${f.name}`)
+      if (f.kind !== 'select') {
+        return {
+          name: f.name,
+          label,
+          kind: f.name === 'progress' ? 'progress' : f.kind,
+          options: [],
+          required: f.required,
+          extra: false,
+        }
+      }
+      const raw = !!f.raw
+      const custom = raw ? { options: f.options.map(String), colors: meta.statusColors } : undefined
+      return {
+        name: f.name,
+        label,
+        kind: 'select',
+        options: f.options.map((o) => {
+          const oo = ov[f.name]?.options?.[String(o)]
+          return {
+            value: o,
+            label:
+              oo?.label ??
+              (raw || typeof o === 'number'
+                ? f.name === 'mood'
+                  ? t(`entry.mood.${o}`, { defaultValue: String(o) })
+                  : String(o)
+                : t(`entry.fieldValue.${o}`, { defaultValue: String(o) })),
+            tone: (oo?.color as PaletteColor | undefined) ?? valueTone(f.name, o, custom),
+            ...(oo?.hidden ? { hidden: true } : {}),
+          }
+        }),
+        required: f.required,
+        extra: false,
+      }
+    })
+}
+
+/**
+ * (kind, typeId, templateId?) → 字段规格：内置字段（套代码字段覆盖，ADR-0042；进度改为 progress 类型）+
+ * 追加 / 自定义字段，按属性顺序排列；给了来源模板（记录的 `templateId`）再套上模板元数据。
  * 自定义状态：选项色取类型的 statusColors，未设按位置轮换。
  */
 export function useFieldSpecs() {
@@ -147,45 +207,12 @@ export function useFieldSpecs() {
   return useCallback(
     (kind: EntryKind, typeId?: string | null, templateId?: string | null): FieldSpec[] => {
       const meta = kindOf(kind, typeId)
-      const base: FieldSpec[] = fieldSpecs(kind, meta.statuses).map((f) => {
-        if (f.kind !== 'select') {
-          return {
-            name: f.name,
-            label: t(`entry.field.${f.name}`),
-            kind: f.name === 'progress' ? 'progress' : f.kind,
-            options: [],
-            required: f.required,
-            extra: false,
-          }
-        }
-        const raw = !!f.raw
-        const custom = raw
-          ? { options: f.options.map(String), colors: meta.statusColors }
-          : undefined
-        return {
-          name: f.name,
-          label: t(`entry.field.${f.name}`),
-          kind: 'select',
-          options: f.options.map((o) => ({
-            value: o,
-            label:
-              raw || typeof o === 'number'
-                ? f.name === 'mood'
-                  ? t(`entry.mood.${o}`, { defaultValue: String(o) })
-                  : String(o)
-                : t(`entry.fieldValue.${o}`, { defaultValue: String(o) }),
-            tone: valueTone(f.name, o, custom),
-          })),
-          required: f.required,
-          extra: false,
-        }
-      })
-      return withTemplateSpecs(
-        [...base, ...meta.fieldDefs.map(defSpec)],
-        tplOf(templateId),
-        kind,
-        typeId,
+      const all = sortByFieldOrder(
+        [...baseSpecsOf(kind, meta, t), ...meta.fieldDefs.map(defSpec)],
+        (f) => f.name,
+        meta.fieldOrder,
       )
+      return withTemplateSpecs(all, tplOf(templateId), kind, typeId)
     },
     [kindOf, t, tplOf],
   )
@@ -476,7 +503,7 @@ export function FieldEditor({
       >
         {spec.kind === 'select' ? (
           <div role="listbox" aria-label={spec.label} className="flex flex-col gap-0.5">
-            {spec.options.map((o) => {
+            {pickableOptions(spec, value).map((o) => {
               const on = String(o.value) === String(value)
               return (
                 <button

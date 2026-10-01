@@ -39,7 +39,7 @@ import { useMe } from '../../hooks/useMe.ts'
 import { useNewEntryContext } from '../../hooks/useNewEntryContext.ts'
 import { cn } from '../../lib/cn.ts'
 import {
-  BUG_SORTS,
+  bugSorts,
   ENTRY_SORTS,
   type Entry,
   type EntryKind,
@@ -67,7 +67,7 @@ import { EntryCard } from './EntryCard.tsx'
 import { EntryRowMenu } from './EntryRowMenu.tsx'
 import { EntryTable } from './EntryTable.tsx'
 import { EntryTimeline, hasTimeline } from './EntryTimeline.tsx'
-import { useFieldSpecs, useTypeTemplateSpecs } from './FieldValue.tsx'
+import { pickableOptions, useFieldSpecs, useTypeTemplateSpecs } from './FieldValue.tsx'
 import { SavedViewsNav, SaveViewButton } from './SavedViews.tsx'
 import { TagFilter } from './TagFilter.tsx'
 
@@ -117,7 +117,7 @@ export function EntriesPage({
   const openNew = useNewEntry((s) => s.setOpen)
   const kinds = csvList(search.kind) as EntryKind[]
   const typeIds = csvList(search.typeId)
-  const kindOf = useKindLabel()
+  const _kindOf = useKindLabel()
   const specsOf = useFieldSpecs()
   const templateSpecsOf = useTypeTemplateSpecs()
   // 类型筛选条：空间内按启用清单（ADR-0036），全局列全部可见类型
@@ -129,14 +129,16 @@ export function EntriesPage({
     : kinds.length === 1 && !typeIds.length
       ? kinds[0]
       : undefined
-  const customStatuses = typeId ? kindOf('custom', typeId).statuses : null
-  const statuses = typeId ? (customStatuses?.length ? customStatuses : null) : boardStatuses(kind)
+  // 只选一种类型时的字段规格（已套代码字段覆盖，ADR-0042）：看板 / 统计 / 分组 / 排序都按它是否可见
+  const kindSpecs = kind ? specsOf(kind, typeId) : []
+  const statusSpec = kindSpecs.find((f) => f.name === 'status' && f.kind === 'select')
+  const statuses = boardStatuses(statusSpec)
   const view =
     search.view === 'board' && statuses
       ? 'board'
-      : search.view === 'timeline' && hasTimeline(kind)
+      : search.view === 'timeline' && hasTimeline(kind, kindSpecs)
         ? 'timeline'
-        : search.view === 'stats' && kind === 'bug'
+        : search.view === 'stats' && kind === 'bug' && statusSpec
           ? 'stats'
           : search.view === 'cards'
             ? 'cards'
@@ -186,7 +188,6 @@ export function EntriesPage({
   }
   const pageSize = view === 'cards' ? 30 : 200
   // 表格分组（ADR-0033）：只对单一类型；可选键 = 该类型有的枚举属性（Bug 另有模块）+ 自定义单选字段（ADR-0036）
-  const kindSpecs = kind ? specsOf(kind, typeId) : []
   // 模板属性（ADR-0040、REQ-ENTRY-033）：绑这个类型的模板的自有字段与类型字段并列，可筛选 / 分组；
   // 正在用的键（当前筛选 / 分组）即使模板不绑这个类型也保留。同名的带模板名区分。
   const fieldValues = parseFieldsParam(search.fields)
@@ -354,7 +355,7 @@ export function EntriesPage({
                       'view-board',
                     )
                   : null}
-                {kind === 'bug'
+                {kind === 'bug' && statusSpec
                   ? viewBtn(
                       'stats',
                       <ChartColumn className="size-4" />,
@@ -362,7 +363,7 @@ export function EntriesPage({
                       'view-stats',
                     )
                   : null}
-                {hasTimeline(kind)
+                {hasTimeline(kind, kindSpecs)
                   ? viewBtn(
                       'timeline',
                       <CalendarRange className="size-4" />,
@@ -442,7 +443,7 @@ export function EntriesPage({
                 <option value="">
                   {f.label}：{t('entry.allKinds')}
                 </option>
-                {f.options.map((o) => (
+                {pickableOptions(f, fieldValues[f.name]).map((o) => (
                   <option key={String(o.value)} value={String(o.value)}>
                     {o.label}
                   </option>
@@ -492,7 +493,7 @@ export function EntriesPage({
                 aria-label={t('entry.sortLabel')}
                 className="h-8 rounded-full border border-border bg-surface px-3 text-sm"
               >
-                {[...ENTRY_SORTS, ...(kind === 'bug' ? BUG_SORTS : [])].map((s) => (
+                {[...ENTRY_SORTS, ...(kind === 'bug' ? bugSorts(kindSpecs) : [])].map((s) => (
                   <option key={s} value={s}>
                     {t(`entry.sort.${s}`)}
                   </option>

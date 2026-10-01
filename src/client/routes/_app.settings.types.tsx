@@ -12,7 +12,9 @@ import { ArrowLeft, Plus, RotateCcw, Trash2, Undo2, X } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { defaultEntryFields, entryFieldsByKind } from '../../shared/schemas/entryFields.ts'
+import { defaultsSatisfy, hiddenBaseFields } from '../../shared/schemas/baseFields.ts'
+import { baseFieldNames } from '../../shared/schemas/entryFields.ts'
+import { BuiltinFieldsEditor } from '../components/domain/BuiltinFieldsEditor.tsx'
 import { ColorPicker } from '../components/domain/ColorPicker.tsx'
 import { TypeFieldsSection } from '../components/domain/FieldDefsEditor.tsx'
 import { KindIcon } from '../components/domain/KindIcon.tsx'
@@ -149,7 +151,7 @@ function useMoveTargets(source: { kind: string; typeId: string | null }): KindMe
     (o) =>
       kindKey(o) !== kindKey(source) &&
       (source.kind === 'custom' || o.kind !== 'custom') &&
-      entryFieldsByKind[o.kind].safeParse(defaultEntryFields[o.kind]).success,
+      defaultsSatisfy(o.kind, o.baseFields),
   )
 }
 
@@ -415,10 +417,19 @@ function BuiltinRow({
       ) : null}
       <div className="basis-full">
         <Expand
-          label={t('settings.types.extraFields', { count: b.fieldDefs.length })}
+          label={t('settings.types.fields', {
+            count:
+              baseFieldNames(b.kind).length -
+              hiddenBaseFields(b.baseFields).length +
+              b.fieldDefs.length,
+          })}
           testId="builtin-fields-toggle"
         >
-          <TypeFieldsSection kind={b.kind} defs={b.fieldDefs} canManage={canManage} compact />
+          <div className="flex flex-col gap-3">
+            <BuiltinFieldsEditor kind={b.kind} canManage={canManage} />
+            <h4 className="font-medium text-sm">{t('spaceTypes.extraFields')}</h4>
+            <TypeFieldsSection kind={b.kind} defs={b.fieldDefs} canManage={canManage} compact />
+          </div>
         </Expand>
       </div>
     </li>

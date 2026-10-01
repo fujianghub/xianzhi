@@ -104,13 +104,17 @@ describe('liteKit pm', () => {
 })
 
 describe('others', () => {
-  it('REQ-ENTRY-001 createEntry 缺省不带 visibility（service 按空间决定）、fields={}；bug 缺 severity 422 path fields.severity', () => {
+  it('REQ-ENTRY-001 createEntry 缺省不带 visibility（service 按空间决定）、fields={}；非法值 422 path fields.<key>，必填缺失留给 service（REQ-ENTRY-035）', () => {
     const ok = createEntrySchema.parse({ kind: 'note', title: '随笔' })
     expect(ok.visibility).toBeUndefined() // 个人空间 → private，其余 → space（REQ-ENTRY-003）
     expect(ok.fields).toEqual({})
     const r = createEntrySchema.safeParse({ kind: 'bug', title: 'x', fields: { status: 'open' } })
     expect(r.success).toBe(false)
-    if (!r.success) expect(r.error.issues.map((i) => i.path.join('.'))).toContain('fields.severity')
+    if (!r.success) expect(r.error.issues.map((i) => i.path.join('.'))).toContain('fields.status')
+    // 路由层不知道工作区覆盖（隐藏的必填字段可省，ADR-0042）：缺 severity 在这里放行，由 service 422
+    expect(
+      createEntrySchema.safeParse({ kind: 'bug', title: 'x', fields: { status: 'new' } }).success,
+    ).toBe(true)
     expect(listEntriesQuery.safeParse({ sort: 'ydoc' }).success).toBe(false)
   })
   it('REQ-SPACE-001 listSpaces sort 白名单；REQ-TAG-001 颜色只能是 9 色', () => {

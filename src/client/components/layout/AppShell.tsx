@@ -10,6 +10,7 @@ import {
   CalendarDays,
   FileText,
   Inbox,
+  ListTodo,
   LogOut,
   type LucideIcon,
   Menu,
@@ -32,11 +33,12 @@ import { useScrolled } from '../../hooks/useScrolled.ts'
 import { authClient } from '../../lib/auth-client.ts'
 import { cn } from '../../lib/cn.ts'
 import { useFocusMode } from '../../lib/reading.ts'
-import { useLayout, useNewEntry, usePalette, usePeek } from '../../lib/stores.ts'
+import { useLayout, useNewEntry, useNewTask, usePalette, usePeek } from '../../lib/stores.ts'
 import { CreateSpaceDialog } from '../domain/CreateSpaceDialog.tsx'
-import { NewTaskDialog } from '../domain/NewTaskDialog.tsx'
 
 const NewEntryDialog = lazy(() => import('../domain/NewEntryDialog.tsx'))
+// 新任务对话框带快速添加与日期 / 清单选择器（ADR-0044），不进首屏包：打开时才加载
+const NewTaskDialog = lazy(() => import('../domain/NewTaskDialog.tsx'))
 const CommandPalette = lazy(() => import('./CommandPalette.tsx'))
 const ShortcutsDialog = lazy(() => import('./ShortcutsDialog.tsx'))
 const PeekPanel = lazy(() => import('../domain/PeekPanel.tsx'))
@@ -87,7 +89,7 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
   const { t } = useTranslation()
   const path = useRouterState({ select: (s) => s.location.pathname })
   const items: {
-    to: '/today' | '/entries' | '/inbox' | '/calendar' | '/notifications' | '/trash'
+    to: '/today' | '/tasks' | '/entries' | '/inbox' | '/calendar' | '/notifications' | '/trash'
     key: string
     label: string
     icon: LucideIcon
@@ -100,6 +102,14 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
       label: t('ui.page.today'),
       icon: Sun,
       hue: 'amber',
+      disabled: false,
+    },
+    {
+      to: '/tasks',
+      key: 'tasks',
+      label: t('ui.page.tasks'),
+      icon: ListTodo,
+      hue: 'lime',
       disabled: false,
     },
     {
@@ -192,6 +202,7 @@ export function AppShell({
   const { t } = useTranslation()
   const { sidebarOpen, asideOpen, drawerOpen, toggleSidebar, toggleAside, setDrawer } = useLayout()
   const newEntryOpen = useNewEntry((s) => s.open)
+  const newTaskOpen = useNewTask((s) => s.open)
   const paletteOpen = usePalette((s) => s.open)
   const helpOpen = usePalette((s) => s.help)
   const setPalette = usePalette((s) => s.setOpen)
@@ -360,7 +371,11 @@ export function AppShell({
       ) : null}
 
       <CreateSpaceDialog />
-      <NewTaskDialog />
+      {newTaskOpen ? (
+        <Suspense fallback={null}>
+          <NewTaskDialog />
+        </Suspense>
+      ) : null}
       {peeking ? (
         <Suspense fallback={null}>
           <PeekPanel />
@@ -396,12 +411,14 @@ export function AppShell({
           <Sun className="size-5" strokeWidth={1.75} />
           {t('ui.page.today')}
         </Link>
+        {/* ADR-0044：底栏「收件箱」换成「任务」（收件箱在任务页与侧栏仍可达） */}
         <Link
-          to="/inbox"
+          to="/tasks"
           className="flex flex-col items-center justify-center gap-0.5 text-[11px] text-fg-muted [&.active]:text-primary-text"
+          data-testid="bottom-nav-tasks"
         >
-          <Inbox className="size-5" strokeWidth={1.75} />
-          {t('ui.page.inbox')}
+          <ListTodo className="size-5" strokeWidth={1.75} />
+          {t('ui.page.tasks')}
         </Link>
         <Link
           to="/search"

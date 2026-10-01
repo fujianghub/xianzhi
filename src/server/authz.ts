@@ -98,6 +98,12 @@ export interface TagRef {
   createdBy: string | null
 }
 
+/** 个人清单（ADR-0044）：只有本人可见、可管 */
+export interface TaskListRef {
+  id: string
+  ownerId: string
+}
+
 /** 记录模板（ADR-0011 §2）：personal 仅 owner；workspace 全员可读，创建者或管理员可管理。 */
 export interface TemplateRef {
   id: string
@@ -120,6 +126,9 @@ export interface ActionMap {
   'tag.create': null
   /** 标签是个人的（ADR-0017）：只有创建者本人可改名 / 改色 / 合并 / 删除；null（无主旧数据）= 无人可管 */
   'tag.manage': TagRef | null
+  /** 个人清单（ADR-0044）：非 guest 可建自己的；只有本人可见 / 改 / 删 / 往里归任务 */
+  'task_list.create': null
+  'task_list.manage': TaskListRef | null
   'entry_type.create': null
   /** 自定义类型是个人的（ADR-0017）：只有创建者本人可改 / 删 */
   'entry_type.manage': TagRef
@@ -165,6 +174,8 @@ export const ACTIONS = [
   'space.create',
   'tag.create',
   'tag.manage',
+  'task_list.create',
+  'task_list.manage',
   'entry_type.create',
   'entry_type.manage',
   'entry_kind.manage',
@@ -309,8 +320,13 @@ export function can<A extends Action>(
     // ADR-0017：标签与自定义类型按人隔离——非 guest 可建自己的，只有创建者本人能管（管理员不例外）
     case 'space.create':
     case 'tag.create':
+    case 'task_list.create':
     case 'entry_type.create':
       return actor.workspaceRole !== 'guest'
+    case 'task_list.manage': {
+      const l = resource as TaskListRef | null
+      return !!l && l.ownerId === actor.id && actor.workspaceRole !== 'guest'
+    }
     case 'tag.manage':
     case 'entry_type.manage': {
       const t = resource as TagRef | null

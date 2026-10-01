@@ -74,6 +74,11 @@ describe('T1-011 perf', () => {
       'view=today&limit=50',
       'view=inbox&limit=50',
       `spaceId=${spaceId}&sort=dueAt&limit=200`,
+      // ADR-0044 任务页：我的 · 未归类 · 某清单（exists 子查询，不加查询数）· 智能清单
+      'view=mine&status=inbox,todo,doing,blocked&sort=dueAt&limit=200',
+      'view=mine&listId=none&limit=200',
+      'view=mine&listId=00000000-0000-4000-8000-000000000000&limit=200',
+      'view=mine&due=next7&sort=dueAt&limit=200',
     ]
     const report: Record<string, { queries: number; p95: number; p50: number }> = {}
     for (const qs of queries) {

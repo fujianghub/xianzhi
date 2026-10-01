@@ -5,7 +5,7 @@
  * Esc 关闭回到列表（焦点恢复由列表负责）。评论线程随 T1-023 接入。
  */
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, X } from 'lucide-react'
 import { lazy, type ReactNode, Suspense, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -32,6 +32,7 @@ import { Skeleton } from '../ui/skeleton.tsx'
 import { Comments } from './Comments.tsx'
 import { PriorityIcon } from './PriorityIcon.tsx'
 import { TagPicker } from './TagPicker.tsx'
+import { ListDot, ListPicker } from './TaskPickers.tsx'
 import { TaskRow } from './TaskRow.tsx'
 
 const LiteEditor = lazy(() => import('../../editor/LiteEditor.tsx'))
@@ -66,10 +67,13 @@ export function TaskDetailSheet({
   taskId,
   onClose,
   onOpenTask,
+  variant = 'sheet',
 }: {
   taskId: string
   onClose: () => void
   onOpenTask: (t: Task) => void
+  /** panel = 任务页宽屏（≥1440）常驻右栏（ADR-0044），不遮挡列表；sheet = 覆盖式抽屉 */
+  variant?: 'sheet' | 'panel'
 }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -129,6 +133,289 @@ export function TaskDetailSheet({
     }
   }
 
+  const panel = variant === 'panel'
+  const Title = panel ? PanelTitle : SheetTitle
+  const Description = panel ? PanelDescription : SheetDescription
+  const body = (
+    <>
+      {isError ? (
+        <div className="p-6">
+          <Title>{t('task.notFound')}</Title>
+          <Description className="sr-only">{t('task.notFound')}</Description>
+        </div>
+      ) : isPending || !task ? (
+        <div className="flex flex-col gap-3 p-6" aria-busy="true">
+          <Title className="sr-only">{t('ui.loading')}</Title>
+          <Description className="sr-only">{t('ui.loading')}</Description>
+          <Skeleton className="h-8 w-3/4" />
+          {Array.from({ length: 6 }, (_, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: 骨架占位
+            <Skeleton key={i} className="h-6" />
+          ))}
+        </div>
+      ) : (
+        <div className="paper min-h-full p-6">
+          <Title className="sr-only">{task.title}</Title>
+          <Description className="sr-only">{t('task.task')}</Description>
+          <div ref={sharedTarget} className="flex items-start gap-2 pr-8">
+            <PriorityIcon priority={task.priority} className="mt-2" />
+            <InlineEdit
+              value={task.title}
+              onSave={(v) => save({ title: v })}
+              label={t('task.task')}
+              className="font-semibold text-xl"
+              testId="task-title"
+              multiline
+            />
+          </div>
+          <div
+            className="mt-1 flex h-5 items-center gap-2 px-1 text-fg-muted text-xs"
+            aria-live="polite"
+          >
+            {savedAt ? (
+              <span data-testid="saved-hint">{t('task.savedJustNow')}</span>
+            ) : (
+              <RelativeTime date={task.updatedAt} />
+            )}
+          </div>
+          <div className="mt-4 border-divider border-t pt-2">
+            {/* 清单是本人的私人分类（ADR-0044）：只读成员也能归 */}
+            <Field label={t('taskLists.list')}>
+              <ListPicker
+                value={task.list?.id ?? null}
+                onChange={(listId) => void save({ listId })}
+                trigger={
+                  <button
+                    type="button"
+                    className="flex h-8 w-full items-center gap-2 rounded-md px-1 text-left text-sm hover:bg-hover"
+                    data-testid="field-list"
+                  >
+                    {task.list ? (
+                      <>
+                        <ListDot list={task.list} />
+                        {task.list.name}
+                      </>
+                    ) : (
+                      <span className="text-fg-muted">{t('taskLists.unlisted')}</span>
+                    )}
+                  </button>
+                }
+              />
+            </Field>
+          </div>
+          <fieldset disabled={!canWrite} className="border-divider border-b py-2">
+            <legend className="sr-only">{t('task.task')}</legend>
+            <Field label={t('task.statusLabel')}>
+              <select
+                className={selectCls}
+                value={task.status}
+                onChange={(e) => save({ status: e.target.value as Task['status'] })}
+                data-testid="field-status"
+              >
+                {TASK_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {t(`task.status.${s}`)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label={t('task.priorityLabel')}>
+              <select
+                className={selectCls}
+                value={task.priority}
+                onChange={(e) => save({ priority: Number(e.target.value) })}
+                data-testid="field-priority"
+              >
+                {[0, 1, 2, 3, 4].map((p) => (
+                  <option key={p} value={p}>
+                    {t(`task.priority.${p}`)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label={t('task.assignee')}>
+              <select
+                className={selectCls}
+                value={task.assigneeId ?? ''}
+                onChange={(e) => save({ assigneeId: e.target.value || null })}
+                data-testid="field-assignee"
+              >
+                <option value="">{t('task.unassigned')}</option>
+                {candidates.map((m) => (
+                  <option key={m.userId} value={m.userId}>
+                    {m.displayName || m.name}
+                  </option>
+                ))}
+                {task.assignee && !candidates.some((m) => m.userId === task.assigneeId) ? (
+                  <option value={task.assignee.id}>{task.assignee.displayName}</option>
+                ) : null}
+              </select>
+            </Field>
+            <Field label={t('task.dueAt')}>
+              <input
+                type="datetime-local"
+                className={selectCls}
+                defaultValue={toLocalInput(task.dueAt)}
+                key={`due-${task.updatedAt}`}
+                onBlur={(e) =>
+                  fromLocalInput(e.target.value) !== task.dueAt &&
+                  save({ dueAt: fromLocalInput(e.target.value) })
+                }
+                data-testid="field-due"
+              />
+            </Field>
+            <Field label={t('task.scheduledAt')}>
+              <input
+                type="datetime-local"
+                className={selectCls}
+                defaultValue={toLocalInput(task.scheduledAt)}
+                key={`sch-${task.updatedAt}`}
+                onBlur={(e) =>
+                  fromLocalInput(e.target.value) !== task.scheduledAt &&
+                  save({ scheduledAt: fromLocalInput(e.target.value) })
+                }
+              />
+            </Field>
+            <Field label={t('task.tags')}>
+              <TagPicker
+                value={task.tags}
+                onChange={(ids) => save({ tagIds: ids })}
+                disabled={!canWrite}
+              />
+            </Field>
+            <Field label={t('task.estimate')}>
+              <input
+                type="number"
+                min={0}
+                className={selectCls}
+                defaultValue={task.estimateMinutes ?? ''}
+                key={`est-${task.updatedAt}`}
+                onBlur={(e) => {
+                  const v = e.target.value === '' ? null : Number(e.target.value)
+                  if (v !== task.estimateMinutes) void save({ estimateMinutes: v })
+                }}
+              />
+            </Field>
+          </fieldset>
+          <section className="mt-5">
+            <h3 className="mb-2 font-medium text-fg-muted text-sm">{t('task.description')}</h3>
+            <Suspense fallback={<Skeleton className="h-16" />}>
+              <LiteEditor
+                value={task.descriptionPm ?? null}
+                variant="description"
+                placeholder={t('task.descriptionPlaceholder')}
+                editable={canWrite}
+                uploadTaskId={task.id}
+                onBlur={(doc, changed) => {
+                  if (changed) void save({ descriptionPm: doc })
+                }}
+              />
+            </Suspense>
+          </section>
+          {!task.parentId ? (
+            <section className="mt-6">
+              <h3 className="mb-2 font-medium text-fg-muted text-sm">{t('task.subtask')}</h3>
+              <div className="overflow-hidden rounded-md border border-divider">
+                {flattenPages(subtasks.data).map((s) => (
+                  <TaskRow
+                    asRow={false}
+                    key={s.id}
+                    task={s}
+                    onToggle={(x) =>
+                      void (
+                        x.status === 'done' ? actions.uncomplete(x) : actions.complete(x)
+                      ).catch(() => undefined)
+                    }
+                    onOpen={onOpenTask}
+                  />
+                ))}
+              </div>
+              {canWrite ? (
+                <form
+                  className="mt-2"
+                  onSubmit={async (e) => {
+                    e.preventDefault()
+                    const v = sub.trim()
+                    if (!v) return
+                    await actions
+                      .create({
+                        title: v,
+                        spaceId: task.spaceId,
+                        parentId: task.id,
+                        status: 'todo',
+                      })
+                      .catch(() => toast.error(t('task.saveFailed')))
+                    setSub('')
+                  }}
+                >
+                  <input
+                    value={sub}
+                    onChange={(e) => setSub(e.target.value)}
+                    placeholder={t('task.addSubtask')}
+                    aria-label={t('task.addSubtask')}
+                    className="h-8 w-full rounded-md border border-border bg-surface px-2 text-sm outline-none focus:border-selected-border"
+                    data-testid="subtask-input"
+                  />
+                </form>
+              ) : null}
+            </section>
+          ) : null}
+          <section className="mt-6">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="font-medium text-fg-muted text-sm">{t('task.watchers')}</h3>
+              <Button size="sm" variant="ghost" onClick={toggleWatch} data-testid="watch-toggle">
+                {watching ? <EyeOff /> : <Eye />}
+                {watching ? t('task.unfollow') : t('task.follow')}
+              </Button>
+            </div>
+            <ul className="flex flex-wrap gap-1.5 text-sm" data-testid="watchers">
+              {(watchers.data ?? []).map((w) => (
+                <li key={w.userId} className="rounded-full bg-surface-2 px-2 py-0.5">
+                  {w.displayName}
+                </li>
+              ))}
+            </ul>
+          </section>
+          {me ? (
+            <section className="mt-6" data-testid="task-comments">
+              <h3 className="mb-2 font-medium text-fg-muted text-sm">{t('comment.title')}</h3>
+              <Comments
+                targetType="task"
+                targetId={task.id}
+                spaceId={task.spaceId}
+                me={me}
+                canResolveAll={
+                  task.creatorId === me.id ||
+                  me.workspaceRole === 'owner' ||
+                  me.workspaceRole === 'admin'
+                }
+              />
+            </section>
+          ) : null}
+        </div>
+      )}
+    </>
+  )
+  if (panel)
+    return (
+      <aside
+        className="xz-task-panel relative overflow-y-auto"
+        aria-label={task?.title ?? t('task.task')}
+        data-testid="task-sheet"
+        data-variant="panel"
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={t('task.close')}
+          className="absolute top-3 right-3 z-10 grid size-8 place-items-center rounded-md text-fg-muted hover:bg-hover hover:text-fg"
+          data-testid="task-panel-close"
+        >
+          <X className="size-4" />
+        </button>
+        {body}
+      </aside>
+    )
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
       <SheetContent
@@ -136,237 +423,15 @@ export function TaskDetailSheet({
         className="w-[min(100vw,36rem)] overflow-y-auto p-0"
         data-testid="task-sheet"
       >
-        {isError ? (
-          <div className="p-6">
-            <SheetTitle>{t('task.notFound')}</SheetTitle>
-            <SheetDescription className="sr-only">{t('task.notFound')}</SheetDescription>
-          </div>
-        ) : isPending || !task ? (
-          <div className="flex flex-col gap-3 p-6" aria-busy="true">
-            <SheetTitle className="sr-only">{t('ui.loading')}</SheetTitle>
-            <SheetDescription className="sr-only">{t('ui.loading')}</SheetDescription>
-            <Skeleton className="h-8 w-3/4" />
-            {Array.from({ length: 6 }, (_, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: 骨架占位
-              <Skeleton key={i} className="h-6" />
-            ))}
-          </div>
-        ) : (
-          <div className="paper min-h-full p-6">
-            <SheetTitle className="sr-only">{task.title}</SheetTitle>
-            <SheetDescription className="sr-only">{t('task.task')}</SheetDescription>
-            <div ref={sharedTarget} className="flex items-start gap-2 pr-8">
-              <PriorityIcon priority={task.priority} className="mt-2" />
-              <InlineEdit
-                value={task.title}
-                onSave={(v) => save({ title: v })}
-                label={t('task.task')}
-                className="font-semibold text-xl"
-                testId="task-title"
-                multiline
-              />
-            </div>
-            <div
-              className="mt-1 flex h-5 items-center gap-2 px-1 text-fg-muted text-xs"
-              aria-live="polite"
-            >
-              {savedAt ? (
-                <span data-testid="saved-hint">{t('task.savedJustNow')}</span>
-              ) : (
-                <RelativeTime date={task.updatedAt} />
-              )}
-            </div>
-            <fieldset disabled={!canWrite} className="mt-4 border-divider border-y py-2">
-              <legend className="sr-only">{t('task.task')}</legend>
-              <Field label={t('task.statusLabel')}>
-                <select
-                  className={selectCls}
-                  value={task.status}
-                  onChange={(e) => save({ status: e.target.value as Task['status'] })}
-                  data-testid="field-status"
-                >
-                  {TASK_STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {t(`task.status.${s}`)}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label={t('task.priorityLabel')}>
-                <select
-                  className={selectCls}
-                  value={task.priority}
-                  onChange={(e) => save({ priority: Number(e.target.value) })}
-                  data-testid="field-priority"
-                >
-                  {[0, 1, 2, 3, 4].map((p) => (
-                    <option key={p} value={p}>
-                      {t(`task.priority.${p}`)}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label={t('task.assignee')}>
-                <select
-                  className={selectCls}
-                  value={task.assigneeId ?? ''}
-                  onChange={(e) => save({ assigneeId: e.target.value || null })}
-                  data-testid="field-assignee"
-                >
-                  <option value="">{t('task.unassigned')}</option>
-                  {candidates.map((m) => (
-                    <option key={m.userId} value={m.userId}>
-                      {m.displayName || m.name}
-                    </option>
-                  ))}
-                  {task.assignee && !candidates.some((m) => m.userId === task.assigneeId) ? (
-                    <option value={task.assignee.id}>{task.assignee.displayName}</option>
-                  ) : null}
-                </select>
-              </Field>
-              <Field label={t('task.dueAt')}>
-                <input
-                  type="datetime-local"
-                  className={selectCls}
-                  defaultValue={toLocalInput(task.dueAt)}
-                  key={`due-${task.updatedAt}`}
-                  onBlur={(e) =>
-                    fromLocalInput(e.target.value) !== task.dueAt &&
-                    save({ dueAt: fromLocalInput(e.target.value) })
-                  }
-                  data-testid="field-due"
-                />
-              </Field>
-              <Field label={t('task.scheduledAt')}>
-                <input
-                  type="datetime-local"
-                  className={selectCls}
-                  defaultValue={toLocalInput(task.scheduledAt)}
-                  key={`sch-${task.updatedAt}`}
-                  onBlur={(e) =>
-                    fromLocalInput(e.target.value) !== task.scheduledAt &&
-                    save({ scheduledAt: fromLocalInput(e.target.value) })
-                  }
-                />
-              </Field>
-              <Field label={t('task.tags')}>
-                <TagPicker
-                  value={task.tags}
-                  onChange={(ids) => save({ tagIds: ids })}
-                  disabled={!canWrite}
-                />
-              </Field>
-              <Field label={t('task.estimate')}>
-                <input
-                  type="number"
-                  min={0}
-                  className={selectCls}
-                  defaultValue={task.estimateMinutes ?? ''}
-                  key={`est-${task.updatedAt}`}
-                  onBlur={(e) => {
-                    const v = e.target.value === '' ? null : Number(e.target.value)
-                    if (v !== task.estimateMinutes) void save({ estimateMinutes: v })
-                  }}
-                />
-              </Field>
-            </fieldset>
-            <section className="mt-5">
-              <h3 className="mb-2 font-medium text-fg-muted text-sm">{t('task.description')}</h3>
-              <Suspense fallback={<Skeleton className="h-16" />}>
-                <LiteEditor
-                  value={task.descriptionPm ?? null}
-                  variant="description"
-                  placeholder={t('task.descriptionPlaceholder')}
-                  editable={canWrite}
-                  onBlur={(doc, changed) => {
-                    if (changed) void save({ descriptionPm: doc })
-                  }}
-                />
-              </Suspense>
-            </section>
-            {!task.parentId ? (
-              <section className="mt-6">
-                <h3 className="mb-2 font-medium text-fg-muted text-sm">{t('task.subtask')}</h3>
-                <div className="overflow-hidden rounded-md border border-divider">
-                  {flattenPages(subtasks.data).map((s) => (
-                    <TaskRow
-                      asRow={false}
-                      key={s.id}
-                      task={s}
-                      onToggle={(x) =>
-                        void (
-                          x.status === 'done' ? actions.uncomplete(x) : actions.complete(x)
-                        ).catch(() => undefined)
-                      }
-                      onOpen={onOpenTask}
-                    />
-                  ))}
-                </div>
-                {canWrite ? (
-                  <form
-                    className="mt-2"
-                    onSubmit={async (e) => {
-                      e.preventDefault()
-                      const v = sub.trim()
-                      if (!v) return
-                      await actions
-                        .create({
-                          title: v,
-                          spaceId: task.spaceId,
-                          parentId: task.id,
-                          status: 'todo',
-                        })
-                        .catch(() => toast.error(t('task.saveFailed')))
-                      setSub('')
-                    }}
-                  >
-                    <input
-                      value={sub}
-                      onChange={(e) => setSub(e.target.value)}
-                      placeholder={t('task.addSubtask')}
-                      aria-label={t('task.addSubtask')}
-                      className="h-8 w-full rounded-md border border-border bg-surface px-2 text-sm outline-none focus:border-selected-border"
-                      data-testid="subtask-input"
-                    />
-                  </form>
-                ) : null}
-              </section>
-            ) : null}
-            <section className="mt-6">
-              <div className="mb-2 flex items-center justify-between">
-                <h3 className="font-medium text-fg-muted text-sm">{t('task.watchers')}</h3>
-                <Button size="sm" variant="ghost" onClick={toggleWatch} data-testid="watch-toggle">
-                  {watching ? <EyeOff /> : <Eye />}
-                  {watching ? t('task.unfollow') : t('task.follow')}
-                </Button>
-              </div>
-              <ul className="flex flex-wrap gap-1.5 text-sm" data-testid="watchers">
-                {(watchers.data ?? []).map((w) => (
-                  <li key={w.userId} className="rounded-full bg-surface-2 px-2 py-0.5">
-                    {w.displayName}
-                  </li>
-                ))}
-              </ul>
-            </section>
-            {me ? (
-              <section className="mt-6" data-testid="task-comments">
-                <h3 className="mb-2 font-medium text-fg-muted text-sm">{t('comment.title')}</h3>
-                <Comments
-                  targetType="task"
-                  targetId={task.id}
-                  spaceId={task.spaceId}
-                  me={me}
-                  canResolveAll={
-                    task.creatorId === me.id ||
-                    me.workspaceRole === 'owner' ||
-                    me.workspaceRole === 'admin'
-                  }
-                />
-              </section>
-            ) : null}
-          </div>
-        )}
+        {body}
       </SheetContent>
     </Sheet>
   )
 }
+
+const PanelTitle = ({ className, children }: { className?: string; children: ReactNode }) => (
+  <h2 className={className}>{children}</h2>
+)
+const PanelDescription = ({ className, children }: { className?: string; children: ReactNode }) => (
+  <p className={className}>{children}</p>
+)

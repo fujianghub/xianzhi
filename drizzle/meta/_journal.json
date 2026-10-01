@@ -176,6 +176,20 @@
       "when": 1790776540573,
       "tag": "0024_template_metadata",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790798419442,
+      "tag": "0025_builtin_field_overrides",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790807725633,
+      "tag": "0026_task_lists",
+      "breakpoints": true
     }
   ]
 }
