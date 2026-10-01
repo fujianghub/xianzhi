@@ -7,6 +7,7 @@ import {
   taskIdParam as idParam,
   listTasksQuery,
   patchTaskSchema,
+  taskCountsQuery,
   taskTransitionSchema,
   taskWatcherParam,
 } from '../../shared/schemas/tasks.ts'
@@ -54,96 +55,102 @@ export function taskRoutes(deps: { db: Db; dataDir: string }) {
       userAgent: c.req.header('user-agent') ?? null,
     }
   }
-  return new Hono<AppEnv>()
-    .use(requireAuth)
-    .get('/', validate('query', listTasksQuery), async (c) =>
-      c.json(await svc.listTasks(deps.db, ctxOf(c), c.req.valid('query'))),
-    )
-    .post(
-      '/',
-      requireScope('write'),
-      idempotency(deps.db),
-      validate('json', createTaskSchema),
-      async (c) => c.json(await svc.createTask(deps.db, ctxOf(c), c.req.valid('json')), 201),
-    )
-    .post('/batch', requireScope('write'), validate('json', batchTasksSchema), async (c) =>
-      c.json(await svc.batchTasks(deps.db, ctxOf(c), c.req.valid('json').ops)),
-    )
-    .get('/:id', validate('param', idParam), async (c) =>
-      c.json(await svc.getTask(deps.db, ctxOf(c), c.req.valid('param').id)),
-    )
-    .patch(
-      '/:id',
-      requireScope('write'),
-      validate('param', idParam),
-      validate('json', patchTaskSchema),
-      async (c) =>
-        c.json(
-          await svc.patchTask(deps.db, ctxOf(c), c.req.valid('param').id, c.req.valid('json')),
-        ),
-    )
-    .delete('/:id', requireScope('write'), validate('param', idParam), async (c) => {
-      const id = c.req.valid('param').id
-      if (c.req.query('permanent') === '1') await svc.permanentlyDeleteTask(deps.db, ctxOf(c), id)
-      else await svc.softDeleteTask(deps.db, ctxOf(c), id)
-      return c.body(null, 204)
-    })
-    .post('/:id/complete', requireScope('write'), validate('param', idParam), async (c) =>
-      c.json(
-        await svc.completeTask(
-          deps.db,
-          ctxOf(c),
-          c.req.valid('param').id,
-          (await transition(c.req.raw)).ifUpdatedAt,
-        ),
-      ),
-    )
-    .post('/:id/uncomplete', requireScope('write'), validate('param', idParam), async (c) =>
-      c.json(
-        await svc.uncompleteTask(
-          deps.db,
-          ctxOf(c),
-          c.req.valid('param').id,
-          (await transition(c.req.raw)).ifUpdatedAt,
-        ),
-      ),
-    )
-    .post('/:id/restore', requireScope('write'), validate('param', idParam), async (c) =>
-      c.json(await svc.restoreTask(deps.db, ctxOf(c), c.req.valid('param').id)),
-    )
-    .get('/:id/watchers', validate('param', idParam), async (c) =>
-      c.json({
-        items: await svc.listWatchers(deps.db, ctxOf(c), c.req.valid('param').id),
-        nextCursor: null,
-      }),
-    )
-    .post(
-      '/:id/watchers',
-      requireScope('write'),
-      validate('param', idParam),
-      validate('json', addWatcherSchema),
-      async (c) =>
-        c.json(
-          {
-            items: await svc.addWatcher(
-              deps.db,
-              ctxOf(c),
-              c.req.valid('param').id,
-              c.req.valid('json').userId,
-            ),
-            nextCursor: null,
-          },
-          201,
-        ),
-    )
-    .delete(
-      '/:id/watchers/:userId',
-      requireScope('write'),
-      validate('param', taskWatcherParam),
-      async (c) => {
-        const { id, userId } = c.req.valid('param')
-        await svc.removeWatcher(deps.db, ctxOf(c), id, userId)
+  return (
+    new Hono<AppEnv>()
+      .use(requireAuth)
+      .get('/', validate('query', listTasksQuery), async (c) =>
+        c.json(await svc.listTasks(deps.db, ctxOf(c), c.req.valid('query'))),
+      )
+      .post(
+        '/',
+        requireScope('write'),
+        idempotency(deps.db),
+        validate('json', createTaskSchema),
+        async (c) => c.json(await svc.createTask(deps.db, ctxOf(c), c.req.valid('json')), 201),
+      )
+      .post('/batch', requireScope('write'), validate('json', batchTasksSchema), async (c) =>
+        c.json(await svc.batchTasks(deps.db, ctxOf(c), c.req.valid('json').ops)),
+      )
+      // 字面路由在 /:id 之前（ADR-0044）
+      .get('/counts', validate('query', taskCountsQuery), async (c) =>
+        c.json(await svc.taskCounts(deps.db, ctxOf(c), c.req.valid('query'))),
+      )
+      .get('/:id', validate('param', idParam), async (c) =>
+        c.json(await svc.getTask(deps.db, ctxOf(c), c.req.valid('param').id)),
+      )
+      .patch(
+        '/:id',
+        requireScope('write'),
+        validate('param', idParam),
+        validate('json', patchTaskSchema),
+        async (c) =>
+          c.json(
+            await svc.patchTask(deps.db, ctxOf(c), c.req.valid('param').id, c.req.valid('json')),
+          ),
+      )
+      .delete('/:id', requireScope('write'), validate('param', idParam), async (c) => {
+        const id = c.req.valid('param').id
+        if (c.req.query('permanent') === '1') await svc.permanentlyDeleteTask(deps.db, ctxOf(c), id)
+        else await svc.softDeleteTask(deps.db, ctxOf(c), id)
         return c.body(null, 204)
-      },
-    )
+      })
+      .post('/:id/complete', requireScope('write'), validate('param', idParam), async (c) =>
+        c.json(
+          await svc.completeTask(
+            deps.db,
+            ctxOf(c),
+            c.req.valid('param').id,
+            (await transition(c.req.raw)).ifUpdatedAt,
+          ),
+        ),
+      )
+      .post('/:id/uncomplete', requireScope('write'), validate('param', idParam), async (c) =>
+        c.json(
+          await svc.uncompleteTask(
+            deps.db,
+            ctxOf(c),
+            c.req.valid('param').id,
+            (await transition(c.req.raw)).ifUpdatedAt,
+          ),
+        ),
+      )
+      .post('/:id/restore', requireScope('write'), validate('param', idParam), async (c) =>
+        c.json(await svc.restoreTask(deps.db, ctxOf(c), c.req.valid('param').id)),
+      )
+      .get('/:id/watchers', validate('param', idParam), async (c) =>
+        c.json({
+          items: await svc.listWatchers(deps.db, ctxOf(c), c.req.valid('param').id),
+          nextCursor: null,
+        }),
+      )
+      .post(
+        '/:id/watchers',
+        requireScope('write'),
+        validate('param', idParam),
+        validate('json', addWatcherSchema),
+        async (c) =>
+          c.json(
+            {
+              items: await svc.addWatcher(
+                deps.db,
+                ctxOf(c),
+                c.req.valid('param').id,
+                c.req.valid('json').userId,
+              ),
+              nextCursor: null,
+            },
+            201,
+          ),
+      )
+      .delete(
+        '/:id/watchers/:userId',
+        requireScope('write'),
+        validate('param', taskWatcherParam),
+        async (c) => {
+          const { id, userId } = c.req.valid('param')
+          await svc.removeWatcher(deps.db, ctxOf(c), id, userId)
+          return c.body(null, 204)
+        },
+      )
+  )
 }

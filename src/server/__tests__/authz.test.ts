@@ -260,6 +260,15 @@ expectMatrix('tag.manage(own)', NOT_GUEST, (a) => can(a, 'tag.manage', { id: 'tg
 expectMatrix('tag.manage(other)', NEVER, (a) =>
   can(a, 'tag.manage', { id: 'tg', createdBy: OTHER }),
 )
+// ADR-0044：个人清单同标签——非 guest 可建，只有本人可管（管理员不例外）
+expectMatrix('task_list.create', NOT_GUEST, (a) => can(a, 'task_list.create', null))
+expectMatrix('task_list.manage', NEVER, (a) => can(a, 'task_list.manage', null))
+expectMatrix('task_list.manage(own)', NOT_GUEST, (a) =>
+  can(a, 'task_list.manage', { id: 'tl', ownerId: ME }),
+)
+expectMatrix('task_list.manage(other)', NEVER, (a) =>
+  can(a, 'task_list.manage', { id: 'tl', ownerId: OTHER }),
+)
 expectMatrix('entry_type.create', NOT_GUEST, (a) => can(a, 'entry_type.create', null))
 expectMatrix('entry_type.manage', NOT_GUEST, (a) =>
   can(a, 'entry_type.manage', { id: 'et', createdBy: ME }),
@@ -456,6 +465,8 @@ describe('archived / deleted / suspended', () => {
         'space.create': null,
         'tag.create': null,
         'tag.manage': null,
+        'task_list.create': null,
+        'task_list.manage': { id: 'tl', ownerId: ME },
         'space.read': s,
         'space.manage': s,
         'space.delete': s,

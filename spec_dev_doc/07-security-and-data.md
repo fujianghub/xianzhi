@@ -205,6 +205,7 @@ pg-boss worker（xz-app 进程内）──▶ SMTP(腾讯云 SES) / WebPush 端�
 |---|---|---|---|
 | 每用户存储配额（附件） | 5 GB | 413 `QUOTA_EXCEEDED`；设置页显示用量 | ADR §9.4、本文、02 §3 |
 | 单文件上限 | 图片 20 MB · PDF 100 MB · 其他 50 MB | 413 `PAYLOAD_TOO_LARGE` | 02 §7 |
+| 每人个人清单（含文件夹，2026-10-01 ADR-0044） | 200 | 422 `VALIDATION`（`errors[].path = name`） | 01 §3.7b |
 | 单篇图片数 | 200 | 422（插入第 201 张时拒绝） | 03 §11.5 |
 | 单篇正文 `ydoc` | 软限 10 MB / 硬限 20 MB | 10 MB 起提示并拒绝新附件节点；20 MB collab 拒绝 update，编辑器只读 | 本文、03 §11.5 |
 | 单条 Yjs update | 2 MB | 断开连接，日志 | 本文 |
