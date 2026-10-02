@@ -7,6 +7,7 @@ import { Dialog as DialogPrimitive } from 'radix-ui'
 import type { ComponentProps } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn.ts'
+import { buttonVariants } from './button.tsx'
 
 export const Sheet = DialogPrimitive.Root
 export const SheetTrigger = DialogPrimitive.Trigger
@@ -25,14 +26,20 @@ export function SheetContent({
   const { t } = useTranslation()
   const pos =
     side === 'right'
-      ? 'inset-y-0 right-0 h-full w-[min(100vw,30rem)] rounded-l-xl data-[state=open]:animate-[xz-slide-left_var(--xz-dur-slow)_var(--xz-ease-out)]'
+      ? 'inset-y-0 right-0 h-full w-[min(100vw,30rem)] rounded-l-xl data-[state=open]:animate-[xz-slide-left_var(--xz-dur-slow)_var(--xz-ease-out)] data-[state=closed]:animate-[xz-slide-left-out_var(--xz-dur-base)_var(--xz-ease-out)_forwards]'
       : side === 'left'
-        ? 'inset-y-0 left-0 h-full w-[min(86vw,var(--xz-sidebar-w))] rounded-r-xl data-[state=open]:animate-[xz-slide-right_var(--xz-dur-slow)_var(--xz-ease-out)]'
-        : 'inset-x-0 bottom-0 max-h-[85dvh] rounded-t-xl pb-[env(safe-area-inset-bottom)] data-[state=open]:animate-[xz-slide-up_var(--xz-dur-slow)_var(--xz-ease-out)]'
+        ? 'inset-y-0 left-0 h-full w-[min(86vw,var(--xz-sidebar-w))] rounded-r-xl data-[state=open]:animate-[xz-slide-right_var(--xz-dur-slow)_var(--xz-ease-out)] data-[state=closed]:animate-[xz-slide-right-out_var(--xz-dur-base)_var(--xz-ease-out)_forwards]'
+        : 'inset-x-0 bottom-0 max-h-[85dvh] rounded-t-xl pb-[env(safe-area-inset-bottom)] data-[state=open]:animate-[xz-slide-up_var(--xz-dur-slow)_var(--xz-ease-out)] data-[state=closed]:animate-[xz-slide-down-out_var(--xz-dur-base)_var(--xz-ease-out)_forwards]'
   return (
     <DialogPrimitive.Portal>
-      {modal ? <DialogPrimitive.Overlay className="scrim fixed inset-0 z-(--xz-z-scrim)" /> : null}
+      {modal ? (
+        <DialogPrimitive.Overlay
+          data-xz-exit=""
+          className="scrim fixed inset-0 z-(--xz-z-scrim) data-[state=open]:animate-[xz-fade-in_var(--xz-dur-base)_var(--xz-ease-out)] data-[state=closed]:animate-[xz-fade-out_var(--xz-dur-fast)_var(--xz-ease-out)_forwards]"
+        />
+      ) : null}
       <DialogPrimitive.Content
+        data-xz-exit=""
         className={cn(
           'glass-thick fixed overflow-y-auto p-6 text-fg outline-none',
           modal ? 'z-(--xz-z-modal)' : 'z-(--xz-z-peek)',
@@ -45,10 +52,10 @@ export function SheetContent({
       >
         {children}
         <DialogPrimitive.Close
-          className="absolute top-3 right-3 inline-flex size-9 items-center justify-center rounded-md text-fg-muted hover:bg-hover hover:text-fg"
+          className={cn(buttonVariants({ variant: 'icon' }), 'absolute top-3 right-3')}
           aria-label={t('ui.action.close')}
         >
-          <XIcon className="size-5" strokeWidth={1.75} />
+          <XIcon className="size-5" />
         </DialogPrimitive.Close>
       </DialogPrimitive.Content>
     </DialogPrimitive.Portal>

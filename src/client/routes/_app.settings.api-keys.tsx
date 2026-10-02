@@ -66,7 +66,7 @@ function ApiKeys() {
       <p className="mb-6 text-fg-muted text-sm">{t('settings.keys.hint')}</p>
       <form
         onSubmit={submit}
-        className="paper mb-6 grid gap-3 rounded-lg border border-divider p-4 sm:grid-cols-[1fr_8rem_10rem_auto] sm:items-end"
+        className="paper mb-6 grid gap-3 rounded-lg p-4 sm:grid-cols-[1fr_8rem_10rem_auto] sm:items-end"
       >
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="text-fg-muted text-xs">{t('settings.keys.name')}</span>
@@ -111,7 +111,7 @@ function ApiKeys() {
       ) : !items.length ? (
         <EmptyState illustration="inbox" title={t('settings.keys.empty')} />
       ) : (
-        <ul className="paper divide-y divide-divider overflow-hidden rounded-lg border border-divider">
+        <ul className="paper divide-y divide-divider overflow-hidden rounded-lg">
           {items.map((k) => (
             <li
               key={k.id}

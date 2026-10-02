@@ -100,6 +100,8 @@
 缓动：`--xz-ease-out: cubic-bezier(.22,1,.36,1)`，`--xz-ease-in-out: cubic-bezier(.65,0,.35,1)`，`--xz-ease-spring`（CSS 微交互专用：按钮按下、勾选、胶囊切换；`cubic-bezier(.34,1.56,.64,1)` 兜底，`@supports (transition-timing-function: linear(0,1))` 下换成简斋验证过的阻尼振荡 `linear()` 采样）。布局动画、拖拽、共享元素仍统一走 Motion 弹簧预设，不手写 keyframes 弹簧。
 规则：所有动效可中断；进入 ≤ 320ms，退出 ≤ 200ms；同屏同时动的元素 ≤ 3 组。
 
+注 2026-10-02（ADR-0046）：浮层退出动画落地——Dialog / Popover / Sheet / ⌘K / Tooltip `data-state=closed` 播 `xz-*-out`（`dur-fast`，Sheet `dur-base`），带 `data-xz-exit` 的浮层在减弱档 `animation: none` 即时卸载；Popover / Tooltip 以 Radix transform-origin 为原点。`@theme` 默认过渡时长 / 缓动指向 `--xz-dur-fast` / `--xz-ease-out`，裸 `transition-*` 也随减弱档归零。Motion 弹簧预设在 `lib/motion.ts`：`SPRING`（420 / 34）、`SPRING_MORPH`（260 / 26，Toast 形变）。
+
 ---
 
 ## 3. 主题机制

@@ -321,6 +321,10 @@ export default function EntryEditor({
         attributes: {
           class: 'xz-prose outline-none',
           'data-testid': 'editor',
+          // 只读 / 协同未连上时 contenteditable=false，裸 div 带 aria-label 被 axe 判 aria-prohibited-attr；显式 textbox 角色
+          role: 'textbox',
+          'aria-multiline': 'true',
+          'aria-readonly': readOnly ? 'true' : 'false',
           'aria-label': t('entry.placeholder'),
         },
         // 目录跳转 / 光标滚动时让出顶栏 + 吸顶工具栏（ADR-0026），不把标题藏在工具栏下

@@ -170,7 +170,7 @@ export function CalendarSidebar({
                 />
                 <span
                   className={cn(
-                    'inline-flex size-4 shrink-0 items-center justify-center rounded-[4px] border-2 transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-primary',
+                    'inline-flex size-4 shrink-0 items-center justify-center rounded-[4px] border-2 transition-colors peer-focus-visible:focus-ring',
                     c.hidden
                       ? 'border-current bg-transparent'
                       : cn(PALETTE_DOT[c.color], 'border-transparent'),

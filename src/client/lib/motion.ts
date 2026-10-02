@@ -32,6 +32,10 @@ export function setMotion(level: MotionLevel): void {
   applyMotion(level)
 }
 
+/** Motion 弹簧预设（04 §2.4 默认 420 / 34；06 §4 Toast 胶囊形变 260 / 26）。组件不再各写参数。 */
+export const SPRING = { type: 'spring', stiffness: 420, damping: 34 } as const
+export const SPRING_MORPH = { type: 'spring', stiffness: 260, damping: 26 } as const
+
 /** 实际生效档位：系统减弱动效时一律 reduce。 */
 export function effectiveMotion(): MotionLevel {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 'reduce'

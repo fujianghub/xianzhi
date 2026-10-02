@@ -95,7 +95,7 @@ function CardLink({ entry, showSpace }: { entry: Entry; showSpace?: boolean }) {
           openPeek({ kind: 'entry', id: entry.id })
         }
       }}
-      className="paper xz-lift xz-rise group flex min-h-36 flex-col gap-2 rounded-lg border border-divider p-4"
+      className="paper xz-lift xz-rise group flex min-h-36 flex-col gap-2 rounded-lg p-4"
     >
       <div className="flex items-center gap-2 text-xs">
         <KindBadge kind={entry.kind} typeId={entry.typeId} size="md" />

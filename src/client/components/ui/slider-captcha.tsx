@@ -195,7 +195,7 @@ export function SliderCaptcha({
           className="absolute top-1.5 right-1.5 inline-flex size-8 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--xz-fg)_55%,transparent)] text-bg hover:bg-fg"
           data-testid="captcha-refresh"
         >
-          <RotateCw className="size-4" strokeWidth={2} />
+          <RotateCw className="size-4" />
         </button>
       </div>
 
@@ -244,9 +244,9 @@ export function SliderCaptcha({
           data-testid="captcha-handle"
         >
           {solved ? (
-            <Check className="size-5" strokeWidth={2.25} />
+            <Check className="size-5 [--xz-icon-stroke:2.25]" />
           ) : (
-            <ChevronsRight className="size-5" strokeWidth={2} />
+            <ChevronsRight className="size-5" />
           )}
         </div>
       </div>

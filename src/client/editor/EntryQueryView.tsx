@@ -67,7 +67,7 @@ export function EntryQueryView({ node, editor, updateAttributes }: NodeViewProps
         <a
           href={href}
           contentEditable={false}
-          className="paper flex items-center gap-2 rounded-md border border-divider p-3 text-sm hover:bg-hover"
+          className="paper flex items-center gap-2 rounded-md p-3 text-sm hover-veil"
         >
           <TableProperties className="size-4 text-fg-muted" aria-hidden />
           <span className="font-medium">{title}</span>
@@ -79,7 +79,7 @@ export function EntryQueryView({ node, editor, updateAttributes }: NodeViewProps
   return (
     <NodeViewWrapper
       as="div"
-      className="xz-entry-query paper my-3 rounded-lg border border-divider p-3"
+      className="xz-entry-query paper my-3 rounded-lg p-3"
       contentEditable={false}
       data-testid="entry-query"
       data-view={view}

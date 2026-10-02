@@ -1,6 +1,12 @@
 /** 动效档位、路由转场、卡片 → 详情共享元素、展开指示（REQ-UI-028 · 029 · 021 · 030，04 §2.4、ADR-0005 §3）。 */
 import { expect, type Page, test } from '@playwright/test'
-import { createEntry, STATE } from './helpers.ts'
+import {
+  appearanceSaved,
+  createEntry,
+  resetAppearance,
+  STATE,
+  setAppearancePref,
+} from './helpers.ts'
 
 test.use({ storageState: STATE.owner })
 
@@ -37,8 +43,10 @@ test('REQ-UI-028 设置页切换动效档位：写 html[data-motion] 并持久�
   await page.goto('/settings')
   const select = page.getByTestId('profile-motion')
   await expect(select).toHaveValue('standard')
+  const saved = appearanceSaved(page)
   await select.selectOption('reduce')
   await expect(page.locator('html')).toHaveAttribute('data-motion', 'reduce')
+  await saved
   await page.reload()
   await expect(page.locator('html')).toHaveAttribute('data-motion', 'reduce')
   await select.selectOption('rich')
@@ -46,6 +54,7 @@ test('REQ-UI-028 设置页切换动效档位：写 html[data-motion] 并持久�
   await select.selectOption('standard')
   await expect(page.locator('html')).not.toHaveAttribute('data-motion', /.*/)
   expect(await page.evaluate(() => localStorage.getItem('xz:motion'))).toBeNull()
+  await resetAppearance(page.request)
 })
 
 test('REQ-UI-029 路径变化带 route 类型转场；只改 search 与减弱档不转场', async ({ page }) => {
@@ -61,13 +70,13 @@ test('REQ-UI-029 路径变化带 route 类型转场；只改 search 与减弱档
   await expect(page).toHaveURL(/\/inbox/)
   await expect.poll(async () => (await log(page)).types).toEqual([['route']])
 
-  await page.evaluate(() => localStorage.setItem('xz:motion', 'reduce'))
+  await setAppearancePref(page.request, { motion: 'reduce' })
   await page.reload()
   await page.getByTestId('sidebar').getByRole('link', { name: '今日' }).click()
   await expect(page).toHaveURL(/\/today/)
   await page.waitForTimeout(300)
   expect((await log(page)).types).toEqual([])
-  await page.evaluate(() => localStorage.removeItem('xz:motion'))
+  await resetAppearance(page.request)
 })
 
 test('REQ-UI-021 卡片 → 详情共享元素：同一时刻带名元素 ≤ 1，结束后为 0', async ({

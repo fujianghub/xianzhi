@@ -6,7 +6,7 @@
  */
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Eye, EyeOff, X } from 'lucide-react'
-import { lazy, type ReactNode, Suspense, useEffect, useState } from 'react'
+import { lazy, type ReactNode, Suspense, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useMe } from '../../hooks/useMe.ts'
@@ -104,14 +104,21 @@ export function TaskDetailSheet({
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [sub, setSub] = useState('')
 
-  const save = async (change: TaskPatch) => {
-    if (!task) return
-    try {
-      await actions.patch(task, change)
-      setSavedAt(Date.now())
-    } catch {
-      /* optimisticPatch 已提示并回滚 / 覆盖 */
-    }
+  // 保存排队：前一次未回来就发下一次会带旧 ifUpdatedAt 撞 409（失焦保存紧跟插图保存，
+  // debug/2026-10-02-task-image-upload-lost-on-save）；每次从缓存取最新的 updatedAt
+  const saving = useRef<Promise<void>>(Promise.resolve())
+  const save = (change: TaskPatch) => {
+    saving.current = saving.current.then(async () => {
+      const cur = qc.getQueryData<Task>(taskQuery(taskId).queryKey) ?? task
+      if (!cur) return
+      try {
+        await actions.patch(cur, change)
+        setSavedAt(Date.now())
+      } catch {
+        /* optimisticPatch 已提示并回滚 / 覆盖 */
+      }
+    })
+    return saving.current
   }
   const canWrite = space?.myRole === 'admin' || space?.myRole === 'member'
   const candidates = useSpaceCandidates(task?.spaceId)

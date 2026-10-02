@@ -167,8 +167,8 @@
 | DELETE | `/me/avatar` | 移除头像（回到首字母）；204 | REQ-WS-023 |
 | PATCH | `/me/account` | `{ username?, email?, currentPassword? }`；改邮箱须当前密码（错 422 `currentPassword`）；占用 409（字段级）；仅会话；返回新 `/me` | REQ-WS-022 |
 | POST | `/me/password` | `{ currentPassword, newPassword }`；删本人其他会话、保留当前；审计 `auth.password_changed`；仅会话；返回 `{ sessions }` | REQ-AUTH-021 |
-| GET | `/me/preferences` | 阅读与写作偏好 `{ reading }`（补齐默认值，ADR-0024） | REQ-READ-001 |
-| PATCH | `/me/preferences` | `{ reading: Partial }` 按键合并（jsonb `\|\|`），可交换、幂等，**不要求 `ifUpdatedAt`**（§4 例外）；需 write scope；非法值 / 未知键 422 | REQ-READ-001 |
+| GET | `/me/preferences` | 阅读与写作偏好 `{ reading }`（补齐默认值，ADR-0024）；注 2026-10-02（ADR-0049）：另返回 `appearance`（本人外观值）与 `workspaceAppearance`（工作区默认） | REQ-READ-001 |
+| PATCH | `/me/preferences` | `{ reading: Partial }` 按键合并（jsonb `\|\|`），可交换、幂等，**不要求 `ifUpdatedAt`**（§4 例外）；需 write scope；非法值 / 未知键 422；注 2026-10-02（ADR-0049）：可带 `appearance: { theme / density / motion / glass: 值 \| null }`，null 删除该键（REQ-UI-051） | REQ-READ-001 |
 | GET | `/me/keys` | API Key 列表（只含前缀、scope、expiresAt、lastUsedAt） | REQ-AUTH-010 |
 | POST | `/me/keys` | `{ name, scope, expiresAt? }` → 明文只返回一次 | REQ-AUTH-010 |
 | DELETE | `/me/keys/:id` | 吊销 | REQ-AUTH-010 |
@@ -178,7 +178,7 @@
 | DELETE | `/workspace/members/me` | 本人退出工作区（等价于被移除，同事务吊销与断连；最后 owner 409） | REQ-WS-004 · 012 · 013 |
 | DELETE | `/workspace/members/:userId?purge=1` | owner 删除他人账号（`user.manage`）：移除 + 吊销 + 删凭据 / 2FA / Passkey / Key + 匿名化；owner 不可删 409；审计 `user.deleted` | REQ-WS-021 · 07 §4 |
 | GET | `/workspace` | 工作区信息 | REQ-WS-001 |
-| PATCH | `/workspace` | 名称、设置（owner/admin） | REQ-WS-001 |
+| PATCH | `/workspace` | 名称、设置（owner/admin）；注 2026-10-02（ADR-0049）：`settings.appearance` = 工作区默认外观，按外观枚举校验（REQ-WS-024） | REQ-WS-001 |
 | GET | `/workspace/members` | 成员列表（含 `status: active|suspended`） | REQ-WS-002 |
 | PATCH | `/workspace/members/:userId` | 改角色；最后一名 owner 降级 → 409 `CONFLICT_LAST_OWNER` | REQ-WS-002 · 003 |
 | DELETE | `/workspace/members/:userId` | 移除：同事务吊销会话与 Key、断 WS/SSE、指派置空并发 `task.unassigned` | REQ-WS-004 |

@@ -2,7 +2,7 @@
 import { type APIRequestContext, expect, type Page, test } from '@playwright/test'
 import pg from 'pg'
 import { dayRange } from '../src/shared/tz.ts'
-import { STATE, sameSite } from './helpers.ts'
+import { resetAppearance, STATE, sameSite, setAppearancePref } from './helpers.ts'
 
 test.use({ storageState: STATE.owner })
 
@@ -307,12 +307,13 @@ test('REQ-UI-011 compact 密度：TaskRow 高度减少 20%', async ({ page, requ
   await task(request, { title: '量高度', spaceId: s.id, status: 'todo' })
   await page.goto(`/spaces/${s.slug}?view=list`)
   const h1 = (await page.getByTestId('task-row').first().boundingBox())?.height ?? 0
-  await page.evaluate(() => localStorage.setItem('xz:density', 'compact'))
+  await setAppearancePref(page.request, { density: 'compact' })
   await page.reload()
+  await expect(page.locator('html')).toHaveAttribute('data-density', 'compact')
   const h2 = (await page.getByTestId('task-row').first().boundingBox())?.height ?? 0
   expect(h1).toBeGreaterThan(0)
   expect(h2 / h1).toBeCloseTo(0.8, 2)
-  await page.evaluate(() => localStorage.removeItem('xz:density'))
+  await resetAppearance(page.request)
 })
 
 test('REQ-UI-018 5 分钟前显示相对时间，title 为绝对时间', async ({ page, request }) => {

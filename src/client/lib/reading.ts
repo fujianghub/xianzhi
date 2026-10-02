@@ -10,6 +10,7 @@ import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { create } from 'zustand'
 import {
+  type AppearancePrefs,
   DEFAULT_READING,
   normalizeReading,
   type ReadingPrefs,
@@ -94,12 +95,15 @@ export const useReading = create<ReadingState>((set, get) => ({
   reset: () => get().update({ ...DEFAULT_READING }),
 }))
 
+/** `GET /me/preferences` 完整视图：阅读偏好 + 外观偏好（ADR-0049）；各处用 select 取自己那份。 */
+export interface PreferencesView {
+  reading: ReadingPrefs
+  appearance: Partial<AppearancePrefs>
+  workspaceAppearance: Partial<AppearancePrefs>
+}
 export const preferencesQuery = {
   queryKey: ['me', 'preferences'] as const,
-  queryFn: () =>
-    unwrap<{ reading: ReadingPrefs }>(api.me.preferences.$get()).then((r) =>
-      normalizeReading(r.reading),
-    ),
+  queryFn: () => unwrap<PreferencesView>(api.me.preferences.$get()),
   staleTime: 5 * 60_000,
 }
 
@@ -110,7 +114,7 @@ export function useReadingSync(userId: string) {
     inited.current = userId
     useReading.getState().init(userId)
   }
-  const q = useQuery(preferencesQuery)
+  const q = useQuery({ ...preferencesQuery, select: (r) => normalizeReading(r.reading) })
   useEffect(() => {
     if (q.data) useReading.getState().hydrate(q.data)
   }, [q.data])

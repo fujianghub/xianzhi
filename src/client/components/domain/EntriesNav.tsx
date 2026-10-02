@@ -57,7 +57,7 @@ function HueIcon({ icon: Icon, hue }: { icon: LucideIcon; hue: string }) {
       style={{ '--xz-ico': `var(--xz-icon-${hue})` } as CSSProperties}
       aria-hidden
     >
-      <Icon className="size-4" strokeWidth={2} />
+      <Icon className="size-4" />
     </span>
   )
 }

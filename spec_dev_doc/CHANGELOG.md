@@ -2,6 +2,26 @@
 
 > 只记规范文件的变更；代码变更看 git log。格式：日期 → 文件 → 一行一条。每个 Phase 结束前的一致性审查结果也记在这里。
 
+## 2026-10-02
+
+**外观偏好随账号保存 · 工作区默认外观（ADR-0049）**
+- 新增 ADR-0049（修订 ADR-0047 §1、REQ-UI-001 / 011 / 028 的本机持久化、08 §2.13 注）。迁移 0027（`user_preferences.appearance`）。
+- 00：+REQ-UI-051、REQ-WS-024。01 user_preferences +appearance。02 §9 `/me/preferences` ×2、`PATCH /workspace` 行注。glossary +外观偏好、工作区默认外观；玻璃强度注。ADR-0047 加注。
+- e2e：外观改走 API（`setAppearancePref` / `resetAppearance`），夜场用 `emulateMedia`；勿再写 localStorage 指定外观。
+
+**侧栏与顶栏的玻璃：去白、背后补色（ADR-0048）**
+- 新增 ADR-0048（修订 ADR-0047 §2、06 §3.1 注）。无迁移。00：+REQ-UI-050。glossary +定向光晕。`check-contrast` 预设矩阵 +侧栏 / 顶栏合成底（共 440 项），并修正夜场叠加顺序（按特异度）。
+
+**玻璃强度：默认「流光」，用户可选（ADR-0047）**
+- 新增 ADR-0047（修订 06 §3.1 光晕数量与漂移层、§3.2 玻璃透明度与光边、§4 纸面行；08 §2.13 注）。无迁移。
+- 00：+REQ-UI-049。glossary +玻璃强度、光边；纸面、光晕注。`scripts/check-contrast.ts` 增预设矩阵（176 项）。
+
+**界面精修：材质层级 · 浮层退出动效 · 图标描边 · 空状态（ADR-0046）**
+- 新增 ADR-0046（修订 06 §4 Tooltip / EmptyState 行注、+批量操作栏行，§5.1 注；04 §2.4 注）。无迁移。
+- 00：+REQ-UI-045 ~ 048。
+- debug +`2026-10-02-a11y-axe-route-timeout`（既有：记录页正文 aria-prohibited-attr；全路由 axe 用例超时，main 基线同值）。
+- debug +`2026-10-02-task-image-upload-lost-on-save`（既有竞态：任务描述插图后失焦保存回来冲掉上传占位；保存未排队撞 409）。
+
 ## 2026-10-01
 
 **任务行内编辑 · 单个管理菜单 · 页面级批量（ADR-0045）**

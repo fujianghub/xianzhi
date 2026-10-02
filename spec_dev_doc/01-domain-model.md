@@ -580,6 +580,7 @@ FieldDef = { key: /^x[A-Z]{6}$/   // 系统生成、不可改，与内置 camelC
 |---|---|---|
 | user_id | text | PK，FK user |
 | reading | jsonb | 只存改过的键（font / size / lineHeight / width / paragraph / indent / justify / paper / headingNumbers / tocNumbers / tocDepth / codeFold），读取逐键校验并补默认；`PATCH` 按键合并 |
+| appearance | jsonb | 外观偏好（ADR-0049，迁移 0027）：只存本人明确选过的 theme / density / motion / glass；缺的键跟随工作区默认（`organization.metadata.settings.appearance`），再缺跟随内置默认；`PATCH` 按键合并，null 删除 |
 | updated_at | timestamptz | |
 
 - 删号（purge）时删除（07 §4）；移除成员不删（同一账号再加入时沿用）。

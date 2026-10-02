@@ -27,7 +27,7 @@ export function PriorityIcon({
   const label = `${t('task.priorityLabel')}：${t(`task.priority.${p}`)}`
   return (
     <span className={cn('inline-flex shrink-0', cls, className)} title={label} data-priority={p}>
-      <Icon className="size-4" strokeWidth={2} aria-label={label} />
+      <Icon className="size-4" aria-label={label} />
     </span>
   )
 }

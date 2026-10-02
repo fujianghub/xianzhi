@@ -13,6 +13,7 @@ import { PALETTE_CLASS, type PaletteName } from '../components/domain/SpaceIcon.
 import { tagsQuery } from '../components/domain/TagPicker.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { ConfirmDialog } from '../components/ui/confirm-dialog.tsx'
+import { EmptyState } from '../components/ui/empty-state.tsx'
 import { InlineEdit } from '../components/ui/inline-edit.tsx'
 import { Input } from '../components/ui/input.tsx'
 import { PageHeader } from '../components/ui/page-header.tsx'
@@ -131,7 +132,7 @@ function TagsPage() {
       </form>
       {q.isPending ? <Skeleton className="h-40 w-full" /> : null}
       {!q.isPending && !tags.length ? (
-        <p className="text-fg-muted text-sm">{t('settings.tags.empty')}</p>
+        <EmptyState illustration="tags" size="sm" title={t('settings.tags.empty')} />
       ) : null}
       <ul className="flex flex-col divide-y divide-divider rounded-xl border border-divider">
         {shown.map((tag) => (

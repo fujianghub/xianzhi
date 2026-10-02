@@ -68,7 +68,7 @@ export function IconChip({
         title={label}
         aria-hidden
       >
-        <Icon strokeWidth={2} />
+        <Icon />
       </span>
       {label ? <span className="sr-only">{label}</span> : null}
     </>
@@ -127,7 +127,7 @@ export function KindBadge({
       )}
       data-kind={kind}
     >
-      <Icon strokeWidth={2.25} aria-hidden />
+      <Icon aria-hidden />
       {meta.label}
     </span>
   )
@@ -136,5 +136,5 @@ export function KindBadge({
 /** 只要图标本身（放进已有胶囊里，如时间线的版本号徽章）。 */
 export function KindGlyph({ kind }: { kind: string }) {
   const Icon = ENTRY_KIND_ICON[kind] ?? StickyNote
-  return <Icon strokeWidth={2.25} aria-hidden />
+  return <Icon aria-hidden />
 }

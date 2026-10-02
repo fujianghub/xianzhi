@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { contrastRatio, over, type RGBA } from '../../shared/contrast.ts'
 import { PALETTE_COLORS } from '../../shared/schemas/enums.ts'
+import { resolveAppearance } from '../../shared/schemas/preferences.ts'
 import { ENTRY_KIND_ICON, IconChip, KindBadge, KindIcon } from '../components/domain/KindIcon.tsx'
 import { Avatar } from '../components/ui/avatar.tsx'
 import { Button } from '../components/ui/button.tsx'
@@ -46,7 +47,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs.
 import { Tooltip } from '../components/ui/tooltip.tsx'
 import { TreeGuides, treeLevelClass } from '../components/ui/tree-guides.tsx'
 import { isAdmin, type Me } from '../hooks/useMe.ts'
+import { setAppearance, useAppearance } from '../lib/appearance.ts'
 import { cn } from '../lib/cn.ts'
+import { GLASS_LEVELS } from '../lib/glass.ts'
 import { applyMotion, type MotionLevel, storedMotion } from '../lib/motion.ts'
 import { optOneOf } from '../lib/search.ts'
 import { setTheme } from '../lib/theme.ts'
@@ -161,6 +164,8 @@ function Design() {
   }, [s.transparency])
 
   const motion = s.motion ?? storedMotion()
+  // 玻璃强度（ADR-0047）：写本机偏好，离开画廊仍生效，便于全站对比
+  const glass = useAppearance((a) => resolveAppearance(a.workspace, a.user).glass)
   return (
     <div className="@container/gallery" data-testid="design" data-page={page}>
       <h1 className="font-semibold text-2xl tracking-tight">{t('design.title')}</h1>
@@ -207,6 +212,21 @@ function Design() {
               }))}
               onChange={(v) => set({ motion: v === storedMotion() ? undefined : v })}
               testId="design-motion"
+            />
+          </span>
+          <span className="flex items-center gap-2" title={t('design.toolbar.glassHint')}>
+            <span className="text-fg-muted text-xs">{t('design.toolbar.glass')}</span>
+            <Segmented
+              label={t('design.toolbar.glass')}
+              value={glass}
+              options={GLASS_LEVELS.map((v) => ({
+                value: v,
+                label: t(`design.toolbar.glassOpt.${v}`),
+              }))}
+              onChange={(v) => {
+                setAppearance({ glass: v })
+              }}
+              testId="design-glass"
             />
           </span>
           <TransparencyToggle

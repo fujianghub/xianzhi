@@ -66,10 +66,68 @@ export function normalizeReading(raw: unknown): ReadingPrefs {
   return out as ReadingPrefs
 }
 
-export const patchPreferencesSchema = z
-  .object({ reading: readingPrefsSchema.partial().strict() })
+/**
+ * 外观偏好（ADR-0049）：主题 / 密度 / 动效档位 / 玻璃强度随账号保存（`user_preferences.appearance`，只存用户明确选过的键）。
+ * 生效值 = 内置默认 ← 工作区默认（`organization.metadata.settings.appearance`）← 用户值；PATCH 传 null = 删除该键、改回跟随默认。
+ */
+export const APPEARANCE_THEMES = ['system', 'light', 'dark'] as const
+export const APPEARANCE_DENSITIES = ['comfortable', 'compact'] as const
+export const APPEARANCE_MOTIONS = ['standard', 'rich', 'reduce'] as const
+export const APPEARANCE_GLASS = ['liquid', 'vivid', 'clear', 'standard'] as const
+
+export const appearancePrefsSchema = z.object({
+  theme: z.enum(APPEARANCE_THEMES),
+  density: z.enum(APPEARANCE_DENSITIES),
+  motion: z.enum(APPEARANCE_MOTIONS),
+  glass: z.enum(APPEARANCE_GLASS),
+})
+export type AppearancePrefs = z.infer<typeof appearancePrefsSchema>
+export type AppearanceKey = keyof AppearancePrefs
+
+/** 内置默认：跟随系统主题 · 舒适 · 标准动效 · 流光（ADR-0047） */
+export const BUILTIN_APPEARANCE: AppearancePrefs = {
+  theme: 'system',
+  density: 'comfortable',
+  motion: 'standard',
+  glass: 'liquid',
+}
+
+/** 只保留合法键（用户值 / 工作区默认都是「部分」：缺的键跟随上一层）。 */
+export function normalizeAppearance(raw: unknown): Partial<AppearancePrefs> {
+  const out: Record<string, unknown> = {}
+  if (raw && typeof raw === 'object')
+    for (const [k, schema] of Object.entries(appearancePrefsSchema.shape)) {
+      const v = (raw as Record<string, unknown>)[k]
+      if (v !== undefined && schema.safeParse(v).success) out[k] = v
+    }
+  return out as Partial<AppearancePrefs>
+}
+
+/** 生效外观 = 内置 ← 工作区默认 ← 用户值 */
+export function resolveAppearance(
+  workspace: Partial<AppearancePrefs>,
+  user: Partial<AppearancePrefs>,
+): AppearancePrefs {
+  return { ...BUILTIN_APPEARANCE, ...workspace, ...user }
+}
+
+const appearancePatchSchema = z
+  .object({
+    theme: z.enum(APPEARANCE_THEMES).nullable(),
+    density: z.enum(APPEARANCE_DENSITIES).nullable(),
+    motion: z.enum(APPEARANCE_MOTIONS).nullable(),
+    glass: z.enum(APPEARANCE_GLASS).nullable(),
+  })
+  .partial()
   .strict()
-  .refine((v) => Object.keys(v.reading).length > 0, {
+
+export const patchPreferencesSchema = z
+  .object({
+    reading: readingPrefsSchema.partial().strict().optional(),
+    appearance: appearancePatchSchema.optional(),
+  })
+  .strict()
+  .refine((v) => Object.keys(v.reading ?? {}).length + Object.keys(v.appearance ?? {}).length > 0, {
     message: '至少一个字段',
     path: ['reading'],
   })

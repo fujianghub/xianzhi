@@ -122,10 +122,7 @@ function Members() {
           {TABS.map(tabBtn)}
         </div>
       </div>
-      <form
-        onSubmit={invite}
-        className="paper mb-6 flex flex-wrap items-end gap-3 rounded-lg border border-divider p-4"
-      >
+      <form onSubmit={invite} className="paper mb-6 flex flex-wrap items-end gap-3 rounded-lg p-4">
         <label className="flex min-w-56 flex-1 flex-col gap-1.5 text-sm">
           <span className="text-fg-muted text-xs">{t('settings.members.inviteEmail')}</span>
           <Input
@@ -163,7 +160,7 @@ function Members() {
         members.isPending ? (
           <Skeleton className="h-48 w-full" />
         ) : (
-          <ul className="paper divide-y divide-divider overflow-hidden rounded-lg border border-divider">
+          <ul className="paper divide-y divide-divider overflow-hidden rounded-lg">
             {(members.data ?? []).map((m) => {
               const self = m.userId === me.id
               const isOwner = m.role === 'owner'
@@ -277,7 +274,7 @@ function Members() {
           <Skeleton className="h-32 w-full" />
         ) : (
           <ul
-            className="paper divide-y divide-divider overflow-hidden rounded-lg border border-divider"
+            className="paper divide-y divide-divider overflow-hidden rounded-lg"
             data-testid="join-requests"
           >
             {(requests.data ?? []).length ? (
@@ -353,7 +350,7 @@ function Members() {
       ) : invitations.isPending ? (
         <Skeleton className="h-32 w-full" />
       ) : (
-        <ul className="paper divide-y divide-divider overflow-hidden rounded-lg border border-divider">
+        <ul className="paper divide-y divide-divider overflow-hidden rounded-lg">
           {(invitations.data ?? []).length ? (
             (invitations.data ?? []).map((iv) => (
               <li

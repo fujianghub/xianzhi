@@ -20,13 +20,13 @@ export function ThemeMenu({ className }: { className?: string }) {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         className={cn(
-          'glass-thick-flat inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-fg-muted text-sm shadow-none hover:text-fg',
+          'glass-thick-flat inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-fg-muted text-sm hover-veil [--xz-mat-drop:0_0_transparent] hover:text-fg',
           className,
         )}
         aria-label={t('ui.theme.toggle')}
         data-testid="theme-menu"
       >
-        <Current className="size-4" strokeWidth={1.75} />
+        <Current className="size-4" />
         {t(`ui.theme.${choice}`)}
       </PopoverTrigger>
       <PopoverContent align="end" className="w-40 p-1.5">
@@ -47,7 +47,7 @@ export function ThemeMenu({ className }: { className?: string }) {
                   void setTheme(v, { x: e.clientX, y: e.clientY })
                 }}
               >
-                <Icon className="size-4 text-fg-muted" strokeWidth={1.75} />
+                <Icon className="size-4 text-fg-muted" />
                 <span className="flex-1">{t(`ui.theme.${v}`)}</span>
                 {choice === v ? <Check className="size-4 text-primary-text" /> : null}
               </button>

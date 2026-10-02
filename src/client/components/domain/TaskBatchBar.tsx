@@ -204,7 +204,7 @@ function TaskBatchBar() {
     <div
       role="toolbar"
       aria-label={t('taskBatch.toolbar')}
-      className="glass-thick-flat fixed inset-x-0 bottom-[calc(var(--xz-bottomnav-h)+env(safe-area-inset-bottom)+0.75rem)] z-(--xz-z-sticky) mx-auto flex w-fit max-w-[calc(100vw-1.5rem)] flex-wrap items-center justify-center gap-0.5 rounded-2xl px-2 py-1.5 text-sm lg:bottom-6"
+      className="glass xz-batch-in fixed inset-x-0 bottom-[calc(var(--xz-bottomnav-h)+env(safe-area-inset-bottom)+0.75rem)] z-(--xz-z-sticky) mx-auto flex w-fit max-w-[calc(100vw-1.5rem)] flex-wrap items-center justify-center gap-0.5 rounded-xl px-2 py-1.5 text-sm lg:bottom-6"
       data-testid="batch-bar"
     >
       <span className="px-2 font-medium tabular-nums" data-testid="batch-count">

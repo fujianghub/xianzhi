@@ -378,7 +378,11 @@ export const TaskRow = memo(function TaskRow({
           : { touchAction: 'pan-y' }
       }
       className={cn(
-        'group relative flex h-(--xz-row-h) items-center gap-3 px-3 text-sm transition-colors duration-(--xz-dur-fast)',
+        'group relative flex h-(--xz-row-h) items-center gap-3 px-3 text-sm',
+        // ADR-0046：拖动中跟手不过渡；松手（dx 归零）时弹回
+        swipe.dx
+          ? 'transition-colors duration-(--xz-dur-fast)'
+          : '[transition:background-color_var(--xz-dur-fast)_var(--xz-ease-out),transform_var(--xz-dur-base)_var(--xz-ease-spring)]',
         'hover:bg-hover',
         swipe.dx < 0 && 'bg-success-soft',
         swipe.dx > 0 && 'bg-primary-soft',

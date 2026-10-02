@@ -51,6 +51,8 @@ z 轴（由远到近）
 
 ### 3.1 底板与光晕
 
+> 注 2026-10-02（ADR-0047）：玻璃强度预设（默认「流光」）加浓光晕并增 `--xz-glow-4`（侧栏中段后方）；流光另有 `body::after` 两团大光晕 38s 漂移（只动 translate，减弱档静止）。本节数值为「标准」档。注 2026-10-02（ADR-0048）：预设日场另有三团定向光晕 `--xz-wash-*`（侧栏上 / 下段、顶栏中部），专供 chrome 去透；夜场不加。
+
 | token | 日场 | 夜场 | 说明 |
 |---|---|---|---|
 | `--xz-bg` | `#F4F4F1` | `#0A0C0B` | 底板实色。日场取 Apple `#F5F5F7` 略暖；夜场取近黑带一丝苔绿，让光晕有对比 |
@@ -76,6 +78,8 @@ body {
 注 2026-09-28（ADR-0024）阅读纸张 token（日场 / 夜场各一套，纯 CSS 渐变组合在 app.css，色值只在 tokens.css）：`--xz-paper-rice`（宣纸底）· `--xz-paper-kraft`（牛皮纸底，调到 fg-faint ≥ 3）· `--xz-paper-rule`（方格 / 横线 / 牛皮纸纤维）· `--xz-paper-dot`（点阵）；check-contrast 覆盖宣纸 / 牛皮纸上 fg / muted / faint / primary-text，以及 9 色板文字色（ADR-0025 颜色标记）落在纸面 / 宣纸 / 牛皮纸上 ≥ 4.5。
 
 ### 3.2 玻璃材质（四级）
+
+> 注 2026-10-02（ADR-0047）：本节透明度为「标准」档；默认「流光」更透（日场 thin / regular / thick 22% / 34% / 50%），并加方向光边 `--xz-rim-hi/-lo`、内发光、斜向渐变填充 `--xz-glass-fill`，纸面底色 `--xz-paper-bg` 半透明（记录正文除外）。各档值见 `tokens.css` 的 `html[data-glass]` 块。
 
 | token | 日场 | 夜场 | blur / saturate | 用于 |
 |---|---|---|---|---|
@@ -186,12 +190,13 @@ Tailwind v4 的 `backdrop-blur-*` 会同时输出 `-webkit-backdrop-filter`；�
 | 看板卡片 | `paper` | `lg` | 静止 `shadow-soft`，hover `shadow-card` | 拖拽：`scale 1.02 · rotate 1.5deg · shadow-float` |
 | 周期页头（程） | `paper` + `--xz-primary-gradient` 6% 蒙层 | `xl` | `shadow-card` | 唯一允许大面积主色渐变的地方 |
 | Popover / Dropdown / Select | `glass-thick` blur 24 | `lg` | `shadow-float` | portal |
-| Tooltip | `glass-opaque` | `md` | `shadow-soft` | portal；小且需清晰，不 blur、不计入 §8 计数 |
+| Tooltip | `glass-opaque` | `md` | `shadow-soft` | portal；小且需清晰，不 blur、不计入 §8 计数；注 2026-10-02（ADR-0046）：`glass-opaque` 加顶缘 inset 棱线；BugStats 悬浮提示同此材质 |
 | Tabs | 透明；选中项 `selected-bg` 胶囊 `full` | — | 无 | 下划线式用 2px 主色条 |
 | Checkbox / Radio / Switch | `surface-solid` 底 + `border`；选中 `primary-gradient` | `sm` / `full` | 无 | 勾选动画见 §5.3 |
 | Avatar | 继承宿主；1px `border` 环 | `full` | 无 | 协作光标头像外加同色 2px 环 |
 | KeyHint | `glass-thin`（无 blur，`backdrop-filter: none`）+ `border` | `sm` | 无 | 只在 ⌘K 与快捷键面板内 |
-| EmptyState | 透明；插画背后静态 `glow-1` 模糊圆 | — | 无 | §5.5 |
+| EmptyState | 透明；插画背后静态 `glow-1` 模糊圆 | — | 无 | §5.5；注 2026-10-02（ADR-0046）：光晕用径向渐变实现（不 blur）；面板 / 设置页用 `size="sm"` 紧凑档 |
+| 批量操作栏（记录 / 空间 / 任务） | `glass` blur 20（L1） | `full`（任务栏可折行，`xl`） | `shadow-soft` | 注 2026-10-02（ADR-0046）新增行：三条统一 L1；出现时 `xz-rise` 浮起 |
 | InlineEdit | 静止透明；hover `hover-bg`；编辑态同输入框 | `md` | 无 | §5.2 |
 | NotificationItem | `paper` 行（组容器有 border）；未读左侧 3px 主色条 | 组 `lg` | 组 `shadow-soft` | 与任务行同规则 |
 | SpaceSwitcher（侧栏空间树） | 透明；当前项 `selected-bg` 胶囊 | `full` | 无 | Sidebar 行已定 |
@@ -224,6 +229,8 @@ Tailwind v4 的 `backdrop-blur-*` 会同时输出 `-webkit-backdrop-filter`；�
 | icon | ghost，36×36，`radius-md` | 同 ghost | | 图标 20px `stroke 1.75` |
 
 时序：颜色 `dur-fast(120)`，位移 `dur-base(200)` + `--xz-ease-spring`（`04` §2.4）。禁止 `transition: all`。
+
+注 2026-10-02（ADR-0046）：材质类（glass* / paper / scrim）在 `@layer components`，组件可用 utility 覆盖；secondary 去外投影用 `[--xz-mat-drop:0_0_transparent]`（不用 `shadow-none`），悬停用 `hover-veil` 叠色（不换底）。各档按下轻缩（icon .92、其余 .985），icon 档悬停图标放大 1.06；Lucide 描边由 CSS 统一 1.75（`size-3 / 3.5` 与色块 2），例外写 `[--xz-icon-stroke:N]`，不写 `strokeWidth` 属性。
 
 ### 5.2 输入
 

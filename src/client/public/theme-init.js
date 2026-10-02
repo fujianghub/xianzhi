@@ -13,4 +13,11 @@
     const m = localStorage.getItem('xz:motion')
     if (m === 'reduce' || m === 'rich') document.documentElement.dataset.motion = m
   } catch (_) {}
+  // 玻璃强度（ADR-0047）：默认 liquid 流光（不存储）；standard 不写属性
+  let glass = 'liquid'
+  try {
+    const g = localStorage.getItem('xz:glass')
+    if (g === 'standard' || g === 'clear' || g === 'vivid') glass = g
+  } catch (_) {}
+  if (glass !== 'standard') document.documentElement.dataset.glass = glass
 })()

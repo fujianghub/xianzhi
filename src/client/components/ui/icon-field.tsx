@@ -26,7 +26,6 @@ export function IconField({
       </label>
       <Icon
         aria-hidden
-        strokeWidth={1.75}
         className="pointer-events-none absolute top-1/2 left-3.5 size-[18px] -translate-y-1/2 text-fg-muted transition-colors duration-(--xz-dur-fast) group-focus-within:text-primary-text"
       />
       <input

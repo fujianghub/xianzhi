@@ -87,7 +87,7 @@ export function NotificationItem({
           )}
           aria-hidden
         >
-          <Icon className={compact ? 'size-3.5' : 'size-4'} strokeWidth={2} />
+          <Icon className={compact ? 'size-3.5' : 'size-4'} />
           {unread ? (
             <span className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-primary ring-2 ring-(--xz-surface-solid)" />
           ) : null}

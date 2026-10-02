@@ -37,7 +37,10 @@ test.describe('owner', () => {
   test.use({ storageState: STATE.owner })
   for (const theme of ['light', 'dark'] as const) {
     test(`REQ-UI-013 axe 已登录路由（${theme}）`, async ({ page, request }) => {
-      test.setTimeout(240_000) // 30+ 条路由逐个扫描，每条约 4 s（加载 + axe）；150 s 已贴边
+      // 32 条路由逐个扫描：dev 模式下全规则集 axe 每条约 10 s + 加载 2 s（2026-10-02 实测，main 基线同值），240 s 已不够（debug/2026-10-02-a11y-axe-route-timeout）
+      test.setTimeout(600_000)
+      // ADR-0049：外观随账号保存，登录后按账号生效值（未选 = 跟随系统）覆盖本机缓存——用系统主题指定
+      await page.emulateMedia({ colorScheme: theme })
       await page.addInitScript((t) => localStorage.setItem('xz:theme', t), theme)
       const id = await createEntry(request, {
         kind: 'decision',

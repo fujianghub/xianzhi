@@ -6,6 +6,7 @@ import { TooltipProvider } from '../components/ui/tooltip.tsx'
 import { type Me, meQuery } from '../hooks/useMe.ts'
 import { type RealtimeStatus, useRealtime } from '../hooks/useRealtime.ts'
 import { ApiError } from '../lib/api.ts'
+import { useAppearanceSync } from '../lib/appearance.ts'
 import { useReadingSync } from '../lib/reading.ts'
 import { useAsideSlot } from '../lib/stores.ts'
 
@@ -28,6 +29,7 @@ function AppLayout() {
   const onStatus = useCallback((_s: RealtimeStatus) => undefined, [])
   useRealtime(true, onStatus)
   useReadingSync(me.id)
+  useAppearanceSync()
   const aside = useAsideSlot((s) => s.node)
   return (
     // TooltipProvider 只挂在已登录布局：放 main.tsx 会把 Radix Tooltip + floating-ui 拉进登录页首屏（REQ-UI-015）

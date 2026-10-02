@@ -86,7 +86,7 @@ function Users() {
       {users.isPending ? (
         <Skeleton className="h-48 w-full" />
       ) : (
-        <ul className="paper divide-y divide-divider overflow-hidden rounded-lg border border-divider">
+        <ul className="paper divide-y divide-divider overflow-hidden rounded-lg">
           {(users.data ?? []).map((u) => {
             const self = u.userId === me.id
             return (

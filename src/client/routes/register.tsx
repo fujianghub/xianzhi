@@ -92,7 +92,7 @@ function Register() {
         </div>
         {submit.isSuccess ? (
           <div className="flex flex-col items-center gap-4 py-4 text-center" role="status">
-            <CheckCircle2 className="size-12 text-primary-text" strokeWidth={1.5} />
+            <CheckCircle2 className="size-12 text-primary-text [--xz-icon-stroke:1.5]" />
             <p className="font-medium text-lg">{t('auth.register.doneTitle')}</p>
             <p className="text-fg-muted text-sm">{t('auth.register.doneBody')}</p>
             <Link
