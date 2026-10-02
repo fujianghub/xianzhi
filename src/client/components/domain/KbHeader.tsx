@@ -74,7 +74,7 @@ export function KbHeader({
             <PopoverTrigger asChild>
               <button
                 type="button"
-                className="rounded-lg transition-transform hover:scale-105"
+                className="xz-hover-lift rounded-lg"
                 aria-label={t('space.menu.iconTitle')}
                 title={t('space.menu.iconTitle')}
                 data-testid="kb-icon-edit"

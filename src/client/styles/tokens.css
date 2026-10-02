@@ -31,6 +31,10 @@
   --xz-blur-regular: 20px;
   --xz-blur-thick: 24px;
   --xz-blur-cmdk: 28px;
+  /* ADR-0046：玻璃饱和度（原写死在 app.css，值不变） */
+  --xz-glass-sat-thin: 160%;
+  --xz-glass-sat: 180%;
+  --xz-glass-sat-sidebar: 186%;
   --xz-border: rgba(60, 60, 67, 0.13);
   --xz-divider: rgba(60, 60, 67, 0.07);
   --xz-edge: rgba(255, 255, 255, 0.65);
@@ -204,6 +208,8 @@
   --xz-dur-slow: 320ms;
   --xz-dur-stage: 480ms;
   --xz-dur-theme: 650ms;
+  /* 骨架微光一圈（循环，不属进出场；减弱档由 .skeleton-shimmer 置 animation: none） */
+  --xz-dur-shimmer: 1.4s;
   --xz-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --xz-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --xz-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -227,10 +233,10 @@
   --xz-paper-dot: rgba(255, 255, 255, 0.14);
   --xz-border: rgba(255, 255, 255, 0.08);
   --xz-divider: rgba(255, 255, 255, 0.045);
-  --xz-edge: rgba(255, 255, 255, 0.09);
+  --xz-edge: rgba(255, 255, 255, 0.12); /* ADR-0046：原 .09，夜场弹层顶缘几乎不可见 */
   --xz-edge-login: rgba(255, 255, 255, 0.16);
   --xz-refract: color-mix(in srgb, #fff 14%, var(--xz-glow-1));
-  --xz-sheen: rgba(255, 255, 255, 0.1);
+  --xz-sheen: rgba(255, 255, 255, 0.14); /* ADR-0046：原 .10 */
   --xz-scrim: rgba(0, 0, 0, 0.55);
   --xz-fg: #eceae3;
   --xz-fg-muted: #9aa094;
@@ -355,6 +361,152 @@
   --xz-scrollbar: color-mix(in srgb, var(--xz-fg) 22%, transparent);
   /* ADR-0005 §2：顶栏滚动后的枝线 */
   --xz-branch-line: color-mix(in srgb, var(--xz-primary) 42%, transparent);
+  /* ADR-0047 玻璃强度：默认值 = 原外观；html[data-glass] 预设覆盖 */
+  --xz-glass-border: var(--xz-border);
+  --xz-rim-hi: transparent; /* 左上光边 */
+  --xz-rim-lo: transparent; /* 右下暗边 */
+  --xz-glass-inner: 0 0 0 0 transparent; /* 内发光 */
+  --xz-glass-bright: 1;
+  --xz-paper-bg: var(--xz-surface-solid);
+  --xz-glow-4: transparent;
+  --xz-glass-fill: none; /* 斜向渐变填充（左上实、右下透） */
+  /* ADR-0048 chrome（侧栏 / 顶栏）专用材质与背后的定向光晕；默认 = 原外观 */
+  --xz-sidebar-bg: var(--xz-glass-thick);
+  --xz-topbar-bg: var(--xz-glass);
+  --xz-chrome-fill: var(--xz-glass-fill);
+  --xz-chrome-inner: var(--xz-glass-inner);
+  --xz-wash-side-1: transparent; /* 侧栏上段 */
+  --xz-wash-side-2: transparent; /* 侧栏下段 */
+  --xz-wash-top: transparent; /* 顶栏中部 */
+}
+
+/*
+ * ---- ADR-0047 玻璃强度预设（html[data-glass]：clear 清透 / vivid 晶亮 / liquid 流光；不写 = 标准）----
+ * 只调透明度、饱和、光边、光晕与纸面透明度，不新增 backdrop-filter（06 §8 预算不变）。
+ * 选择器同时覆盖嵌套 [data-theme] 容器（设计画廊并排）；日场写在前、夜场在后（同特异度后者胜）。
+ */
+:root[data-glass="clear"],
+:root[data-glass="clear"] [data-theme="light"],
+:root[data-glass="vivid"],
+:root[data-glass="vivid"] [data-theme="light"],
+:root[data-glass="liquid"],
+:root[data-glass="liquid"] [data-theme="light"] {
+  --xz-glass-thin: rgba(255, 255, 255, 0.3);
+  --xz-glass: rgba(255, 255, 255, 0.44);
+  --xz-glass-thick: rgba(255, 255, 255, 0.6);
+  --xz-glass-sat-thin: 190%;
+  --xz-glass-sat: 200%;
+  --xz-glass-sat-sidebar: 200%;
+  --xz-glass-bright: 1.04;
+  --xz-glass-border: rgba(255, 255, 255, 0.55);
+  --xz-edge: rgba(255, 255, 255, 0.95);
+  --xz-rim-hi: rgba(255, 255, 255, 0.9);
+  --xz-rim-lo: rgba(60, 60, 67, 0.08);
+  --xz-glass-inner: inset 0 0 22px rgba(255, 255, 255, 0.28);
+  --xz-sheen: rgba(255, 255, 255, 0.7);
+  /* 玻璃更透、光晕更浓后最坏合成底变色：次要文字加深保 ≥ 4.5 / 3（scripts/check-contrast 预设矩阵） */
+  --xz-fg-muted: #4f564b;
+  --xz-fg-faint: #6a7166;
+  --xz-primary-text: #09613f;
+  /* 纸面透出薄荷色后，原 #dcf4ea 的浅主色底（节假日、浅色胶囊）会融进背景，加深一档 */
+  --xz-primary-soft: #c6ecd9;
+  --xz-glass-fill: linear-gradient(135deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 60%);
+  /* ADR-0048：侧栏 / 顶栏旁边没有内容滚过，只能透底板——不再叠白色渐变与内发光，底色更透，背后补定向光晕 */
+  --xz-chrome-fill: none;
+  --xz-chrome-inner: 0 0 0 0 transparent;
+  --xz-sidebar-bg: rgba(255, 255, 255, 0.4);
+  --xz-topbar-bg: rgba(255, 255, 255, 0.34);
+  --xz-wash-side-1: rgba(2, 179, 119, 0.16);
+  --xz-wash-side-2: rgba(14, 165, 233, 0.13);
+  --xz-wash-top: rgba(20, 184, 166, 0.1);
+}
+:root[data-glass="clear"][data-theme="dark"],
+:root[data-glass="clear"] [data-theme="dark"],
+:root[data-glass="vivid"][data-theme="dark"],
+:root[data-glass="vivid"] [data-theme="dark"],
+:root[data-glass="liquid"][data-theme="dark"],
+:root[data-glass="liquid"] [data-theme="dark"] {
+  --xz-glass-thin: rgba(255, 255, 255, 0.04);
+  --xz-glass: rgba(255, 255, 255, 0.065);
+  --xz-glass-thick: rgba(255, 255, 255, 0.095);
+  --xz-glass-sat-thin: 180%;
+  --xz-glass-sat: 200%;
+  --xz-glass-sat-sidebar: 200%;
+  --xz-glass-bright: 1.08;
+  --xz-glass-border: rgba(255, 255, 255, 0.1);
+  --xz-edge: rgba(255, 255, 255, 0.18);
+  --xz-rim-hi: rgba(255, 255, 255, 0.2);
+  --xz-rim-lo: rgba(0, 0, 0, 0.35);
+  --xz-glass-inner: inset 0 0 26px rgba(255, 255, 255, 0.035);
+  --xz-sheen: rgba(255, 255, 255, 0.16);
+  --xz-fg-muted: #b4baad;
+  --xz-fg-faint: #939a8f;
+  --xz-primary-text: #2ee79c; /* 日场预设块改了 primary-text，夜场要覆盖回来 */
+  --xz-primary-soft: #10301f;
+  --xz-chrome-fill: var(--xz-glass-fill);
+  --xz-chrome-inner: var(--xz-glass-inner);
+  --xz-sidebar-bg: var(--xz-glass-thick);
+  --xz-topbar-bg: var(--xz-glass);
+  /* 夜场 chrome 本就透出光晕色；不加定向光晕（会把深底提亮到压字） */
+  --xz-wash-side-1: transparent;
+  --xz-wash-side-2: transparent;
+  --xz-wash-top: transparent;
+  --xz-glass-fill: linear-gradient(135deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 55%);
+}
+/* 晶亮 / 流光：光晕加浓 + 侧栏后补一团；卡片等纸面半透明（不 blur） */
+:root[data-glass="vivid"],
+:root[data-glass="vivid"] [data-theme="light"],
+:root[data-glass="liquid"],
+:root[data-glass="liquid"] [data-theme="light"] {
+  --xz-glow-1: rgba(2, 179, 119, 0.36);
+  --xz-glow-2: rgba(232, 150, 40, 0.26);
+  --xz-glow-3: rgba(99, 102, 241, 0.26);
+  --xz-glow-4: rgba(14, 165, 233, 0.24);
+  --xz-paper-bg: rgba(255, 255, 255, 0.46);
+  --xz-sidebar-bg: rgba(255, 255, 255, 0.32);
+  --xz-topbar-bg: rgba(255, 255, 255, 0.28);
+  --xz-wash-side-1: rgba(2, 179, 119, 0.24);
+  --xz-wash-side-2: rgba(14, 165, 233, 0.2);
+  --xz-wash-top: rgba(20, 184, 166, 0.16);
+}
+:root[data-glass="vivid"][data-theme="dark"],
+:root[data-glass="vivid"] [data-theme="dark"],
+:root[data-glass="liquid"][data-theme="dark"],
+:root[data-glass="liquid"] [data-theme="dark"] {
+  --xz-glow-1: rgba(46, 231, 156, 0.22);
+  --xz-glow-2: rgba(226, 169, 79, 0.18);
+  --xz-glow-3: rgba(129, 140, 248, 0.24);
+  --xz-glow-4: rgba(56, 189, 248, 0.14);
+  --xz-paper-bg: rgba(255, 255, 255, 0.045);
+}
+/* 流光：更透、更亮 */
+:root[data-glass="liquid"],
+:root[data-glass="liquid"] [data-theme="light"] {
+  --xz-glass-thin: rgba(255, 255, 255, 0.22);
+  --xz-glass: rgba(255, 255, 255, 0.34);
+  --xz-glass-thick: rgba(255, 255, 255, 0.5);
+  --xz-glass-sat: 220%;
+  --xz-glass-sat-sidebar: 220%;
+  --xz-paper-bg: rgba(255, 255, 255, 0.38);
+  --xz-sheen: rgba(255, 255, 255, 0.8);
+  --xz-sidebar-bg: rgba(255, 255, 255, 0.28);
+  --xz-topbar-bg: rgba(255, 255, 255, 0.22);
+  /* 定向光晕同晶亮：流光的漂移层已叠两团光，再浓侧栏导航字压不住（check-contrast） */
+}
+:root[data-glass="liquid"][data-theme="dark"],
+:root[data-glass="liquid"] [data-theme="dark"] {
+  /* 漂移层会把两团光叠在一起：夜场光晕压低，深底不被提亮到压字 */
+  --xz-glow-1: rgba(46, 231, 156, 0.13);
+  --xz-glow-2: rgba(226, 169, 79, 0.11);
+  --xz-glow-3: rgba(129, 140, 248, 0.15);
+  --xz-glow-4: rgba(56, 189, 248, 0.1);
+  --xz-glass-thin: rgba(255, 255, 255, 0.04);
+  --xz-glass: rgba(255, 255, 255, 0.065);
+  --xz-glass-thick: rgba(255, 255, 255, 0.095);
+  --xz-paper-bg: rgba(255, 255, 255, 0.045);
+  --xz-glass-sat: 220%;
+  --xz-glass-sat-sidebar: 220%;
+  --xz-sheen: rgba(255, 255, 255, 0.2);
 }
 
 /* 06 §8：窄屏降 blur */
@@ -369,19 +521,33 @@
 
 /* 06 §3.2 / §7：玻璃不可用时的替身 */
 @media (prefers-reduced-transparency: reduce), print {
-  :root {
+  :root,
+  :root[data-glass] [data-theme],
+  :root[data-glass][data-theme] {
+    --xz-paper-bg: var(--xz-surface-solid);
+    --xz-sidebar-bg: var(--xz-glass-opaque);
+    --xz-topbar-bg: var(--xz-glass-opaque);
     --xz-glass-thin: var(--xz-glass-opaque);
     --xz-glass: var(--xz-glass-opaque);
     --xz-glass-thick: var(--xz-glass-opaque);
   }
 }
-:root[data-transparency="reduce"] {
+:root[data-transparency="reduce"],
+:root[data-transparency="reduce"] [data-theme],
+:root[data-transparency="reduce"][data-glass],
+:root[data-transparency="reduce"][data-glass] [data-theme],
+:root[data-transparency="reduce"][data-glass][data-theme] {
+  --xz-paper-bg: var(--xz-surface-solid);
+  --xz-sidebar-bg: var(--xz-glass-opaque);
+  --xz-topbar-bg: var(--xz-glass-opaque);
   --xz-glass-thin: var(--xz-glass-opaque);
   --xz-glass: var(--xz-glass-opaque);
   --xz-glass-thick: var(--xz-glass-opaque);
 }
 @supports not (backdrop-filter: blur(1px)) {
-  :root {
+  :root,
+  :root[data-glass] [data-theme],
+  :root[data-glass][data-theme] {
     --xz-glass-thin: var(--xz-glass-opaque);
     --xz-glass: var(--xz-glass-opaque);
     --xz-glass-thick: var(--xz-glass-opaque);

@@ -90,11 +90,33 @@ export async function countBlur(page: Page): Promise<number> {
       if (r.width === 0 || r.height === 0 || cs.visibility === 'hidden' || cs.display === 'none')
         continue
       if (r.bottom < 0 || r.right < 0 || r.top > innerHeight || r.left > innerWidth) continue
+      // ADR-0046：正在播退出动画、dur-fast 后即卸载的浮层不计
+      if (el.closest('[data-xz-exit][data-state="closed"]')) continue
       n++
     }
     return n
   })
 }
+
+/**
+ * 外观偏好随账号保存（ADR-0049）：用例要指定主题 / 密度 / 动效 / 玻璃强度时走 API 设账号值，用完 resetAppearance 复位
+ * （xz_e2e 共用库、按人存；勿再写 localStorage——登录后会被账号值覆盖）。
+ */
+export async function setAppearancePref(
+  req: APIRequestContext,
+  appearance: Record<string, string | null>,
+) {
+  const r = await req.patch('/api/v1/me/preferences', { data: { appearance }, headers: sameSite })
+  expect(r.status(), await r.text()).toBe(200)
+}
+export async function resetAppearance(req: APIRequestContext) {
+  await setAppearancePref(req, { theme: null, density: null, motion: null, glass: null })
+}
+/** 等外观偏好的 PATCH 落库（UI 改完立刻 reload 的用例） */
+export const appearanceSaved = (page: Page) =>
+  page.waitForResponse(
+    (r) => r.url().includes('/api/v1/me/preferences') && r.request().method() === 'PATCH',
+  )
 
 export async function createEntry(req: APIRequestContext, body: Record<string, unknown>) {
   const r = await req.post('/api/v1/entries', { data: body, headers: sameSite })
@@ -104,7 +126,11 @@ export async function createEntry(req: APIRequestContext, body: Record<string, u
 
 /** 打开文档栏「阅读」弹层并切到某分页（ADR-0037：四图标胶囊合为一个弹层，分页沿用 reading-open-* testid） */
 export async function openReading(page: Page, tab: 'font' | 'paper' | 'layout' | 'toc') {
-  const t = page.getByTestId(`reading-open-${tab}`)
-  if (!(await t.isVisible())) await page.getByTestId('reading-open').click()
+  // ADR-0046：Esc 后弹层还在播退出动画（仍「可见」），只认打开态，并等退场的卸载
+  const t = page.locator('[data-xz-exit][data-state="open"]').getByTestId(`reading-open-${tab}`)
+  if (!(await t.isVisible())) {
+    await expect(page.locator('[data-xz-exit][data-state="closed"]')).toHaveCount(0)
+    await page.getByTestId('reading-open').click()
+  }
   await t.click()
 }

@@ -1,6 +1,6 @@
 /** 主题、布局、浮层、blur 预算（REQ-UI-001 · 014 · 016 · 023）。 */
 import { expect, test } from '@playwright/test'
-import { countBlur, createEntry, STATE } from './helpers.ts'
+import { appearanceSaved, countBlur, createEntry, resetAppearance, STATE } from './helpers.ts'
 
 test.use({ storageState: STATE.owner })
 
@@ -22,18 +22,21 @@ test('REQ-UI-001 默认跟随系统；手动选择持久化；切换后 data-the
       }
   })
   await page.reload()
+  const saved = appearanceSaved(page)
   await page.getByTestId('theme-toggle').click()
+  await saved
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
   expect(await page.evaluate(() => document.documentElement.style.colorScheme)).toBe('light')
   expect(await page.evaluate(() => (window as unknown as { __vt: number }).__vt)).toBe(1)
   await page.reload()
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light') // 持久化到 xz:theme
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light') // 随账号保存（ADR-0049），本机缓存 xz:theme
   expect(await page.evaluate(() => localStorage.getItem('xz:theme'))).toBe('light')
 
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.getByTestId('theme-toggle').click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   expect(await page.evaluate(() => (window as unknown as { __vt: number }).__vt)).toBe(0) // reload 后计数归零，reduce 下未调用
+  await resetAppearance(page.request)
   await page.evaluate(() => localStorage.removeItem('xz:theme'))
 })
 

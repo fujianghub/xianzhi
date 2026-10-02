@@ -22,6 +22,7 @@ import type { PaletteName } from '../components/domain/SpaceIcon.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { ConfirmDialog } from '../components/ui/confirm-dialog.tsx'
 import { Disclosure } from '../components/ui/disclosure.tsx'
+import { EmptyState } from '../components/ui/empty-state.tsx'
 import { InlineEdit } from '../components/ui/inline-edit.tsx'
 import { Input } from '../components/ui/input.tsx'
 import { PageHeader } from '../components/ui/page-header.tsx'
@@ -308,7 +309,7 @@ function TypesPage() {
           </form>
         ) : null}
         {!q.isPending && !items.length ? (
-          <p className="text-fg-muted text-sm">{t('settings.types.empty')}</p>
+          <EmptyState illustration="entries" size="sm" title={t('settings.types.empty')} />
         ) : null}
         {items.length ? (
           <ul className="flex flex-col divide-y divide-divider rounded-xl border border-divider">

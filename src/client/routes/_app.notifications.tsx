@@ -108,7 +108,7 @@ function NotificationsPage() {
           <EmptyState illustration="inbox" title={t('notif.quiet')} />
         ) : (
           <>
-            <ul className="paper flex flex-col gap-0.5 rounded-lg border border-divider p-1">
+            <ul className="paper flex flex-col gap-0.5 rounded-lg p-1">
               {items.map((n) => (
                 <NotificationItem
                   key={n.id}

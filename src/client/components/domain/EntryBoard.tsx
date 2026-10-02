@@ -161,10 +161,7 @@ function BoardCard({ entry, draggable }: { entry: Entry; draggable: boolean }) {
       style={style}
       data-testid="entry-board-card"
       data-entry-id={entry.id}
-      className={cn(
-        'paper rounded-lg border border-divider p-3 text-sm',
-        isDragging && 'z-10 shadow-card',
-      )}
+      className={cn('paper rounded-lg p-3 text-sm', isDragging && 'z-10 shadow-card')}
     >
       <div className="flex items-start gap-1">
         <Link

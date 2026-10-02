@@ -105,6 +105,82 @@ for (const [name, t, worstGlass, worstGlow] of [
       check(`palette ${c} 文字 / ${bgName}`, get(`--xz-palette-${c}-fg`), back, 4.5)
 }
 
+/*
+ * ADR-0047 玻璃强度预设（html[data-glass]）：玻璃更透、光晕更浓、纸面半透明后，在每团光晕峰值上重算
+ * 玻璃（日场 glass-thin / 夜场 glass-thick）与纸面（paper-bg）的文字与图标对比度；流光的漂移层会把两团光叠在一起，按相邻两团叠加算。
+ * 预设块按 CSS 优先级叠在主题之上：日场取含 `:root[data-glass="X"]` 的块；夜场先叠这些，再叠含 `:root[data-glass="X"][data-theme="dark"]` 的块（特异度更高，不论文件先后）。
+ */
+const blocks = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({
+  sels: (m[1] as string).split(',').map((x) => x.trim().replace(/'/g, '"')),
+  decls: new Map(
+    [...(m[2] as string).matchAll(/(--xz-[\w-]+)\s*:\s*([^;]+);/g)].map(
+      (d) => [d[1] as string, (d[2] as string).trim()] as const,
+    ),
+  ),
+}))
+const withPreset = (base: Map<string, string>, wanted: string[]) => {
+  const out = new Map(base)
+  for (const b of blocks)
+    if (b.sels.some((x) => wanted.includes(x))) for (const [k, v] of b.decls) out.set(k, v)
+  return out
+}
+let presetRows = 0
+for (const level of ['clear', 'vivid', 'liquid'] as const) {
+  const root = `:root[data-glass="${level}"]`
+  for (const [name, t, glassKey] of [
+    ['日场', withPreset(light, [root]), '--xz-glass-thin'],
+    [
+      '夜场',
+      withPreset(withPreset(dark, [root]), [`${root}[data-theme="dark"]`]),
+      '--xz-glass-thick',
+    ],
+  ] as const) {
+    // 预设外的默认值在派生块里（纸面 = surface-solid）；var() 引用递归取值
+    const get = (k: string): RGBA => {
+      const fallback: Record<string, string> = {
+        '--xz-paper-bg': 'var(--xz-surface-solid)',
+        '--xz-sidebar-bg': 'var(--xz-glass-thick)',
+        '--xz-topbar-bg': 'var(--xz-glass)',
+        '--xz-wash-side-1': 'rgba(0, 0, 0, 0)',
+        '--xz-wash-side-2': 'rgba(0, 0, 0, 0)',
+        '--xz-wash-top': 'rgba(0, 0, 0, 0)',
+      }
+      const v = t.get(k) ?? fallback[k]
+      if (!v) throw new Error(`${level} ${name} 缺少 ${k}`)
+      const ref = /^var\((--xz-[\w-]+)\)$/.exec(v)
+      return ref ? get(ref[1] as string) : parse(v === 'transparent' ? 'rgba(0, 0, 0, 0)' : v)
+    }
+    const bg = get('--xz-bg')
+    const glows = ['--xz-glow-1', '--xz-glow-2', '--xz-glow-3', '--xz-glow-4']
+      .filter((k) => t.get(k) && t.get(k) !== 'transparent')
+      .map(get)
+    const unders = glows.map((g, i) =>
+      level === 'liquid' ? over(glows[(i + 1) % glows.length] as RGBA, over(g, bg)) : over(g, bg),
+    )
+    for (const [i, under] of unders.entries())
+      for (const [bgName, back] of [
+        ['玻璃', over(get(glassKey), under)],
+        ['纸面', over(get('--xz-paper-bg'), under)],
+        // ADR-0048：侧栏 / 顶栏背后另有定向光晕，叠在这团底板光晕上
+        ['侧栏上', over(get('--xz-sidebar-bg'), over(get('--xz-wash-side-1'), under))],
+        ['侧栏下', over(get('--xz-sidebar-bg'), over(get('--xz-wash-side-2'), under))],
+        ['顶栏', over(get('--xz-topbar-bg'), over(get('--xz-wash-top'), under))],
+      ] as const) {
+        const tag = `[${level}] ${name} glow${i + 1} ${bgName}`
+        for (const [k, min] of [
+          ['fg', 7],
+          ['fg-muted', 4.5],
+          ['fg-faint', 3],
+          ['primary-text', 4.5],
+        ] as const) {
+          const r = ratio(get(`--xz-${k}`), back)
+          presetRows++
+          if (r < min) problems.push(`${tag} ${k}: ${r.toFixed(2)} < ${min}`)
+        }
+      }
+  }
+}
+
 if (process.argv.includes('--verbose') || problems.length) console.info(rows.join('\n'))
 if (problems.length) {
   console.error(
@@ -112,4 +188,6 @@ if (problems.length) {
   )
   process.exit(1)
 }
-console.info(`check-contrast：${rows.length} 项全部达标（两主题）`)
+console.info(
+  `check-contrast：${rows.length} 项全部达标（两主题）；玻璃强度预设 ${presetRows} 项全部达标`,
+)

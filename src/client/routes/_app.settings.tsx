@@ -28,7 +28,7 @@ const link =
 function Item({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
   return (
     <>
-      <Icon className="size-4 shrink-0 opacity-80 group-[.active]:opacity-100" strokeWidth={1.75} />
+      <Icon className="size-4 shrink-0 opacity-80 group-[.active]:opacity-100" />
       {children}
     </>
   )

@@ -2,10 +2,14 @@
  * ADR-0035 §A 就地管理（REQ-KB-011 ~ 013）：空间 / 大类 / 记录的改名、图标与颜色、归档、删除都在原处完成，不跳到别的页面。
  * 每个用例自建大类 / 空间 / 记录，不依赖共用库 xz_e2e 里累积的数据。
  */
-import { type APIRequestContext, expect, test } from '@playwright/test'
+import { type APIRequestContext, expect, type Page, test } from '@playwright/test'
 import { createEntry, STATE, sameSite } from './helpers.ts'
 
 test.use({ storageState: STATE.owner })
+
+/** ADR-0046：上一个菜单关闭后还在播退出动画（dur-fast），只认打开态的面板 */
+const menuPanel = (page: Page) =>
+  page.locator('[data-testid="space-menu-panel"][data-state="open"]')
 
 const post = async (req: APIRequestContext, url: string, data: Record<string, unknown>) => {
   const r = await req.post(url, { data, headers: sameSite })
@@ -46,17 +50,17 @@ test('REQ-KB-011 空间就地管理：页头点标题改名 · 点图标改色 �
 
   // 归档 / 取消归档：页头 ⋯，留在原页
   await header.getByTestId('space-menu').click()
-  await page.getByTestId('space-menu-panel').getByTestId('space-archive-toggle').click()
+  await menuPanel(page).getByTestId('space-archive-toggle').click()
   await expect(page.getByTestId('space-archived-banner')).toBeVisible()
   await expect(page).toHaveURL(new RegExp(`/spaces/${sp.slug}/home$`))
   await header.getByTestId('space-menu').click()
-  await page.getByTestId('space-menu-panel').getByTestId('space-archive-toggle').click()
+  await menuPanel(page).getByTestId('space-archive-toggle').click()
   await expect(page.getByTestId('space-archived-banner')).toBeHidden()
 
   // 侧栏行右键 → 删除（计数确认）→ 回到 /spaces；撤销后回来
   await row.click({ button: 'right' })
-  await expect(page.getByTestId('space-menu-panel')).toBeVisible()
-  await page.getByTestId('space-menu-delete').click()
+  await expect(menuPanel(page)).toBeVisible()
+  await menuPanel(page).getByTestId('space-menu-delete').click()
   await page.getByTestId('confirm-ok').click()
   await expect(page).toHaveURL(/\/spaces$/)
   await expect(row).toHaveCount(0)

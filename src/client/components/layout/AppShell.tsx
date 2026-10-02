@@ -281,7 +281,7 @@ export function AppShell({
           data-testid="topbar"
           data-scrolled={scrolled || undefined}
           hidden={focus}
-          className="glass xz-topbar sticky top-0 z-(--xz-z-sticky) flex h-(--xz-topbar-h) items-center gap-2 rounded-none border-x-0 border-t-0 px-3"
+          className="glass xz-topbar sticky top-0 z-(--xz-z-sticky) flex h-(--xz-topbar-h) items-center gap-2 rounded-none border-0 px-3"
         >
           <Button
             variant="icon"
@@ -408,7 +408,7 @@ export function AppShell({
           to="/today"
           className="flex flex-col items-center justify-center gap-0.5 text-[11px] text-fg-muted [&.active]:text-primary-text"
         >
-          <Sun className="size-5" strokeWidth={1.75} />
+          <Sun className="size-5" />
           {t('ui.page.today')}
         </Link>
         {/* ADR-0044：底栏「收件箱」换成「任务」（收件箱在任务页与侧栏仍可达） */}
@@ -417,28 +417,28 @@ export function AppShell({
           className="flex flex-col items-center justify-center gap-0.5 text-[11px] text-fg-muted [&.active]:text-primary-text"
           data-testid="bottom-nav-tasks"
         >
-          <ListTodo className="size-5" strokeWidth={1.75} />
+          <ListTodo className="size-5" />
           {t('ui.page.tasks')}
         </Link>
         <Link
           to="/search"
           className="flex flex-col items-center justify-center gap-0.5 text-[11px] text-fg-muted [&.active]:text-primary-text"
         >
-          <Search className="size-5" strokeWidth={1.75} />
+          <Search className="size-5" />
           {t('ui.page.search')}
         </Link>
         <Link
           to="/notifications"
           className="flex flex-col items-center justify-center gap-0.5 text-[11px] text-fg-muted [&.active]:text-primary-text"
         >
-          <Bell className="size-5" strokeWidth={1.75} />
+          <Bell className="size-5" />
           {t('ui.page.notifications')}
         </Link>
         <Link
           to="/settings"
           className="flex flex-col items-center justify-center gap-0.5 text-[11px] text-fg-muted [&.active]:text-primary-text"
         >
-          <User className="size-5" strokeWidth={1.75} />
+          <User className="size-5" />
           {t('ui.nav.me')}
         </Link>
       </nav>

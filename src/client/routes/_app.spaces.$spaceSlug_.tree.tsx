@@ -38,6 +38,7 @@ import { KindBadge, KindIcon } from '../components/domain/KindIcon.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { useContextPoint } from '../components/ui/context-anchor.tsx'
 import { Disclosure } from '../components/ui/disclosure.tsx'
+import { EmptyState } from '../components/ui/empty-state.tsx'
 import { Input } from '../components/ui/input.tsx'
 import { RelativeTime } from '../components/ui/relative-time.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
@@ -197,7 +198,7 @@ function TreeBody({ space }: { space: Space }) {
         {tree.isPending ? (
           <Skeleton className="h-32 w-full" />
         ) : !items.length ? (
-          <p className="p-4 text-fg-muted text-sm">{t('kb.tree.empty')}</p>
+          <EmptyState illustration="tree" size="sm" title={t('kb.tree.empty')} />
         ) : (
           <DndContext
             sensors={sensors}

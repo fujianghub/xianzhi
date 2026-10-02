@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { DEFAULT_READING, normalizeReading } from '../../shared/schemas/preferences.ts'
 import { getDb } from '../db/index.ts'
-import { userPreferences } from '../db/schema/business.ts'
+import { auditLog, userPreferences } from '../db/schema/business.ts'
 import { truncateAll } from './db.ts'
 import { buildApp, jsonHeaders, OWNER, seedOwner, signIn } from './helpers.ts'
 
@@ -77,6 +77,85 @@ describe('preferences', () => {
     expect(
       await getDb().select().from(userPreferences).where(eq(userPreferences.userId, userId)),
     ).toHaveLength(0)
+  })
+
+  it('REQ-UI-051 外观偏好随账号保存：只存选过的键，null 删除改回跟随默认，非法值 / 未知键 422，不动阅读偏好', async () => {
+    const before = (await (await call(owner, 'GET', '/me/preferences')).json()) as {
+      reading: Record<string, unknown>
+      appearance: Record<string, unknown>
+    }
+    expect(before.appearance).toEqual({})
+
+    let r = await call(owner, 'PATCH', '/me/preferences', {
+      appearance: { glass: 'vivid', theme: 'dark' },
+    })
+    expect(r.status, await r.clone().text()).toBe(200)
+    let body = (await r.json()) as {
+      reading: unknown
+      appearance: Record<string, unknown>
+    }
+    expect(body.appearance).toEqual({ glass: 'vivid', theme: 'dark' })
+    expect(body.reading).toEqual(before.reading)
+
+    r = await call(owner, 'PATCH', '/me/preferences', {
+      appearance: { glass: null, motion: 'reduce' },
+    })
+    body = (await r.json()) as typeof body
+    expect(body.appearance).toEqual({ theme: 'dark', motion: 'reduce' })
+
+    for (const bad of [{ glass: 'neon' }, { color: 'red' }, {}])
+      expect(
+        (await call(owner, 'PATCH', '/me/preferences', { appearance: bad })).status,
+        JSON.stringify(bad),
+      ).toBe(422)
+    // 复位（下一条用例从干净状态开始）
+    await call(owner, 'PATCH', '/me/preferences', { appearance: { theme: null, motion: null } })
+  })
+
+  it('REQ-WS-024 工作区默认外观：管理员经 PATCH /workspace 设置并记审计，成员 403；GET /me/preferences 带回工作区默认', async () => {
+    let r = await call(owner, 'PATCH', '/workspace', {
+      settings: { appearance: { glass: 'clear', density: 'compact' } },
+    })
+    expect(r.status, await r.clone().text()).toBe(200)
+    expect(
+      (
+        (await (await call(owner, 'GET', '/me/preferences')).json()) as {
+          workspaceAppearance: unknown
+        }
+      ).workspaceAppearance,
+    ).toEqual({ glass: 'clear', density: 'compact' })
+
+    expect(
+      (await call(owner, 'PATCH', '/workspace', { settings: { appearance: { glass: 'neon' } } }))
+        .status,
+    ).toBe(422)
+
+    const created = await call(owner, 'POST', '/workspace/users', {
+      email: 'viewer@xz.local',
+      username: 'viewer',
+      name: 'Viewer',
+      password: 'initial-pass-1',
+    })
+    expect(created.status, await created.clone().text()).toBe(201)
+    const member = (await signIn(app, 'viewer@xz.local', 'initial-pass-1')).cookie
+    // 成员看得到默认、自己没选过 → 跟随
+    const mine = (await (await call(member, 'GET', '/me/preferences')).json()) as {
+      appearance: unknown
+      workspaceAppearance: unknown
+    }
+    expect(mine).toMatchObject({ appearance: {}, workspaceAppearance: { glass: 'clear' } })
+    // 成员不能改工作区默认
+    r = await call(member, 'PATCH', '/workspace', { settings: { appearance: { glass: 'liquid' } } })
+    expect(r.status).toBe(403)
+
+    const logs = await getDb()
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.action, 'workspace.settings_changed'))
+    expect(logs.length).toBeGreaterThan(0)
+
+    // 复位
+    await call(owner, 'PATCH', '/workspace', { settings: { appearance: {} } })
   })
 
   it('REQ-READ-001 读取时逐键校验：库里的坏值 / 旧键回落默认，不整份作废', () => {

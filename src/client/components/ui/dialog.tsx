@@ -5,6 +5,7 @@ import { type ComponentProps, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCursorSheen } from '../../hooks/useCursorSheen.ts'
 import { cn } from '../../lib/cn.ts'
+import { buttonVariants } from './button.tsx'
 
 export const Dialog = DialogPrimitive.Root
 export const DialogTrigger = DialogPrimitive.Trigger
@@ -33,11 +34,15 @@ export function DialogContent({
   const sheen = useCursorSheen<HTMLDivElement>()
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="scrim fixed inset-0 z-(--xz-z-scrim) data-[state=open]:animate-[xz-fade-in_var(--xz-dur-base)_var(--xz-ease-out)]" />
+      <DialogPrimitive.Overlay
+        data-xz-exit=""
+        className="scrim fixed inset-0 z-(--xz-z-scrim) data-[state=open]:animate-[xz-fade-in_var(--xz-dur-base)_var(--xz-ease-out)] data-[state=closed]:animate-[xz-fade-out_var(--xz-dur-fast)_var(--xz-ease-out)_forwards]"
+      />
       <DialogPrimitive.Content
         ref={sheen}
+        data-xz-exit=""
         className={cn(
-          'glass-thick glass-cursor-sheen fixed top-1/2 left-1/2 z-(--xz-z-modal) max-h-[calc(100dvh-2rem)] w-[min(92vw,32rem)] -translate-x-1/2 overflow-y-auto overscroll-contain -translate-y-1/2 rounded-xl p-6 text-fg outline-none data-[state=open]:animate-[xz-pop-in_var(--xz-dur-slow)_var(--xz-ease-out)]',
+          'glass-thick glass-cursor-sheen fixed top-1/2 left-1/2 z-(--xz-z-modal) max-h-[calc(100dvh-2rem)] w-[min(92vw,32rem)] -translate-x-1/2 overflow-y-auto overscroll-contain -translate-y-1/2 rounded-xl p-6 text-fg outline-none data-[state=open]:animate-[xz-pop-in_var(--xz-dur-slow)_var(--xz-ease-out)] data-[state=closed]:animate-[xz-pop-out_var(--xz-dur-fast)_var(--xz-ease-out)_forwards]',
           className,
         )}
         {...props}
@@ -46,10 +51,10 @@ export function DialogContent({
         {children}
         {hideClose ? null : (
           <DialogPrimitive.Close
-            className="absolute top-3 right-3 inline-flex size-9 items-center justify-center rounded-md text-fg-muted hover:bg-hover hover:text-fg"
+            className={cn(buttonVariants({ variant: 'icon' }), 'absolute top-3 right-3')}
             aria-label={t('ui.action.close')}
           >
-            <XIcon className="size-5" strokeWidth={1.75} />
+            <XIcon className="size-5" />
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Content>

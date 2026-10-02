@@ -50,15 +50,25 @@ export function meRoutes(deps: { db: Db; auth: Auth }) {
         c.json(await me.updateMe(deps.db, ctxOf(c), c.req.valid('json'))),
       )
       // 阅读与写作偏好（ADR-0024）：按键合并
-      .get('/preferences', async (c) =>
-        c.json(await prefs.getPreferences(deps.db, ctxOf(c).actor.id)),
-      )
+      .get('/preferences', async (c) => {
+        const ctx = ctxOf(c)
+        return c.json(await prefs.getPreferences(deps.db, ctx.actor.id, ctx.workspaceId))
+      })
       .patch(
         '/preferences',
         requireScope('write'),
         validate('json', patchPreferencesSchema),
-        async (c) =>
-          c.json(await prefs.patchPreferences(deps.db, ctxOf(c).actor.id, c.req.valid('json'))),
+        async (c) => {
+          const ctx = ctxOf(c)
+          return c.json(
+            await prefs.patchPreferences(
+              deps.db,
+              ctx.actor.id,
+              c.req.valid('json'),
+              ctx.workspaceId,
+            ),
+          )
+        },
       )
       // 改用户名 / 邮箱（REQ-WS-022）、改密码（REQ-AUTH-021）：仅登录会话
       .patch('/account', sessionOnly, validate('json', meAccountPatchSchema), async (c) => {

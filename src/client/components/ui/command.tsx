@@ -27,10 +27,14 @@ export function CommandDialog({
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="scrim fixed inset-0 z-(--xz-z-scrim)" />
+        <DialogPrimitive.Overlay
+          data-xz-exit=""
+          className="scrim fixed inset-0 z-(--xz-z-scrim) data-[state=open]:animate-[xz-fade-in_var(--xz-dur-base)_var(--xz-ease-out)] data-[state=closed]:animate-[xz-fade-out_var(--xz-dur-fast)_var(--xz-ease-out)_forwards]"
+        />
         <DialogPrimitive.Content
           ref={sheen}
-          className="glass-thick glass-cursor-sheen fixed top-[16vh] left-1/2 z-(--xz-z-cmdk) w-[min(92vw,40rem)] -translate-x-1/2 overflow-hidden rounded-xl text-fg outline-none [--xz-blur-thick:var(--xz-blur-cmdk)]"
+          data-xz-exit=""
+          className="glass-thick glass-cursor-sheen fixed top-[16vh] left-1/2 z-(--xz-z-cmdk) w-[min(92vw,40rem)] origin-top -translate-x-1/2 overflow-hidden rounded-xl text-fg outline-none [--xz-blur-thick:var(--xz-blur-cmdk)] data-[state=open]:animate-[xz-pop-in_var(--xz-dur-base)_var(--xz-ease-out)] data-[state=closed]:animate-[xz-pop-out_var(--xz-dur-fast)_var(--xz-ease-out)_forwards]"
         >
           <DialogPrimitive.Title className="sr-only">{title}</DialogPrimitive.Title>
           <CommandPrimitive

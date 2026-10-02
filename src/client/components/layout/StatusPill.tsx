@@ -3,16 +3,16 @@
  * Toast 与胶囊同一 Motion LayoutGroup，layoutId 共享 → 从胶囊形变生长、完成后缩回。Toast 在 L1 玻璃内，自身不 blur。
  * 原型结论（T0-019）：useSonner 提供完整队列与 dismiss，无需 Toaster；reduced-motion 下 Motion 自动退化为淡入。
  */
-import { CircleCheck, CloudOff, Loader2, Lock, TriangleAlert } from 'lucide-react'
+import { CircleCheck, CloudOff, Lock, TriangleAlert } from 'lucide-react'
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast, useSonner } from 'sonner'
 import { cn } from '../../lib/cn.ts'
+import { SPRING_MORPH as SPRING } from '../../lib/motion.ts'
 import { useStatus } from '../../lib/stores.ts'
 import { XzMotionConfig } from '../ui/motion-config.tsx'
-
-const SPRING = { type: 'spring', stiffness: 260, damping: 26 } as const
+import { Spinner } from '../ui/spinner.tsx'
 
 /** toast(…, { action: { label, onClick } })：Toast 内渲染为一个文字按钮，点后收起。 */
 type ToastAction = { label: string; onClick: (e: React.MouseEvent<HTMLButtonElement>) => void }
@@ -34,7 +34,7 @@ export function StatusPill() {
     status === 'offline' ? (
       <CloudOff className="size-4" />
     ) : status === 'connecting' ? (
-      <Loader2 className="size-4 animate-spin" />
+      <Spinner className="size-3.5" />
     ) : status === 'readOnly' ? (
       <Lock className="size-4" />
     ) : (

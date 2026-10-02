@@ -50,6 +50,7 @@ import { AnimatedCount } from '../ui/animated-count.tsx'
 import { Avatar } from '../ui/avatar.tsx'
 import { Button } from '../ui/button.tsx'
 import { Disclosure } from '../ui/disclosure.tsx'
+import { EmptyState } from '../ui/empty-state.tsx'
 import { useUserTimeZone } from '../ui/relative-time.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
 import { PriorityIcon } from './PriorityIcon.tsx'
@@ -402,10 +403,14 @@ export function Board({
       }}
     >
       {cols.every((c) => c.isSuccess) && all.length === 0 ? (
-        <div className="mb-4 text-center" data-testid="board-empty">
-          <p className="font-semibold text-lg">{t('ui.empty.board')}</p>
-          <p className="mt-1 text-fg-muted text-sm">{t('ui.empty.boardHint')}</p>
-        </div>
+        <EmptyState
+          illustration="board"
+          size="sm"
+          title={t('ui.empty.board')}
+          hint={t('ui.empty.boardHint')}
+          className="mb-4 pt-0"
+          testId="board-empty"
+        />
       ) : null}
       <div className="flex gap-3 overflow-x-auto pb-4" data-testid="board">
         {TASK_STATUSES.map((s, i) => {

@@ -126,7 +126,7 @@ export function EntryBatchBar({
       role="toolbar"
       aria-label={t('entry.batch.bar')}
       data-testid="entry-batch-bar"
-      className="glass sticky bottom-4 z-20 mt-4 flex flex-wrap items-center gap-1 rounded-full border border-border px-3 py-1.5 shadow-card"
+      className="glass xz-batch-in sticky bottom-4 z-20 mt-4 flex flex-wrap items-center gap-1 rounded-full px-3 py-1.5"
     >
       <span className="px-2 font-medium text-sm tabular-nums" data-testid="batch-count">
         {t('entry.batch.selected', { count: n })}

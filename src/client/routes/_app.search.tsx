@@ -168,7 +168,7 @@ function Group({ title, q }: { title: string; q: ReturnType<typeof useGroup> }) 
   return (
     <section data-testid="search-group">
       <h2 className="mb-2 font-medium text-fg-muted text-sm">{title}</h2>
-      <ul className="paper divide-y divide-divider overflow-hidden rounded-lg border border-divider">
+      <ul className="paper divide-y divide-divider overflow-hidden rounded-lg">
         {items.map((h) => (
           <HitRow key={h.id} hit={h} />
         ))}

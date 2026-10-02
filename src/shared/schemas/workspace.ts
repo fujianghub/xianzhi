@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { appearancePrefsSchema } from './preferences.ts'
 
 /** 可邀请的角色：owner 只能经转让（01 §5）。 */
 export const invitableRoleSchema = z.enum(['admin', 'member', 'guest'])
@@ -46,7 +47,11 @@ export const invitationIdParam = z.object({ id: z.string().min(1).max(64) })
 export const workspacePatchSchema = z
   .object({
     name: z.string().trim().min(1).max(80).optional(),
-    settings: z.record(z.string(), z.unknown()).optional(),
+    // ADR-0049：settings.appearance = 工作区默认外观（整份替换，缺的键跟随内置默认）；其余键原样保留
+    settings: z
+      .object({ appearance: appearancePrefsSchema.partial().strict().optional() })
+      .catchall(z.unknown())
+      .optional(),
   })
   .refine((v) => v.name !== undefined || v.settings !== undefined, {
     message: '至少一个字段',

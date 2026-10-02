@@ -121,7 +121,7 @@ export function Comments({
     <li
       key={root.id}
       id={`c-${root.id}`}
-      className="paper rounded-lg border border-divider p-3"
+      className="paper rounded-lg p-3"
       data-testid="comment-thread"
       data-thread={root.threadId}
       data-orphaned={root.orphaned ? 'true' : undefined}

@@ -175,7 +175,7 @@ export function AttachmentView({ node }: NodeViewProps) {
   return (
     <NodeViewWrapper as="div" className="my-2" data-drag-handle>
       <div
-        className="paper flex items-center gap-3 rounded-md border border-divider px-3 py-2 text-sm"
+        className="paper flex items-center gap-3 rounded-md px-3 py-2 text-sm"
         contentEditable={false}
         data-testid="attachment-card"
         data-kind={kind}
@@ -237,7 +237,7 @@ export function EntryCardView({ node }: NodeViewProps) {
       <a
         href={`/entries/${id}`}
         contentEditable={false}
-        className="paper block rounded-md border border-divider p-3 text-sm hover:bg-hover"
+        className="paper block rounded-md p-3 text-sm hover-veil"
       >
         {isError ? (
           <span className="text-fg-muted">{t('ui.notFound.title')}</span>
@@ -370,7 +370,7 @@ export function ImageView({ node, selected, editor, updateAttributes }: NodeView
     >
       {selected && editable ? (
         <div
-          className="-top-10 absolute left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-lg border border-border bg-surface p-1 shadow-soft"
+          className="glass-thick-flat -top-10 absolute left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-lg p-1"
           contentEditable={false}
           data-testid="image-toolbar"
         >
@@ -382,7 +382,7 @@ export function ImageView({ node, selected, editor, updateAttributes }: NodeView
               data-testid={`image-width-${v}`}
               onClick={() => updateAttributes({ displayWidth: pct === v ? null : v })}
               className={cn(
-                'h-7 rounded px-2 text-xs hover:bg-hover',
+                'h-7 rounded-md px-2 text-xs hover:bg-hover',
                 pct === v && 'bg-selected font-medium',
               )}
             >

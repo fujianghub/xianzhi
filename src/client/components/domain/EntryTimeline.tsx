@@ -56,7 +56,7 @@ export function EntryTimeline({ items }: { items: Entry[] }) {
                 <Link
                   to="/entries/$entryId"
                   params={{ entryId: e.id }}
-                  className="paper xz-lift flex flex-col gap-1 rounded-lg border border-divider p-3"
+                  className="paper xz-lift flex flex-col gap-1 rounded-lg p-3"
                 >
                   <span className="flex flex-wrap items-center gap-2 text-xs">
                     <span

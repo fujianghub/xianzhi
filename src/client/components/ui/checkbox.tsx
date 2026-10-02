@@ -22,7 +22,7 @@ export function Checkbox({ className, ...props }: ComponentProps<typeof Checkbox
             strokeLinecap="round"
             strokeLinejoin="round"
             pathLength={1}
-            className="[stroke-dasharray:1] [animation:xz-draw_160ms_var(--xz-ease-out)_both] motion-reduce:animate-none"
+            className="[stroke-dasharray:1] [animation:xz-draw_var(--xz-dur-fast)_var(--xz-ease-out)_both]"
           />
         </svg>
       </CheckboxPrimitive.Indicator>

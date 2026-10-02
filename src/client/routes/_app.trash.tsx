@@ -183,7 +183,7 @@ function TrashPage() {
       ) : !q.isPending && !items.length ? (
         <EmptyState illustration="trash" title={t('trash.empty')} />
       ) : (
-        <ul className="paper divide-y divide-divider overflow-hidden rounded-lg border border-divider">
+        <ul className="paper divide-y divide-divider overflow-hidden rounded-lg">
           {multi ? (
             <li
               className="flex flex-wrap items-center gap-3 bg-surface-2 px-4 py-2"

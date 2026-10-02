@@ -42,7 +42,7 @@ function ReadingSettingsPage() {
         <h2 className="font-medium text-sm">{t('reading.preview')}</h2>
         {/* 预览按所选版心但不超出设置页内容区 */}
         <article
-          className="paper xz-reading w-full rounded-xl px-6 py-6 shadow-card sm:px-10"
+          className="paper xz-reading w-full rounded-xl px-6 py-6 shadow-[inset_0_1px_0_var(--xz-edge),var(--xz-shadow-card)] sm:px-10"
           {...readingAttrs(prefs)}
           data-testid="reading-preview"
         >

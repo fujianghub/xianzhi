@@ -134,7 +134,7 @@ export function SpaceIcon({
       )}
       aria-hidden
     >
-      {emoji ?? <Icon className="size-3.5" strokeWidth={2} />}
+      {emoji ?? <Icon className="size-3.5" />}
     </span>
   )
 }

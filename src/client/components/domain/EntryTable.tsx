@@ -354,7 +354,7 @@ export function EntryTable({
   const allOn = !!select && items.length > 0 && items.every((e) => select.has(e.id))
   const someOn = !!select && items.some((e) => select.has(e.id))
   return (
-    <div className="paper overflow-x-auto rounded-lg border border-divider">
+    <div className="paper overflow-x-auto rounded-lg">
       <table className="w-full min-w-[48rem] border-collapse text-sm" data-testid="entry-table">
         <thead className="border-divider border-b text-fg-muted text-xs">
           <tr>

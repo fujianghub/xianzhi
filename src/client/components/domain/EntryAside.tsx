@@ -741,7 +741,9 @@ function HistoryItem({
               !s.label && s.createdBy && 'font-mono tabular-nums',
             )}
           >
-            {s.label ? <Tag className="me-1 inline size-3 text-primary-text" aria-hidden /> : null}
+            {s.label ? (
+              <Tag className="me-1 inline size-3 align-[-0.125em] text-primary-text" aria-hidden />
+            ) : null}
             {name}
           </span>
           {s.label ? (

@@ -239,7 +239,7 @@ function Card({
   children: React.ReactNode
 }) {
   return (
-    <section className="paper rounded-lg border border-divider p-3">
+    <section className="paper rounded-lg p-3">
       <h3 className="mb-2 font-medium text-sm">{title}</h3>
       {children}
       {hint ? <p className="mt-2 text-fg-faint text-xs">{hint}</p> : null}
@@ -432,7 +432,7 @@ function Trend({ data }: { data: BugStatsData }) {
             {cur && hover !== null ? (
               <div
                 role="status"
-                className="glass -translate-x-1/2 pointer-events-none absolute top-0 z-10 rounded-md border border-border px-2 py-1 text-xs shadow-card"
+                className="glass-opaque -translate-x-1/2 pointer-events-none absolute top-0 z-10 rounded-md px-2 py-1 text-xs"
                 style={{ left: `${Math.min(85, Math.max(15, ((hover + 0.5) / n) * 100))}%` }}
                 data-testid="bug-trend-tip"
               >

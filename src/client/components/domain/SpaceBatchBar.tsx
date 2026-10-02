@@ -121,7 +121,7 @@ export function SpaceBatchBar({
       role="toolbar"
       aria-label={t('space.batch.bar')}
       data-testid="space-batch-bar"
-      className="glass sticky bottom-4 z-20 mt-6 flex flex-wrap items-center gap-1 rounded-full border border-border px-3 py-1.5 shadow-card"
+      className="glass xz-batch-in sticky bottom-4 z-20 mt-6 flex flex-wrap items-center gap-1 rounded-full px-3 py-1.5"
     >
       <span className="px-2 font-medium text-sm tabular-nums" data-testid="space-batch-count">
         {t('space.batch.selected', { count: n })}

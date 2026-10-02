@@ -16,6 +16,7 @@ import { SpaceGroupsDialog } from '../components/domain/SpaceGroupsDialog.tsx'
 import { PALETTE_DOT, type PaletteName } from '../components/domain/SpaceIcon.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { Disclosure } from '../components/ui/disclosure.tsx'
+import { EmptyState } from '../components/ui/empty-state.tsx'
 import { PageHeader } from '../components/ui/page-header.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
 import { isAdmin, type Me } from '../hooks/useMe.ts'
@@ -206,10 +207,13 @@ function SpacesPage() {
             </div>
           ) : null}
           {total === 0 && !(groups.data ?? []).length ? (
-            <div className="mx-auto mt-6 max-w-md text-center" data-testid="spaces-empty">
-              <h2 className="font-semibold text-lg">{t('space.empty')}</h2>
-              <p className="mt-2 text-fg-muted text-sm">{t('space.emptyHint')}</p>
-            </div>
+            <EmptyState
+              illustration="spaces"
+              title={t('space.empty')}
+              hint={t('space.emptyHint')}
+              className="mt-6"
+              testId="spaces-empty"
+            />
           ) : null}
           {sections.map((sec) => {
             const key = sec.group?.id ?? 'none'

@@ -98,9 +98,14 @@
 | 主题 | Theme | `data-theme = light | dark` | 日场 / 夜场 | `ui.theme.light` `.dark` | 只有两种 | 06 §6 |
 | 密度 | Density | `comfortable` / `compact` | 舒适 / 紧凑 | `ui.density.<value>` | 行高 -20% | 04 §4 |
 | 玻璃 | Glass | `--xz-glass-thin` `-glass` `-glass-thick` `-glass-opaque` | — | — | 四级半透明材质，只用于 chrome | 06 §3.2 |
-| 纸面 | Paper | `--xz-surface-solid` / `@utility paper` | — | — | 不透明内容面 | 06 §2 |
+| 外观偏好 | Appearance / `AppearancePrefs` | `user_preferences.appearance` | 主题 · 密度 · 动效 · 玻璃强度 | `settings.profile.*` | 随账号保存；生效值 = 内置 ← 工作区默认 ← 本人（ADR-0049） | 01 §3 |
+| 工作区默认外观 | Workspace appearance | `organization.metadata.settings.appearance` | 默认外观 | `settings.workspace.appearance` | owner/admin 设置，成员没单独选过的项跟随（ADR-0049） | 01 §3 |
+| 玻璃强度 | Glass level / `GlassLevel` | `html[data-glass] = liquid | vivid | clear`（standard 不写） | 流光 / 晶亮 / 清透 / 标准 | `settings.profile.glassLevel.<value>` | 随账号保存（ADR-0049，本机 `xz:glass` 只作首帧缓存），默认流光；只调透明度、光边、光晕与纸面透明度，不加 blur（ADR-0047） | 06 §3.2 |
+| 定向光晕 | Wash | `--xz-wash-side-1/-2` `--xz-wash-top` | — | — | 底板上专供侧栏（上 / 下段）与顶栏去透的三团光晕；只在玻璃预设日场生效（ADR-0048） | 06 §3.1 |
+| 光边 | Rim | `--xz-rim-hi` / `--xz-rim-lo` | — | — | 玻璃左上亮、右下暗的方向性内描边（ADR-0047） | 06 §3.2 |
+| 纸面 | Paper | `--xz-surface-solid` / `.paper`（`@layer components`） | — | — | 不透明内容面；注 2026-10-02（ADR-0047）：底色走 `--xz-paper-bg`，晶亮 / 流光下半透明（不 blur），记录正文纸面恒实底 | 06 §2 |
 | 底板 | Backdrop | `--xz-bg` + 光晕 | — | — | 最底层实色 | 06 §2 |
-| 光晕 | Glow | `--xz-glow-1/2/3` | — | — | 底板固定三处径向渐变 | 06 §3.1 |
+| 光晕 | Glow | `--xz-glow-1/2/3`（+`-4`，ADR-0047） | — | — | 底板固定三处径向渐变；流光下另有两团缓慢漂移 | 06 §3.1 |
 | 棱线 | Edge | `--xz-edge` | — | — | 玻璃顶缘 1px 高光 | 06 §3.2 |
 | 折射环 | Refract | `--xz-refract` | — | — | L2 玻璃 1.5px 内描边 | 06 §3.2 |
 | 软删 | Soft delete / `deletedAt` | `deleted_at` | 删除 | `ui.action.delete` | 30 天可恢复 | 01 §1 |

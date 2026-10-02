@@ -12,6 +12,19 @@ import { type LiteVariant, liteKit } from './liteKit.ts'
 import { type MentionCandidate, mentionSuggestion } from './mention.tsx'
 import { pickFiles, uploadFiles } from './upload.ts'
 
+/** 两份 ProseMirror JSON 是否相同（忽略对象键序）。 */
+const canon = (v: unknown): unknown =>
+  Array.isArray(v)
+    ? v.map(canon)
+    : v && typeof v === 'object'
+      ? Object.fromEntries(
+          Object.keys(v)
+            .sort()
+            .map((k) => [k, canon((v as Record<string, unknown>)[k])]),
+        )
+      : v
+const sameDoc = (a: unknown, b: unknown) => JSON.stringify(canon(a)) === JSON.stringify(canon(b))
+
 export default function LiteEditor({
   value,
   variant,
@@ -104,8 +117,11 @@ export default function LiteEditor({
     },
   })
   useEffect(() => {
-    if (editor && !editor.isFocused && value !== undefined)
-      editor.commands.setContent((value as object | null) ?? '', { emitUpdate: false })
+    if (!editor || editor.isFocused || value === undefined) return
+    // 内容相同（服务端 jsonb 只是键序不同）就不整篇替换：替换会冲掉上传占位，图片传完找不到落点、不再保存
+    // （失焦保存的 PATCH 回来时上传常未完成，见 debug/2026-10-02-task-image-upload-lost-on-save）
+    if (sameDoc(editor.isEmpty ? null : editor.getJSON(), value ?? null)) return
+    editor.commands.setContent((value as object | null) ?? '', { emitUpdate: false })
   }, [editor, value])
   edRef.current = editor
   useEffect(() => editor?.setEditable(editable), [editor, editable])

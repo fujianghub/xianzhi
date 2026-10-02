@@ -120,7 +120,7 @@ function EntryPage() {
 
   return (
     <article
-      className="paper xz-reading mx-auto rounded-xl px-6 py-8 shadow-card sm:px-10"
+      className="paper xz-reading mx-auto rounded-xl px-6 py-8 shadow-[inset_0_1px_0_var(--xz-edge),var(--xz-shadow-card)] sm:px-10"
       {...readingAttrs(prefs, search.wide ? 'full' : prefs.width)}
       data-testid="entry-page"
     >

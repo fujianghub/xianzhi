@@ -77,70 +77,139 @@
   --font-brand-en: var(--xz-font-brand-en);
   --ease-out: var(--xz-ease-out);
   --ease-spring: var(--xz-ease-spring);
+  /* REQ-UI-045：裸 transition-colors / opacity / transform 也走 token（减弱档随之归零），不再用 Tailwind 默认 150ms */
+  --default-transition-duration: var(--xz-dur-fast);
+  --default-transition-timing-function: var(--xz-ease-out);
 }
 
-/* ---- 材质 utility（06 §3.2；backdrop-filter 带 -webkit- 前缀） ---- */
-@utility glass {
-  background: var(--xz-glass);
-  -webkit-backdrop-filter: blur(var(--xz-blur-regular)) saturate(180%);
-  backdrop-filter: blur(var(--xz-blur-regular)) saturate(180%);
-  border: 1px solid var(--xz-border);
-  box-shadow:
-    inset 0 1px 0 var(--xz-edge),
-    var(--xz-shadow-soft);
-  contain: paint;
+/*
+ * ---- 材质（06 §3.2；backdrop-filter 带 -webkit- 前缀）----
+ * ADR-0046：放 @layer components 而非 @utility——Tailwind v4 把 @utility 与普通 utility 混排，材质类排在 shadow-* / border-x-0 / bg-* 之后，
+ * 同元素上的覆盖类会静默失效（顶栏双线、纸面 shadow-card 丢失、secondary 的 shadow-none 失效）。components 层恒在 utilities 之前。
+ * --xz-mat-img = 材质自带的高光层，hover-veil 叠色时保留它；不继承，免得子元素悬停时串上父级高光。
+ */
+@property --xz-mat-img {
+  syntax: "*";
+  inherits: false;
 }
-@utility glass-thin {
-  background: var(--xz-glass-thin);
-  -webkit-backdrop-filter: blur(var(--xz-blur-thin)) saturate(160%);
-  backdrop-filter: blur(var(--xz-blur-thin)) saturate(160%);
-  border: 1px solid var(--xz-divider);
+/* --xz-mat-drop：glass-thick(-flat) 的外投影层；secondary 按钮等只去外投影、保留折射环与棱线时置为 0 0 transparent（不要用 shadow-none） */
+@property --xz-mat-drop {
+  syntax: "*";
+  inherits: false;
 }
-@utility glass-thick {
-  background:
-    radial-gradient(120% 80% at 0% 0%, var(--xz-sheen) 0%, transparent 32%), var(--xz-glass-thick);
-  -webkit-backdrop-filter: blur(var(--xz-blur-thick)) saturate(180%);
-  backdrop-filter: blur(var(--xz-blur-thick)) saturate(180%);
-  border: 1px solid var(--xz-border);
-  box-shadow:
-    inset 0 0 0 1.5px var(--xz-refract),
-    inset 0 1px 0 var(--xz-edge),
-    var(--xz-shadow-float);
-  isolation: isolate;
+@layer components {
+  .glass {
+    background: var(--xz-glass-fill), var(--xz-glass);
+    -webkit-backdrop-filter: blur(var(--xz-blur-regular)) saturate(var(--xz-glass-sat))
+      brightness(var(--xz-glass-bright));
+    backdrop-filter: blur(var(--xz-blur-regular)) saturate(var(--xz-glass-sat))
+      brightness(var(--xz-glass-bright));
+    border: 1px solid var(--xz-glass-border);
+    box-shadow:
+      inset 1px 1px 0 var(--xz-rim-hi),
+      inset -1px -1px 0 var(--xz-rim-lo),
+      var(--xz-glass-inner),
+      inset 0 1px 0 var(--xz-edge),
+      var(--xz-shadow-soft);
+    contain: paint;
+  }
+  .glass-thin {
+    background: var(--xz-glass-fill), var(--xz-glass-thin);
+    -webkit-backdrop-filter: blur(var(--xz-blur-thin)) saturate(var(--xz-glass-sat-thin))
+      brightness(var(--xz-glass-bright));
+    backdrop-filter: blur(var(--xz-blur-thin)) saturate(var(--xz-glass-sat-thin))
+      brightness(var(--xz-glass-bright));
+    border: 1px solid var(--xz-divider);
+    box-shadow:
+      inset 1px 1px 0 var(--xz-rim-hi),
+      inset -1px -1px 0 var(--xz-rim-lo);
+  }
+  .glass-thick,
+  .glass-thick-flat {
+    --xz-mat-img: radial-gradient(120% 80% at 0% 0%, var(--xz-sheen) 0%, transparent 32%);
+    background: var(--xz-mat-img), var(--xz-glass-fill), var(--xz-glass-thick);
+    border: 1px solid var(--xz-glass-border);
+    box-shadow:
+      inset 1px 1px 0 var(--xz-rim-hi),
+      inset -1px -1px 0 var(--xz-rim-lo),
+      var(--xz-glass-inner),
+      inset 0 0 0 1.5px var(--xz-refract),
+      inset 0 1px 0 var(--xz-edge),
+      var(--xz-mat-drop, var(--xz-shadow-float));
+  }
+  .glass-thick {
+    -webkit-backdrop-filter: blur(var(--xz-blur-thick)) saturate(var(--xz-glass-sat))
+      brightness(var(--xz-glass-bright));
+    backdrop-filter: blur(var(--xz-blur-thick)) saturate(var(--xz-glass-sat))
+      brightness(var(--xz-glass-bright));
+    isolation: isolate;
+  }
+  /* glass-thick-flat：Toast / secondary 按钮 / 纸面内工具条——外观同 glass-thick 但不 blur（06 §4，玻璃不套玻璃、§8 预算） */
+  .glass-opaque {
+    background: var(--xz-glass-opaque);
+    border: 1px solid var(--xz-border);
+    /* ADR-0046：与其它表面一致「光从上来」 */
+    box-shadow:
+      inset 0 1px 0 var(--xz-edge),
+      var(--xz-shadow-soft);
+  }
+  .glass-cursor-sheen {
+    background-image:
+      radial-gradient(
+        240px circle at var(--mx, 50%) var(--my, 0%),
+        color-mix(in srgb, var(--xz-sheen) 60%, transparent) 0%,
+        transparent 70%
+      ),
+      radial-gradient(120% 80% at 0% 0%, var(--xz-sheen) 0%, transparent 32%);
+  }
+  /* ADR-0047：--xz-paper-bg 在「晶亮 / 流光」下半透明（不 blur，透出光晕）；记录正文纸面恒为实底 */
+  .paper {
+    background: var(--xz-glass-fill), var(--xz-paper-bg);
+    border: 1px solid var(--xz-border);
+    box-shadow:
+      inset 1px 1px 0 var(--xz-rim-hi),
+      inset -1px -1px 0 var(--xz-rim-lo),
+      inset 0 1px 0 var(--xz-edge);
+  }
+  .paper.xz-reading {
+    background: var(--xz-surface-solid);
+  }
+  .scrim {
+    background: var(--xz-scrim);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+  }
 }
-/* Toast：在 Topbar L1 玻璃之内，不再 blur（06 §4，玻璃不套玻璃） */
-@utility glass-thick-flat {
-  background:
-    radial-gradient(120% 80% at 0% 0%, var(--xz-sheen) 0%, transparent 32%), var(--xz-glass-thick);
-  border: 1px solid var(--xz-border);
-  box-shadow:
-    inset 0 0 0 1.5px var(--xz-refract),
-    inset 0 1px 0 var(--xz-edge),
-    var(--xz-shadow-float);
+/*
+ * ---- 图标描边（ADR-0046，06 §5.1 图标 stroke 1.75）：Lucide 默认 2，各处手写 1.5 ~ 2.25 混在同屏。
+ * 统一 1.75；≤ 14px 小图标 2（线细于 1px 发虚）；色块 / 类型徽章 2。个别处用 [--xz-icon-stroke:N] 覆盖，不写 strokeWidth 属性（CSS 会压过它）。
+ */
+@layer base {
+  svg.lucide {
+    stroke-width: var(--xz-icon-stroke, 1.75);
+  }
+  svg.lucide:is(.size-3, .size-3\.5) {
+    stroke-width: var(--xz-icon-stroke, 2);
+  }
+  :is(.xz-chip, .xz-kind-badge) {
+    --xz-icon-stroke: 2;
+  }
 }
-@utility glass-opaque {
-  background: var(--xz-glass-opaque);
-  border: 1px solid var(--xz-border);
-  box-shadow: var(--xz-shadow-soft);
-}
-@utility glass-cursor-sheen {
-  background-image:
-    radial-gradient(
-      240px circle at var(--mx, 50%) var(--my, 0%),
-      color-mix(in srgb, var(--xz-sheen) 60%, transparent) 0%,
-      transparent 70%
-    ),
-    radial-gradient(120% 80% at 0% 0%, var(--xz-sheen) 0%, transparent 32%);
-}
-@utility paper {
-  background: var(--xz-surface-solid);
-  border: 1px solid var(--xz-border);
-  box-shadow: inset 0 1px 0 var(--xz-edge);
-}
-@utility scrim {
-  background: var(--xz-scrim);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
+/* ADR-0046：悬停 / 按下在材质上叠一层（不把实底 / 玻璃底换成 6% 透明色）；--xz-veil 可由 active: 改为 active-bg */
+@utility hover-veil {
+  /* 同 Tailwind hover: 变体，只在能悬停的设备上（触屏点一下不留悬停态） */
+  @media (hover: hover) {
+    &:hover {
+      background-image:
+        linear-gradient(var(--xz-veil, var(--xz-hover-bg)), var(--xz-veil, var(--xz-hover-bg))),
+        var(--xz-mat-img, none);
+    }
+  }
+  &:active {
+    background-image:
+      linear-gradient(var(--xz-veil, var(--xz-hover-bg)), var(--xz-veil, var(--xz-hover-bg))),
+      var(--xz-mat-img, none);
+  }
 }
 @utility focus-ring {
   outline: 2px solid var(--xz-focus-color);
@@ -150,7 +219,7 @@
   background: linear-gradient(90deg, transparent, var(--xz-edge), transparent)
     var(--xz-surface-solid-2);
   background-size: 200% 100%;
-  animation: xz-shimmer 1.4s linear infinite;
+  animation: xz-shimmer var(--xz-dur-shimmer) linear infinite;
 }
 
 @media (prefers-reduced-transparency: reduce), print {
@@ -165,6 +234,15 @@
 :root[data-transparency="reduce"] :is(.glass, .glass-thin, .glass-thick, .scrim) {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
+}
+
+:root[data-motion="reduce"] .skeleton-shimmer {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer {
+    animation: none;
+  }
 }
 
 @keyframes xz-shimmer {
@@ -204,7 +282,13 @@ body::before {
   background-image:
     radial-gradient(ellipse 70% 50% at 0% 0%, var(--xz-glow-1) 0%, transparent 60%),
     radial-gradient(ellipse 60% 50% at 100% 0%, var(--xz-glow-2) 0%, transparent 60%),
-    radial-gradient(ellipse 80% 60% at 100% 100%, var(--xz-glow-3) 0%, transparent 60%);
+    radial-gradient(ellipse 80% 60% at 100% 100%, var(--xz-glow-3) 0%, transparent 60%),
+    /* ADR-0047：侧栏中段后方一团（默认透明） */
+    radial-gradient(ellipse 45% 55% at 8% 62%, var(--xz-glow-4) 0%, transparent 65%),
+    /* ADR-0048：侧栏上 / 下段、顶栏中部的定向光晕（chrome 旁边没有内容滚过，只能透这些；默认透明） */
+    radial-gradient(ellipse 320px 42% at 0% 22%, var(--xz-wash-side-1) 0%, transparent 72%),
+    radial-gradient(ellipse 320px 42% at 0% 72%, var(--xz-wash-side-2) 0%, transparent 72%),
+    radial-gradient(ellipse 50% 120px at 48% 0%, var(--xz-wash-top) 0%, transparent 75%);
   transition:
     transform var(--xz-dur-stage) var(--xz-ease-out),
     opacity var(--xz-dur-stage) var(--xz-ease-out);
@@ -214,6 +298,31 @@ body.xz-login::before {
     radial-gradient(ellipse 98% 70% at 0% 0%, var(--xz-glow-1) 0%, transparent 60%),
     radial-gradient(ellipse 84% 70% at 100% 0%, var(--xz-glow-2) 0%, transparent 60%),
     radial-gradient(ellipse 112% 84% at 100% 100%, var(--xz-glow-3) 0%, transparent 60%);
+}
+/* ADR-0047「流光」：额外两团大光晕缓慢漂移（只动 translate，走合成层）；减弱档静止 */
+:root[data-glass="liquid"] body::after {
+  content: "";
+  position: fixed;
+  inset: -15%;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at 30% 40%, var(--xz-glow-4) 0%, transparent 28%),
+    radial-gradient(circle at 72% 58%, var(--xz-glow-1) 0%, transparent 30%);
+  animation: xz-glow-drift 38s var(--xz-ease-in-out) infinite alternate;
+}
+@keyframes xz-glow-drift {
+  to {
+    translate: 6% -5%;
+  }
+}
+:root[data-glass="liquid"][data-motion="reduce"] body::after {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-glass="liquid"] body::after {
+    animation: none;
+  }
 }
 html[data-dialog-open] body::before {
   transform: translateY(4px);
@@ -230,11 +339,14 @@ html[data-dialog-open] body::before {
  * 当前项为翡翠渐变胶囊 + inset 描边（不再用左侧竖条）。导航与空间树共用 .xz-nav-item。
  */
 .xz-sidebar {
-  background: var(--xz-glass-thick);
-  -webkit-backdrop-filter: blur(var(--xz-blur-thick)) saturate(186%);
-  backdrop-filter: blur(var(--xz-blur-thick)) saturate(186%);
-  border-right: 1px solid var(--xz-border);
+  background: var(--xz-chrome-fill), var(--xz-sidebar-bg);
+  -webkit-backdrop-filter: blur(var(--xz-blur-thick)) saturate(var(--xz-glass-sat-sidebar))
+    brightness(var(--xz-glass-bright));
+  backdrop-filter: blur(var(--xz-blur-thick)) saturate(var(--xz-glass-sat-sidebar))
+    brightness(var(--xz-glass-bright));
+  border-right: 1px solid var(--xz-glass-border);
   box-shadow:
+    var(--xz-chrome-inner),
     inset -1px 0 0 var(--xz-edge),
     6px 0 28px -18px color-mix(in srgb, var(--xz-fg) 30%, transparent);
 }
@@ -298,7 +410,11 @@ html[data-dialog-open] body::before {
   transition:
     background-color var(--xz-dur-fast) var(--xz-ease-out),
     color var(--xz-dur-fast) var(--xz-ease-out),
-    box-shadow var(--xz-dur-base) var(--xz-ease-out);
+    box-shadow var(--xz-dur-base) var(--xz-ease-out),
+    scale var(--xz-dur-fast) var(--xz-ease-spring);
+}
+.xz-nav-item:active {
+  scale: 0.985;
 }
 .xz-nav-icon {
   display: inline-grid;
@@ -433,6 +549,8 @@ html[data-dialog-open] body::before {
 
 /* ---- ADR-0005 §2 顶栏枝线（REQ-UI-027）：滚动 > 8px 后下沿出现两端渐隐的翡翠细线 + shadow-soft ---- */
 .xz-topbar {
+  /* ADR-0048：顶栏专用底色（预设下更透、不叠白色渐变）；unlayered 压过 .glass */
+  background: var(--xz-chrome-fill), var(--xz-topbar-bg);
   box-shadow:
     inset 0 1px 0 var(--xz-edge),
     inset 0 -1px 0 var(--xz-divider);
@@ -588,7 +706,7 @@ html:active-view-transition-type(route) :is([data-shared-source], [data-shared-t
 @keyframes xz-pop-in {
   from {
     opacity: 0;
-    transform: translate(var(--tw-translate-x, 0), var(--tw-translate-y, 0)) scale(0.97);
+    scale: 0.97;
   }
 }
 @keyframes xz-slide-left {
@@ -607,6 +725,69 @@ html:active-view-transition-type(route) :is([data-shared-source], [data-shared-t
   from {
     transform: translateY(24px);
     opacity: 0;
+  }
+}
+/*
+ * ---- 退出动画（REQ-UI-045，04 §2.4 退出 ≤ 200ms）：Radix 浮层 data-state=closed 时播放，dur-fast，forwards 停在终态等 Presence 卸载。
+ * 减弱档直接 animation: none——Presence 见无动画即同步卸载，不依赖 0ms 动画的 animationend。
+ */
+@keyframes xz-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes xz-pop-out {
+  to {
+    opacity: 0;
+    scale: 0.97;
+  }
+}
+@keyframes xz-slide-left-out {
+  to {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+@keyframes xz-slide-right-out {
+  to {
+    transform: translateX(-24px);
+    opacity: 0;
+  }
+}
+@keyframes xz-slide-down-out {
+  to {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+/* 退场中的浮层不再接点击（点穿到下面的内容，不误点正在消失的菜单项） */
+[data-xz-exit][data-state="closed"] {
+  pointer-events: none;
+}
+:root[data-motion="reduce"] [data-xz-exit][data-state="closed"] {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-xz-exit][data-state="closed"] {
+    animation: none;
+  }
+}
+/*
+ * ---- 微交互（ADR-0046）：按压轻缩 / 悬停轻放大统一由此收口；scale 不靠 transition 也会生效，减弱档须显式置空 ----
+ * .xz-press = Button 基类；.xz-hover-lift = 可点的图标 / 头像块。
+ */
+.xz-hover-lift {
+  transition: scale var(--xz-dur-base) var(--xz-ease-spring);
+}
+.xz-hover-lift:hover {
+  scale: 1.05;
+}
+:root[data-motion="reduce"] :is(.xz-press, .xz-press svg, .xz-hover-lift, .xz-nav-item) {
+  scale: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.xz-press, .xz-press svg, .xz-hover-lift, .xz-nav-item) {
+    scale: none;
   }
 }
 @keyframes xz-draw {
@@ -1417,8 +1598,25 @@ select:disabled {
   animation: xz-rise var(--xz-dur-slow) var(--xz-ease-out) backwards;
   animation-delay: calc(min(var(--i, 0), 8) * 28ms);
 }
-:root[data-motion="reduce"] .xz-rise {
+/* 06 §4 EmptyState：插画背后静态 glow-1 光晕（径向渐变，不 blur、不计预算） */
+.xz-empty-art {
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  border-radius: 999px;
+  background: radial-gradient(closest-side, var(--xz-glow-1), transparent);
+}
+/* ADR-0046：批量操作栏出现时自下浮起（不再凭空出现） */
+.xz-batch-in {
+  animation: xz-rise var(--xz-dur-base) var(--xz-ease-out) backwards;
+}
+:root[data-motion="reduce"] :is(.xz-rise, .xz-batch-in) {
   animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .xz-batch-in {
+    animation: none;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .xz-rise {
