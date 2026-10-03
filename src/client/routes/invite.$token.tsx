@@ -11,7 +11,7 @@ import { FieldError, Label } from '../components/ui/label.tsx'
 import { Seal } from '../components/ui/seal.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
 import { ApiError, api, unwrap } from '../lib/api.ts'
-import { authClient } from '../lib/auth-client.ts'
+import { loadAuthClient } from '../lib/auth-client-lazy.ts'
 
 export const Route = createFileRoute('/invite/$token')({ component: Invite })
 
@@ -39,7 +39,7 @@ function Invite() {
         api.workspace.invitations[':id'].accept.$post({ param: { id: token }, json: form }),
       )
       // 接受邀请即完成身份确认：用一次性通行证免拼图自动登录（ADR-0006）
-      const r = await authClient.signIn.email(
+      const r = await (await loadAuthClient()).signIn.email(
         { email: form.email, password: form.password },
         { headers: { 'x-captcha': accepted.captchaPass } },
       )

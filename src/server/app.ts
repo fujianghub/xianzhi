@@ -241,6 +241,8 @@ export function createApp(deps: AppDeps) {
       await next()
       if (c.res.status === 200) c.header('Cache-Control', 'public, max-age=31536000, immutable')
     })
+    // 构建清单（vite build.manifest，供 check-budget 计首屏）不对外
+    app.all('/.vite/*', (c) => c.notFound())
     app.use('/*', serveStatic({ root: deps.staticDir }))
     app.get('*', (c, next) =>
       c.req.path.startsWith('/api/') ||

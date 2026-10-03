@@ -141,7 +141,7 @@ LOG_LEVEL=info
 | 协同 | Vitest + Hocuspocus 内存启动 + PG | onAuthenticate/onLoad/onStore/派生 | |
 | E2E | Playwright（Chromium；移动视口一组） | 登录、邀请、任务 CRUD/看板拖拽、编辑器协同/离线/IME、通知到达、导出 | 主流程 |
 | 视觉 | Playwright 截图 `/design` | token 与组件回归 | 阈值 0.1% |
-| 性能 | `scripts/check-budget.ts`（chunk 大小）+ Playwright `performance.measure` + Lighthouse | 预算见 ADR §3、03 §9、06 §8（同屏 backdrop-filter 计数） | 超预算 CI 失败 |
+| 性能 | `scripts/check-budget.ts`（chunk 大小；注 2026-10-03：首屏 = 入口 + 登录路由的静态 import 闭包，按 `vite build.manifest` 走链）+ Playwright `performance.measure` + Lighthouse | 预算见 ADR §3、03 §9、06 §8（同屏 backdrop-filter 计数） | 超预算 CI 失败 |
 | 可访问性 | `@axe-core/playwright` | 每个路由 | 无 serious 以上 |
 
 约定：Playwright 对 sticky/被遮挡元素一律 `page.evaluate` DOM `click()`（简斋教训）；轮询网络时夹空 `page.evaluate`。

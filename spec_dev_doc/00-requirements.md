@@ -478,7 +478,7 @@
 | REQ-UI-012 | P0 | 0 | 所有界面字符串应经 i18next key；`zh-CN` 为一期唯一资源；源码无硬编码中文 | When lint 扫描 `src/client` Then 组件 JSX 文本节点无中文字面量（`i18n/` 除外） | 04 §7 · ADR §9.3 | unit |
 | REQ-UI-013 | P0 | 0 | 每个路由通过 axe 无 serious 以上问题；焦点环用 `outline` 永不隐藏；列表可键盘操作 | When `@axe-core/playwright` 跑全部路由 Then 0 serious | 04 §7 · 06 §7 | a11y |
 | REQ-UI-014 | P0 | 0 | 布局骨架：Topbar 56 / Sidebar 240 / Aside 320 可折；< lg 侧栏抽屉、Aside 底部 sheet | When 视口 1280 Then 三栏；1024 以下 Then 抽屉 | 04 §4 | visual |
-| REQ-UI-015 | P0 | 0 | 首屏主 chunk gzip ≤ 250KB；Lighthouse Performance ≥ 90 | When `pnpm build` Then `check-budget` 通过；Lighthouse 报告 ≥ 90 | ADR §3 · 05 §5 | e2e |
+| REQ-UI-015 | P0 | 0 | 首屏主 chunk gzip ≤ 250KB；Lighthouse Performance ≥ 90（注 2026-10-03：口径 = 入口 + 登录路由组件的静态 import 闭包，check-budget 按 Vite manifest 计，与 e2e perf 打开 /login 实测同口径，见 `debug/2026-10-03-perf-initial-js-login`） | When `pnpm build` Then `check-budget` 通过；Lighthouse 报告 ≥ 90 | ADR §3 · 05 §5 | e2e |
 | REQ-UI-016 | P0 | 0 | 同屏 `backdrop-filter` ≤ 6；虚拟列表内无 blur；`prefers-reduced-transparency` 下玻璃变实色 | When 看板页统计 Then ≤ 6；模拟 reduced-transparency Then 玻璃元素 `backdrop-filter: none` | 06 §8 · 06 §3.2 | e2e |
 | REQ-UI-017 | P1 | 1 | 1 万行任务列表滚动应不掉帧（≥ 50fps） | When Playwright 采 `requestAnimationFrame` 间隔 Then P95 ≤ 20ms | ADR §3 · 04 §5 | e2e |
 | REQ-UI-018 | P1 | 1 | 24h 内显示相对时间，悬停显示绝对时间；日期数字按 locale/timezone | When `updated_at` = 5 分钟前 Then 显示「5 分钟前」，title 为绝对时间 | 04 §7 | unit · e2e |
