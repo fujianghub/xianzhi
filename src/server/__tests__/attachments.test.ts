@@ -1,5 +1,13 @@
 /** T1-020 附件（REQ-ATTACH-001 ~ 011 · REQ-OPS-008，api / unit）。 */
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { eq } from 'drizzle-orm'
@@ -342,9 +350,11 @@ describe('T1-020 attachments', () => {
     expect(last).toBe(429)
   })
 
-  it('REQ-ATTACH-010 生产静态托管下 /data/... 与 /uploads/... 404，SPA 路由仍回 index.html', async () => {
+  it('REQ-ATTACH-010 生产静态托管下 /data/... 与 /uploads/... 与构建清单 /.vite/... 404，SPA 路由仍回 index.html', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'xz-static-'))
     writeFileSync(join(dir, 'index.html'), '<!doctype html><title>xz</title>')
+    mkdirSync(join(dir, '.vite'))
+    writeFileSync(join(dir, '.vite', 'manifest.json'), '{}')
     const env = getEnv()
     const prod = createApp({
       auth: getAuth(),
@@ -356,7 +366,12 @@ describe('T1-020 attachments', () => {
       nodeEnv: 'test',
       staticDir: dir,
     })
-    for (const p of ['/data/uploads/2026/09/x.png', '/uploads/2026/09/x.png', '/data'])
+    for (const p of [
+      '/data/uploads/2026/09/x.png',
+      '/uploads/2026/09/x.png',
+      '/data',
+      '/.vite/manifest.json',
+    ])
       expect((await prod.request(p)).status, p).toBe(404)
     expect((await prod.request('/spaces/product')).status).toBe(200)
   })

@@ -7,7 +7,7 @@ import { Button } from '../components/ui/button.tsx'
 import { Input } from '../components/ui/input.tsx'
 import { FieldError, Label } from '../components/ui/label.tsx'
 import { Seal } from '../components/ui/seal.tsx'
-import { authClient } from '../lib/auth-client.ts'
+import { loadAuthClient } from '../lib/auth-client-lazy.ts'
 import { optString } from '../lib/search.ts'
 import { safeRedirect } from './login.tsx'
 
@@ -30,8 +30,8 @@ function TwoFactor() {
     e.preventDefault()
     setPending(true)
     const r = backup
-      ? await authClient.twoFactor.verifyBackupCode({ code: code.trim() })
-      : await authClient.twoFactor.verifyTotp({ code: code.trim() })
+      ? await (await loadAuthClient()).twoFactor.verifyBackupCode({ code: code.trim() })
+      : await (await loadAuthClient()).twoFactor.verifyTotp({ code: code.trim() })
     if (r.error) {
       setPending(false)
       fire('error')

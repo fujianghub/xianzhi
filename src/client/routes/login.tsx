@@ -15,7 +15,7 @@ import { IconField } from '../components/ui/icon-field.tsx'
 import { FieldError } from '../components/ui/label.tsx'
 import { Seal } from '../components/ui/seal.tsx'
 import { SliderCaptcha } from '../components/ui/slider-captcha.tsx'
-import { authClient } from '../lib/auth-client.ts'
+import { loadAuthClient } from '../lib/auth-client-lazy.ts'
 import { optString } from '../lib/search.ts'
 
 const search = (s: Record<string, unknown>): { redirect?: string } => ({
@@ -54,8 +54,8 @@ function Login() {
     const opts = { headers: { 'x-captcha': captcha }, onError: () => undefined }
     const id = identifier.trim()
     const res = isEmail
-      ? await authClient.signIn.email({ email: id, password }, opts)
-      : await authClient.signIn.username({ username: id, password }, opts)
+      ? await (await loadAuthClient()).signIn.email({ email: id, password }, opts)
+      : await (await loadAuthClient()).signIn.username({ username: id, password }, opts)
     if (res.error) {
       setPending(false)
       const status = res.error.status
@@ -149,7 +149,7 @@ function Login() {
               size="sm"
               className="flex-1"
               onClick={async () => {
-                const r = await authClient.signIn.passkey()
+                const r = await (await loadAuthClient()).signIn.passkey()
                 if (r?.error) return // 取消 / 不支持不算出错，小燕不闹
                 fire('success')
                 await birdPause()
@@ -167,7 +167,7 @@ function Login() {
               disabled={!isEmail}
               title={isEmail ? undefined : t('auth.magicLinkNeedsEmail')}
               onClick={async () => {
-                await authClient.signIn.magicLink({
+                await (await loadAuthClient()).signIn.magicLink({
                   email: identifier.trim(),
                   callbackURL: safeRedirect(redirect),
                 })

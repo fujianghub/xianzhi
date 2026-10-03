@@ -65,6 +65,8 @@ export default defineConfig({
     outDir: '../../dist/client',
     emptyOutDir: true,
     sourcemap: true,
+    // check-budget 按 manifest 走静态 import 链，把「入口 + 登录路由」实际加载的 chunk 都算进首屏（REQ-UI-015）
+    manifest: true,
     target: 'es2023',
     // 字体不内联成 data: URL（KaTeX 小字重 < 4KB 会被内联，生产 CSP 无 font-src data: 会拦截，ADR-0025）
     assetsInlineLimit: (file) => (/\.(woff2?|ttf|otf)$/.test(file) ? false : undefined),
