@@ -8,8 +8,9 @@
  * - `inline=false`（详情里的子任务）：保持旧行为，点标题打开、无菜单与就地编辑（Esc 会关掉详情，审查 P0-8）。
  * 弹层渲染在 body，但 React 事件仍沿组件树冒泡：行的鼠标 / 右键处理先判断事件是否来自行本身。
  */
+import { useQuery } from '@tanstack/react-query'
 import { AlignLeft, ChevronRight, Flag, MoreHorizontal, Plus } from 'lucide-react'
-import { type MouseEvent, memo, useEffect, useRef, useState } from 'react'
+import { type MouseEvent, memo, type ReactNode, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { quickDueIso } from '../../../shared/quick-add.ts'
 import { localDateTimeOf } from '../../../shared/tz.ts'
@@ -28,7 +29,7 @@ import { useUserTimeZone } from '../ui/relative-time.tsx'
 import { PriorityIcon } from './PriorityIcon.tsx'
 import { PALETTE_CLASS, type PaletteName } from './SpaceIcon.tsx'
 import { SpaceTag } from './SpaceTag.tsx'
-import { TagPicker } from './TagPicker.tsx'
+import { type Tag, TagPicker, tagsQuery } from './TagPicker.tsx'
 import { ListDot } from './TaskListDot.tsx'
 import { DuePicker, type DueValue, ListPicker, PriorityPicker } from './TaskPickers.tsx'
 import { type RowPicker, TaskRowMenu } from './TaskRowMenu.tsx'
@@ -41,6 +42,40 @@ export type RowUi =
   | { kind: RowPicker }
 
 /** grid 模式下的单元格（04 §5：列表内可交互元素须在 gridcell 里，axe nested-interactive）。 */
+/**
+ * 行内标签弹层（REQ-TASK-038）：关闭时才一次提交，所以弹层开着时选中项由这里的草稿驱动，
+ * 否则每次勾选都按 `task.tags` 原值计算，只剩最后点的那个（多选失效）。
+ */
+function RowTagPicker({
+  initial,
+  onChange,
+  onClose,
+  trigger,
+}: {
+  initial: Tag[]
+  onChange: (ids: string[]) => void
+  onClose: () => void
+  trigger: ReactNode
+}) {
+  const { data: all = [] } = useQuery(tagsQuery)
+  const [ids, setIds] = useState<string[] | null>(null)
+  const value = ids
+    ? ids.map((id) => all.find((x) => x.id === id)).filter((x): x is Tag => !!x)
+    : initial
+  return (
+    <TagPicker
+      open
+      value={value}
+      onChange={(next) => {
+        setIds(next)
+        onChange(next)
+      }}
+      onOpenChange={(o) => !o && onClose()}
+      trigger={trigger}
+    />
+  )
+}
+
 function Cell({
   asRow,
   className,
@@ -509,13 +544,12 @@ export const TaskRow = memo(function TaskRow({
             listBtn
           )}
           {ui?.kind === 'tags' && tagsBtn ? (
-            <TagPicker
-              open
-              value={task.tags}
+            <RowTagPicker
+              initial={task.tags}
               onChange={(ids) => {
                 pendingTags.current = ids
               }}
-              onOpenChange={(o) => !o && closePicker()}
+              onClose={closePicker}
               trigger={tagsBtn}
             />
           ) : (
