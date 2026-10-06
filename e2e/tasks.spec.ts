@@ -364,22 +364,33 @@ test('REQ-TASK-005 改 timezone 后「今日」边界随之变化', async ({ pag
   }
 })
 
-test('REQ-TASK-009 优先级 3 用 warning token 且带图标（不单靠颜色）', async ({ page, request }) => {
+test('REQ-TASK-009 优先级 3：鲜艳橙色胶囊（--xz-prio-3-fg / -bg，ADR-0052），带图标与文字（不单靠颜色）', async ({
+  page,
+  request,
+}) => {
   const s = await space(request)
   const t = await task(request, { title: '高优先级', spaceId: s.id, status: 'todo', priority: 3 })
   await page.goto(`/spaces/${s.slug}?view=list`)
-  const icon = row(page, t.id).locator('[data-priority="3"]')
-  await expect(icon).toBeVisible()
-  expect(await icon.getAttribute('class')).toContain('text-warning')
-  await expect(icon.locator('svg')).toHaveAttribute('aria-label', /优先级：高/)
-  const color = await icon.evaluate((el) => getComputedStyle(el).color)
-  const warning = await page.evaluate(() => {
+  const chip = row(page, t.id).getByTestId('task-prio-chip')
+  await expect(chip).toBeVisible()
+  await expect(chip).toHaveAttribute('data-priority', '3')
+  await expect(chip).toHaveText('高')
+  await expect(chip.locator('svg')).toHaveCount(1)
+  const [fg, bg] = await chip.evaluate((el) => [
+    getComputedStyle(el).color,
+    getComputedStyle(el).backgroundColor,
+  ])
+  const want = await page.evaluate(() => {
     const d = document.createElement('span')
-    d.style.color = 'var(--xz-warning)'
+    d.style.color = 'var(--xz-prio-3-fg)'
+    d.style.backgroundColor = 'var(--xz-prio-3-bg)'
     document.body.append(d)
-    const c = getComputedStyle(d).color
+    const c = [getComputedStyle(d).color, getComputedStyle(d).backgroundColor]
     d.remove()
     return c
   })
-  expect(color).toBe(warning)
+  expect([fg, bg]).toEqual(want)
+  // 勾选圈同色、加粗
+  const check = row(page, t.id).getByTestId('task-check')
+  expect(await check.evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe('2px')
 })

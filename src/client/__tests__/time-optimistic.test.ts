@@ -18,6 +18,15 @@ describe('time', () => {
     expect(dueLabel(new Date('2026-09-24T15:00:00Z'), now)).toBe('今天')
     expect(dueLabel(new Date('2026-09-24T17:00:00Z'), now)).toBe('明天')
   })
+
+  it('REQ-TASK-017 截止短标签：后天及以后一律绝对日期，不出现「现在 / 24小时后」；跨年带年份', () => {
+    // now = 2026-09-24 14:00（上海）；后天同一时刻、后天上午、大后天
+    expect(dueLabel(new Date(now.getTime() + 2 * 86_400_000), now)).toBe('9月26日')
+    expect(dueLabel(new Date('2026-09-26T01:00:00Z'), now)).toBe('9月26日')
+    expect(dueLabel(new Date('2026-09-27T15:59:00Z'), now)).toBe('9月27日')
+    expect(dueLabel(new Date('2026-09-22T06:00:00Z'), now)).toBe('9月22日')
+    expect(dueLabel(new Date('2027-01-05T06:00:00Z'), now)).toBe('2027年1月5日')
+  })
 })
 
 describe('optimisticPatch', () => {

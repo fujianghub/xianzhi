@@ -5,12 +5,12 @@
  * Esc 关闭回到列表（焦点恢复由列表负责）。评论线程随 T1-023 接入。
  */
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Eye, EyeOff, X } from 'lucide-react'
+import { Check, Eye, EyeOff, X } from 'lucide-react'
 import { lazy, type ReactNode, Suspense, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ALL_DAY_MINUTES, quickDueIso } from '../../../shared/quick-add.ts'
-import { localDateTimeOf } from '../../../shared/tz.ts'
+import { ALL_DAY_MINUTES } from '../../../shared/quick-add.ts'
+import { localDateTimeOf, zonedMidnight } from '../../../shared/tz.ts'
 import { useMe } from '../../hooks/useMe.ts'
 import { useSpaceCandidates } from '../../hooks/useMembers.ts'
 import { useSharedTarget } from '../../hooks/useSharedElement.ts'
@@ -28,15 +28,24 @@ import {
   tasksInfiniteQuery,
 } from '../../lib/task-queries.ts'
 import { dueLabel } from '../../lib/time.ts'
+import { Avatar } from '../ui/avatar.tsx'
 import { Button } from '../ui/button.tsx'
 import { InlineEdit } from '../ui/inline-edit.tsx'
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.tsx'
 import { RelativeTime, useUserTimeZone } from '../ui/relative-time.tsx'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '../ui/sheet.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
 import { Comments } from './Comments.tsx'
-import { PriorityIcon } from './PriorityIcon.tsx'
+import { PriorityChip } from './PriorityIcon.tsx'
 import { TagPicker } from './TagPicker.tsx'
-import { DuePicker, type DueValue, ListDot, ListPicker } from './TaskPickers.tsx'
+import {
+  DuePicker,
+  type DueValue,
+  ListDot,
+  ListPicker,
+  PriorityPicker,
+  StatusPicker,
+} from './TaskPickers.tsx'
 import { TaskRow } from './TaskRow.tsx'
 
 const LiteEditor = lazy(() => import('../../editor/LiteEditor.tsx'))
@@ -45,15 +54,6 @@ interface Watcher {
   userId: string
   displayName: string
 }
-
-/** datetime-local 与 ISO 互转（按浏览器本地时区；显示用用户时区的场景见 lib/time）。 */
-const toLocalInput = (iso: string | null) => {
-  if (!iso) return ''
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-const fromLocalInput = (v: string) => (v ? new Date(v).toISOString() : null)
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -64,20 +64,34 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
+const hhmm = (m: number) =>
+  `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+
 /**
- * 截止：与快速添加 / 任务行同一个日期选择器（含相对日期快选，ADR-0050）；弹层关闭时一次提交。
- * fieldset disabled 会一并禁用触发按钮（只读用户不能改）。
+ * 截止 / 计划（ADR-0050 · 0053）：与快速添加 / 任务行同一个日期选择器（含相对日期快选），按**用户时区**；弹层关闭时一次提交。
+ * 不选时间 = 全天：截止落 23:59，计划落当天 00:00（计划是开始时刻）。fieldset disabled 会一并禁用触发按钮。
  */
-function DueField({ dueAt, onSave }: { dueAt: string | null; onSave: (v: string | null) => void }) {
+function DateField({
+  iso,
+  kind,
+  onSave,
+  testId,
+}: {
+  iso: string | null
+  kind: 'due' | 'scheduled'
+  onSave: (v: string | null) => void
+  testId: string
+}) {
   const { t } = useTranslation()
   const { tz, locale } = useUserTimeZone()
+  const allDay = kind === 'due' ? ALL_DAY_MINUTES : 0
   const pending = useRef<{ v: DueValue | null } | null>(null)
-  const value: DueValue | null = dueAt
-    ? (() => {
-        const l = localDateTimeOf(tz, new Date(dueAt))
-        return { date: l.date, minutes: l.minutes === ALL_DAY_MINUTES ? null : l.minutes }
-      })()
+  const local = iso ? localDateTimeOf(tz, new Date(iso)) : null
+  const value: DueValue | null = local
+    ? { date: local.date, minutes: local.minutes === allDay ? null : local.minutes }
     : null
+  const overdue =
+    kind === 'due' && iso && new Date(iso).getTime() < Date.now() ? 'text-danger' : undefined
   return (
     <DuePicker
       value={value}
@@ -86,20 +100,99 @@ function DueField({ dueAt, onSave }: { dueAt: string | null; onSave: (v: string 
       }}
       onOpenChange={(o) => {
         if (o || !pending.current) return
-        const next = pending.current.v ? quickDueIso(pending.current.v, tz) : null
+        const v = pending.current.v
         pending.current = null
-        if (next !== dueAt) onSave(next)
+        const next = v
+          ? new Date(
+              zonedMidnight(tz, v.date).getTime() + (v.minutes ?? allDay) * 60_000,
+            ).toISOString()
+          : null
+        if (next !== iso) onSave(next)
       }}
       trigger={
         <button
           type="button"
-          className={cn(selectCls, 'text-start', !dueAt && 'text-fg-faint')}
-          data-testid="field-due"
+          className={cn(selectCls, 'text-start', !iso && 'text-fg-faint', overdue)}
+          data-testid={testId}
         >
-          {dueAt ? dueLabel(new Date(dueAt), new Date(), locale, tz) : t('picker.due.none')}
+          {iso && value
+            ? `${dueLabel(new Date(iso), new Date(), locale, tz)}${value.minutes != null ? ` ${hhmm(value.minutes)}` : ''}`
+            : t('picker.due.none')}
         </button>
       }
     />
+  )
+}
+
+/** 指派选择器（ADR-0053）：替代原生 select；头像 + 名字，当前值打勾 */
+function AssigneePicker({
+  value,
+  current,
+  candidates,
+  onChange,
+}: {
+  value: string | null
+  current: { id: string; displayName: string } | null
+  candidates: { userId: string; displayName?: string | null; name: string }[]
+  onChange: (id: string | null) => void
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const people = [
+    ...candidates.map((m) => ({ id: m.userId, name: m.displayName || m.name })),
+    ...(current && !candidates.some((m) => m.userId === current.id)
+      ? [{ id: current.id, name: current.displayName }]
+      : []),
+  ]
+  const pick = (id: string | null) => {
+    if (id !== value) onChange(id)
+    setOpen(false)
+  }
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            selectCls,
+            'flex items-center gap-2 text-start',
+            !current && 'text-fg-faint',
+          )}
+          data-testid="field-assignee"
+        >
+          {current ? (
+            <>
+              <Avatar id={current.id} name={current.displayName} size={20} />
+              <span className="truncate">{current.displayName}</span>
+            </>
+          ) : (
+            t('task.unassigned')
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-56 p-1" data-testid="assignee-picker">
+        <div className="max-h-64 overflow-y-auto">
+          <button type="button" className="xz-picker-item" onClick={() => pick(null)}>
+            <span className="grid size-5 place-items-center rounded-full border border-border border-dashed" />
+            <span className="flex-1 text-fg-muted">{t('task.unassigned')}</span>
+            {value === null ? <Check className="size-4 text-primary-text" aria-hidden /> : null}
+          </button>
+          {people.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              className="xz-picker-item"
+              onClick={() => pick(m.id)}
+              data-user-id={m.id}
+            >
+              <Avatar id={m.id} name={m.name} size={20} />
+              <span className="flex-1 truncate">{m.name}</span>
+              {value === m.id ? <Check className="size-4 text-primary-text" aria-hidden /> : null}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -184,6 +277,24 @@ export function TaskDetailSheet({
   }
 
   const panel = variant === 'panel'
+  // 常驻栏 Esc 关闭（同 Sheet，ADR-0053）：按键来自栏内或焦点落在 body（如改完标题后）时关；
+  // 来自列表、别处输入框、弹层（渲染在 body 里的 Radix 内容，自己处理 Esc）的不管
+  const panelRef = useRef<HTMLElement | null>(null)
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  useEffect(() => {
+    if (!panel) return
+    const on = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing) return
+      const target = e.target as Node | null
+      const fromPanel = !!target && !!panelRef.current?.contains(target)
+      if (!fromPanel && target !== document.body && target !== document.documentElement) return
+      e.preventDefault()
+      closeRef.current()
+    }
+    window.addEventListener('keydown', on)
+    return () => window.removeEventListener('keydown', on)
+  }, [panel])
   const Title = panel ? PanelTitle : SheetTitle
   const Description = panel ? PanelDescription : SheetDescription
   const body = (
@@ -208,7 +319,6 @@ export function TaskDetailSheet({
           <Title className="sr-only">{task.title}</Title>
           <Description className="sr-only">{t('task.task')}</Description>
           <div ref={sharedTarget} className="flex items-start gap-2 pr-8">
-            <PriorityIcon priority={task.priority} className="mt-2" />
             <InlineEdit
               value={task.title}
               onSave={(v) => save({ title: v })}
@@ -222,6 +332,10 @@ export function TaskDetailSheet({
             className="mt-1 flex h-5 items-center gap-2 px-1 text-fg-muted text-xs"
             aria-live="polite"
           >
+            <span className="xz-status-pill" data-status={task.status}>
+              {t(`task.status.${task.status}`)}
+            </span>
+            <PriorityChip priority={task.priority} />
             {savedAt ? (
               <span data-testid="saved-hint">{t('task.savedJustNow')}</span>
             ) : (
@@ -256,64 +370,65 @@ export function TaskDetailSheet({
           <fieldset disabled={!canWrite} className="border-divider border-b py-2">
             <legend className="sr-only">{t('task.task')}</legend>
             <Field label={t('task.statusLabel')}>
-              <select
-                className={selectCls}
+              <StatusPicker
                 value={task.status}
-                onChange={(e) => save({ status: e.target.value as Task['status'] })}
-                data-testid="field-status"
-              >
-                {TASK_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {t(`task.status.${s}`)}
-                  </option>
-                ))}
-              </select>
+                onChange={(status) => void save({ status })}
+                trigger={
+                  <button
+                    type="button"
+                    className={cn(selectCls, 'flex items-center text-start')}
+                    data-testid="field-status"
+                  >
+                    <span className="xz-status-pill" data-status={task.status}>
+                      {t(`task.status.${task.status}`)}
+                    </span>
+                  </button>
+                }
+              />
             </Field>
             <Field label={t('task.priorityLabel')}>
-              <select
-                className={selectCls}
+              <PriorityPicker
                 value={task.priority}
-                onChange={(e) => save({ priority: Number(e.target.value) })}
-                data-testid="field-priority"
-              >
-                {[0, 1, 2, 3, 4].map((p) => (
-                  <option key={p} value={p}>
-                    {t(`task.priority.${p}`)}
-                  </option>
-                ))}
-              </select>
+                onChange={(priority) => {
+                  if (priority !== task.priority) void save({ priority })
+                }}
+                trigger={
+                  <button
+                    type="button"
+                    className={cn(selectCls, 'flex items-center text-start')}
+                    data-testid="field-priority"
+                  >
+                    {task.priority ? (
+                      <PriorityChip priority={task.priority} />
+                    ) : (
+                      <span className="text-fg-faint">{t('task.priority.0')}</span>
+                    )}
+                  </button>
+                }
+              />
             </Field>
             <Field label={t('task.assignee')}>
-              <select
-                className={selectCls}
-                value={task.assigneeId ?? ''}
-                onChange={(e) => save({ assigneeId: e.target.value || null })}
-                data-testid="field-assignee"
-              >
-                <option value="">{t('task.unassigned')}</option>
-                {candidates.map((m) => (
-                  <option key={m.userId} value={m.userId}>
-                    {m.displayName || m.name}
-                  </option>
-                ))}
-                {task.assignee && !candidates.some((m) => m.userId === task.assigneeId) ? (
-                  <option value={task.assignee.id}>{task.assignee.displayName}</option>
-                ) : null}
-              </select>
+              <AssigneePicker
+                value={task.assigneeId}
+                current={task.assignee}
+                candidates={candidates}
+                onChange={(assigneeId) => void save({ assigneeId })}
+              />
             </Field>
             <Field label={t('task.dueAt')}>
-              <DueField dueAt={task.dueAt} onSave={(dueAt) => save({ dueAt })} />
+              <DateField
+                iso={task.dueAt}
+                kind="due"
+                onSave={(dueAt) => void save({ dueAt })}
+                testId="field-due"
+              />
             </Field>
             <Field label={t('task.scheduledAt')}>
-              <input
-                type="datetime-local"
-                className={selectCls}
-                defaultValue={toLocalInput(task.scheduledAt)}
-                key={`sch-${task.updatedAt}`}
-                onBlur={(e) =>
-                  fromLocalInput(e.target.value) !== task.scheduledAt &&
-                  save({ scheduledAt: fromLocalInput(e.target.value) })
-                }
+              <DateField
+                iso={task.scheduledAt}
+                kind="scheduled"
+                onSave={(scheduledAt) => void save({ scheduledAt })}
+                testId="field-scheduled"
               />
             </Field>
             <Field label={t('task.tags')}>
@@ -439,6 +554,7 @@ export function TaskDetailSheet({
   if (panel)
     return (
       <aside
+        ref={panelRef}
         className="xz-task-panel relative overflow-y-auto"
         aria-label={task?.title ?? t('task.task')}
         data-testid="task-sheet"

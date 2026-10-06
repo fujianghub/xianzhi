@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next'
 import { dayRange } from '../../shared/tz.ts'
 import { QuickAddTask } from '../components/domain/QuickAddTask.tsx'
 import { SelectModeButton, TaskSelectionScope } from '../components/domain/TaskBatchBar.tsx'
+import { TaskDetailSheet } from '../components/domain/TaskDetailSheet.tsx'
 import { TaskList } from '../components/domain/TaskList.tsx'
 import { WithRail } from '../components/layout/WithRail.tsx'
 import { Disclosure } from '../components/ui/disclosure.tsx'
@@ -23,13 +24,15 @@ import type { Me } from '../hooks/useMe.ts'
 import { useTaskActions } from '../hooks/useTasks.ts'
 import { occurrencesQuery } from '../lib/calendar-queries.ts'
 import { cn } from '../lib/cn.ts'
-import { optOneOf } from '../lib/search.ts'
+import { optOneOf, optUuid } from '../lib/search.ts'
 import { useNewTask } from '../lib/stores.ts'
 import { flattenPages, type Task, tasksInfiniteQuery } from '../lib/task-queries.ts'
 
 export const Route = createFileRoute('/_app/today')({
-  validateSearch: (s: Record<string, unknown>): { done?: '1' } => ({
+  // `task`：详情就地打开（ADR-0053，原先跳到空间页）
+  validateSearch: (s: Record<string, unknown>): { done?: '1'; task?: string } => ({
     done: optOneOf(['1'] as const)(s.done),
+    task: optUuid(s.task),
   }),
   component: Today,
 })
@@ -39,7 +42,7 @@ const byPriority = (a: Task, b: Task) => b.priority - a.priority || (a.sortKey <
 function Today() {
   const { t } = useTranslation()
   const { me } = Route.useRouteContext() as { me: Me }
-  const { done } = Route.useSearch()
+  const { done, task: openTaskId } = Route.useSearch()
   const nav = useNavigate({ from: '/today' })
   const actions = useTaskActions()
   const setDefaults = useNewTask((s) => s.setDefaults)
@@ -94,11 +97,9 @@ function Today() {
     .filter(([, l]) => l.length)
     .map(([key, l]) => t(`task.summary.${key}`, { count: l.length }))
     .join(' · ')
-  const open = (task: Task) =>
-    nav({
-      to: '/spaces/$spaceSlug/tasks/$taskId',
-      params: { spaceSlug: task.spaceSlug, taskId: task.id },
-    })
+  // 详情就地打开（ADR-0053）：留在今日，关闭回到原处
+  const open = (task: Task) => nav({ search: (p) => ({ ...p, task: task.id }) })
+  const closeTask = () => nav({ search: (p) => ({ ...p, task: undefined }) })
   const createToday = (title: string) =>
     actions.create({ title, status: 'todo', dueAt: endOfToday })
 
@@ -201,6 +202,9 @@ function Today() {
           </div>
         </section>
       </WithRail>
+      {openTaskId ? (
+        <TaskDetailSheet taskId={openTaskId} onClose={closeTask} onOpenTask={open} />
+      ) : null}
     </TaskSelectionScope>
   )
 }
