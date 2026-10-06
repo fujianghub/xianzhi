@@ -1,6 +1,7 @@
 /**
  * 任务页清单栏（ADR-0044、REQ-TASK-034）：智能清单（全部 · 今天 · 明天 · 最近 7 天 · 未归类 · 已完成）+ 我的清单（文件夹可折叠）+ 标签。
  * 右侧计数来自 `GET /tasks/counts`；选中项 = selected 底 + 左侧主色条。清单 ⋯：改名 · 改色 · 移到文件夹 · 删除。
+ * 点文件夹 = 聚合查看其下全部清单（按清单分组，ADR-0050）；文件夹前的箭头单独负责折叠。
  * 窄屏（< lg）由页面改用横向胶囊条（`TaskViewChips`）。
  */
 import { useQuery } from '@tanstack/react-query'
@@ -43,10 +44,11 @@ import { ListDot } from './TaskListDot.tsx'
 /** 标签区默认只显示前几个，其余「全部」展开 */
 const TAGS_SHOWN = 12
 
-/** 当前选中：智能清单 / 某清单 / 某标签 */
+/** 当前选中：智能清单 / 某清单 / 某文件夹（聚合其下清单，ADR-0050）/ 某标签 */
 export type TaskScope =
   | { kind: 'smart'; view: SmartView }
   | { kind: 'list'; id: string }
+  | { kind: 'folder'; id: string }
   | { kind: 'tag'; name: string }
 
 const SMART: Record<SmartView, { icon: LucideIcon; hue: string }> = {
@@ -87,7 +89,7 @@ export function TaskListsRail({
     s.kind === scope.kind &&
     (s.kind === 'smart'
       ? s.view === (scope as { view: SmartView }).view
-      : s.kind === 'list'
+      : s.kind === 'list' || s.kind === 'folder'
         ? s.id === (scope as { id: string }).id
         : s.name === (scope as { name: string }).name)
 
@@ -230,8 +232,23 @@ export function TaskListsRail({
             <li key={item.id} className="group/list relative">
               <button
                 type="button"
-                className="xz-rail-item text-fg-muted"
+                className="xz-rail-item xz-rail-folder"
+                aria-current={on({ kind: 'folder', id: item.id }) ? 'page' : undefined}
+                onClick={() => onPick({ kind: 'folder', id: item.id })}
+                data-testid="rail-folder"
+                data-folder-id={item.id}
+              >
+                <Folder className="size-4 text-fg-muted" aria-hidden />
+                <span className="min-w-0 truncate">{item.name}</span>
+                <span className="xz-rail-count group-hover/list:opacity-0">
+                  {children.reduce((a, c) => a + (counts?.lists[c.id] ?? 0), 0) || ''}
+                </span>
+              </button>
+              <button
+                type="button"
+                className="xz-rail-fold"
                 aria-expanded={!collapsed.has(item.id)}
+                aria-label={t('taskLists.toggleFolder', { name: item.name })}
                 onClick={() =>
                   setCollapsed((s) => {
                     const next = new Set(s)
@@ -240,14 +257,9 @@ export function TaskListsRail({
                     return next
                   })
                 }
-                data-testid="rail-folder"
+                data-testid="rail-folder-toggle"
               >
-                <ChevronRight className="xz-group-chevron size-3.5 rotate-90" aria-hidden />
-                <Folder className="size-4" aria-hidden />
-                <span className="min-w-0 truncate">{item.name}</span>
-                <span className="xz-rail-count group-hover/list:opacity-0">
-                  {children.reduce((a, c) => a + (counts?.lists[c.id] ?? 0), 0) || ''}
-                </span>
+                <ChevronRight className="size-3.5" aria-hidden />
               </button>
               <ListMenu list={item} folders={[]} />
               {collapsed.has(item.id) ? null : (

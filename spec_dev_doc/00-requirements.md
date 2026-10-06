@@ -150,6 +150,8 @@
 | REQ-TASK-039 | P1 | 2 | （2026-10-01 新增，ADR-0045 §B）单个管理菜单（行尾「⋯」/ 右键 / 键盘 `m`）：完成 / 取消完成 · 打开详情 · 日期快选与自选 · 优先级 · 移到清单 · 标签 · 移到空间 · 状态 · 复制标题 · 删除（可撤销）；右键锚在指针处（虚拟锚点）；触屏不弹右键菜单；只读用户只有 打开详情 · 移到清单 · 复制标题 | When 右键丁 → 移到清单 M Then 丁 `list = M`；When ⋯ → 删除 Then 行消失，点「撤销」Then 恢复 | ADR-0045 §B | e2e |
 | REQ-TASK-040 | P1 | 2 | （2026-10-01 新增，ADR-0045 §C）页面级多选（任务页 / 今日 / 收件箱 / 空间列表视图）：⌘（Mac）/ Ctrl 点击切换、Shift 点击按跨组顺序连选、页头「选择」模式（行前方形复选框、点行切换）、键盘 x 与 Shift+J/K、手机长按；选中行高亮；换视图清空，已不可见的选中项自动剔除；全站一条批量条 | When Ctrl 点今天组的甲、Shift 点无日期组的丙 Then 已选 4（含中间组的乙、丁）；unit：`rangeSelect` 方向无关、anchor 失效只选目标 | ADR-0045 §C | unit · e2e |
 | REQ-TASK-041 | P1 | 2 | （2026-10-01 新增，ADR-0045 §C.11 ~ 13）批量条：全选当前视图 · 完成 · 日期 · 优先级 · 清单 · 空间 · 标签（全有则移除，否则全加）· 状态 · 删除；`/tasks/batch` 按 100 分块，失败块提示首个失败项与原因、成功块保留；完成 / 删除可撤销（批量 uncomplete 幂等、批量 restore 只覆盖本人可恢复的） | When 选 4 条批量改优先级为低 Then 4 条 priority = 1；When 批量完成后点「撤销」Then 回到完成前状态；When 选择模式全选后批量删除再撤销 Then 全部恢复；api：batch delete → restore、complete → uncomplete，uncomplete 遇已非完成态不 409 | ADR-0045 §C | api · e2e |
+| REQ-TASK-042 | P1 | 2 | （2026-10-07 新增，ADR-0050 §A）按清单分组与文件夹聚合：任务页分组方式 +「按清单分组」（组序同左栏清单树，组标题带色点与文件夹前缀，末尾「未归类」；组内添加带该组清单；非空清单组与「未归类」组可拖入）；点左栏文件夹 = 查看其下全部清单的任务（`folder=<id>`，默认按清单分组、无「未归类」组），箭头单独折叠；`GET /tasks?listId=<文件夹 id>` 展开为其下本人的清单，别人的文件夹为空；分组方式本机记住，单个清单视图无「按清单分组」并回落按日期 | When 点文件夹「学习」Then URL 带 `folder=`、出现「英语」「算法」两组且不含夹外清单的任务；When 在「算法」组内添加 Then 新任务归进「算法」；When 打开 `?list=<id>&group=list` Then 分组方式为按日期且无「按清单」选项；api：文件夹 id 筛选 = 其下清单任务之和，他人为空 | ADR-0050 §A | api · e2e |
+| REQ-TASK-043 | P1 | 2 | （2026-10-07 新增，ADR-0050 §B）相对日期快选：日期选择器（快速添加 / 行内胶囊 / 批量条 / 详情截止）与单个管理菜单在 今天 / 明天 / 下周一 / 无日期 之外提供 1 周后 · 2 周后 · 1 个月后 · 半年后 · 1 年后，显示目标日；按月保留日、溢出取月末；边界按用户时区，全天 = 23:59 | When 在选择器点「1 周后」Then 截止 = 今天 + 7 天 23:59（用户时区）；When 菜单点「1 个月后」Then 截止 = 下月同日（1/31 → 2/28）；unit：`addMonthsKeepDay` 月末 / 闰年 / 跨年 | ADR-0050 §B | unit · e2e |
 
 ---
 
@@ -470,7 +472,7 @@
 | REQ-UI-004 | P0 | 0 | `/design` 画廊应仅 admin 可见，含 token 页与材质 / 深度 / 切换三页，深浅色并排，截图回归阈值 0.1% | Given member When 访问 Then 404；Given admin Then 四页可见；Playwright 截图与基线差 ≤ 0.1%（注 2026-09-27，ADR-0020：路由改为 `/settings/design`，旧 `/design` 跳转，见 REQ-UI-039） | 04 §8 · 06 §10 | e2e · visual |
 | REQ-UI-005 | P0 | 1 | ⌘K 第一组命令应由焦点对象决定（任务 / 记录 / 周期 / 空间），第二组为全局；候选带 KeyHint | Given 焦点在任务 When ⌘K Then 首组含「改状态 / 指派 / 设截止 / 移到周期」<br>Given 无焦点 Then 首组为跳转与创建 | 04 §6 | e2e |
 | REQ-UI-006 | P0 | 1 | 全局快捷键（`g t` `g i` `g s` `c` `e` `n` `[` `]` `?`）应生效；`?` 打开面板 | When 按 `g` 后 `t` Then 路由为「今日」 | 04 §6 | e2e |
-| REQ-UI-007 | P1 | 1 | 悬停 600ms 或焦点行按 `p` 应打开 Peek 面板（宽 480、不改 URL、`modal=false` 无 Scrim）；Esc 关闭；Enter 升级为详情并改 URL | When 悬停 700ms 或按 `p` Then 面板可见且 URL 不变；Enter Then URL 变为详情；Peek 打开时列表仍可滚动 | 04 §6 · 06 §4（任务 Peek 复用 `GET /tasks/:id`） | e2e |
+| REQ-UI-007 | P1 | 1 | （注 2026-10-07 ADR-0050：悬停 600ms 改为停留 1s——指针静止才计时、移动重新计时、按下后到移开前不弹，Peek 已开时换行 350ms；任务预览显示全部属性、完整描述与子任务）悬停 600ms 或焦点行按 `p` 应打开 Peek 面板（宽 480、不改 URL、`modal=false` 无 Scrim）；Esc 关闭；Enter 升级为详情并改 URL | When 悬停 700ms 或按 `p` Then 面板可见且 URL 不变；Enter Then URL 变为详情；Peek 打开时列表仍可滚动 | 04 §6 · 06 §4（任务 Peek 复用 `GET /tasks/:id`） | e2e |
 | REQ-UI-008 | P1 | 1 | 状态 Toast 应从 Topbar 状态胶囊形变生长并缩回；错误 Toast 带红条；reduced-motion 下淡入 | When 导出完成 Then 胶囊展开为 Toast，4s 后缩回 | 04 §6 · 06 §4 | e2e · visual |
 | REQ-UI-009 | P0 | 1 | 每个列表页空状态应含插画、一句话与可直接输入的主操作 | Given 空看板 Then 显示「这里还没有衔来的枝」与输入框 | 04 §6 · 06 §5.5 | e2e |
 | REQ-UI-010 | P0 | 1 | 写操作应乐观更新；失败 Toast 并回滚；> 400ms 请求显示骨架屏 | Given 网络 500 When 改标题 Then 立即显示新值，随后回滚并 Toast | 04 §6 · 02 §11 | e2e |

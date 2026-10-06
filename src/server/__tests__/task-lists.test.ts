@@ -160,6 +160,26 @@ describe('task lists', () => {
     expect(await ids(u.owner, `view=mine&listId=${mine.id}`)).toEqual([])
   })
 
+  it('REQ-TASK-042 文件夹 id 作 listId 筛选 = 其下全部清单的任务；别人的文件夹为空；文件夹不能直接归类', async () => {
+    const folder = await mk(u.owner, { kind: 'folder', name: '聚合夹' })
+    const a = await mk(u.owner, { name: '聚合甲', parentId: folder.id })
+    const b = await mk(u.owner, { name: '聚合乙', parentId: folder.id })
+    const outside = await mk(u.owner, { name: '夹外' })
+    const ta = await task(u.owner, { title: '甲任务', listId: a.id })
+    const tb = await task(u.owner, { title: '乙任务', listId: b.id })
+    const tc = await task(u.owner, { title: '夹外任务', listId: outside.id })
+    const got = await ids(u.owner, `view=mine&listId=${folder.id}`)
+    expect(got.sort()).toEqual([ta.id, tb.id].sort())
+    expect(got).not.toContain(tc.id)
+    // 单个清单仍只看自己
+    expect(await ids(u.owner, `view=mine&listId=${a.id}`)).toEqual([ta.id])
+    // 别人拿这个文件夹 id 筛选 → 空（展开只认本人的文件夹）
+    expect(await ids(u.member, `view=mine&listId=${folder.id}`)).toEqual([])
+    // 文件夹本身不能当清单归类（前端文件夹视图的快速添加须带具体清单）
+    const bad = await req(u.owner, 'POST', '/tasks', { spaceId, title: 'x', listId: folder.id })
+    expect([400, 422]).toContain(bad.status)
+  })
+
   it('REQ-TASK-031 计数与智能清单：今天（同今日口径）/ 明天 / 最近 7 天 / 逾期 / 未归类 / 各清单，边界按用户时区；due=tomorrow|next7 筛选同口径', async () => {
     const who = await invite('tlc@xz.local', 'member')
     const s = await req(u.owner, 'POST', '/spaces', {

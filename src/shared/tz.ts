@@ -131,6 +131,15 @@ export function monthGrid(
   }
 }
 
+/** 加减月份并保留日（超出当月天数则取月末：1/31 + 1 月 = 2/28 或 2/29；日期快选「1 个月后 / 半年后 / 1 年后」，ADR-0050）。 */
+export function addMonthsKeepDay(d: LocalDate, n: number): LocalDate {
+  const first = new Date(Date.UTC(d.y, d.m - 1 + n, 1))
+  const y = first.getUTCFullYear()
+  const m = first.getUTCMonth() + 1
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  return { y, m, d: Math.min(d.d, last) }
+}
+
 /** 加减月份（日取 1 号，避免 1/31 + 1 月溢出）。 */
 export function addMonths(d: LocalDate, n: number): LocalDate {
   const t = new Date(Date.UTC(d.y, d.m - 1 + n, 1))

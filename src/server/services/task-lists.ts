@@ -227,8 +227,11 @@ export async function setTaskList(
   if (listId) await db.insert(taskListItems).values({ taskId, userId: ctx.actor.id, listId })
 }
 
-/** 本人名下「在某清单里」/「不在任何清单里」的任务条件（SQL 片段，用于列表 / 计数，可与 withTotal 共用） */
+/**
+ * 本人名下「在某清单里」/「不在任何清单里」的任务条件（SQL 片段，用于列表 / 计数，可与 withTotal 共用）。
+ * 给的是文件夹 id 时展开为其下各清单（ADR-0050：点文件夹 = 聚合看其下全部清单）；只认本人的文件夹。
+ */
 export const inOwnListSql = (actorId: string, listId: string) =>
-  sql`exists (select 1 from ${taskListItems} tli where tli.task_id = ${tasks.id} and tli.user_id = ${actorId} and tli.list_id = ${listId})`
+  sql`exists (select 1 from ${taskListItems} tli where tli.task_id = ${tasks.id} and tli.user_id = ${actorId} and (tli.list_id = ${listId} or tli.list_id in (select tl.id from ${taskLists} tl where tl.parent_id = ${listId} and tl.owner_id = ${actorId})))`
 export const notInOwnListSql = (actorId: string) =>
   sql`not exists (select 1 from ${taskListItems} tli where tli.task_id = ${tasks.id} and tli.user_id = ${actorId})`

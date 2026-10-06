@@ -8,7 +8,7 @@
 - 单 package TypeScript：`src/client`（Vite 8 + React 19 + TanStack + Tailwind v4 + shadcn）· `src/server`（Hono + Drizzle + pg-boss）· `src/collab`（Hocuspocus）· `src/shared`（Zod schema、编辑器模板、`tz.ts`）
 - 数据：PostgreSQL 16（pgvector 镜像，独立容器）；正文 = Yjs 二进制 `entries.ydoc`
 - 认证：Better Auth（organization/admin/2FA/passkey/magicLink/apiKey/username）；Better Auth 自助注册关闭，注册只走 `POST /workspace/join-requests`，审批前无 `member` 行 = 不能登录；邮箱或用户名 + 密码（≥ 8 位）登录，前置服务端拼图滑块（ADR-0006 / 0008）；collab WebSocket 用 `POST /collab/token` 按文档签发的 5 分钟票据，不用 Cookie
-- 视觉：Apple 玻璃（ADR-0002）+ 翡翠主色、燕印、动效档位（ADR-0005）+ 空间 / 标签 / 日历共用鲜艳 9 色板（ADR-0010）；日场 / 夜场，默认跟随系统；字体 npm 自托管、异步加载；记录页 = 标题 → 紧凑属性列表（空属性收起、流转摘要弹层）→ 文档栏（字数 · 阅读弹层 · 专注 · 保存 · Markdown）→ 吸顶格式栏（吸顶才有底线）→ 正文（ADR-0035 · 0037），排版由按人存的阅读偏好（`user_preferences`，ADR-0024 ~ 0031）决定；认证四页共用 `AuthShell`「衔枝小院」：幼燕插画 + 情绪状态机，动作引擎 `components/auth/bird-engine.ts`，开发用 `/login?birdlab` 逐个触发（ADR-0034）；材质类在 `@layer components`（去外投影用 `--xz-mat-drop`，不用 `shadow-none`）、浮层退出动效带 `data-xz-exit`（ADR-0046）；玻璃强度 `html[data-glass]` 默认流光、只调 token 不加 blur，改 tokens 预设块时日场写过的变量夜场块须覆盖回来（ADR-0047 · 0048）；外观偏好（主题 / 密度 / 动效 / 玻璃）随账号存 `user_preferences.appearance`、工作区可设默认，本机 `xz:*` 只作首帧缓存（ADR-0049）
+- 视觉：Apple 玻璃（ADR-0002）+ 翡翠主色、燕印、动效档位（ADR-0005）+ 空间 / 标签 / 日历共用鲜艳 9 色板（ADR-0010）；日场 / 夜场，默认跟随系统；字体 npm 自托管、异步加载；记录页 = 标题 → 紧凑属性列表（空属性收起、流转摘要弹层）→ 文档栏（字数 · 阅读弹层 · 专注 · 保存 · Markdown）→ 吸顶格式栏（吸顶才有底线）→ 正文（ADR-0035 · 0037），排版由按人存的阅读偏好（`user_preferences`，ADR-0024 ~ 0031）决定；认证四页共用 `AuthShell`「衔枝小院」：幼燕插画 + 情绪状态机，动作引擎 `components/auth/bird-engine.ts`，开发用 `/login?birdlab` 逐个触发（ADR-0034）；材质类在 `@layer components`（去外投影用 `--xz-mat-drop`，不用 `shadow-none`）、浮层退出动效带 `data-xz-exit`（ADR-0046）；玻璃强度 `html[data-glass]` 默认流光、只调 token 不加 blur，改 tokens 预设块时日场写过的变量夜场块须覆盖回来（ADR-0047 · 0048）；外观偏好（主题 / 密度 / 动效 / 玻璃）随账号存 `user_preferences.appearance`、工作区可设默认，本机 `xz:*` 只作首帧缓存（ADR-0049）；`app.css` 里不在 `@layer` 的类（如 `.xz-rail-item`）会压过 Tailwind 工具类，要改其内边距 / 颜色就加专用修饰类，别叠 `ps-*` 之类
 - 分期：一期 = Phase 0–2（可用版本）· 二期 = Phase 3（MCP / 导入 / AI / pgvector）；规范里不出现「三期」
 - 端口：3010 Vite · 8010 API · 8011 collab · 5433 PG · 8025 Mailpit（简斋占 3001/8002/5432/6379，勿撞）
 - 部署：腾讯云与简斋同机，Compose 三服务，复用其 Caddy；`infra/`；远端 `github.com/fujianghub/xianzhi`
@@ -51,7 +51,7 @@ pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore 
 | 文件 | 内容 |
 |---|---|
 | `spec_dev_doc/adr/0001-tech-stack.md` | 选型与 8 项决定、分期、各技术介绍 / 作用 / 语言（§10） |
-| `spec_dev_doc/adr/NNNN-*.md` | 决策记录 0002 ~ 0049：文件名即主题，`ls` 看清单；按标识符 grep `spec_dev_doc/adr` 定位决策（如 `useFieldSpecs`、`entry_kind_overrides`），代码入口直接 grep `src` |
+| `spec_dev_doc/adr/NNNN-*.md` | 决策记录 0002 ~ 0050：文件名即主题，`ls` 看清单；按标识符 grep `spec_dev_doc/adr` 定位决策（如 `useFieldSpecs`、`entry_kind_overrides`），代码入口直接 grep `src` |
 | `spec_dev_doc/01-domain-model.md` | 表结构、`fields` schema、事件种类、权限矩阵 |
 | `spec_dev_doc/02-api-conventions.md` | 路由/错误/分页/SSE/文件/MCP 约定、路由清单 |
 | `spec_dev_doc/03-editor-kernel.md` | Tiptap schema、Hocuspocus 钩子、快照、模板、交互规格、简斋陷阱 |

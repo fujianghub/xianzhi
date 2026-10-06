@@ -809,6 +809,16 @@ html:active-view-transition-type(route) :is([data-shared-source], [data-shared-t
 .xz-prose > * + * {
   margin-top: var(--xz-read-gap, 0.75em);
 }
+/* 紧凑只读正文（Peek 预览，ADR-0050）：不撑最小高度、不跟阅读字号，跟随周围的小字 */
+.xz-prose.xz-prose-compact {
+  min-height: 0;
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+.xz-prose.xz-prose-compact > * + * {
+  margin-top: 0.5em;
+}
 /* 标题用 em：随阅读字号一起缩放（16px 下与原 rem 值相同） */
 .xz-prose h1 {
   font-size: 1.5em;
@@ -2150,6 +2160,29 @@ select:disabled {
   background: var(--xz-primary-soft);
   color: var(--xz-primary-text);
 }
+/* Peek 预览的状态胶囊（ADR-0050） */
+.xz-peek-status {
+  display: inline-flex;
+  align-items: center;
+  height: 1.375rem;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: var(--xz-surface-solid-2);
+  color: var(--xz-fg-muted);
+}
+.xz-peek-status[data-status="doing"] {
+  background: var(--xz-primary-soft);
+  color: var(--xz-primary-text);
+}
+.xz-peek-status[data-status="blocked"] {
+  background: var(--xz-danger-soft);
+  color: var(--xz-danger);
+}
+.xz-peek-status[data-status="done"] {
+  background: var(--xz-success-soft);
+  color: var(--xz-success);
+}
 .xz-task-list {
   display: inline-flex;
   align-items: center;
@@ -2269,6 +2302,11 @@ select:disabled {
   background: var(--xz-hover-bg);
   color: var(--xz-fg);
 }
+/* 当前截止正好是该快选日（ADR-0050） */
+.xz-picker-quick[aria-pressed="true"] {
+  background: var(--xz-selected-bg);
+  color: var(--xz-primary-text);
+}
 .xz-picker-item {
   display: flex;
   width: 100%;
@@ -2313,6 +2351,33 @@ select:disabled {
   width: 3px;
   border-radius: 999px;
   background: var(--xz-primary);
+}
+/* 文件夹行（ADR-0050：点文件夹本身 = 聚合查看，箭头单独折叠）：左侧给箭头留位 */
+.xz-rail-item.xz-rail-folder {
+  padding-inline-start: 1.875rem;
+}
+/* 文件夹折叠箭头（ADR-0050：点文件夹本身 = 聚合查看，箭头单独折叠） */
+.xz-rail-fold {
+  position: absolute;
+  top: 0;
+  inset-inline-start: 0.375rem;
+  display: grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 2.125rem;
+  border-radius: var(--xz-radius-sm);
+  color: var(--xz-fg-muted);
+}
+.xz-rail-fold:hover {
+  color: var(--xz-fg);
+  background: var(--xz-hover-bg);
+}
+.xz-rail-fold > svg {
+  transform: rotate(90deg);
+  transition: transform var(--xz-dur-base) var(--xz-ease-out);
+}
+.xz-rail-fold[aria-expanded="false"] > svg {
+  transform: none;
 }
 .xz-rail-count {
   margin-inline-start: auto;

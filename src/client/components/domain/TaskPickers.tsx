@@ -17,7 +17,14 @@ import {
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ALL_DAY_MINUTES } from '../../../shared/quick-add.ts'
-import { addDays, addMonths, dayOfWeek, type LocalDate, localDateOf } from '../../../shared/tz.ts'
+import {
+  addDays,
+  addMonths,
+  addMonthsKeepDay,
+  dayOfWeek,
+  type LocalDate,
+  localDateOf,
+} from '../../../shared/tz.ts'
 import { useMe } from '../../hooks/useMe.ts'
 import { useTaskListActions } from '../../hooks/useTaskLists.ts'
 import { cn } from '../../lib/cn.ts'
@@ -40,6 +47,19 @@ const hhmm = (m: number) =>
 
 /** 下一个周一（今天是周一则取下周一） */
 const nextMonday = (today: LocalDate) => addDays(today, (8 - dayOfWeek(today)) % 7 || 7)
+
+/** 相对日期快选（ADR-0050、REQ-TASK-043）：日期选择器第二行与单个管理菜单共用；按月的保留日、溢出取月末 */
+export const DUE_PRESETS: readonly { key: string; at: (today: LocalDate) => LocalDate }[] = [
+  { key: 'in1w', at: (d) => addDays(d, 7) },
+  { key: 'in2w', at: (d) => addDays(d, 14) },
+  { key: 'in1m', at: (d) => addMonthsKeepDay(d, 1) },
+  { key: 'in6m', at: (d) => addMonthsKeepDay(d, 6) },
+  { key: 'in1y', at: (d) => addMonthsKeepDay(d, 12) },
+]
+
+/** 两个本地日相差的天数 */
+export const daysBetween = (a: LocalDate, b: LocalDate) =>
+  Math.round((Date.UTC(b.y, b.m - 1, b.d) - Date.UTC(a.y, a.m - 1, a.d)) / 86_400_000)
 
 export function DuePicker({
   value,
@@ -94,7 +114,7 @@ export function DuePicker({
       }}
     >
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent align="end" className="w-64 p-2" data-testid="due-picker">
+      <PopoverContent align="end" className="w-72 p-2" data-testid="due-picker">
         <div className="grid grid-cols-4 gap-1">
           {quick.map((q) => (
             <button
@@ -113,6 +133,27 @@ export function DuePicker({
             </button>
           ))}
         </div>
+        <fieldset className="mt-1 grid grid-cols-5 gap-1" aria-label={t('picker.due.presets')}>
+          {DUE_PRESETS.map((p) => {
+            const d = p.at(today)
+            return (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => pick(d)}
+                className="xz-picker-quick"
+                aria-pressed={!!value && daysBetween(value.date, d) === 0}
+                title={`${d.y}/${d.m}/${d.d}`}
+                data-testid={`due-quick-${p.key}`}
+              >
+                <span className="whitespace-nowrap text-[11px]">{t(`picker.due.${p.key}`)}</span>
+                <span className="text-[10px] text-fg-faint tabular-nums">
+                  {d.y === today.y ? `${d.m}/${d.d}` : `${String(d.y).slice(2)}/${d.m}/${d.d}`}
+                </span>
+              </button>
+            )
+          })}
+        </fieldset>
         <div className="mt-2 border-divider border-t pt-2">
           <MiniMonth
             month={month}

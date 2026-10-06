@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   addMonths,
+  addMonthsKeepDay,
   dayOfWeek,
   dayRange,
   formatLocalDate,
@@ -74,6 +75,14 @@ describe('tz', () => {
     expect(parseLocalDate('2026-02-29')).toBeNull()
     expect(parseLocalDate('2028-02-29')).toEqual({ y: 2028, m: 2, d: 29 })
     expect(parseLocalDate('bad')).toBeNull()
+  })
+
+  it('REQ-TASK-043 日期快选：加月保留日、溢出取月末、跨年', () => {
+    expect(addMonthsKeepDay({ y: 2026, m: 1, d: 31 }, 1)).toEqual({ y: 2026, m: 2, d: 28 })
+    expect(addMonthsKeepDay({ y: 2028, m: 1, d: 31 }, 1)).toEqual({ y: 2028, m: 2, d: 29 })
+    expect(addMonthsKeepDay({ y: 2026, m: 10, d: 7 }, 6)).toEqual({ y: 2027, m: 4, d: 7 })
+    expect(addMonthsKeepDay({ y: 2028, m: 2, d: 29 }, 12)).toEqual({ y: 2029, m: 2, d: 28 })
+    expect(addMonthsKeepDay({ y: 2026, m: 8, d: 31 }, 1)).toEqual({ y: 2026, m: 9, d: 30 })
   })
 
   it('非法时区名 → false', () => {

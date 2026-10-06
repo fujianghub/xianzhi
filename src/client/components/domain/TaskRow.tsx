@@ -14,11 +14,12 @@ import { type MouseEvent, memo, type ReactNode, useEffect, useRef, useState } fr
 import { useTranslation } from 'react-i18next'
 import { quickDueIso } from '../../../shared/quick-add.ts'
 import { localDateTimeOf } from '../../../shared/tz.ts'
-import { useHoverIntent } from '../../hooks/useHoverIntent.ts'
+import { PEEK_HOVER_MS, PEEK_SWITCH_MS, useHoverIntent } from '../../hooks/useHoverIntent.ts'
 import { markSharedSource } from '../../hooks/useSharedElement.ts'
 import { useSwipeRow } from '../../hooks/useSwipeRow.ts'
 import type { TaskPatch } from '../../hooks/useTasks.ts'
 import { cn } from '../../lib/cn.ts'
+import { usePeek } from '../../lib/stores.ts'
 import { dueTone } from '../../lib/task-groups.ts'
 import type { Task } from '../../lib/task-queries.ts'
 import { isMultiKey, useSelectionEnabled, useTaskSelectionStore } from '../../lib/task-selection.ts'
@@ -130,7 +131,7 @@ export const TaskRow = memo(function TaskRow({
   onToggle: (task: Task) => void
   onOpen: (task: Task) => void
   onFocus?: (task: Task) => void
-  /** 悬停 600ms 打开 Peek（04 §6、REQ-UI-007） */
+  /** 停留 1s 打开 Peek（04 §6、REQ-UI-007；ADR-0050） */
   onPeek?: (task: Task) => void
   /** 触摸右滑改期 / 长按多选（REQ-MOBILE-002；左滑完成复用 onToggle） */
   onReschedule?: (task: Task) => void
@@ -173,9 +174,13 @@ export const TaskRow = memo(function TaskRow({
   const store = useTaskSelectionStore.getState
   const lastPointer = useRef<string>('mouse')
   const suppressClickUntil = useRef(0)
-  const hover = useHoverIntent(() => {
-    if (!ui) onPeek?.(task)
-  })
+  // 停留 1s 才预览（扫过不弹）；Peek 已开着时换行只需短停留——取 getState，不让每行订阅 Peek（ADR-0050）
+  const hover = useHoverIntent(
+    () => {
+      if (!ui) onPeek?.(task)
+    },
+    () => (usePeek.getState().target ? PEEK_SWITCH_MS : PEEK_HOVER_MS),
+  )
   const swipe = useSwipeRow({
     onLeft: () => {
       if (task.status !== 'done') onToggle(task)
@@ -379,7 +384,7 @@ export const TaskRow = memo(function TaskRow({
       data-selected={sel ? '' : undefined}
       onMouseDown={(e) => {
         if (!fromRow(e)) return
-        hover.onMouseLeave() // 按下即取消悬停预览（审查 P1-10）
+        hover.onMouseDown() // 按下即取消悬停预览，移开前不再计时（审查 P1-10）
         if (e.shiftKey && selectable) e.preventDefault() // 不扩展原生文字选区
         onFocus?.(task)
       }}
@@ -398,10 +403,11 @@ export const TaskRow = memo(function TaskRow({
         e.preventDefault()
         setUi({ kind: 'menu', point: { x: e.clientX, y: e.clientY } })
       }}
-      onMouseEnter={() => {
+      onMouseEnter={(e) => {
         setHovered(true)
-        if (onPeek) hover.onMouseEnter()
+        if (onPeek) hover.onMouseEnter(e)
       }}
+      onMouseMove={onPeek ? hover.onMouseMove : undefined}
       onMouseLeave={() => {
         setHovered(false)
         hover.onMouseLeave()

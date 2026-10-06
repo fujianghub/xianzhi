@@ -187,7 +187,7 @@ test('REQ-UI-006 g i 跳收件箱、g t 跳今日；? 打开快捷键面板', as
   await expect(page.getByTestId('shortcuts-dialog')).toContainText('G')
 })
 
-test('REQ-UI-007 悬停 700ms Peek 可见且 URL 不变；Enter 后 URL 变为详情', async ({
+test('REQ-UI-007 停留约 1 秒 Peek 可见且 URL 不变；Enter 后 URL 变为详情', async ({
   page,
   request,
 }) => {
@@ -196,7 +196,7 @@ test('REQ-UI-007 悬停 700ms Peek 可见且 URL 不变；Enter 后 URL 变为�
   await page.goto(`/spaces/${s.slug}?view=list`)
   const url = page.url()
   await page.locator(`[data-testid="task-row"][data-task-id="${t.id}"]`).hover()
-  await page.waitForTimeout(700)
+  // ADR-0050：停留意图 1s（扫过不弹），不写死等待
   const peek = page.getByTestId('peek-panel')
   await expect(peek).toBeVisible()
   await expect(peek).toContainText('Peek 目标')
