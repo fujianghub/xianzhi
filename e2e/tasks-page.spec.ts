@@ -35,7 +35,7 @@ test('REQ-TASK-025 · 026 · 027 · 028 侧栏「任务」→ 一句话快速添
   await expect(input).toBeFocused()
 
   // 共用库 xz_e2e 累积了大量任务（虚拟列表只渲染视口内的行）：进本次新建的唯一标签视图再看「明天」分组
-  await page.goto(`/tasks?tag=${encodeURIComponent(`生活${s}`)}`)
+  await page.goto(`/tasks?tag=${encodeURIComponent(`生活${s}`)}&group=date`)
   const row = page.getByTestId('tasks-group-tomorrow').getByTestId('task-row').filter({
     hasText: title,
   })
@@ -106,6 +106,9 @@ test('REQ-TASK-029 · 032 · 033 · 034 清单栏新建清单 → 快速添加�
   await expect(page.getByTestId('tasks-title')).toHaveText(listName)
   const listId = new URL(page.url()).searchParams.get('list')
   expect(listId).toBeTruthy()
+  // 默认按清单分组（ADR-0051）：本用例要看「明天」组与组内添加，显式按日期分组
+  await page.goto(`/tasks?list=${listId}&group=date`)
+  await expect(page.getByTestId('tasks-title')).toHaveText(listName)
   try {
     // 快速添加：清单按钮已带上当前清单；按钮选「明天」与「紧急」
     await expect(page.getByTestId('qa-list')).toContainText(listName)
@@ -220,7 +223,7 @@ test('REQ-TASK-036 拖拽：拖到左栏清单 → 归入；拖到左栏「明�
     await expect.poll(async () => (await get()).list?.id).toBe(a)
     await expect(row()).toBeHidden() // 已离开清单 B
 
-    await page.goto(`/tasks?list=${a}`)
+    await page.goto(`/tasks?list=${a}&group=date`)
     await expect(row()).toBeVisible()
     await drag(row().getByText(title), page.getByTestId('rail-tomorrow'))
     await expect(

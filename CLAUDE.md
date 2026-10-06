@@ -51,7 +51,7 @@ pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore 
 | 文件 | 内容 |
 |---|---|
 | `spec_dev_doc/adr/0001-tech-stack.md` | 选型与 8 项决定、分期、各技术介绍 / 作用 / 语言（§10） |
-| `spec_dev_doc/adr/NNNN-*.md` | 决策记录 0002 ~ 0050：文件名即主题，`ls` 看清单；按标识符 grep `spec_dev_doc/adr` 定位决策（如 `useFieldSpecs`、`entry_kind_overrides`），代码入口直接 grep `src` |
+| `spec_dev_doc/adr/NNNN-*.md` | 决策记录 0002 ~ 0051：文件名即主题，`ls` 看清单；按标识符 grep `spec_dev_doc/adr` 定位决策（如 `useFieldSpecs`、`entry_kind_overrides`），代码入口直接 grep `src` |
 | `spec_dev_doc/01-domain-model.md` | 表结构、`fields` schema、事件种类、权限矩阵 |
 | `spec_dev_doc/02-api-conventions.md` | 路由/错误/分页/SSE/文件/MCP 约定、路由清单 |
 | `spec_dev_doc/03-editor-kernel.md` | Tiptap schema、Hocuspocus 钩子、快照、模板、交互规格、简斋陷阱 |
