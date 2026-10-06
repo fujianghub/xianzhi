@@ -120,6 +120,61 @@ test('REQ-TASK-037 · 038 · 039 行内改名（回车保存 / Esc 取消 / 输�
   }
 })
 
+test('REQ-TASK-038 行内标签多选：⋯ → 标签，连续勾两个都保留（勾选即时显示），关闭时一次提交', async ({
+  page,
+  request,
+}) => {
+  const d = await setup(request)
+  const mkTag = async (name: string) =>
+    (
+      (await (
+        await request.post('/api/v1/tags', { data: { name, color: 'blue' }, headers: headers() })
+      ).json()) as { id: string }
+    ).id
+  const names = [`多选甲${d.s}`, `多选乙${d.s}`]
+  const tagIds = [await mkTag(names[0] as string), await mkTag(names[1] as string)]
+  try {
+    await page.goto(`/tasks?list=${d.L}`)
+    const row = page.locator(`[data-testid="task-row"][data-task-id="${d.C.id}"]`)
+    await expect(row).toBeVisible()
+    const patches: string[] = []
+    page.on('request', (r) => {
+      if (r.method() === 'PATCH' && r.url().includes(`/api/v1/tasks/${d.C.id}`))
+        patches.push(r.postData() ?? '')
+    })
+    await row.hover()
+    await row.getByTestId('task-menu-btn').click()
+    await page.getByTestId('task-menu-tags').click()
+    const pop = page.locator('[data-state="open"]').filter({ has: page.getByTestId('tag-input') })
+    for (const name of names) {
+      await pop.getByTestId('tag-input').fill(name)
+      await pop.getByRole('button', { name, exact: true }).click()
+      await pop.getByTestId('tag-input').fill('')
+    }
+    // 两个都显示为已勾选（之前第二次勾选会把第一个冲掉）
+    for (const name of names)
+      await expect(pop.getByRole('button', { name, exact: true }).locator('svg')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect
+      .poll(async () =>
+        (
+          (await (await request.get(`/api/v1/tasks/${d.C.id}`)).json()) as {
+            tags: { name: string }[]
+          }
+        ).tags
+          .map((x) => x.name)
+          .sort(),
+      )
+      .toEqual([...names].sort())
+    expect(patches).toHaveLength(1)
+    await expect(row.getByTestId('task-tags')).toContainText(names[0] as string)
+    await expect(row.getByTestId('task-tags')).toContainText(names[1] as string)
+  } finally {
+    await d.cleanup()
+    for (const id of tagIds) await request.delete(`/api/v1/tags/${id}`, { headers: sameSite })
+  }
+})
+
 test('REQ-TASK-040 · 041 跨组多选（Ctrl 点 + Shift 连选）→ 批量改优先级、批量完成可撤销；选择模式全选 → 批量删除可撤销', async ({
   page,
   request,

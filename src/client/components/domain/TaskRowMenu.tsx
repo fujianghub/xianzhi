@@ -228,7 +228,12 @@ export function TaskRowMenu({
         </button>
         {canWrite ? (
           <>
-            <button type="button" className={item} onClick={run(() => onPick('tags'))}>
+            <button
+              type="button"
+              className={item}
+              onClick={run(() => onPick('tags'))}
+              data-testid="task-menu-tags"
+            >
               <TagIcon className="size-4 text-fg-muted" />
               {t('task.tags')}…
             </button>
