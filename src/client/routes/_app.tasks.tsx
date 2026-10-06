@@ -114,8 +114,11 @@ function paramsOf(scope: TaskScope, spaceId?: string): TaskListParams {
   }
 }
 
-/** 分组方式：本机记住上次的选择（URL 不带 `group` 时用；ADR-0050） */
-const GROUP_KEY = 'xz.tasks.group'
+/**
+ * 分组方式：本机记住上次的选择（URL 不带 `group` 时用；ADR-0050）。
+ * v3：默认改为按清单分组（ADR-0051），旧 key 里试用时记下的选择作废一次，否则新默认看不到。
+ */
+const GROUP_KEY = 'xz.tasks.group.v3'
 const readGroup = (): GroupMode | undefined => {
   try {
     return optOneOf(GROUP_MODES)(localStorage.getItem(GROUP_KEY) ?? undefined)
@@ -132,14 +135,12 @@ const writeGroup = (g: GroupMode) => {
 }
 
 /**
- * 当前生效的分组方式：URL > 本机记住的 > 默认（已完成 = 不分组、文件夹 = 按清单、其余 = 按日期）；
- * 单个清单里按清单分组没有意义，回落到按日期（换范围时 `group` 会被带过来，须按范围纠正）。
+ * 当前生效的分组方式：URL > 本机记住的 > 默认按清单分组（ADR-0051）；
+ * 单个清单里按清单分组没有意义，回落到不分组（换范围时 `group` 会被带过来，须按范围纠正）。
  */
 function resolveGroup(scope: TaskScope, fromUrl: GroupMode | undefined): GroupMode {
-  const isDone = scope.kind === 'smart' && scope.view === 'done'
-  const g =
-    fromUrl ?? (isDone ? 'none' : scope.kind === 'folder' ? 'list' : (readGroup() ?? 'date'))
-  return g === 'list' && scope.kind === 'list' ? 'date' : g
+  const g = fromUrl ?? (scope.kind === 'folder' ? 'list' : (readGroup() ?? 'list'))
+  return g === 'list' && scope.kind === 'list' ? 'none' : g
 }
 
 const COLLAPSED_KEY = 'xz.tasks.collapsed'

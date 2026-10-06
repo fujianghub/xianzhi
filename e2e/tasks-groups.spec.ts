@@ -89,9 +89,9 @@ test('REQ-TASK-042 点文件夹 = 聚合其下清单、按清单分组；组内�
       page.getByTestId('tasks-group-unlisted').locator('.xz-group-head button').first(),
     ).toHaveText('未归类')
 
-    // 单个清单：没有「按清单分组」选项；URL 带 group=list 也回落到按日期
+    // 单个清单：没有「按清单分组」选项；URL 带 group=list 回落到不分组（ADR-0051）
     await page.goto(`/tasks?list=${a}&group=list`)
-    await expect(page.getByTestId('tasks-group-mode')).toHaveValue('date')
+    await expect(page.getByTestId('tasks-group-mode')).toHaveValue('none')
     await expect(page.getByTestId('tasks-group-mode').locator('option[value="list"]')).toHaveCount(
       0,
     )
@@ -99,6 +99,20 @@ test('REQ-TASK-042 点文件夹 = 聚合其下清单、按清单分组；组内�
     for (const id of [a, b, out, folder])
       await request.delete(`/api/v1/task-lists/${id}`, { headers: sameSite })
   }
+})
+
+test('REQ-TASK-044 默认按清单分组：「全部」/ 智能清单打开即按清单分组（末尾「未归类」），单个清单为不分组；选过的分组方式本机记住', async ({
+  page,
+}) => {
+  await page.goto('/tasks')
+  await expect(page.getByTestId('tasks-group-mode')).toHaveValue('list')
+  await expect(page.getByTestId('tasks-group-unlisted')).toBeVisible()
+  await page.getByTestId('rail-next7').click()
+  await expect(page.getByTestId('tasks-group-mode')).toHaveValue('list')
+  // 选「按日期」后换视图、刷新仍按日期
+  await page.getByTestId('tasks-group-mode').selectOption('date')
+  await page.goto('/tasks')
+  await expect(page.getByTestId('tasks-group-mode')).toHaveValue('date')
 })
 
 test('REQ-TASK-043 日期快选：选择器「1 周后」、单个菜单「1 个月后」按用户时区落到对应日 23:59', async ({
