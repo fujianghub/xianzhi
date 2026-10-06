@@ -33,7 +33,7 @@
 | 快速添加 | Quick add / `QuickAddTask` | — | 快速添加任务 | `quickAdd.*` | 一行输入回车建任务，识别日期 / `!优先级` / `#标签` / `~空间`（ADR-0043）（注 ADR-0044：`~` 先匹配清单；框内日期 / 优先级 / 清单 / 标签按钮；展开卡片写备注与子任务；组内就地添加；全局 `c` 同一组件） | 08 §2.3b |
 | 行内编辑 | Inline edit / `TaskRow` | — | — | `taskRow.*` · `taskMenu.*` | 任务行上直接改标题与日期 / 优先级 / 清单 / 标签，及「⋯」/ 右键单个管理菜单，不进详情（2026-10-01 ADR-0045） | 08 §2.3b |
 | 批量条 | Batch bar / `TaskBatchBar` | — | 已选 N 项 | `taskBatch.*` | 任务页面级多选后底部的一条操作条（完成 / 日期 / 优先级 / 清单 / 空间 / 标签 / 状态 / 删除，可撤销），跨分组唯一一条（ADR-0045） | 08 §2.3b |
-| 清单 | Task list / `task_lists` | `task_lists` · `task_list_items` | 清单 | `taskLists.*` | 任务的按人分类（本人私有，可放进文件夹，深度 1）；同一任务各人各归各的（2026-10-01 ADR-0044）；区别于「空间」（容器、决定权限）与「标签」（多选、横切） | 01 §3.7b |
+| 清单 | Task list / `task_lists` | `task_lists` · `task_list_items` | 清单 | `taskLists.*` | 任务的按人分类（本人私有，可放进文件夹，深度 1）；同一任务各人各归各的（2026-10-01 ADR-0044）；点文件夹 = 聚合其下清单，任务页可「按清单分组」（2026-10-07 ADR-0050）；区别于「空间」（容器、决定权限）与「标签」（多选、横切） | 01 §3.7b |
 | 智能清单 | Smart view | search `view=` | 全部 / 今天 / 明天 / 最近 7 天 / 未归类 / 已完成 | `taskLists.smart.*` | 任务页左栏按条件聚合的视图，不存库（ADR-0044） | 08 §2.3b |
 | 未归类 | Unlisted / `listId=none` | — | 未归类 | `taskLists.unlisted` | 不在本人任何清单里的任务；不叫「收集箱」以免与「收件箱」（status inbox）撞名（ADR-0044） | 08 §2.3b |
 | 任务状态 | `task.status` | `inbox` `todo` `doing` `blocked` `done` `cancelled` | 收件箱 / 待办 / 进行中 / 阻塞 / 完成 / 取消 | `task.status.<value>` | 看板列即状态 | 01 §3.2 |

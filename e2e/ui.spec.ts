@@ -131,7 +131,8 @@ test('REQ-UI-016 同屏 backdrop-filter ≤ 6（画廊各页、记录页、Dialo
   expect(await countBlur(page), '看板页').toBeLessThanOrEqual(6)
   const card = page.getByTestId('kanban-card').first()
   await card.hover()
-  await page.waitForTimeout(700)
+  // Peek 停留 1s 才弹（ADR-0050）：等它真的打开再数
+  await expect(page.getByTestId('peek-panel')).toBeVisible()
   expect(await countBlur(page), '看板页 + Peek').toBeLessThanOrEqual(6)
   await page.keyboard.press('Escape')
   await card.click()

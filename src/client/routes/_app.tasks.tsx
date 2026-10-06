@@ -3,12 +3,13 @@
  * - 左：清单栏（智能清单 · 我的清单 · 标签，带计数）；窄屏收为页头下的横向胶囊条。
  * - 中：页头（清单名 + 未完成数 + 分组方式）→ 快速添加（带当前清单 / 日期预设）→ 分组列表（组内悬停「+ 添加」就地建）。
  * - 右：≥ 1440 常驻详情栏（`?task=`，列表不离开）；更窄用覆盖式 Sheet。
- * search：`view`（智能清单）| `list`（清单 id）| `tag`（标签名）· `group=date|priority|none` · `task` · `spaceId`。
+ * search：`view`（智能清单）| `list`（清单 id）| `folder`（文件夹 id，聚合其下各清单，ADR-0050）| `tag`（标签名）
+ *   · `group=date|priority|list|none`（不给时用本机记住的上次选择；文件夹默认按清单）· `task` · `spaceId`。
  * 分组边界按用户时区（与今日同口径）；子任务不单列（「今天」除外，与今日页一致）。
  */
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { ChevronDown, Plus } from 'lucide-react'
+import { ChevronDown, Folder, Plus } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays, localDateOf, zonedMidnight } from '../../shared/tz.ts'
@@ -38,8 +39,10 @@ import { groupByPriority, groupTasks, PRIORITY_GROUPS, TASK_GROUPS } from '../li
 // 路由的 validateSearch 在主包：SMART_VIEWS 从轻模块取，不经组件文件（首屏预算）
 import {
   flatLists,
+  listTree,
   SMART_VIEWS,
   type SmartView,
+  type TaskList as TaskListItem,
   taskCountsQuery,
   taskListsQuery,
 } from '../lib/task-list-queries.ts'
@@ -50,12 +53,13 @@ import {
   tasksInfiniteQuery,
 } from '../lib/task-queries.ts'
 
-const GROUP_MODES = ['date', 'priority', 'none'] as const
+const GROUP_MODES = ['date', 'priority', 'list', 'none'] as const
 type GroupMode = (typeof GROUP_MODES)[number]
 
 interface TasksSearch {
   view?: SmartView
   list?: string
+  folder?: string
   tag?: string
   group?: GroupMode
   task?: string
@@ -66,6 +70,7 @@ export const Route = createFileRoute('/_app/tasks')({
   validateSearch: (s: Record<string, unknown>): TasksSearch => ({
     view: optOneOf(SMART_VIEWS)(s.view),
     list: optUuid(s.list),
+    folder: optUuid(s.folder),
     tag: optString(s.tag),
     group: optOneOf(GROUP_MODES)(s.group),
     task: optUuid(s.task),
@@ -79,14 +84,17 @@ const OPEN = 'inbox,todo,doing,blocked'
 const scopeOf = (s: TasksSearch): TaskScope =>
   s.list
     ? { kind: 'list', id: s.list }
-    : s.tag
-      ? { kind: 'tag', name: s.tag }
-      : { kind: 'smart', view: s.view ?? 'all' }
+    : s.folder
+      ? { kind: 'folder', id: s.folder }
+      : s.tag
+        ? { kind: 'tag', name: s.tag }
+        : { kind: 'smart', view: s.view ?? 'all' }
 
 /** 各范围的列表查询（服务端按用户时区算边界） */
 function paramsOf(scope: TaskScope, spaceId?: string): TaskListParams {
   const base = { spaceId }
-  if (scope.kind === 'list')
+  // 文件夹：服务端把文件夹 id 展开为其下各清单（ADR-0050）
+  if (scope.kind === 'list' || scope.kind === 'folder')
     return { ...base, view: 'mine', listId: scope.id, status: OPEN, sort: 'dueAt' }
   if (scope.kind === 'tag')
     return { ...base, view: 'mine', tag: scope.name, status: OPEN, sort: 'dueAt' }
@@ -104,6 +112,34 @@ function paramsOf(scope: TaskScope, spaceId?: string): TaskListParams {
     default:
       return { ...base, view: 'mine', status: OPEN, sort: 'dueAt' }
   }
+}
+
+/** 分组方式：本机记住上次的选择（URL 不带 `group` 时用；ADR-0050） */
+const GROUP_KEY = 'xz.tasks.group'
+const readGroup = (): GroupMode | undefined => {
+  try {
+    return optOneOf(GROUP_MODES)(localStorage.getItem(GROUP_KEY) ?? undefined)
+  } catch {
+    return undefined
+  }
+}
+const writeGroup = (g: GroupMode) => {
+  try {
+    localStorage.setItem(GROUP_KEY, g)
+  } catch {
+    // 无痕 / 禁用存储：只在本次会话的 URL 里
+  }
+}
+
+/**
+ * 当前生效的分组方式：URL > 本机记住的 > 默认（已完成 = 不分组、文件夹 = 按清单、其余 = 按日期）；
+ * 单个清单里按清单分组没有意义，回落到按日期（换范围时 `group` 会被带过来，须按范围纠正）。
+ */
+function resolveGroup(scope: TaskScope, fromUrl: GroupMode | undefined): GroupMode {
+  const isDone = scope.kind === 'smart' && scope.view === 'done'
+  const g =
+    fromUrl ?? (isDone ? 'none' : scope.kind === 'folder' ? 'list' : (readGroup() ?? 'date'))
+  return g === 'list' && scope.kind === 'list' ? 'date' : g
 }
 
 const COLLAPSED_KEY = 'xz.tasks.collapsed'
@@ -143,11 +179,20 @@ function TasksPage() {
   const [adding, setAdding] = useState<string | null>(null)
   const wide = useMediaQuery('(min-width: 90rem)')
   const scope = scopeOf(search)
-  const groupMode: GroupMode =
-    search.group ?? (scope.kind === 'smart' && scope.view === 'done' ? 'none' : 'date')
+  const groupMode = resolveGroup(scope, search.group)
+  const allLists = useMemo(() => lists.data?.items ?? [], [lists.data])
   const currentList =
-    scope.kind === 'list' ? (lists.data?.items ?? []).find((l) => l.id === scope.id) : undefined
+    scope.kind === 'list' || scope.kind === 'folder'
+      ? allLists.find((l) => l.id === scope.id)
+      : undefined
 
+  // 文件夹下的清单（树序）
+  const folderId = scope.kind === 'folder' ? scope.id : null
+  const folderLists = useMemo(
+    () =>
+      folderId ? (listTree(allLists).find((n) => n.item.id === folderId)?.children ?? []) : [],
+    [allLists, folderId],
+  )
   // 时间边界（用户时区）：组内就地添加的日期预设
   const edges = useMemo(() => {
     const today = localDateOf(me.timezone, new Date())
@@ -157,6 +202,8 @@ function TasksPage() {
   }, [me.timezone])
   const scopePreset: QuickAddPreset = {
     ...(scope.kind === 'list' ? { listId: scope.id } : {}),
+    // 文件夹视图：页顶快速添加放进文件夹的第一个清单（文件夹 id 本身不能当清单）
+    ...(scope.kind === 'folder' && folderLists[0] ? { listId: folderLists[0].id } : {}),
     ...(scope.kind === 'smart' && scope.view === 'today' ? { dueAt: edges.today } : {}),
     ...(scope.kind === 'smart' && scope.view === 'tomorrow' ? { dueAt: edges.tomorrow } : {}),
   }
@@ -172,6 +219,7 @@ function TasksPage() {
   const pageKeep = useLinger(tasks.length)
   const groups = useMemo((): [string, Task[], GroupMeta][] => {
     if (groupMode === 'none') return [['all', tasks, { drop: null }]]
+    if (groupMode === 'list') return groupByList(tasks, allLists, folderLists, !!folderId)
     if (groupMode === 'priority') {
       const by = groupByPriority(tasks)
       return PRIORITY_GROUPS.map((g) => [
@@ -205,7 +253,7 @@ function TasksPage() {
                 : undefined,
       },
     ])
-  }, [tasks, groupMode, me.timezone, edges])
+  }, [tasks, groupMode, me.timezone, edges, allLists, folderLists, folderId])
 
   const pick = (s: TaskScope) =>
     nav({
@@ -214,36 +262,43 @@ function TasksPage() {
         group: p.group,
         ...(s.kind === 'list'
           ? { list: s.id }
-          : s.kind === 'tag'
-            ? { tag: s.name }
-            : s.view === 'all'
-              ? {}
-              : { view: s.view }),
+          : s.kind === 'folder'
+            ? { folder: s.id }
+            : s.kind === 'tag'
+              ? { tag: s.name }
+              : s.view === 'all'
+                ? {}
+                : { view: s.view }),
       }),
     })
   const open = (task: Task) => nav({ search: (p) => ({ ...p, task: task.id }) })
   const close = () => nav({ search: (p) => ({ ...p, task: undefined }) })
 
   const title =
-    scope.kind === 'list'
-      ? (currentList?.name ?? t('taskLists.list'))
+    scope.kind === 'list' || scope.kind === 'folder'
+      ? (currentList?.name ?? t(scope.kind === 'list' ? 'taskLists.list' : 'taskLists.folder'))
       : scope.kind === 'tag'
         ? `#${scope.name}`
         : t(`taskLists.smart.${scope.view}`)
   const total =
     scope.kind === 'list'
       ? counts.data?.lists[scope.id]
-      : scope.kind === 'smart'
-        ? smartCount(counts.data, scope.view)
-        : undefined
+      : scope.kind === 'folder'
+        ? counts.data
+          ? folderLists.reduce((a, l) => a + (counts.data.lists[l.id] ?? 0), 0)
+          : undefined
+        : scope.kind === 'smart'
+          ? smartCount(counts.data, scope.view)
+          : undefined
   const isDone = scope.kind === 'smart' && scope.view === 'done'
 
-  const groupLabel = (g: string) =>
-    groupMode === 'priority'
+  const groupLabel = (g: string, meta: GroupMeta) =>
+    meta.label ??
+    (groupMode === 'priority'
       ? t(`task.priority.${g.slice(1)}`)
       : groupMode === 'none'
         ? title
-        : t(`tasksPage.group.${g}`)
+        : t(`tasksPage.group.${g}`))
 
   // 选择随视图清空（换清单 / 智能清单 / 分组 / 空间筛选）
   const selectionKey = JSON.stringify([scope, groupMode, search.spaceId ?? ''])
@@ -259,11 +314,15 @@ function TasksPage() {
           </aside>
 
           <div className="min-w-0 flex-1 overflow-y-auto px-4 py-5 lg:px-8">
-            <div className="mx-auto flex max-w-3xl flex-col">
+            <div className="flex max-w-5xl flex-col">
               <MobileScopes scope={scope} onPick={pick} />
               <header className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
                 <h1 className="flex min-w-0 items-center gap-2 font-display font-semibold text-2xl">
-                  {currentList ? <ListDot list={currentList} className="size-3" /> : null}
+                  {currentList?.kind === 'folder' ? (
+                    <Folder className="size-5 shrink-0 text-fg-muted" aria-hidden />
+                  ) : currentList ? (
+                    <ListDot list={currentList} className="size-3" />
+                  ) : null}
                   <span className="truncate" data-testid="tasks-title">
                     {title}
                   </span>
@@ -298,17 +357,16 @@ function TasksPage() {
                   </select>
                   <select
                     value={groupMode}
-                    onChange={(e) =>
-                      nav({
-                        search: (p) => ({ ...p, group: e.target.value as GroupMode }),
-                        replace: true,
-                      })
-                    }
+                    onChange={(e) => {
+                      const g = e.target.value as GroupMode
+                      writeGroup(g)
+                      nav({ search: (p) => ({ ...p, group: g }), replace: true })
+                    }}
                     aria-label={t('tasksPage.groupBy')}
                     className="h-8 rounded-full border border-border bg-surface px-3 text-xs"
                     data-testid="tasks-group-mode"
                   >
-                    {GROUP_MODES.map((g) => (
+                    {GROUP_MODES.filter((g) => g !== 'list' || scope.kind !== 'list').map((g) => (
                       <option key={g} value={g}>
                         {t(`tasksPage.groupMode.${g}`)}
                       </option>
@@ -357,7 +415,9 @@ function TasksPage() {
                       g={g}
                       rank={rank}
                       list={list}
-                      label={groupLabel(g)}
+                      label={groupLabel(g, meta)}
+                      taskList={meta.list}
+                      prefix={meta.prefix}
                       tone={meta.tone}
                       drop={meta.drop}
                       showHead={groupMode !== 'none'}
@@ -373,7 +433,7 @@ function TasksPage() {
                       preset={{ ...scopePreset, ...meta.preset }}
                       onOpen={open}
                       showSpace={!search.spaceId}
-                      showList={scope.kind !== 'list'}
+                      showList={scope.kind !== 'list' && groupMode !== 'list'}
                     />
                   ))}
                   {q.hasNextPage ? (
@@ -412,9 +472,61 @@ function TasksPage() {
 
 interface GroupMeta {
   tone?: string
+  /** 按清单分组（ADR-0050）：组标题 = 清单名，带色点；文件夹名作灰色前缀 */
+  label?: string
+  list?: TaskListItem
+  prefix?: string
   preset?: QuickAddPreset
   /** 拖放落点（ADR-0044）；null = 不接收 */
   drop: TaskDropTarget | null
+}
+
+/**
+ * 按清单分组（ADR-0050、REQ-TASK-042）：组序同清单栏（文件夹内的清单跟在文件夹后），末尾「未归类」；
+ * 清单缓存里没有的（他端刚建）按任务带的清单补在后面。只有非空组可作拖放落点——
+ * 几十个空清单组在拖动中全冒出来会推挤布局、让落点跟着移位（归到任意清单用左栏）。
+ */
+function groupByList(
+  tasks: Task[],
+  all: TaskListItem[],
+  folderLists: TaskListItem[],
+  inFolder: boolean,
+): [string, Task[], GroupMeta][] {
+  const by = new Map<string, Task[]>()
+  for (const x of tasks) {
+    const k = x.list?.id ?? 'unlisted'
+    const arr = by.get(k)
+    if (arr) arr.push(x)
+    else by.set(k, [x])
+  }
+  const folderName = new Map(all.filter((l) => l.kind === 'folder').map((l) => [l.id, l.name]))
+  const pool = inFolder ? folderLists : flatLists(all)
+  const known = new Set(pool.map((l) => l.id))
+  const extra = new Map<string, TaskListItem>()
+  for (const x of tasks)
+    if (x.list && !known.has(x.list.id) && !extra.has(x.list.id))
+      extra.set(x.list.id, { ...x.list, kind: 'list', parentId: null } as TaskListItem)
+  const out: [string, Task[], GroupMeta][] = [...pool, ...extra.values()].map((l) => {
+    const list = by.get(l.id) ?? []
+    return [
+      l.id,
+      list,
+      {
+        label: l.name,
+        list: l,
+        prefix: !inFolder && l.parentId ? folderName.get(l.parentId) : undefined,
+        drop: list.length ? { kind: 'list', id: l.id, name: l.name } : null,
+        preset: { listId: l.id },
+      },
+    ]
+  })
+  if (!inFolder)
+    out.push([
+      'unlisted',
+      by.get('unlisted') ?? [],
+      { drop: { kind: 'unlisted' }, preset: { listId: null } },
+    ])
+  return out
 }
 
 /** 一个分组：组头（折叠 · 计数 · + 添加）+ 列表 + 组内添加；也是拖放落点（空组在拖动中也露出来） */
@@ -423,6 +535,8 @@ function GroupBlock({
   rank,
   list,
   label,
+  taskList,
+  prefix,
   tone,
   drop,
   showHead,
@@ -441,6 +555,9 @@ function GroupBlock({
   rank: number
   list: Task[]
   label: string
+  /** 按清单分组时的清单（组标题带色点） */
+  taskList?: TaskListItem
+  prefix?: string
   tone?: string
   drop: TaskDropTarget | null
   showHead: boolean
@@ -476,6 +593,8 @@ function GroupBlock({
             className="flex items-center gap-1.5"
           >
             <ChevronDown className="xz-group-chevron size-4" aria-hidden />
+            {taskList ? <ListDot list={taskList} /> : null}
+            {prefix ? <span className="font-normal text-fg-muted">{prefix} /</span> : null}
             {label}
           </button>
           <span className="xz-group-count">{list.length}</span>
@@ -518,7 +637,7 @@ function GroupBlock({
   )
 }
 
-/** 窄屏（< lg）：页头上方横向可滚的范围胶囊（智能清单 + 我的清单） */
+/** 窄屏（< lg）：页头上方横向可滚的范围胶囊（智能清单 + 文件夹 + 我的清单） */
 function MobileScopes({ scope, onPick }: { scope: TaskScope; onPick: (s: TaskScope) => void }) {
   const { t } = useTranslation()
   const lists = useQuery(taskListsQuery)
@@ -547,17 +666,30 @@ function MobileScopes({ scope, onPick }: { scope: TaskScope; onPick: (s: TaskSco
           view: v,
         }),
       )}
-      {flatLists(lists.data?.items ?? []).map((l) =>
-        chip(
-          l.id,
-          scope.kind === 'list' && scope.id === l.id,
-          <>
-            <ListDot list={l} />
-            {l.name}
-          </>,
-          { kind: 'list', id: l.id },
-        ),
-      )}
+      {/* 树序：文件夹（聚合，ADR-0050）后紧跟其下清单 */}
+      {listTree(lists.data?.items ?? [])
+        .flatMap((n) => (n.item.kind === 'folder' ? [n.item, ...n.children] : [n.item]))
+        .map((l) =>
+          l.kind === 'folder'
+            ? chip(
+                l.id,
+                scope.kind === 'folder' && scope.id === l.id,
+                <>
+                  <Folder className="size-3.5" aria-hidden />
+                  {l.name}
+                </>,
+                { kind: 'folder', id: l.id },
+              )
+            : chip(
+                l.id,
+                scope.kind === 'list' && scope.id === l.id,
+                <>
+                  <ListDot list={l} />
+                  {l.name}
+                </>,
+                { kind: 'list', id: l.id },
+              ),
+        )}
     </div>
   )
 }

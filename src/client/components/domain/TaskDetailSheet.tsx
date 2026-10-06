@@ -9,11 +9,14 @@ import { Eye, EyeOff, X } from 'lucide-react'
 import { lazy, type ReactNode, Suspense, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { ALL_DAY_MINUTES, quickDueIso } from '../../../shared/quick-add.ts'
+import { localDateTimeOf } from '../../../shared/tz.ts'
 import { useMe } from '../../hooks/useMe.ts'
 import { useSpaceCandidates } from '../../hooks/useMembers.ts'
 import { useSharedTarget } from '../../hooks/useSharedElement.ts'
 import { type TaskPatch, useTaskActions } from '../../hooks/useTasks.ts'
 import { api, unwrap } from '../../lib/api.ts'
+import { cn } from '../../lib/cn.ts'
 import { pushRecent } from '../../lib/recent.ts'
 import { spaceQuery } from '../../lib/space-queries.ts'
 import { useCommandContext } from '../../lib/stores.ts'
@@ -24,15 +27,16 @@ import {
   taskQuery,
   tasksInfiniteQuery,
 } from '../../lib/task-queries.ts'
+import { dueLabel } from '../../lib/time.ts'
 import { Button } from '../ui/button.tsx'
 import { InlineEdit } from '../ui/inline-edit.tsx'
-import { RelativeTime } from '../ui/relative-time.tsx'
+import { RelativeTime, useUserTimeZone } from '../ui/relative-time.tsx'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '../ui/sheet.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
 import { Comments } from './Comments.tsx'
 import { PriorityIcon } from './PriorityIcon.tsx'
 import { TagPicker } from './TagPicker.tsx'
-import { ListDot, ListPicker } from './TaskPickers.tsx'
+import { DuePicker, type DueValue, ListDot, ListPicker } from './TaskPickers.tsx'
 import { TaskRow } from './TaskRow.tsx'
 
 const LiteEditor = lazy(() => import('../../editor/LiteEditor.tsx'))
@@ -57,6 +61,45 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       <span className="text-fg-muted">{label}</span>
       <div className="min-w-0">{children}</div>
     </div>
+  )
+}
+
+/**
+ * 截止：与快速添加 / 任务行同一个日期选择器（含相对日期快选，ADR-0050）；弹层关闭时一次提交。
+ * fieldset disabled 会一并禁用触发按钮（只读用户不能改）。
+ */
+function DueField({ dueAt, onSave }: { dueAt: string | null; onSave: (v: string | null) => void }) {
+  const { t } = useTranslation()
+  const { tz, locale } = useUserTimeZone()
+  const pending = useRef<{ v: DueValue | null } | null>(null)
+  const value: DueValue | null = dueAt
+    ? (() => {
+        const l = localDateTimeOf(tz, new Date(dueAt))
+        return { date: l.date, minutes: l.minutes === ALL_DAY_MINUTES ? null : l.minutes }
+      })()
+    : null
+  return (
+    <DuePicker
+      value={value}
+      onChange={(v) => {
+        pending.current = { v }
+      }}
+      onOpenChange={(o) => {
+        if (o || !pending.current) return
+        const next = pending.current.v ? quickDueIso(pending.current.v, tz) : null
+        pending.current = null
+        if (next !== dueAt) onSave(next)
+      }}
+      trigger={
+        <button
+          type="button"
+          className={cn(selectCls, 'text-start', !dueAt && 'text-fg-faint')}
+          data-testid="field-due"
+        >
+          {dueAt ? dueLabel(new Date(dueAt), new Date(), locale, tz) : t('picker.due.none')}
+        </button>
+      }
+    />
   )
 }
 
@@ -259,17 +302,7 @@ export function TaskDetailSheet({
               </select>
             </Field>
             <Field label={t('task.dueAt')}>
-              <input
-                type="datetime-local"
-                className={selectCls}
-                defaultValue={toLocalInput(task.dueAt)}
-                key={`due-${task.updatedAt}`}
-                onBlur={(e) =>
-                  fromLocalInput(e.target.value) !== task.dueAt &&
-                  save({ dueAt: fromLocalInput(e.target.value) })
-                }
-                data-testid="field-due"
-              />
+              <DueField dueAt={task.dueAt} onSave={(dueAt) => save({ dueAt })} />
             </Field>
             <Field label={t('task.scheduledAt')}>
               <input

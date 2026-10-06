@@ -34,6 +34,7 @@ import { useTaskActions } from '../../hooks/useTasks.ts'
 import { canCreateIn } from '../../lib/space-queries.ts'
 import { TASK_STATUSES, type Task } from '../../lib/task-queries.ts'
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '../ui/popover.tsx'
+import { DUE_PRESETS, daysBetween } from './TaskPickers.tsx'
 
 /** 该任务当前用户能否写（按所在空间角色；归档空间不可写）：页面内共享一份空间列表 */
 export function useTaskWritable() {
@@ -90,6 +91,7 @@ export function TaskRowMenu({
   const { data: spaces } = useSpaces()
   const [spacesOpen, setSpacesOpen] = useState(false)
   const tz = me?.timezone ?? 'Asia/Shanghai'
+  const today = localDateOf(tz, new Date())
   const done = task.status === 'done'
   const close = () => onOpenChange(false)
   const run = (fn: () => unknown) => () => {
@@ -190,6 +192,20 @@ export function TaskRowMenu({
               >
                 {t('taskMenu.pickDate')}
               </button>
+              {/* 相对日期快选（ADR-0050）：保留原时刻，无则 23:59 */}
+              {DUE_PRESETS.map((p) => (
+                <button
+                  key={p.key}
+                  type="button"
+                  className="xz-picker-quick whitespace-nowrap text-[11px]"
+                  onClick={patch({
+                    dueAt: dueOn(task, daysBetween(today, p.at(today)), tz),
+                  })}
+                  data-testid={`task-menu-due-${p.key}`}
+                >
+                  {t(`picker.due.${p.key}`)}
+                </button>
+              ))}
             </div>
             <p className="flex items-center gap-1.5 px-2 pt-1 text-fg-muted text-xs">
               <Flag className="size-3.5" />
