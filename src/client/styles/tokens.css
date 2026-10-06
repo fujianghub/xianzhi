@@ -197,6 +197,8 @@
   --xz-z-cmdk: 60;
   --xz-topbar-h: 56px;
   --xz-sidebar-w: 240px;
+  /* 任务页清单栏宽（ADR-0044）；.xz-main 内衬面板在任务页从其右侧起 */
+  --xz-rail-w: 240px;
   --xz-aside-w: 320px;
   --xz-bottomnav-h: 60px;
   /* 列表行高（04 §4 密度，REQ-UI-011）：comfortable 40 / compact −20% = 32 */
