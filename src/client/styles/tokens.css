@@ -343,6 +343,22 @@
 /* ---- 两主题共用的派生 token（06 §3.4，color-mix 不新增手调色）；在每个主题容器上重算，嵌套 [data-theme] 才能取到本主题值 ---- */
 :root,
 [data-theme] {
+  /*
+   * ADR-0052 任务优先级色：取鲜艳 9 色板（色系同 04 §2.1：低 蓝 · 中 绿 · 高 橙 · 紧急 红，更饱和）。
+   * -solid 勾选圈 / 旗标 / 图标，-bg + -fg 优先级胶囊（9 色板 fg / bg 两主题已过 4.5，check-contrast）。
+   */
+  --xz-prio-1-solid: var(--xz-palette-blue-solid);
+  --xz-prio-1-bg: var(--xz-palette-blue-bg);
+  --xz-prio-1-fg: var(--xz-palette-blue-fg);
+  --xz-prio-2-solid: var(--xz-palette-green-solid);
+  --xz-prio-2-bg: var(--xz-palette-green-bg);
+  --xz-prio-2-fg: var(--xz-palette-green-fg);
+  --xz-prio-3-solid: var(--xz-palette-orange-solid);
+  --xz-prio-3-bg: var(--xz-palette-orange-bg);
+  --xz-prio-3-fg: var(--xz-palette-orange-fg);
+  --xz-prio-4-solid: var(--xz-palette-red-solid);
+  --xz-prio-4-bg: var(--xz-palette-red-bg);
+  --xz-prio-4-fg: var(--xz-palette-red-fg);
   /* ADR-0005 §1：翡翠 → 亮翡翠，不再混琥珀 */
   --xz-primary-gradient: linear-gradient(
     135deg,

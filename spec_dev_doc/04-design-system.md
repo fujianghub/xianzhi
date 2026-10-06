@@ -50,7 +50,7 @@
 
 主色与强调色各提供 50–900 十一级色阶（由 OKLCH 生成，脚本 `scripts/gen-palette.ts`），只在数据可视化与标签色用色阶，其余用语义 token。
 
-**任务优先级色**：无 = `fg-muted`，低 = `info`，中 = `primary`，高 = `warning`，紧急 = `danger`。
+**任务优先级色**：无 = `fg-muted`，低 = `info`，中 = `primary`，高 = `warning`，紧急 = `danger`。（注 2026-10-07 ADR-0052：改取鲜艳 9 色板 低 蓝 · 中 绿 · 高 橙 · 紧急 红，token `--xz-prio-{1..4}-{solid,bg,fg}`；任务行 / 看板 / Peek 显示「图标 + 文字」优先级胶囊。）
 **空间/标签/日历色板**（用户可选）：~~8 色 苔 / 琥珀 / 靛 / 赭 / 青 / 梅 / 灰 / 松（`moss amber indigo ochre teal plum gray pine`）~~ → 注 2026-09-25（ADR-0010）：**鲜艳 9 色** 蓝 / 橙 / 黄 / 红 / 绿 / 紫 / 粉 / 青 / 灰，标识符 `blue orange yellow red green purple pink cyan gray`；每色三枚 token：`--xz-palette-<name>-solid`（鲜艳实色：日历色条、圆点）、`-bg`（浅底）、`-fg`（字，对 `-bg` ≥ 4.5，夜场 ≥ 6），基于 Apple 系统色；`check-contrast` 遍历 `PALETTE_COLORS`。日历色块 = `-bg` 浅底 + `-fg` 字 + 3px `-solid` 左色条；圆点用 `-solid`。旧色名经迁移 0007 映射（moss / pine→green、amber→orange、indigo→blue、ochre→red、teal→cyan、plum→purple）。见 glossary。
 **协作光标色板**：同色板（9 色），按 userId 哈希，取 `-fg`。
 

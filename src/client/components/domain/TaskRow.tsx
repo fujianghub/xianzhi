@@ -27,7 +27,7 @@ import { dueLabel } from '../../lib/time.ts'
 import { Avatar } from '../ui/avatar.tsx'
 import { Checkbox } from '../ui/checkbox.tsx'
 import { useUserTimeZone } from '../ui/relative-time.tsx'
-import { PriorityIcon } from './PriorityIcon.tsx'
+import { PriorityChip } from './PriorityIcon.tsx'
 import { PALETTE_CLASS, type PaletteName } from './SpaceIcon.tsx'
 import { SpaceTag } from './SpaceTag.tsx'
 import { type Tag, TagPicker, tagsQuery } from './TagPicker.tsx'
@@ -297,13 +297,15 @@ export const TaskRow = memo(function TaskRow({
     </button>
   ) : null
 
+  // 优先级胶囊（ADR-0052）：图标 + 文字、鲜艳色；窄屏只留图标。无优先级时悬停露出灰旗
   const prioBtn =
     canWrite && (task.priority || showActs) ? (
       <button
         type="button"
         className={cn(
-          'grid size-6 place-items-center rounded-md hover:bg-hover',
-          !task.priority && 'xz-row-ghost-icon',
+          task.priority
+            ? 'xz-chip-btn rounded-full'
+            : 'xz-row-ghost-icon grid size-6 place-items-center rounded-md hover:bg-hover',
           ui?.kind === 'prio' && 'xz-row-ghost-on',
         )}
         onClick={() => setUi({ kind: 'prio' })}
@@ -311,13 +313,13 @@ export const TaskRow = memo(function TaskRow({
         data-testid="task-prio"
       >
         {task.priority ? (
-          <PriorityIcon priority={task.priority} className="xz-task-prio" />
+          <PriorityChip priority={task.priority} compact />
         ) : (
           <Flag className="size-3.5 text-fg-faint" aria-hidden />
         )}
       </button>
     ) : (
-      <PriorityIcon priority={task.priority} className="xz-task-prio" />
+      <PriorityChip priority={task.priority} compact />
     )
 
   const listBtn =

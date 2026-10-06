@@ -29,6 +29,7 @@ import { useMe } from '../../hooks/useMe.ts'
 import { useTaskListActions } from '../../hooks/useTaskLists.ts'
 import { cn } from '../../lib/cn.ts'
 import { flatLists, taskListsQuery } from '../../lib/task-list-queries.ts'
+import { TASK_STATUSES, type TaskStatus } from '../../lib/task-queries.ts'
 import { MiniMonth } from '../calendar/MiniMonth.tsx'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.tsx'
 import { PALETTE, type PaletteName } from './SpaceIcon.tsx'
@@ -269,6 +270,45 @@ export function PriorityPicker({
             <Flag className="xz-prio-flag size-4" data-priority={p} aria-hidden />
             <span className="flex-1">{t(`task.priority.${p}`)}</span>
             {value === p ? <Check className="size-4 text-primary-text" aria-hidden /> : null}
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/** 状态选择器（详情，ADR-0053）：替代原生 select；当前值打勾，状态用同色胶囊 */
+export function StatusPicker({
+  value,
+  onChange,
+  trigger,
+}: {
+  value: TaskStatus
+  onChange: (s: TaskStatus) => void
+  trigger: ReactNode
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverContent align="start" className="w-44 p-1" data-testid="status-picker">
+        {TASK_STATUSES.map((st) => (
+          <button
+            key={st}
+            type="button"
+            onClick={() => {
+              onChange(st)
+              setOpen(false)
+            }}
+            className="xz-picker-item"
+            data-status={st}
+          >
+            <span className="xz-status-pill" data-status={st}>
+              {t(`task.status.${st}`)}
+            </span>
+            <span className="flex-1" />
+            {value === st ? <Check className="size-4 text-primary-text" aria-hidden /> : null}
           </button>
         ))}
       </PopoverContent>

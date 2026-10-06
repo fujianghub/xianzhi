@@ -8,6 +8,7 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { QuickAddTask } from '../components/domain/QuickAddTask.tsx'
 import { SelectModeButton, TaskSelectionScope } from '../components/domain/TaskBatchBar.tsx'
+import { TaskDetailSheet } from '../components/domain/TaskDetailSheet.tsx'
 import { TaskRow } from '../components/domain/TaskRow.tsx'
 import { useTaskWritable } from '../components/domain/TaskRowMenu.tsx'
 import { WithRail } from '../components/layout/WithRail.tsx'
@@ -17,17 +18,23 @@ import { Skeleton } from '../components/ui/skeleton.tsx'
 import { useDelayedFlag } from '../hooks/useDelayedFlag.ts'
 import type { Me } from '../hooks/useMe.ts'
 import { useTaskActions } from '../hooks/useTasks.ts'
+import { optUuid } from '../lib/search.ts'
 import { spacesQuery } from '../lib/space-queries.ts'
 import { useNewTask } from '../lib/stores.ts'
 import { flattenPages, TASK_STATUSES, type Task, tasksInfiniteQuery } from '../lib/task-queries.ts'
 import { registerSelectable, unregisterSelectable } from '../lib/task-selection.ts'
 
-export const Route = createFileRoute('/_app/inbox')({ component: Inbox })
+// `task`：详情就地打开（ADR-0053，原先跳到空间页）
+export const Route = createFileRoute('/_app/inbox')({
+  validateSearch: (s: Record<string, unknown>): { task?: string } => ({ task: optUuid(s.task) }),
+  component: Inbox,
+})
 
 function Inbox() {
   const { t } = useTranslation()
   const { me } = Route.useRouteContext() as { me: Me }
-  const nav = useNavigate()
+  const nav = useNavigate({ from: '/inbox' })
+  const { task: openTaskId } = Route.useSearch()
   const actions = useTaskActions()
   const setDefaults = useNewTask((s) => s.setDefaults)
   useEffect(() => {
@@ -38,11 +45,9 @@ function Inbox() {
   const { data: spaces = [] } = useQuery(spacesQuery())
   const skeleton = useDelayedFlag(q.isPending)
   const tasks = flattenPages(q.data)
-  const open = (task: Task) =>
-    nav({
-      to: '/spaces/$spaceSlug/tasks/$taskId',
-      params: { spaceSlug: task.spaceSlug, taskId: task.id },
-    })
+  // 详情就地打开（ADR-0053）：留在收件箱继续分拣
+  const open = (task: Task) => nav({ search: (p) => ({ ...p, task: task.id }) })
+  const closeTask = () => nav({ search: (p) => ({ ...p, task: undefined }) })
   const canWriteOf = useTaskWritable()
   const writable = spaces.filter((s) => s.myRole === 'admin' || s.myRole === 'member')
   const selectCls = 'h-7 rounded-md border border-border bg-surface px-1 text-xs'
@@ -131,6 +136,9 @@ function Inbox() {
           )}
         </section>
       </WithRail>
+      {openTaskId ? (
+        <TaskDetailSheet taskId={openTaskId} onClose={closeTask} onOpenTask={open} />
+      ) : null}
     </TaskSelectionScope>
   )
 }

@@ -2079,22 +2079,51 @@ select:disabled {
  * ---- 任务页 2.0（ADR-0044）：圆形优先级勾选圈 · 日期胶囊 · 快速添加框 · 清单栏 · 分组头。
  * 颜色只取 token；动效时长走 token，减弱档无位移只淡入（不变量 5）。
  */
-/* 优先级色（行尾旗标用 data-priority，勾选圈用 data-check-priority，免得与 PriorityIcon 的选择器撞）：04 §2.1 低 = info · 中 = primary（描边用 primary-text）· 高 = warning · 紧急 = danger */
+/*
+ * 优先级色（行尾胶囊 / 旗标用 data-priority，勾选圈用 data-check-priority，免得与 PriorityIcon 的选择器撞）：
+ * ADR-0052 改用鲜艳 9 色板——低 蓝 · 中 绿 · 高 橙 · 紧急 红。--xz-prio 填色 / 描边 / 图标，-fg / -bg 文字与胶囊底。
+ */
 [data-priority="1"],
 [data-check-priority="1"] {
-  --xz-prio: var(--xz-info);
+  --xz-prio: var(--xz-prio-1-solid);
+  --xz-prio-fg: var(--xz-prio-1-fg);
+  --xz-prio-bg: var(--xz-prio-1-bg);
 }
 [data-priority="2"],
 [data-check-priority="2"] {
-  --xz-prio: var(--xz-primary-text);
+  --xz-prio: var(--xz-prio-2-solid);
+  --xz-prio-fg: var(--xz-prio-2-fg);
+  --xz-prio-bg: var(--xz-prio-2-bg);
 }
 [data-priority="3"],
 [data-check-priority="3"] {
-  --xz-prio: var(--xz-warning);
+  --xz-prio: var(--xz-prio-3-solid);
+  --xz-prio-fg: var(--xz-prio-3-fg);
+  --xz-prio-bg: var(--xz-prio-3-bg);
 }
 [data-priority="4"],
 [data-check-priority="4"] {
-  --xz-prio: var(--xz-danger);
+  --xz-prio: var(--xz-prio-4-solid);
+  --xz-prio-fg: var(--xz-prio-4-fg);
+  --xz-prio-bg: var(--xz-prio-4-bg);
+}
+/* 优先级图标（PriorityIcon）：文字色取 -fg，压在纸面 / 玻璃上也够对比 */
+.xz-prio-icon {
+  color: var(--xz-prio-fg, var(--xz-fg-muted));
+}
+/* 优先级胶囊（任务行 · 看板卡片 · Peek）：图标 + 文字，样式同日期胶囊 */
+.xz-prio-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 1.375rem;
+  padding: 0 0.5rem 0 0.375rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--xz-prio-bg, var(--xz-surface-solid-2));
+  color: var(--xz-prio-fg, var(--xz-fg-muted));
 }
 .xz-task-check {
   width: 1.125rem;
@@ -2103,11 +2132,20 @@ select:disabled {
   border-width: 1.5px;
   border-color: var(--xz-prio, var(--xz-fg-faint));
   /* 只设底色：勾选态的渐变是 background-image（Checkbox 的工具类），不能被简写覆盖 */
-  background-color: color-mix(in srgb, var(--xz-prio, transparent) 8%, var(--xz-surface-solid));
+  background-color: color-mix(in srgb, var(--xz-prio, transparent) 14%, var(--xz-surface-solid));
   transition:
     background var(--xz-dur-base) var(--xz-ease-spring),
     transform var(--xz-dur-fast) var(--xz-ease-out),
     box-shadow var(--xz-dur-fast) var(--xz-ease-out);
+}
+/* 有优先级时圈加粗（ADR-0052：颜色更鲜明，一眼可辨） */
+.xz-task-check:is(
+  [data-check-priority="1"],
+  [data-check-priority="2"],
+  [data-check-priority="3"],
+  [data-check-priority="4"]
+) {
+  border-width: 2px;
 }
 .xz-task-check:hover {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--xz-prio, var(--xz-fg-faint)) 18%, transparent);
@@ -2160,8 +2198,8 @@ select:disabled {
   background: var(--xz-primary-soft);
   color: var(--xz-primary-text);
 }
-/* Peek 预览的状态胶囊（ADR-0050） */
-.xz-peek-status {
+/* 任务状态胶囊（Peek 预览 ADR-0050、详情状态字段 ADR-0053） */
+.xz-status-pill {
   display: inline-flex;
   align-items: center;
   height: 1.375rem;
@@ -2171,15 +2209,15 @@ select:disabled {
   background: var(--xz-surface-solid-2);
   color: var(--xz-fg-muted);
 }
-.xz-peek-status[data-status="doing"] {
+.xz-status-pill[data-status="doing"] {
   background: var(--xz-primary-soft);
   color: var(--xz-primary-text);
 }
-.xz-peek-status[data-status="blocked"] {
+.xz-status-pill[data-status="blocked"] {
   background: var(--xz-danger-soft);
   color: var(--xz-danger);
 }
-.xz-peek-status[data-status="done"] {
+.xz-status-pill[data-status="done"] {
   background: var(--xz-success-soft);
   color: var(--xz-success);
 }

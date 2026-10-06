@@ -3,7 +3,7 @@
  * Esc 关闭；Enter 升级为完整详情（此时才改 URL）。任务复用 `GET /tasks/:id`（Query 缓存），记录用 `GET /entries/:id/preview`。
  */
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 import {
   AlignLeft,
   CalendarClock,
@@ -34,7 +34,7 @@ import { RelativeTime, useUserTimeZone } from '../ui/relative-time.tsx'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '../ui/sheet.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
 import { PmView } from './PmView.tsx'
-import { PriorityIcon } from './PriorityIcon.tsx'
+import { PriorityChip } from './PriorityIcon.tsx'
 import { PALETTE_CLASS, type PaletteName } from './SpaceIcon.tsx'
 import { SpaceTag } from './SpaceTag.tsx'
 import { ListDot } from './TaskListDot.tsx'
@@ -50,14 +50,24 @@ const editable = (el: EventTarget | null) =>
   el instanceof HTMLElement &&
   (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))
 
+/** 有页内任务详情（`?task=`）的页面 */
+const IN_PAGE_DETAIL = new Set(['/tasks', '/today', '/inbox'])
+
 export default function PeekPanel() {
   const { t } = useTranslation()
   const nav = useNavigate()
   const { target, close } = usePeek()
 
+  const pathname = useRouterState({ select: (st) => st.location.pathname })
   const upgrade = (p: PeekTarget) => {
     close()
-    if (p.kind === 'task')
+    // 任务页 / 今日 / 收件箱有页内详情（`?task=`，ADR-0053）：就地升级，不离开当前页
+    if (p.kind === 'task' && IN_PAGE_DETAIL.has(pathname))
+      void nav({
+        to: pathname as '/tasks',
+        search: (prev: Record<string, unknown>) => ({ ...prev, task: p.id }),
+      })
+    else if (p.kind === 'task')
       void nav({
         to: '/spaces/$spaceSlug/tasks/$taskId',
         params: { spaceSlug: p.spaceSlug, taskId: p.id },
@@ -155,7 +165,7 @@ function TaskPeek({ id }: { id: string }) {
       <header className="flex flex-col gap-2 pe-8">
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <SpaceTag slug={task.spaceSlug} />
-          <span className="xz-peek-status" data-status={task.status}>
+          <span className="xz-status-pill" data-status={task.status}>
             {t(`task.status.${task.status}`)}
           </span>
         </div>
@@ -179,12 +189,7 @@ function TaskPeek({ id }: { id: string }) {
 
       <dl className="grid grid-cols-2 gap-x-4 rounded-lg bg-surface-2 px-3 py-2">
         <Prop icon={Flag} label={t('task.priorityLabel')}>
-          {task.priority ? (
-            <span className="flex items-center gap-1.5">
-              <PriorityIcon priority={task.priority} />
-              {t(`task.priority.${task.priority}`)}
-            </span>
-          ) : null}
+          {task.priority ? <PriorityChip priority={task.priority} /> : null}
         </Prop>
         <Prop icon={UserRound} label={t('task.assignee')}>
           {task.assignee?.displayName ?? null}

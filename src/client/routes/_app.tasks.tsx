@@ -2,7 +2,7 @@
  * 任务页 2.0（ADR-0043 → ADR-0044、REQ-TASK-025 · 027 · 033 · 034 · 035）：滴答清单式三栏。
  * - 左：清单栏（智能清单 · 我的清单 · 标签，带计数）；窄屏收为页头下的横向胶囊条。
  * - 中：页头（清单名 + 未完成数 + 分组方式）→ 快速添加（带当前清单 / 日期预设）→ 分组列表（组内悬停「+ 添加」就地建）。
- * - 右：≥ 1440 常驻详情栏（`?task=`，列表不离开）；更窄用覆盖式 Sheet。
+ * - 右：≥ 1280 常驻详情栏（`?task=`，列表不离开；ADR-0053，原 ≥ 1440）；1280 ~ 1440 打开详情时清单栏收起、换成页头胶囊条，给列表留宽；更窄用覆盖式 Sheet。
  * search：`view`（智能清单）| `list`（清单 id）| `folder`（文件夹 id，聚合其下各清单，ADR-0050）| `tag`（标签名）
  *   · `group=date|priority|list|none`（不给时用本机记住的上次选择；文件夹默认按清单）· `task` · `spaceId`。
  * 分组边界按用户时区（与今日同口径）；子任务不单列（「今天」除外，与今日页一致）。
@@ -178,7 +178,10 @@ function TasksPage() {
   const setDefaults = useNewTask((s) => s.setDefaults)
   const [collapsed, toggle] = useCollapsed()
   const [adding, setAdding] = useState<string | null>(null)
-  const wide = useMediaQuery('(min-width: 90rem)')
+  // ADR-0053：≥ 1280 常驻详情栏；< 1440 时详情一开就收起清单栏（侧栏 240 + 清单栏 240 + 详情 416 会把列表挤到 ~380px）
+  const wide = useMediaQuery('(min-width: 80rem)')
+  const roomy = useMediaQuery('(min-width: 90rem)')
+  const railHidden = !!search.task && wide && !roomy
   const scope = scopeOf(search)
   const groupMode = resolveGroup(scope, search.group)
   const allLists = useMemo(() => lists.data?.items ?? [], [lists.data])
@@ -310,13 +313,19 @@ function TasksPage() {
           data-testid="tasks-page"
           className="-mx-4 -my-6 flex min-h-[calc(100dvh-var(--xz-topbar-h))] lg:-mx-10 lg:-mt-8 lg:-mb-10"
         >
-          <aside className="hidden w-60 shrink-0 overflow-y-auto border-divider border-e px-2 py-5 lg:block">
+          <aside
+            className={cn(
+              'w-60 shrink-0 overflow-y-auto border-divider border-e px-2 py-5',
+              railHidden ? 'hidden' : 'hidden lg:block',
+            )}
+            data-testid="tasks-rail-aside"
+          >
             <TaskListsRail scope={scope} counts={counts.data} onPick={pick} droppable />
           </aside>
 
           <div className="min-w-0 flex-1 overflow-y-auto px-4 py-5 lg:px-8">
             <div className="flex max-w-5xl flex-col">
-              <MobileScopes scope={scope} onPick={pick} />
+              <MobileScopes scope={scope} onPick={pick} force={railHidden} />
               <header className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
                 <h1 className="flex min-w-0 items-center gap-2 font-display font-semibold text-2xl">
                   {currentList?.kind === 'folder' ? (
@@ -638,8 +647,17 @@ function GroupBlock({
   )
 }
 
-/** 窄屏（< lg）：页头上方横向可滚的范围胶囊（智能清单 + 文件夹 + 我的清单） */
-function MobileScopes({ scope, onPick }: { scope: TaskScope; onPick: (s: TaskScope) => void }) {
+/** 窄屏（< lg）或清单栏因详情收起时：页头上方横向可滚的范围胶囊（智能清单 + 文件夹 + 我的清单） */
+function MobileScopes({
+  scope,
+  onPick,
+  force = false,
+}: {
+  scope: TaskScope
+  onPick: (s: TaskScope) => void
+  /** 宽屏但清单栏因详情收起时也显示（ADR-0053） */
+  force?: boolean
+}) {
   const { t } = useTranslation()
   const lists = useQuery(taskListsQuery)
   const chip = (key: string, on: boolean, label: ReactNode, s: TaskScope) => (
@@ -658,7 +676,7 @@ function MobileScopes({ scope, onPick }: { scope: TaskScope; onPick: (s: TaskSco
   )
   return (
     <div
-      className="-mx-4 mb-3 flex gap-1.5 overflow-x-auto px-4 pb-1 lg:hidden"
+      className={cn('-mx-4 mb-3 flex gap-1.5 overflow-x-auto px-4 pb-1', !force && 'lg:hidden')}
       data-testid="tasks-scopes"
     >
       {SMART_VIEWS.map((v) =>

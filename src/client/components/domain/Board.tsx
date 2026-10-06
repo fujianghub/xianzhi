@@ -53,7 +53,7 @@ import { Disclosure } from '../ui/disclosure.tsx'
 import { EmptyState } from '../ui/empty-state.tsx'
 import { useUserTimeZone } from '../ui/relative-time.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
-import { PriorityIcon } from './PriorityIcon.tsx'
+import { PriorityChip } from './PriorityIcon.tsx'
 
 type Override = { status: TaskStatus; sortKey: string }
 
@@ -81,7 +81,7 @@ function Card({ task, dragging, shaking }: { task: Task; dragging?: boolean; sha
     >
       <span className="text-left">{task.title}</span>
       <div className="flex items-center gap-2 text-fg-muted text-xs">
-        <PriorityIcon priority={task.priority} />
+        <PriorityChip priority={task.priority} />
         {task.dueAt ? (
           <span className="tabular-nums">
             {dueLabel(new Date(task.dueAt), new Date(), locale, tz)}

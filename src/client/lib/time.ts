@@ -59,5 +59,15 @@ export function dueLabel(d: Date, now: Date, locale = 'zh-CN', tz = 'Asia/Shangh
   // 今天 / 明天 / 昨天：由 Intl 按 locale 给出，不在代码里写死文案
   const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
   for (const n of [0, 1, -1]) if (day(d) === day(plus(n))) return rtf.format(n, 'day')
-  return displayTime(d, new Date(now.getTime() + 2 * DAY), locale, tz)
+  // 其余一律绝对日期（同年省略年份）。原先借 displayTime(d, now + 2 天) 强制走绝对分支，
+  // 但后天的截止离「now + 2 天」不足 24 小时，落进相对分支显示成「现在 / 24小时后」
+  //（debug/2026-10-07-due-label-day-after-tomorrow）
+  const year = (x: Date) => dtf(locale, tz, { year: 'numeric' }).format(x)
+  return dtf(
+    locale,
+    tz,
+    year(d) === year(now)
+      ? { month: 'short', day: 'numeric' }
+      : { year: 'numeric', month: 'short', day: 'numeric' },
+  ).format(d)
 }
