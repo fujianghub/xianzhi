@@ -311,11 +311,12 @@ function TasksPage() {
       <TaskDndProvider>
         <section
           data-testid="tasks-page"
+          data-xz-rail-page={railHidden ? undefined : ''}
           className="-mx-4 -my-6 flex min-h-[calc(100dvh-var(--xz-topbar-h))] lg:-mx-10 lg:-mt-8 lg:-mb-10"
         >
           <aside
             className={cn(
-              'w-60 shrink-0 overflow-y-auto border-divider border-e px-2 py-5',
+              'w-(--xz-rail-w) shrink-0 overflow-y-auto border-divider border-e px-3 py-5',
               railHidden ? 'hidden' : 'hidden lg:block',
             )}
             data-testid="tasks-rail-aside"

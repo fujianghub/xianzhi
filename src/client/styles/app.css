@@ -488,6 +488,12 @@ html[data-dialog-open] body::before {
     inset: 4px 6px;
   }
 }
+/* 任务页清单栏贴主边栏：内衬面板让到清单栏右侧，不再切过清单栏（REQ-TASK-034） */
+@media (width >= 64rem) {
+  .xz-main:has([data-xz-rail-page])::before {
+    left: calc(var(--xz-rail-w) + 12px);
+  }
+}
 
 /* ---- ADR-0007 燕印（REQ-UI-024）：翡翠深渐变 + 右上晨光（md / lg）+ 暖白春燕衔嫩芽；宿主 hover 轻转，减弱档静止 ---- */
 .xz-seal {
