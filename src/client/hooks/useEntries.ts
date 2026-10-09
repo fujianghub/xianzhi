@@ -105,6 +105,21 @@ export function useEntryActions() {
     await Promise.all([invalidate(), qc.invalidateQueries({ queryKey: ['entry', entry.id] })])
   }
 
+  /** 复制（ADR-0054 §C、REQ-ENTRY-038）：缺省同空间、紧跟原记录之后；返回副本 id。 */
+  const duplicate = async (
+    entry: Pick<Entry, 'id'>,
+    to: { spaceId?: string; parentId?: string | null; detach?: true; title?: string } = {},
+  ) => {
+    const r = await unwrap<{ id: string }>(
+      api.entries[':id'].duplicate.$post(
+        { param: { id: entry.id }, json: to },
+        { headers: { 'idempotency-key': newId() } },
+      ),
+    )
+    await invalidate() // 含目录树（['entries', 'tree', …]）
+    return r
+  }
+
   /** 批量（ADR-0014、REQ-ENTRY-013）：返回 ok / failed 明细。 */
   const batch = async (input: BatchInput) => {
     const r = await unwrap<{ ok: string[]; failed: { id: string; message: string }[] }>(
@@ -114,5 +129,16 @@ export function useEntryActions() {
     return r
   }
 
-  return { patch, create, remove, restore, archive, favorite, move, batch, invalidate }
+  return {
+    patch,
+    create,
+    remove,
+    restore,
+    archive,
+    favorite,
+    move,
+    duplicate,
+    batch,
+    invalidate,
+  }
 }

@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import { ALL_DAY_MINUTES } from '../../../shared/quick-add.ts'
 import { localDateTimeOf, zonedMidnight } from '../../../shared/tz.ts'
 import { useMe } from '../../hooks/useMe.ts'
+import { useMediaQuery } from '../../hooks/useMediaQuery.ts'
 import { useSpaceCandidates } from '../../hooks/useMembers.ts'
 import { useSharedTarget } from '../../hooks/useSharedElement.ts'
 import { type TaskPatch, useTaskActions } from '../../hooks/useTasks.ts'
@@ -20,14 +21,9 @@ import { cn } from '../../lib/cn.ts'
 import { pushRecent } from '../../lib/recent.ts'
 import { spaceQuery } from '../../lib/space-queries.ts'
 import { useCommandContext } from '../../lib/stores.ts'
-import {
-  flattenPages,
-  TASK_STATUSES,
-  type Task,
-  taskQuery,
-  tasksInfiniteQuery,
-} from '../../lib/task-queries.ts'
+import { flattenPages, type Task, taskQuery, tasksInfiniteQuery } from '../../lib/task-queries.ts'
 import { dueLabel } from '../../lib/time.ts'
+import { DetailDock } from '../layout/DetailDock.tsx'
 import { Avatar } from '../ui/avatar.tsx'
 import { Button } from '../ui/button.tsx'
 import { InlineEdit } from '../ui/inline-edit.tsx'
@@ -203,14 +199,18 @@ export function TaskDetailSheet({
   taskId,
   onClose,
   onOpenTask,
-  variant = 'sheet',
+  variant = 'auto',
 }: {
   taskId: string
   onClose: () => void
   onOpenTask: (t: Task) => void
-  /** panel = 任务页宽屏（≥1440）常驻右栏（ADR-0044），不遮挡列表；sheet = 覆盖式抽屉 */
-  variant?: 'sheet' | 'panel'
+  /**
+   * panel = 右侧详情坞（ADR-0054 §B：滴答清单式常驻右栏，不遮挡列表）；sheet = 覆盖式抽屉；
+   * auto（默认）= ≥ lg 用坞、更窄用抽屉——今日 / 收件箱 / 空间 / 日历 / 任务页一致
+   */
+  variant?: 'sheet' | 'panel' | 'auto'
 }) {
+  const wide = useMediaQuery('(min-width: 64rem)')
   const { t } = useTranslation()
   const qc = useQueryClient()
   const { data: me } = useMe()
@@ -276,7 +276,7 @@ export function TaskDetailSheet({
     }
   }
 
-  const panel = variant === 'panel'
+  const panel = variant === 'panel' || (variant === 'auto' && wide)
   // 常驻栏 Esc 关闭（同 Sheet，ADR-0053）：按键来自栏内或焦点落在 body（如改完标题后）时关；
   // 来自列表、别处输入框、弹层（渲染在 body 里的 Radix 内容，自己处理 Esc）的不管
   const panelRef = useRef<HTMLElement | null>(null)
@@ -553,12 +553,11 @@ export function TaskDetailSheet({
   )
   if (panel)
     return (
-      <aside
+      <DetailDock
         ref={panelRef}
-        className="xz-task-panel relative overflow-y-auto"
-        aria-label={task?.title ?? t('task.task')}
-        data-testid="task-sheet"
-        data-variant="panel"
+        label={task?.title ?? t('task.task')}
+        testId="task-sheet"
+        variant="panel"
       >
         <button
           type="button"
@@ -570,7 +569,7 @@ export function TaskDetailSheet({
           <X className="size-4" />
         </button>
         {body}
-      </aside>
+      </DetailDock>
     )
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>

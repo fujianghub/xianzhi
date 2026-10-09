@@ -51,6 +51,7 @@
 | 401 | `UNAUTHENTICATED` | 无会话 |
 | 403 | `FORBIDDEN` / `CSRF` / `SCOPE` / `ACCOUNT_LOCKED` / `REGISTRATION_PENDING` | 权限、跨站、API Key scope、登录连续失败锁定（07 §5）、注册申请待审批（ADR-0008） |
 | 404 | `NOT_FOUND` | 不存在或不可见 |
+| 502 | `UPSTREAM` | （注 2026-10-09 ADR-0054）外部服务失败（链接预览抓取）；`detail` 原样返回，不同于 500 只带 requestId |
 | 409 | `CONFLICT_STALE`（带 `current`）/ `CONFLICT_UNIQUE` / `CONFLICT_LAST_OWNER` / `CONFLICT_IN_FLIGHT` | 乐观锁 / 唯一约束 / 最后一名 owner 不可降级、移除、注销（07 §4）/ 同一 `Idempotency-Key` 的请求仍在处理中（注 2026-09-24） |
 | 410 | `INVITATION_EXPIRED` / `LINK_EXPIRED` | 邀请或重置链接过期、已使用（07 §5） |
 | 413 | `PAYLOAD_TOO_LARGE` / `QUOTA_EXCEEDED` | 单文件超限 / 每用户配额超限（07 §5） |
@@ -97,7 +98,7 @@
 ## 5. 写操作
 
 - **乐观锁**：`PATCH` body 带 `ifUpdatedAt`（详情返回的 `updatedAt` 原样回传）；不匹配 → `409 CONFLICT_STALE` + `current`；富文本正文不走 API（Yjs）。
-- **幂等**：以下创建端点接受 `Idempotency-Key` 头（UUID）：`POST /tasks`、`/entries`、`/spaces`、`/comments`、`/tags`、`/links`、`/attachments`、`/exports`、`/cycles`、`/workspace/invitations`；`idempotency_keys(key, user_id, response_status, response_body, created_at)` 保存 24h；同 key 重复请求原样回放（同状态码同 body），不同 user 的同 key 视为不同。PWA 离线重试必带。
+- **幂等**：以下创建端点接受 `Idempotency-Key` 头（UUID）：`POST /tasks`、`/entries`、`/spaces`、`/comments`、`/tags`、`/links`、`/attachments`、`/exports`、`/cycles`、`/workspace/invitations`（注 2026-10-09 ADR-0054：+`POST /entries/:id/duplicate`）；`idempotency_keys(key, user_id, response_status, response_body, created_at)` 保存 24h；同 key 重复请求原样回放（同状态码同 body），不同 user 的同 key 视为不同。PWA 离线重试必带。
   - 注（2026-09-24，T1-037）实现细节：
     - 先占位（`response_status = 0`）再执行。并发的同 key 第二个请求得到 409 `CONFLICT_IN_FLIGHT`，不会重复创建。
     - 只记录 2xx。失败请求会删掉占位，允许用同一 key 重试。回放时带响应头 `Idempotent-Replayed: true`；key 不是 UUID 则 422。
@@ -270,6 +271,7 @@
 | PUT | `/entries/:id/favorite` | 收藏（个人；需可读；幂等）（ADR-0014） | REQ-ENTRY-012 |
 | DELETE | `/entries/:id/favorite` | 取消收藏（ADR-0014） | REQ-ENTRY-012 |
 | PATCH | `/entries/:id/move` | `{ parentId, after }` 移到目录某处 / `{ detach: true }` 移出目录；需 entry.write；防环、after 须同级 | REQ-KB-005 |
+| POST | `/entries/:id/duplicate` | （2026-10-09 ADR-0054 §C）复制：`{ spaceId?, parentId?, detach?, title? }`，`Idempotency-Key`；源可读、目标可建；正文去评论标记、附件另存一份、同事务写派生列 → 201 `{ id }` | REQ-ENTRY-038 |
 | POST | `/entries` | `{ kind, title, spaceId?, fields, visibility, templateId? }` → `{ id }`；正文经 collab；`templateId`（`builtin:<key>` / uuid / `builtin:blank`）→ 模板正文写成初始 ydoc（ADR-0011 §2）（注 ADR-0018：+`linkFrom?: { entryId, kind ∈ relates\|blocks\|caused_by\|resolves }`，源端按 `POST /links` 同一套 can() 校验，同事务建关联）（注 ADR-0038：内置模板取所有者覆盖后的版本；已删除的内置模板 422）（注 ADR-0039：记下来源模板 `template_id`〔`builtin:blank` 不记〕；`fields` 的 x 键按「类型 ∪ 该模板」的定义校验） | REQ-ENTRY-001 · REQ-TPL-003 · 015 · REQ-ENTRY-032 |
 | GET | `/entries/:id` | 元数据详情（无 `ydoc`；`pmJson` 仅 `?withBody=1`）（注 ADR-0039：+`templateId`，列表同） | REQ-ENTRY-003 · 032 |
 | PATCH | `/entries/:id` | 标题、fields、可见性、`spaceId`（移动）、`pinned`；带 `ifUpdatedAt`（注 ADR-0016：可改 `kind`（自定义再给 `typeId`），未给 fields 时按目标类型重建；注 ADR-0036：fields 未定义的 x 键静默丢弃、类型 / 选项不符 422；改类型保留同 key 的 x 值；空间类型记录改 `spaceId` 到别的空间 422；`typeId` 须为本人个人类型或所在空间的空间类型） | REQ-ENTRY-004 · 006 · 011 · 017 · 026 · 027 · 029 |
@@ -277,6 +279,7 @@
 | POST | `/entries/:id/restore` | 恢复 | REQ-ENTRY-007 |
 | POST | `/entries/:id/archive` | 归档 | REQ-ENTRY-006 |
 | POST | `/entries/:id/unarchive` | 取消归档（与空间同构；2026-09-23 T0-013 补） | REQ-ENTRY-006 |
+| GET | `/link-preview?url=` | （2026-10-09 ADR-0054 §D）外链预览 `{ url, title, description, siteName, favicon }`（favicon 为 data URI）；每人 30 / 分；SSRF 防护见 07 §2.5；非 http(s) / 内网 422、非网页 415、抓取失败 502 `UPSTREAM` | REQ-LINK-007 |
 | GET | `/entries/:id/preview` | 卡片数据 | REQ-ENTRY-008 |
 
 注（2026-09-24，T1-012）：

@@ -38,6 +38,7 @@ import {
   EntryCard,
   EntryLink,
   EntryQuery,
+  LinkCard,
   MathBlock,
   MathInline,
   Mermaid,
@@ -46,6 +47,7 @@ import {
 } from './nodes.ts'
 import { createSlash, type SlashCtx } from './slash.tsx'
 import { UploadPlaceholder } from './upload.ts'
+import { LinkCardView } from './views/LinkCardView.tsx'
 import { MathBlockView, MathInlineView } from './views/MathView.tsx'
 import { MermaidView } from './views/MermaidView.tsx'
 
@@ -106,6 +108,10 @@ export function schemaKit(opts: { placeholder?: string } = {}): AnyExtension[] {
     AttachmentNode.extend({ addNodeView: () => ReactNodeViewRenderer(AttachmentView) }),
     EntryLink,
     EntryCard.extend({ addNodeView: () => ReactNodeViewRenderer(EntryCardView) }),
+    // 网页卡片（ADR-0054 §D）：网址输入框与模式菜单的按键 / 点击交给节点视图
+    LinkCard.extend({
+      addNodeView: () => ReactNodeViewRenderer(LinkCardView, { stopEvent: stopInEditor }),
+    }),
     // 查询块（ADR-0033）：标题栏的按钮 / 下拉交给节点视图，不交给 ProseMirror
     EntryQuery.extend({
       addNodeView: () => ReactNodeViewRenderer(EntryQueryView, { stopEvent: stopInEditor }),

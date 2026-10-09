@@ -86,6 +86,8 @@ export interface EntryCtx {
   bus?: EventBus
   /** 操作者时区（路由从会话注入；缺省按 actor 查 user.timezone），Bug 发现 / 解决日期用（ADR-0033） */
   timezone?: string
+  /** 数据目录：复制记录时复制附件文件（ADR-0054 §C）；缺省不复制附件 */
+  dataDir?: string
 }
 
 type EntryRow = typeof entries.$inferSelect
@@ -174,7 +176,7 @@ export async function loadEntry(db: DbOrTx, actor: Actor, id: string) {
 }
 
 /** 不可见一律 404（02 §2）；回收站里的软删对象对作者 / admin 可见（用于 restore / permanent）。 */
-async function requireEntry(
+export async function requireEntry(
   db: DbOrTx,
   ctx: EntryCtx,
   id: string,
@@ -242,7 +244,7 @@ function toView(
 }
 
 /** 记录元数据变更的实时失效；private 记录不在 key 里带 id（只失效列表前缀）。 */
-function entryChanged(ctx: EntryCtx, spaceIds: string[], id: string, visibility: string) {
+export function entryChanged(ctx: EntryCtx, spaceIds: string[], id: string, visibility: string) {
   publishChange(
     ctx,
     spaceIds,
@@ -491,7 +493,7 @@ export async function entryStats(
 
 // ---------- 创建 / 详情 / 修改 ----------
 
-async function personalSpaceId(db: DbOrTx, ctx: EntryCtx): Promise<string> {
+export async function personalSpaceId(db: DbOrTx, ctx: EntryCtx): Promise<string> {
   const [s] = await db
     .select({ id: spaces.id })
     .from(spaces)
@@ -511,7 +513,7 @@ async function personalSpaceId(db: DbOrTx, ctx: EntryCtx): Promise<string> {
  * 个人空间里的记录只能是 private（REQ-ENTRY-003）：工作区 owner/admin 能读任何人的个人空间（01 §5），
  * `space` / `workspace` 可见的随笔会被他们看到，违背「个人随笔」语义。
  */
-function assertPersonalPrivate(isPersonal: boolean, visibility: EntryVisibility) {
+export function assertPersonalPrivate(isPersonal: boolean, visibility: EntryVisibility) {
   if (isPersonal && visibility !== 'private')
     throw AppError.validation([{ path: 'visibility', message: '个人空间里的记录只能是「仅自己」' }])
 }

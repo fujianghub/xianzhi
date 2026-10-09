@@ -24,17 +24,26 @@ import {
   User,
 } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
-import { lazy, Suspense, useEffect, useMemo } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { hotkeyParts, useCommands } from '../../hooks/useCommands.ts'
 import { useHotkeys } from '../../hooks/useHotkeys.ts'
 import type { Me } from '../../hooks/useMe.ts'
+import { useMediaQuery } from '../../hooks/useMediaQuery.ts'
 import { useScrolled } from '../../hooks/useScrolled.ts'
 import { authClient } from '../../lib/auth-client.ts'
 import { cn } from '../../lib/cn.ts'
 import { useFocusMode } from '../../lib/reading.ts'
-import { useLayout, useNewEntry, useNewTask, usePalette, usePeek } from '../../lib/stores.ts'
+import {
+  useEntryDock,
+  useLayout,
+  useNewEntry,
+  useNewTask,
+  usePalette,
+  usePeek,
+} from '../../lib/stores.ts'
 import { CreateSpaceDialog } from '../domain/CreateSpaceDialog.tsx'
+import { useDockOpen } from './DetailDock.tsx'
 
 const NewEntryDialog = lazy(() => import('../domain/NewEntryDialog.tsx'))
 // 新任务对话框带快速添加与日期 / 清单选择器（ADR-0044），不进首屏包：打开时才加载
@@ -42,6 +51,9 @@ const NewTaskDialog = lazy(() => import('../domain/NewTaskDialog.tsx'))
 const CommandPalette = lazy(() => import('./CommandPalette.tsx'))
 const ShortcutsDialog = lazy(() => import('./ShortcutsDialog.tsx'))
 const PeekPanel = lazy(() => import('../domain/PeekPanel.tsx'))
+const EntryDockHost = lazy(() =>
+  import('../domain/EntryDetailDock.tsx').then((m) => ({ default: m.EntryDockHost })),
+)
 
 import { SpaceSwitcher } from '../domain/SpaceSwitcher.tsx'
 import { Avatar } from '../ui/avatar.tsx'
@@ -200,13 +212,32 @@ export function AppShell({
   aside?: ReactNode
 }) {
   const { t } = useTranslation()
-  const { sidebarOpen, asideOpen, drawerOpen, toggleSidebar, toggleAside, setDrawer } = useLayout()
+  const {
+    sidebarOpen: sidebarPref,
+    asideOpen,
+    drawerOpen,
+    toggleSidebar,
+    toggleAside,
+    setDrawer,
+  } = useLayout()
+  // 详情坞开着且宽度 < 1280：主侧栏让位给列表（侧栏 240 + 坞 ~416 会把列表挤到 ~350px）；
+  // 此时点侧栏按钮只临时展开，不改记住的偏好（ADR-0054 §B）
+  const dockOpen = useDockOpen()
+  const squeezed = useMediaQuery('(max-width: 79.99rem)') && dockOpen
+  const [forceSidebar, setForceSidebar] = useState(false)
+  useEffect(() => {
+    if (!dockOpen) setForceSidebar(false)
+  }, [dockOpen])
+  const sidebarOpen = sidebarPref && (!squeezed || forceSidebar)
+  const onToggleSidebar = () =>
+    squeezed && sidebarPref ? setForceSidebar((v) => !v) : toggleSidebar()
   const newEntryOpen = useNewEntry((s) => s.open)
   const newTaskOpen = useNewTask((s) => s.open)
   const paletteOpen = usePalette((s) => s.open)
   const helpOpen = usePalette((s) => s.help)
   const setPalette = usePalette((s) => s.setOpen)
   const peeking = usePeek((s) => !!s.target)
+  const entryDock = useEntryDock((s) => !!s.id)
   const focus = useFocusMode((s) => s.on)
   const setFocus = useFocusMode((s) => s.set)
   useEffect(() => {
@@ -297,7 +328,7 @@ export function AppShell({
               variant="icon"
               className="hidden lg:inline-flex"
               aria-label={sidebarOpen ? t('ui.nav.collapseSidebar') : t('ui.nav.expandSidebar')}
-              onClick={toggleSidebar}
+              onClick={onToggleSidebar}
             >
               <PanelLeft />
             </Button>
@@ -374,6 +405,11 @@ export function AppShell({
       {newTaskOpen ? (
         <Suspense fallback={null}>
           <NewTaskDialog />
+        </Suspense>
+      ) : null}
+      {entryDock ? (
+        <Suspense fallback={null}>
+          <EntryDockHost />
         </Suspense>
       ) : null}
       {peeking ? (

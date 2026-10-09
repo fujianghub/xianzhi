@@ -5,10 +5,10 @@
  * 存储：DATA_DIR/uploads/<yyyy>/<mm>/<id>.<ext>，只经 GET /attachments/:id 鉴权后流式输出，data/ 不直出。
  */
 import { createHash } from 'node:crypto'
-import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { encode as encodeBlurhash } from 'blurhash'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import sharp from 'sharp'
 import { ALLOWED_MIME, ATTACHMENT_LIMITS } from '../../shared/schemas/attachments.ts'
 import type { AttachmentTargetType } from '../../shared/schemas/enums.ts'
@@ -257,6 +257,12 @@ export async function uploadAttachment(
         eq(attachments.sha256, sha256),
       ),
     )
+    // 同一文件可能有多行（复制记录的副本各有一行，ADR-0054 §C）：先取绑同一对象的，再取孤儿
+    .orderBy(
+      sql`(${attachments.targetType} is not distinct from ${input.targetType ?? null} and ${attachments.targetId} is not distinct from ${input.targetId ?? null}) desc`,
+      sql`(${attachments.targetType} is null) desc`,
+      attachments.createdAt,
+    )
     .limit(1)
   if (dup) {
     // 同人同文件：幂等返回；原先是孤儿而这次带了 target → 认领；文件丢了先补回
@@ -378,4 +384,93 @@ export async function removeAvatar(db: DbOrTx, ctx: { actor: Actor }): Promise<v
     .update(userTable)
     .set({ image: null, avatarAttachmentId: null, updatedAt: new Date() })
     .where(eq(userTable.id, ctx.actor.id))
+}
+
+/**
+ * 复制记录时为副本另建附件（ADR-0054 §C）：副本正文里引用的附件，凡复制者能读的，复制文件（含变体）到新键、
+ * 新建一行（owner = 复制者，绑到副本）——副本从此不依赖源记录（源被删 / 30 天清除、副本移到别的空间都不影响图片）。
+ * 读不到 / 文件缺失的跳过（正文保留原引用）。超过本人配额 → 413。
+ * 文件先落盘、行由调用方在事务里插入；事务失败时调用 `cleanup()` 删掉已复制的文件。
+ */
+export async function cloneAttachmentsFor(
+  db: DbOrTx,
+  ctx: AttachmentCtx,
+  ids: string[],
+  target: { type: AttachmentTargetType; id: string },
+): Promise<{
+  map: Map<string, string>
+  rows: (typeof attachments.$inferInsert)[]
+  cleanup: () => Promise<void>
+}> {
+  const map = new Map<string, string>()
+  const rows: (typeof attachments.$inferInsert)[] = []
+  const written: string[] = []
+  const cleanup = async () => {
+    for (const f of written) await rm(f, { force: true })
+  }
+  if (!ids.length) return { map, rows, cleanup }
+  const found = await db
+    .select()
+    .from(attachments)
+    .where(and(eq(attachments.workspaceId, ctx.workspaceId), inArray(attachments.id, ids)))
+  const readable: Row[] = []
+  for (const r of found) {
+    const a = await loadAttachmentRef(db, ctx.actor, ctx.workspaceId, r.id)
+    if (a && can(ctx.actor, 'attachment.read', a.ref)) readable.push(r)
+  }
+  const total = readable.reduce((n, r) => n + r.size, 0)
+  if (total && (await usedBytes(db, ctx)) + total > ATTACHMENT_LIMITS.quotaPerUser)
+    throw new AppError(413, 'QUOTA_EXCEEDED', '附件总量已达 5 GB 上限，无法复制正文里的图片 / 文件')
+  const now = new Date()
+  const dir = `uploads/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}`
+  // 新键：同目录规则 + 新 id，保留原扩展名 / 变体后缀
+  const rekey = (key: string, oldId: string, newId: string) => {
+    const name = key.slice(key.lastIndexOf('/') + 1)
+    const tail = name.startsWith(oldId) ? name.slice(oldId.length) : `.${name}`
+    return `${dir}/${newId}${tail}`
+  }
+  const copy = async (from: string, to: string) => {
+    const dst = dataPath(ctx.dataDir, to)
+    await mkdir(dirname(dst), { recursive: true })
+    await copyFile(dataPath(ctx.dataDir, from), dst)
+    written.push(dst)
+  }
+  try {
+    for (const r of readable) {
+      if (!(await stat(dataPath(ctx.dataDir, r.storageKey)).catch(() => null))) continue
+      const id = crypto.randomUUID()
+      const storageKey = rekey(r.storageKey, r.id, id)
+      await copy(r.storageKey, storageKey)
+      let variants: Record<string, string> | null = null
+      for (const [k, v] of Object.entries((r.variants ?? {}) as Record<string, string>)) {
+        if (typeof v !== 'string') continue
+        const nk = rekey(v, r.id, id)
+        if (await stat(dataPath(ctx.dataDir, v)).catch(() => null)) {
+          await copy(v, nk)
+          variants = { ...(variants ?? {}), [k]: nk }
+        }
+      }
+      rows.push({
+        id,
+        workspaceId: ctx.workspaceId,
+        ownerId: ctx.actor.id,
+        targetType: target.type,
+        targetId: target.id,
+        filename: r.filename,
+        mime: r.mime,
+        size: r.size,
+        sha256: r.sha256,
+        storageKey,
+        width: r.width,
+        height: r.height,
+        blurhash: r.blurhash,
+        variants,
+      })
+      map.set(r.id, id)
+    }
+  } catch (err) {
+    await cleanup()
+    throw err
+  }
+  return { map, rows, cleanup }
 }

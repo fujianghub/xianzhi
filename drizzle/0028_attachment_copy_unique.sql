@@ -1,0 +1,2 @@
+ALTER TABLE "attachments" DROP CONSTRAINT "attachments_owner_sha_uq";--> statement-breakpoint
+ALTER TABLE "attachments" ADD CONSTRAINT "attachments_owner_sha_uq" UNIQUE NULLS NOT DISTINCT("workspace_id","owner_id","sha256","target_type","target_id");

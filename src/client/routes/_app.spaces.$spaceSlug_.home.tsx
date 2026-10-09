@@ -37,6 +37,7 @@ import { useMe } from '../hooks/useMe.ts'
 import { useNewEntryContext } from '../hooks/useNewEntryContext.ts'
 import { ApiError, api, unwrap } from '../lib/api.ts'
 import { cn } from '../lib/cn.ts'
+import { openInDock } from '../lib/entry-dock.ts'
 import {
   bugSorts,
   type Entry,
@@ -144,6 +145,7 @@ function EntryLine({ e, meta }: { e: Entry; meta?: ReactNode }) {
       <Link
         to="/entries/$entryId"
         params={{ entryId: e.id }}
+        onClick={(ev) => openInDock(ev, e.id)}
         className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-hover"
       >
         <KindBadge kind={e.kind} typeId={e.typeId} />

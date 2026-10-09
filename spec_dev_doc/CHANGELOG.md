@@ -2,6 +2,13 @@
 
 > 只记规范文件的变更；代码变更看 git log。格式：日期 → 文件 → 一行一条。每个 Phase 结束前的一致性审查结果也记在这里。
 
+## 2026-10-09
+
+**就地改清单 / 标签 · 右侧详情坞 · 记录复制 / 移动 · 网页链接卡片 · 屏幕比例适配（ADR-0054）**
+- 新增 ADR-0054（修订 ADR-0053 §C、REQ-LINK-004、07 §2.5、03 §11.3 第 269 行）。00 +REQ-TASK-047 · 048、REQ-ENTRY-038 ~ 041、REQ-LINK-007 · 008、REQ-UI-052；REQ-LINK-004 · REQ-TASK-034 注。
+- 02 路由清单 +`POST /entries/:id/duplicate`、+`GET /link-preview`；错误码 +502 `UPSTREAM`；幂等端点 +duplicate。07 §2.5 外部抓取改「已实现」并注明与原案差异。03 §11.3 注。glossary +详情坞、网页卡片、链接气泡、副本。
+- 迁移 0028：`attachments_owner_sha_uq` 带上 `target_type, target_id`（NULLS NOT DISTINCT）。
+
 ## 2026-10-07
 
 **任务详情：就地打开 · 自定义字段选择器 · 计划按用户时区 · 常驻栏 ≥ 1280（ADR-0053）**

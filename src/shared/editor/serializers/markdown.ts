@@ -97,6 +97,11 @@ function block(n: PmNode, o: MarkdownOptions): string {
       return `\`\`\`mermaid\n${String(n.attrs?.code ?? '')}\n\`\`\``
     case 'mathBlock':
       return `$$\n${String(n.attrs?.latex ?? '')}\n$$`
+    case 'linkCard': {
+      // 网页卡片（ADR-0054 §D）：导出为一行链接（标题缺省用网址）
+      const url = String(n.attrs?.url ?? '').replace(/[()\s]/g, (ch) => encodeURIComponent(ch))
+      return url ? `[${escInline(String(n.attrs?.title || n.attrs?.url || ''))}](${url})` : ''
+    }
     case 'entryQuery':
       return `> [${escInline(`查询：${String(n.attrs?.title || '记录')}`)}](${entryQueryHref(n, o.appUrl)})`
     case 'callout':

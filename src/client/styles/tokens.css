@@ -200,6 +200,8 @@
   /* 任务页清单栏宽（ADR-0044）；.xz-main 内衬面板在任务页从其右侧起 */
   --xz-rail-w: 240px;
   --xz-aside-w: 320px;
+  /* 右侧详情坞默认宽（ADR-0054 §B）；用户拖宽后由 DetailDock 写到 html 内联样式 */
+  --xz-dock-w: 26rem;
   --xz-bottomnav-h: 60px;
   /* 列表行高（04 §4 密度，REQ-UI-011）：comfortable 40 / compact −20% = 32 */
   --xz-row-h: 40px;

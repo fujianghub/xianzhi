@@ -1,6 +1,7 @@
 /**
  * 记录 ⋯ 菜单（ADR-0014、REQ-ENTRY-014）：收藏 · 固定 · 导出 md / html · 归档 / 取消归档 · 删除（确认 + Toast 撤销）。
  * ADR-0018（REQ-ENTRY-023）：新建子页面（仅当本篇在目录里）· 新建关联记录（同级、自动关联「相关」）。
+ * ADR-0054 §C（REQ-ENTRY-038 · 039）：创建副本 · 复制到… · 移动到…。
  * 详情页页头与卡片悬停共用；写操作按乐观权限显示，最终由服务端 `can()` 判定。
  */
 
@@ -9,8 +10,11 @@ import { useNavigate } from '@tanstack/react-router'
 import {
   Archive,
   ArchiveRestore,
+  Copy,
+  CopyPlus,
   Download,
   FilePlus2,
+  FolderInput,
   Link2,
   MoreHorizontal,
   Pin,
@@ -21,6 +25,7 @@ import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useEntryActions } from '../../hooks/useEntries.ts'
+import { useMe } from '../../hooks/useMe.ts'
 import { entryPageContext } from '../../hooks/useNewEntryContext.ts'
 import { ApiError } from '../../lib/api.ts'
 import { cn } from '../../lib/cn.ts'
@@ -30,6 +35,7 @@ import type { Space } from '../../lib/space-queries.ts'
 import { useNewEntry } from '../../lib/stores.ts'
 import { ConfirmDialog } from '../ui/confirm-dialog.tsx'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.tsx'
+import { EntryPlaceDialog, useQuickDuplicate } from './EntryPlaceDialog.tsx'
 
 export function EntryMenu({
   entry,
@@ -65,6 +71,11 @@ export function EntryMenu({
   const openNew = useNewEntry((s) => s.setOpen)
   const [open, setOpen] = useState(false)
   const [confirm, setConfirm] = useState(false)
+  const [place, setPlace] = useState<'move' | 'copy' | null>(null)
+  const duplicate = useQuickDuplicate()
+  // 复制只要能读 + 能在某处建记录（访客不能建，ADR-0054 §C）；移动要能写本篇
+  const { data: me } = useMe()
+  const canCopy = !!me && me.workspaceRole !== 'guest'
   const title = entry.title || t('entry.untitled')
   const fail = (err: unknown) =>
     toast.error(err instanceof ApiError ? err.message : t('task.saveFailed'))
@@ -152,6 +163,26 @@ export function EntryMenu({
                   run(() => actions.patch(entry, { pinned: !entry.pinned })),
                 )
               : null}
+            {canCopy
+              ? item(
+                  'duplicate',
+                  <CopyPlus className="size-4" />,
+                  t('entry.menu.duplicate'),
+                  run(() => duplicate(entry)),
+                )
+              : null}
+            {canCopy
+              ? item('copy-to', <Copy className="size-4" />, t('entry.menu.copyTo'), () => {
+                  setOpen(false)
+                  setPlace('copy')
+                })
+              : null}
+            {canWrite
+              ? item('move-to', <FolderInput className="size-4" />, t('entry.menu.moveTo'), () => {
+                  setOpen(false)
+                  setPlace('move')
+                })
+              : null}
             {item(
               'export-md',
               <Download className="size-4" />,
@@ -212,6 +243,14 @@ export function EntryMenu({
         onOpenChange={setConfirm}
         onDeleted={afterDelete}
       />
+      {place ? (
+        <EntryPlaceDialog
+          entry={entry}
+          mode={place}
+          open
+          onOpenChange={(v) => !v && setPlace(null)}
+        />
+      ) : null}
     </>
   )
 }

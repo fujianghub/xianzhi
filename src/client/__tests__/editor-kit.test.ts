@@ -87,6 +87,15 @@ const SAMPLE: PmNode = {
     { type: 'mermaid', attrs: { code: 'graph TD;A-->B' } },
     { type: 'entryCard', attrs: { entryId: 'e2' } },
     {
+      type: 'linkCard',
+      attrs: {
+        url: 'https://example.com/',
+        title: '示例',
+        description: '描述',
+        siteName: 'Example',
+      },
+    },
+    {
       type: 'entryQuery',
       attrs: {
         title: '未关闭 Bug',

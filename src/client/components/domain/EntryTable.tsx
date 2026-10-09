@@ -10,20 +10,22 @@
  */
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ArrowDown, ArrowUp } from 'lucide-react'
+import { ArrowDown, ArrowUp, Plus } from 'lucide-react'
 import { Fragment, type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useFieldCommit } from '../../hooks/useFieldCommit.ts'
+import { useFieldCommit, useTagsCommit } from '../../hooks/useFieldCommit.ts'
 import { cn } from '../../lib/cn.ts'
+import { openInDock } from '../../lib/entry-dock.ts'
 import type { Entry, EntryKind } from '../../lib/entry-queries.ts'
 import { useKindLabel } from '../../lib/entry-types.ts'
+import { useEntryDock } from '../../lib/stores.ts'
 import { Checkbox } from '../ui/checkbox.tsx'
 import { RelativeTime } from '../ui/relative-time.tsx'
 import { FieldEditor, type FieldSpec, FieldValue, useFieldSpecs } from './FieldValue.tsx'
 import { KindBadge } from './KindIcon.tsx'
 import { PALETTE_CLASS, type PaletteName } from './SpaceIcon.tsx'
 import { SpaceTag } from './SpaceTag.tsx'
-import { tagsQuery } from './TagPicker.tsx'
+import { type Tag, TagPicker, tagsQuery } from './TagPicker.tsx'
 
 type Col = { key: string; label: string; rank?: (v: unknown) => number }
 
@@ -70,6 +72,9 @@ export function EntryTable({
   const kindOf = useKindLabel()
   const specsOf = useFieldSpecs()
   const commit = useFieldCommit()
+  const commitTags = useTagsCommit()
+  // 在右侧详情坞里打开着的那一行高亮（ADR-0054 §B）
+  const dockId = useEntryDock((s) => s.id)
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(null)
   const single: EntryKind | undefined = typeId
     ? 'custom'
@@ -212,9 +217,10 @@ export function EntryTable({
       <tr
         key={e.id}
         className={cn(
-          'border-divider border-b align-top last:border-0 hover:bg-hover',
-          on && 'bg-selected',
+          'group border-divider border-b align-top last:border-0 hover:bg-hover',
+          (on || dockId === e.id) && 'bg-selected',
         )}
+        data-active={dockId === e.id || undefined}
         data-testid="entry-row"
         data-entry-id={e.id}
         aria-selected={select ? on : undefined}
@@ -236,6 +242,7 @@ export function EntryTable({
           <Link
             to="/entries/$entryId"
             params={{ entryId: e.id }}
+            onClick={(ev) => openInDock(ev, e.id)}
             className="line-clamp-1 font-medium hover:text-primary-text"
           >
             {e.pinned ? <span className="sr-only">{t('entry.pinned')} · </span> : null}
@@ -287,23 +294,13 @@ export function EntryTable({
             )}
           </td>
         ))}
-        <td className="px-3 py-2">
-          <div className="flex flex-wrap gap-1">
-            {(e.tagIds ?? []).map((id) => {
-              const tag = tags.find((x) => x.id === id)
-              return tag ? (
-                <span
-                  key={id}
-                  className={cn(
-                    'rounded px-1.5 py-0.5 text-[11px]',
-                    PALETTE_CLASS[(tag.color as PaletteName) ?? 'gray'],
-                  )}
-                >
-                  #{tag.name}
-                </span>
-              ) : null
-            })}
-          </div>
+        <td className="px-3 py-2" data-field="tags">
+          <TagsCell
+            entry={e}
+            tags={tags}
+            canEdit={canEdit}
+            onCommit={(ids) => void commitTags(e, ids)}
+          />
         </td>
         {showSpace ? (
           <td className="px-3 py-2">
@@ -354,7 +351,8 @@ export function EntryTable({
   const allOn = !!select && items.length > 0 && items.every((e) => select.has(e.id))
   const someOn = !!select && items.some((e) => select.has(e.id))
   return (
-    <div className="paper overflow-x-auto rounded-lg">
+    // relative：表内 sr-only（absolute）以此为包含块，不再逃出横向滚动、撑宽整页（ADR-0054 §E）
+    <div className="paper relative overflow-x-auto rounded-lg">
       <table className="w-full min-w-[48rem] border-collapse text-sm" data-testid="entry-table">
         <thead className="border-divider border-b text-fg-muted text-xs">
           <tr>
@@ -427,5 +425,75 @@ export function EntryTable({
         </tbody>
       </table>
     </div>
+  )
+}
+
+/**
+ * 标签列（ADR-0054 §A）：可写行点标签（无标签时悬停露出「+ 标签」）弹出 TagPicker，
+ * 多选草稿在弹层里即时显示，关闭时整组一次提交（同任务行，REQ-TASK-038）。
+ */
+function TagsCell({
+  entry,
+  tags,
+  canEdit,
+  onCommit,
+}: {
+  entry: Entry
+  tags: Tag[]
+  canEdit: boolean
+  onCommit: (ids: string[]) => void
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const [draft, setDraft] = useState<string[] | null>(null)
+  const ids = draft ?? entry.tagIds ?? []
+  const value = ids.map((id) => tags.find((x) => x.id === id)).filter((x): x is Tag => !!x)
+  const chips = value.map((tag) => (
+    <span
+      key={tag.id}
+      className={cn(
+        'rounded px-1.5 py-0.5 text-[11px]',
+        PALETTE_CLASS[(tag.color as PaletteName) ?? 'gray'],
+      )}
+    >
+      #{tag.name}
+    </span>
+  ))
+  if (!canEdit) return <div className="flex flex-wrap gap-1">{chips}</div>
+  return (
+    <TagPicker
+      open={open}
+      value={value}
+      onChange={setDraft}
+      onOpenChange={(o) => {
+        setOpen(o)
+        if (o || !draft) return
+        const cur = entry.tagIds ?? []
+        if (draft.length !== cur.length || draft.some((x) => !cur.includes(x))) onCommit(draft)
+        setDraft(null)
+      }}
+      trigger={
+        value.length ? (
+          <button
+            type="button"
+            className="xz-cell-edit flex flex-wrap gap-1"
+            aria-label={t('field.edit', { name: t('kb.tags') })}
+            data-testid="cell-tags"
+          >
+            {chips}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={cn('xz-row-ghost', open && 'xz-row-ghost-on')}
+            aria-label={t('taskRow.addTags')}
+            data-testid="cell-tags"
+          >
+            <Plus className="size-3" aria-hidden />
+            {t('taskRow.tags')}
+          </button>
+        )
+      }
+    />
   )
 }

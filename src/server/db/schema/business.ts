@@ -648,7 +648,10 @@ export const attachments = pgTable(
   },
   (t) => [
     index('attachments_target_idx').on(t.targetType, t.targetId),
-    unique('attachments_owner_sha_uq').on(t.workspaceId, t.ownerId, t.sha256),
+    // 同人同文件去重；按绑定对象区分（ADR-0054 §C：复制记录时副本另建一行、与源同 sha256）
+    unique('attachments_owner_sha_uq')
+      .on(t.workspaceId, t.ownerId, t.sha256, t.targetType, t.targetId)
+      .nullsNotDistinct(),
     check('attachments_target_type_ck', inList(t.targetType, ATTACHMENT_TARGET_TYPES)),
     check('attachments_target_pair_ck', sql`(${t.targetType} is null) = (${t.targetId} is null)`),
   ],

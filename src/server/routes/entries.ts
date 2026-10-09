@@ -7,6 +7,7 @@ import {
   bugStatsQuery,
   createEntrySchema,
   createSnapshotSchema,
+  duplicateEntrySchema,
   entryDetailQuery,
   entryStatsQuery,
   listEntriesQuery,
@@ -24,6 +25,7 @@ import { requireAuth, requireScope } from '../middleware/session.ts'
 import { bugStats } from '../services/bug-stats.ts'
 import * as svc from '../services/entries.ts'
 import * as bulk from '../services/entry-bulk.ts'
+import { duplicateEntry } from '../services/entry-duplicate.ts'
 import * as tree from '../services/entry-tree.ts'
 import { listBacklinks } from '../services/links.ts'
 import * as snap from '../services/snapshots.ts'
@@ -33,7 +35,7 @@ import type { AppEnv } from '../types.ts'
 const idParam = z.object({ id: uuidSchema })
 const snapParam = z.object({ id: uuidSchema, sid: uuidSchema })
 
-export function entryRoutes(deps: { db: Db }) {
+export function entryRoutes(deps: { db: Db; dataDir?: string }) {
   const ctxOf = (c: {
     var: AppEnv['Variables']
     req: { raw: Request; header: (n: string) => string | undefined }
@@ -45,6 +47,7 @@ export function entryRoutes(deps: { db: Db }) {
       ip: clientIp(c.req.raw.headers),
       userAgent: c.req.header('user-agent') ?? null,
       timezone: c.var.user?.timezone,
+      dataDir: deps.dataDir,
     }
   }
   return (
@@ -108,6 +111,19 @@ export function entryRoutes(deps: { db: Db }) {
       })
       .post('/:id/restore', requireScope('write'), validate('param', idParam), async (c) =>
         c.json(await svc.restoreEntry(deps.db, ctxOf(c), c.req.valid('param').id)),
+      )
+      // 复制（ADR-0054 §C、REQ-ENTRY-038）：幂等键防重复点击建两份
+      .post(
+        '/:id/duplicate',
+        requireScope('write'),
+        idempotency(deps.db),
+        validate('param', idParam),
+        validate('json', duplicateEntrySchema),
+        async (c) =>
+          c.json(
+            await duplicateEntry(deps.db, ctxOf(c), c.req.valid('param').id, c.req.valid('json')),
+            201,
+          ),
       )
       .post('/:id/archive', requireScope('write'), validate('param', idParam), async (c) =>
         c.json(await svc.archiveEntry(deps.db, ctxOf(c), c.req.valid('param').id, true)),

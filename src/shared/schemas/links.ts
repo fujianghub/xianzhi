@@ -26,3 +26,6 @@ export const createLinkSchema = z
       ctx.addIssue({ code: 'custom', message: 'mentions 由编辑器维护，不可手建', path: ['kind'] })
   })
 export const listLinksQuery = z.object({ fromType: z.enum(LINK_FROM_TYPES), fromId: uuidSchema })
+
+/** GET /link-preview（ADR-0054 §D、REQ-LINK-007）：抓取外链标题 / 描述 / 站点名 / 图标 */
+export const linkPreviewQuery = z.object({ url: z.string().trim().min(1).max(2000) })

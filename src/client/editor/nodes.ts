@@ -154,6 +154,47 @@ export const EntryCard = Node.create({
   ],
 })
 
+/**
+ * 网页卡片（ADR-0054 §D、REQ-LINK-008，参考简斋 linkCard）：块级原子，attrs 存网址与抓到的标题 / 描述 / 站点名
+ * （存下来：只读 / 导出 / 搜索不必再抓；图标不存，展示时按网址取）。url 为空 = 刚插入、等待输入网址。
+ */
+export const LinkCard = Node.create({
+  name: 'linkCard',
+  group: 'block',
+  atom: true,
+  draggable: true,
+  selectable: true,
+  addAttributes: () => ({
+    url: { default: '' },
+    title: { default: '' },
+    description: { default: '' },
+    siteName: { default: '' },
+  }),
+  parseHTML: () => [
+    {
+      tag: 'div[data-link-card]',
+      getAttrs: (el) => ({
+        url: (el as HTMLElement).getAttribute('data-link-card') ?? '',
+        title: (el as HTMLElement).getAttribute('data-title') ?? '',
+        description: (el as HTMLElement).getAttribute('data-description') ?? '',
+        siteName: (el as HTMLElement).getAttribute('data-site') ?? '',
+      }),
+    },
+  ],
+  renderHTML: ({ node, HTMLAttributes }) => [
+    'div',
+    mergeAttributes(HTMLAttributes, {
+      'data-link-card': node.attrs.url,
+      'data-title': node.attrs.title,
+      'data-description': node.attrs.description,
+      'data-site': node.attrs.siteName,
+      class: 'xz-atom',
+    }),
+    String(node.attrs.title || node.attrs.url || ''),
+  ],
+  renderText: ({ node }) => String(node.attrs.title || node.attrs.url || ''),
+})
+
 /** 查询块视图（ADR-0033）：表格 / 统计（仅 Bug）/ 计数。 */
 export const ENTRY_QUERY_VIEWS = ['table', 'stats', 'count'] as const
 export type EntryQueryView = (typeof ENTRY_QUERY_VIEWS)[number]

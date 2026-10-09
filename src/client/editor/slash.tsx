@@ -257,6 +257,17 @@ export const SLASH_ITEMS: SlashItem[] = [
       ctx.pickEntry('card', r.from)
     },
   },
+  // 网页卡片（ADR-0054 §D）：插入空卡片，在卡片里输入网址
+  {
+    id: 'linkCard',
+    group: 'media',
+    terms: ['link', 'web', 'url', 'wangye', 'lianjie', 'bookmark'],
+    run: (e, r) => {
+      chainAt(e, r)
+        .insertContent({ type: 'linkCard', attrs: { url: '' } })
+        .run()
+    },
+  },
   // 查询块（ADR-0033）：默认 = 本空间未关闭的 Bug，按优先级；插入后在块上「设置」改筛选
   {
     id: 'query',

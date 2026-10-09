@@ -51,6 +51,7 @@ export const FULL_NODES = [
   'callout',
   'mermaid',
   'entryCard',
+  'linkCard',
   'entryQuery',
   'attachment',
   'toc',

@@ -35,6 +35,8 @@ import { DocBar, EditorToolbar } from './EditorToolbar.tsx'
 import { EntryPicker, type PickerRow } from './EntryPicker.tsx'
 import { SOURCE_EVENT, TEMPLATE_EVENT } from './extensions.ts'
 import { fullKit } from './kit.ts'
+import { LinkBubble } from './LinkBubble.tsx'
+import { LinkHoverCard } from './LinkHoverCard.tsx'
 import { MobileToolbar } from './MobileToolbar.tsx'
 import { markdownToHtml } from './paste.ts'
 import type { SlashCtx } from './slash.tsx'
@@ -427,12 +429,14 @@ export default function EntryEditor({
           )
         : null}
       <EditorToolbar editor={editor} readOnly={readOnly} getCtx={() => ctxRef.current} />
+      {editor && readOnly ? <LinkHoverCard editor={editor} /> : null}
       {editor && !readOnly ? (
         <>
           <DragHandle editor={editor} onNodeChange={onBlockNodeChange}>
             <BlockHandle editor={editor} />
           </DragHandle>
           <BubbleBar editor={editor} onComment={startComment} />
+          <LinkBubble editor={editor} />
           <TableMenu editor={editor} />
           <MobileToolbar
             editor={editor}
