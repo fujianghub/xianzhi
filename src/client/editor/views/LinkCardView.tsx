@@ -8,7 +8,7 @@
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { type NodeViewProps, NodeViewWrapper } from '@tiptap/react'
-import { ExternalLink, Globe, Link2, RefreshCw, Type } from 'lucide-react'
+import { ExternalLink, Globe, Link2, Pencil, RefreshCw, Type } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -29,17 +29,16 @@ export function LinkCardView({
   const editable = editor.isEditable
   const q = useQuery(linkPreviewQuery(url))
   const data = q.data
-  // 首次抓到即写回 attrs（只在可编辑、attrs 还空时；不覆盖已有标题）
-  const wrote = useRef(false)
+  // 抓到即写回 attrs（只在可编辑、标题为空时；不覆盖用户写的标题）。换了网址或清空标题后会再次写回
   useEffect(() => {
-    if (!editable || !data || wrote.current || node.attrs.title) return
-    wrote.current = true
+    if (!editable || !data || node.attrs.title) return
     updateAttributes({
       title: data.title,
       description: data.description ?? '',
       siteName: data.siteName,
     })
   }, [editable, data, node.attrs.title, updateAttributes])
+  const [editing, setEditing] = useState(false)
 
   const title = String(node.attrs.title || data?.title || '')
   const desc = String(node.attrs.description || data?.description || '')
@@ -72,6 +71,26 @@ export function LinkCardView({
   }
 
   if (!url) return <UrlInput onDone={(v) => updateAttributes({ url: v })} onCancel={deleteNode} />
+  if (editing)
+    return (
+      <CardEditor
+        title={String(node.attrs.title ?? '')}
+        url={url}
+        onCancel={() => {
+          setEditing(false)
+          editor.commands.focus()
+        }}
+        onSave={(next) => {
+          setEditing(false)
+          // 换网址：描述 / 站点名作废、重新抓；标题按用户填写（留空 = 用抓到的）
+          updateAttributes(
+            next.url === url
+              ? { title: next.title }
+              : { url: next.url, title: next.title, description: '', siteName: '' },
+          )
+        }}
+      />
+    )
 
   const btn = (key: string, Icon: typeof Link2, label: string, run: () => void) => (
     <button
@@ -132,6 +151,7 @@ export function LinkCardView({
         <span className="xz-link-card-menu" contentEditable={false}>
           {btn('as-link', Link2, t('editor.linkCard.asLink'), () => toLink(url))}
           {btn('as-title', Type, t('editor.linkCard.asTitle'), () => toLink(title || url))}
+          {btn('edit', Pencil, t('editor.linkCard.edit'), () => setEditing(true))}
           {btn('refresh', RefreshCw, t('editor.linkCard.refresh'), () => void refresh())}
           {btn('open', ExternalLink, t('editor.linkCard.open'), () =>
             window.open(url, '_blank', 'noopener,noreferrer'),
@@ -185,6 +205,89 @@ function UrlInput({ onDone, onCancel }: { onDone: (url: string) => void; onCance
       <button type="button" className="xz-link-card-mode" onClick={onCancel}>
         {t('ui.action.cancel')}
       </button>
+    </NodeViewWrapper>
+  )
+}
+
+/** 编辑网页卡片（ADR-0055）：显示的标题与真实网址都可改；回车保存、Esc 取消 */
+function CardEditor({
+  title,
+  url,
+  onSave,
+  onCancel,
+}: {
+  title: string
+  url: string
+  onSave: (v: { title: string; url: string }) => void
+  onCancel: () => void
+}) {
+  const { t } = useTranslation()
+  const [tv, setTv] = useState(title)
+  const [uv, setUv] = useState(url)
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    ref.current?.select()
+  }, [])
+  const save = () => {
+    const s = uv.trim()
+    const next = /^https?:\/\//i.test(s) ? s : s ? `https://${s}` : ''
+    if (!isWebUrl(next)) return void toast.error(t('editor.linkCard.invalid'))
+    onSave({ title: tv.trim(), url: next })
+  }
+  const field =
+    'h-8 min-w-0 flex-1 rounded-md border border-border bg-surface px-2 text-sm outline-none focus:border-selected-border'
+  return (
+    <NodeViewWrapper
+      as="div"
+      className="xz-link-card-edit"
+      data-stop-pm
+      contentEditable={false}
+      data-testid="link-card-form"
+    >
+      <span className="font-medium text-xs">{t('editor.linkCard.editTitle')}</span>
+      <form
+        className="flex flex-col gap-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          save()
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            e.preventDefault()
+            onCancel()
+          }
+        }}
+      >
+        <label className="flex items-center gap-2 text-xs">
+          <span className="w-14 shrink-0 text-fg-muted">{t('editor.linkCard.text')}</span>
+          <input
+            ref={ref}
+            value={tv}
+            onChange={(e) => setTv(e.target.value)}
+            maxLength={200}
+            placeholder={t('editor.linkCard.textAuto')}
+            className={field}
+            data-testid="link-card-title-input"
+          />
+        </label>
+        <label className="flex items-center gap-2 text-xs">
+          <span className="w-14 shrink-0 text-fg-muted">{t('editor.linkCard.href')}</span>
+          <input
+            value={uv}
+            onChange={(e) => setUv(e.target.value)}
+            className={field}
+            data-testid="link-card-url-input"
+          />
+        </label>
+        <div className="flex justify-end gap-1">
+          <button type="button" className="xz-link-card-mode" onClick={onCancel}>
+            {t('ui.action.cancel')}
+          </button>
+          <button type="submit" className="xz-link-card-mode" data-testid="link-card-save">
+            {t('ui.action.save')}
+          </button>
+        </div>
+      </form>
     </NodeViewWrapper>
   )
 }

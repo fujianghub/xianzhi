@@ -15,18 +15,21 @@ const SHOW_MS = 400
 const HIDE_MS = 150
 const W = 320
 
-export function LinkHoverCard({ editor }: { editor: Editor }) {
+/** 挂在只读编辑器（`editor`）或任意只读容器（`root`，如 PmView）上（ADR-0055 起任务描述 / 评论也用） */
+export function LinkHoverCard({ editor, root }: { editor?: Editor; root?: HTMLElement | null }) {
   const [hit, setHit] = useState<{ url: string; rect: DOMRect } | null>(null)
   const showT = useRef<number | undefined>(undefined)
   const hideT = useRef<number | undefined>(undefined)
   useEffect(() => {
     if (window.matchMedia?.('(hover: none)').matches) return
-    let dom: HTMLElement
-    try {
-      dom = editor.view.dom
-    } catch {
-      return
-    }
+    let dom: HTMLElement | null = root ?? null
+    if (!dom && editor)
+      try {
+        dom = editor.view.dom
+      } catch {
+        dom = null
+      }
+    if (!dom) return
     const over = (e: MouseEvent) => {
       const a = (e.target as HTMLElement | null)?.closest?.('a[href]') as HTMLAnchorElement | null
       if (!a || a.closest('.xz-link-card-wrap')) return
@@ -53,7 +56,7 @@ export function LinkHoverCard({ editor }: { editor: Editor }) {
       window.clearTimeout(showT.current)
       window.clearTimeout(hideT.current)
     }
-  }, [editor])
+  }, [editor, root])
   if (!hit) return null
   const left = Math.max(8, Math.min(hit.rect.left, window.innerWidth - W - 8))
   const below = hit.rect.bottom + 6

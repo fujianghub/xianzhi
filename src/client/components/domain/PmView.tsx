@@ -1,7 +1,8 @@
-/** 只读渲染 liteKit 子集的 PM JSON（评论正文等）：直接生成 React 节点，不经 innerHTML；链接走白名单。 */
-import type { ReactNode } from 'react'
+/** 只读渲染 liteKit 子集的 PM JSON（评论正文等）：直接生成 React 节点，不经 innerHTML；链接走白名单，外链悬停预览（ADR-0055）。 */
+import { type ReactNode, useState } from 'react'
 import { isAllowedLink } from '../../../shared/editor/links.ts'
 import type { PmNode } from '../../../shared/schemas/pm.ts'
+import { LinkHoverCard } from '../../editor/LinkHoverCard.tsx'
 
 function marks(text: ReactNode, ms: PmNode['marks'], key: string): ReactNode {
   let out = text
@@ -78,6 +79,13 @@ function node(n: PmNode, key: string): ReactNode {
 }
 
 export function PmView({ doc, className }: { doc: unknown; className?: string }) {
+  // 外链悬停预览（ADR-0055）：Peek 里的任务描述、评论正文同记录正文
+  const [root, setRoot] = useState<HTMLDivElement | null>(null)
   if (!doc || typeof doc !== 'object') return null
-  return <div className={className}>{node(doc as PmNode, 'r')}</div>
+  return (
+    <div ref={setRoot} className={className}>
+      {node(doc as PmNode, 'r')}
+      <LinkHoverCard root={root} />
+    </div>
+  )
 }

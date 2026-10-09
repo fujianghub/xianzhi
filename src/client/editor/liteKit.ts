@@ -11,6 +11,8 @@ import { Mention } from '@tiptap/extension-mention'
 import { Placeholder } from '@tiptap/extension-placeholder'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { StarterKit } from '@tiptap/starter-kit'
+import { isAllowedLink } from '../../shared/editor/links.ts'
+import { handleUrlPaste } from './link-paste.ts'
 import { AttachmentImage, Callout, EntryLink } from './nodes.ts'
 import { UploadPlaceholder } from './upload.ts'
 
@@ -46,6 +48,25 @@ function liteFiles(onFiles: (files: File[], at: number) => void) {
   })
 }
 
+/** 粘贴单个网址（ADR-0055，同记录正文 ADR-0054 §D）：链接 + 异步换成网页标题；本站记录链接转记录引用 */
+const liteUrlPaste = Extension.create({
+  name: 'xzLiteUrlPaste',
+  addProseMirrorPlugins() {
+    const editor = this.editor
+    return [
+      new Plugin({
+        key: new PluginKey('xzLiteUrlPaste'),
+        props: {
+          handlePaste(view, event) {
+            if (event.clipboardData?.files.length) return false
+            return handleUrlPaste(editor, view, event.clipboardData?.getData('text/plain') ?? '')
+          },
+        },
+      }),
+    ]
+  },
+})
+
 export type LiteVariant = 'description' | 'comment'
 
 export function liteKit(opts: {
@@ -62,7 +83,14 @@ export function liteKit(opts: {
       horizontalRule: false,
       heading: comment ? false : { levels: [2, 3] },
       undoRedo: {},
-      link: { openOnClick: false, autolink: true },
+      // 与记录正文同一套协议白名单（ADR-0055）
+      link: {
+        openOnClick: false,
+        autolink: true,
+        defaultProtocol: 'https',
+        isAllowedUri: (url) => isAllowedLink(url),
+        shouldAutoLink: (url) => isAllowedLink(url),
+      },
     }),
     TaskList,
     TaskItem.configure({ nested: true }),
@@ -72,6 +100,7 @@ export function liteKit(opts: {
       ...opts.mention,
     }),
     EntryLink,
+    liteUrlPaste,
   ]
   if (!comment) exts.push(AttachmentImage, Callout)
   if (!comment && opts.onFiles) exts.push(UploadPlaceholder, liteFiles(opts.onFiles))

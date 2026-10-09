@@ -8,6 +8,8 @@ import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MAX_JSON_BYTES } from '../../shared/schemas/pm.ts'
 import { cn } from '../lib/cn.ts'
+import { LinkBubble } from './LinkBubble.tsx'
+import { LinkHoverCard } from './LinkHoverCard.tsx'
 import { type LiteVariant, liteKit } from './liteKit.ts'
 import { type MentionCandidate, mentionSuggestion } from './mention.tsx'
 import { pickFiles, uploadFiles } from './upload.ts'
@@ -125,10 +127,25 @@ export default function LiteEditor({
   }, [editor, value])
   edRef.current = editor
   useEffect(() => editor?.setEditable(editable), [editor, editable])
-  if (!uploadTaskId || !editable) return <EditorContent editor={editor} />
+  // 网页链接（ADR-0055）：可编辑 = 链接气泡（显示为 / 打开 / 复制 / 编辑文字与地址 / 移除）；只读 = 悬停预览
+  const links = editor ? (
+    editable ? (
+      <LinkBubble editor={editor} />
+    ) : (
+      <LinkHoverCard editor={editor} />
+    )
+  ) : null
+  if (!uploadTaskId || !editable)
+    return (
+      <>
+        <EditorContent editor={editor} />
+        {links}
+      </>
+    )
   return (
     <div className="flex flex-col gap-1">
       <EditorContent editor={editor} />
+      {links}
       <button
         type="button"
         className="inline-flex items-center gap-1 self-start rounded-md px-1.5 py-1 text-fg-muted text-xs hover:bg-hover hover:text-fg"
