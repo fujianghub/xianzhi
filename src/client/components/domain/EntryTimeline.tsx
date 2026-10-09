@@ -5,6 +5,7 @@
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn.ts'
+import { openInDock } from '../../lib/entry-dock.ts'
 import type { Entry, EntryKind } from '../../lib/entry-queries.ts'
 import { ENTRY_KIND_TONE, KindGlyph, toneClass } from './KindIcon.tsx'
 
@@ -56,6 +57,7 @@ export function EntryTimeline({ items }: { items: Entry[] }) {
                 <Link
                   to="/entries/$entryId"
                   params={{ entryId: e.id }}
+                  onClick={(ev) => openInDock(ev, e.id)}
                   className="paper xz-lift flex flex-col gap-1 rounded-lg p-3"
                 >
                   <span className="flex flex-wrap items-center gap-2 text-xs">

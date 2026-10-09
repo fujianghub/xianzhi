@@ -1,11 +1,22 @@
 /**
  * 记录行菜单（ADR-0035 §A、REQ-KB-013）：目录树节点 / 表格行悬停出 ⋯，行上右键同样打开；全部就地完成、不跳页：
- * 改名（Enter / 失焦保存，Esc 放弃）· 新建子页 · 置顶 / 取消 · 归档 / 取消归档 · 删除（确认 + Toast 撤销）。
+ * 改名（Enter / 失焦保存，Esc 放弃）· 新建子页 · 置顶 / 取消 · 归档 / 取消归档 · 删除（确认 + Toast 撤销）；
+ * ADR-0054 §C：创建副本 · 复制到… · 移动到…（对话框）。
  * 目录节点只有 id / 标题：打开菜单时才取整条记录（`ifUpdatedAt`、置顶 / 归档态），表格行直接传 `entry`。
  * 写操作按乐观权限显示（调用方按空间角色给 `canWrite`），最终由服务端 `can()` 判定。
  */
 import { useQuery } from '@tanstack/react-query'
-import { Archive, ArchiveRestore, FilePlus2, MoreHorizontal, Pin, Trash2 } from 'lucide-react'
+import {
+  Archive,
+  ArchiveRestore,
+  Copy,
+  CopyPlus,
+  FilePlus2,
+  FolderInput,
+  MoreHorizontal,
+  Pin,
+  Trash2,
+} from 'lucide-react'
 import { type ReactNode, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -17,6 +28,7 @@ import { ContextAnchor, type Point } from '../ui/context-anchor.tsx'
 import { Input } from '../ui/input.tsx'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.tsx'
 import { EntryDeleteConfirm } from './EntryMenu.tsx'
+import { EntryPlaceDialog, useQuickDuplicate } from './EntryPlaceDialog.tsx'
 
 export function EntryRowMenu({
   entryId,
@@ -46,7 +58,9 @@ export function EntryRowMenu({
   const [open, setOpen] = useState(false)
   const [name, setName] = useState(title)
   const [confirm, setConfirm] = useState(false)
-  const q = useQuery({ ...entryQuery(entryId), enabled: open && !given })
+  const [place, setPlace] = useState<'move' | 'copy' | null>(null)
+  const duplicate = useQuickDuplicate()
+  const q = useQuery({ ...entryQuery(entryId), enabled: (open || !!place) && !given })
   const entry = given ?? q.data
   useEffect(() => {
     if (contextPoint) setOpen(true)
@@ -170,6 +184,20 @@ export function EntryRowMenu({
                   .catch(fail),
               ),
             )}
+            {item(
+              'duplicate',
+              <CopyPlus className="size-4" />,
+              t('entry.menu.duplicate'),
+              run((e) => duplicate(e)),
+            )}
+            {item('copy-to', <Copy className="size-4" />, t('entry.menu.copyTo'), () => {
+              setMenu(false)
+              setPlace('copy')
+            })}
+            {item('move-to', <FolderInput className="size-4" />, t('entry.menu.moveTo'), () => {
+              setMenu(false)
+              setPlace('move')
+            })}
             <div className="mt-1 border-divider border-t pt-1">
               {item(
                 'delete',
@@ -191,6 +219,14 @@ export function EntryRowMenu({
         onOpenChange={setConfirm}
         onDeleted={onDeleted}
       />
+      {place && entry ? (
+        <EntryPlaceDialog
+          entry={entry}
+          mode={place}
+          open
+          onOpenChange={(v) => !v && setPlace(null)}
+        />
+      ) : null}
     </>
   )
 }

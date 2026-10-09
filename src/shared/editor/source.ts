@@ -13,6 +13,7 @@ import { pmToMarkdown } from './serializers/markdown.ts'
 export const SOURCE_KEEP_TYPES = new Set([
   'attachment',
   'entryCard',
+  'linkCard',
   'entryQuery',
   'toc',
   'details',

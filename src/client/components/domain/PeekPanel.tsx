@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next'
 import type { PmNode } from '../../../shared/schemas/pm.ts'
 import { api, unwrap } from '../../lib/api.ts'
 import { cn } from '../../lib/cn.ts'
+import { openEntryDetail } from '../../lib/entry-dock.ts'
 import { useKindLabel } from '../../lib/entry-types.ts'
 import { type PeekTarget, usePeek } from '../../lib/stores.ts'
 import { dueTone } from '../../lib/task-groups.ts'
@@ -72,7 +73,8 @@ export default function PeekPanel() {
         to: '/spaces/$spaceSlug/tasks/$taskId',
         params: { spaceSlug: p.spaceSlug, taskId: p.id },
       })
-    else void nav({ to: '/entries/$entryId', params: { entryId: p.id } })
+    else if (!openEntryDetail(p.id))
+      void nav({ to: '/entries/$entryId', params: { entryId: p.id } })
   }
   // Enter 升级：捕获阶段先于列表自身的 Enter（悬停打开时焦点行可能不是被预览的对象）
   useEffect(() => {

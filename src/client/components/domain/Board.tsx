@@ -412,7 +412,7 @@ export function Board({
           testId="board-empty"
         />
       ) : null}
-      <div className="flex gap-3 overflow-x-auto pb-4" data-testid="board">
+      <div className="relative flex gap-3 overflow-x-auto pb-4" data-testid="board">
         {TASK_STATUSES.map((s, i) => {
           const q = cols[i]
           return (

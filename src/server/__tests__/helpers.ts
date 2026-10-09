@@ -16,6 +16,7 @@ import { setMailSender } from '../mail/index.ts'
 import { LoginGuard } from '../middleware/login-guard.ts'
 import { FixedWindowLimiter } from '../middleware/rate-limit.ts'
 import type { CaptchaOptions } from '../services/captcha.ts'
+import type { FetchDeps } from '../services/link-preview.ts'
 import { createOwner } from '../services/workspace.ts'
 
 export const ORIGIN = 'http://localhost:3010'
@@ -57,6 +58,7 @@ export function buildApp(
     captcha?: CaptchaOptions
     nodeEnv?: 'test' | 'production'
     registerLimit?: number
+    linkFetch?: FetchDeps
   } = {},
 ) {
   ipSeq++
@@ -79,6 +81,7 @@ export function buildApp(
     bus: opts.bus,
     sseHub: opts.sseHub,
     jobQueue: opts.jobQueue,
+    linkFetch: opts.linkFetch,
   })
   return { app, logs: lines, guard }
 }

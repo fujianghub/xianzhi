@@ -92,6 +92,10 @@
 | 提醒 | Alarm / `alarms` · 事件 `calendar.reminder` | `calendar_events.alarms` | 提醒 | `calendar.alarm.*` | 开始前 N 分钟通知（全天事件相对当天 00:00） | 01 §4 · ADR-0009 |
 | 休 / 班 | Holiday off / make-up workday | 无（`chinese-days`） | 休 · 班 | `calendar.off` · `calendar.work` | 法定节假日放假日 / 调休上班日角标 | ADR-0009 §3 |
 | 速览栏 | Glance rail / `GlanceRail` · `WithRail` | 组件 | — | `glance.*` | 宽屏列表页右侧：今天 · 今日日程 · 小月历 · 7 天内到期 | 00 REQ-UI-034 |
+| 详情坞 | Detail dock / `DetailDock` | 组件 | — | `dock.*` | ≥ lg 时任务 / 记录详情在主区右侧常驻展开的栏，主区让位、可拖宽（2026-10-09 ADR-0054 §B） | ADR-0054 |
+| 网页卡片 | Link card / `linkCard` | PM 节点 | 网页卡片 | `editor.linkCard.*` · `editor.slash.linkCard` | 外链的块级卡片：站点图标 + 站点名 · 标题 · 描述 · 网址（ADR-0054 §D） | ADR-0054 |
+| 链接气泡 | Link bubble / `LinkBubble` | 组件 | 显示为 链接 / 标题 / 卡片 | `editor.linkCard.showAs` | 光标落在链接上时的浮动条：切换显示形式、打开、复制、编辑、移除（ADR-0054 §D） | ADR-0054 |
+| 副本 | Duplicate / `duplicateEntry` | — | 创建副本 · 复制到… | `entry.menu.duplicate` · `entry.place.*` | 复制一条记录（正文 / 属性 / 本人标签，附件另存一份；不带评论 / 版本 / 关联）（ADR-0054 §C） | ADR-0054 |
 | Peek 预览 | Peek / `PeekPanel` | 组件 | 预览 | `ui.peek` | 悬停 600ms 或焦点行按 `p` 打开的只读侧栏（非 modal） | 04 §6 |
 | 命令面板 | Command palette / `cmdk` | 组件 | 命令 | `ui.command` | ⌘K；上下文命令优先 | 04 §6 |
 | 状态胶囊 | StatusPill | 组件 | — | `ui.statusPill` | Topbar 常驻，Toast 从此形变 | 04 §5 |

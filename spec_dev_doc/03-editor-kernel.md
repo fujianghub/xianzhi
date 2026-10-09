@@ -266,7 +266,7 @@
 | 图片文件 / 剪贴板位图 | §11.4 上传流程，光标处插入占位 |
 | 非图片文件 | 上传为 `attachment` 节点 |
 | 单个 URL，有选区 | 选区加 `link` |
-| 单个 URL，空行 | `xz://entry/<id>` 或简斋域名 → `entryLink`（`mode: title`）；其他 URL → 纯 `link` 段落（不抓取网页元数据，SSRF 面见 07） |
+| 单个 URL，空行 | `xz://entry/<id>` 或简斋域名 → `entryLink`（`mode: title`）；其他 URL → 纯 `link` 段落（不抓取网页元数据，SSRF 面见 07）（注 2026-10-09 ADR-0054 §D：空选区粘贴外链 = 先成链接、随后换成网页标题；同源 `/entries/<id>` → `entryLink`；另有链接气泡与网页卡片 `linkCard`，见 REQ-LINK-008） |
 | 来自本编辑器的复制 | 走 ProseMirror 原生 slice，节点属性完整保留 |
 
 > 注 2026-09-24（T1-016 实现口径）：

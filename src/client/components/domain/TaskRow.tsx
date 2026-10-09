@@ -334,6 +334,18 @@ export const TaskRow = memo(function TaskRow({
         <ListDot list={task.list} />
         {task.list.name}
       </button>
+    ) : showList && inline && showActs ? (
+      // 无清单时悬停露出「+ 清单」（与「+ 日期」同一套幽灵按钮；只读成员也能归类）
+      <button
+        type="button"
+        className={cn('xz-row-ghost', ui?.kind === 'list' && 'xz-row-ghost-on')}
+        onClick={() => setUi({ kind: 'list' })}
+        aria-label={t('taskRow.addList')}
+        data-testid="task-list-add"
+      >
+        <Plus className="size-3" aria-hidden />
+        {t('taskRow.list')}
+      </button>
     ) : null
 
   const tagsBtn = task.tags.length ? (
@@ -357,9 +369,17 @@ export const TaskRow = memo(function TaskRow({
         </span>
       ))}
     </button>
-  ) : canWrite && ui?.kind === 'tags' ? (
-    <button type="button" className="xz-row-ghost xz-row-ghost-on">
-      {t('task.tags')}
+  ) : canWrite && showActs ? (
+    // 无标签时悬停露出「+ 标签」
+    <button
+      type="button"
+      className={cn('xz-row-ghost', ui?.kind === 'tags' && 'xz-row-ghost-on')}
+      onClick={() => setUi({ kind: 'tags' })}
+      aria-label={t('taskRow.addTags')}
+      data-testid="task-tags-add"
+    >
+      <Plus className="size-3" aria-hidden />
+      {t('taskRow.tags')}
     </button>
   ) : null
 
@@ -456,7 +476,8 @@ export const TaskRow = memo(function TaskRow({
           data-testid="task-check"
         />
       </Cell>
-      <Cell asRow={asRow} className="flex min-w-0 flex-1 items-center gap-2">
+      {/* 标题至少留 4rem：行窄 + 悬停露出幽灵按钮时不被挤没 */}
+      <Cell asRow={asRow} className="flex min-w-16 flex-1 items-center gap-2">
         {editing ? (
           <input
             ref={(el) => {
@@ -543,7 +564,7 @@ export const TaskRow = memo(function TaskRow({
               trigger={
                 listBtn ?? (
                   <button type="button" className="xz-row-ghost xz-row-ghost-on">
-                    {t('taskLists.list')}
+                    {t('taskRow.list')}
                   </button>
                 )
               }

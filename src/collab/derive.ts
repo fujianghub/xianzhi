@@ -64,6 +64,12 @@ export function fullPlain(doc: PmNode): string {
       case 'entryLink':
         out.push(String((n.attrs as { title?: unknown } | undefined)?.title ?? ''))
         break
+      case 'linkCard': {
+        // 网页卡片（ADR-0054 §D）：标题 + 网址参与检索
+        const a = (n.attrs ?? {}) as { title?: unknown; url?: unknown }
+        out.push(`[链接：${String(a.title || a.url || '')}] ${String(a.url ?? '')}\n`)
+        break
+      }
       case 'entryQuery':
         // 查询块：只有标题参与检索（ADR-0033）
         out.push(`${String((n.attrs as { title?: unknown } | undefined)?.title ?? '')}\n`)

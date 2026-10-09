@@ -36,6 +36,7 @@ import {
 } from '../../../shared/entry-search.ts'
 import { useDelayedFlag } from '../../hooks/useDelayedFlag.ts'
 import { useMe } from '../../hooks/useMe.ts'
+import { useMediaQuery } from '../../hooks/useMediaQuery.ts'
 import { useNewEntryContext } from '../../hooks/useNewEntryContext.ts'
 import { cn } from '../../lib/cn.ts'
 import {
@@ -133,6 +134,8 @@ export function EntriesPage({
   const kindSpecs = kind ? specsOf(kind, typeId) : []
   const statusSpec = kindSpecs.find((f) => f.name === 'status' && f.kind === 'select')
   const statuses = boardStatuses(statusSpec)
+  // 手机宽度（< 40rem）未指定视图时默认卡片：表格要横向滚动才看得全（ADR-0054 §E）
+  const narrow = useMediaQuery('(max-width: 39.99rem)')
   const view =
     search.view === 'board' && statuses
       ? 'board'
@@ -140,7 +143,7 @@ export function EntriesPage({
         ? 'timeline'
         : search.view === 'stats' && kind === 'bug' && statusSpec
           ? 'stats'
-          : search.view === 'cards'
+          : search.view === 'cards' || (narrow && !search.view)
             ? 'cards'
             : 'table'
   const effSpaceId = spaceId ?? search.spaceId
@@ -285,7 +288,10 @@ export function EntriesPage({
       aria-pressed={view === key}
       aria-label={label}
       title={label}
-      onClick={() => setSearch({ view: key === 'table' ? undefined : key })}
+      onClick={() =>
+        // 手机上默认是卡片，选表格须显式写进 URL
+        setSearch({ view: key === 'table' ? (narrow ? 'table' : undefined) : key })
+      }
       className={cn(
         'grid h-7 w-8 place-items-center rounded-full',
         view === key ? 'bg-selected' : 'text-fg-muted',
@@ -396,7 +402,7 @@ export function EntriesPage({
             </div>
           </div>
           <div className="mb-5 flex flex-wrap items-center gap-2">
-            <fieldset className="flex gap-1.5 overflow-x-auto">
+            <fieldset className="relative flex min-w-0 gap-1.5 overflow-x-auto">
               <legend className="sr-only">{t('entry.props.kind')}</legend>
               <button
                 type="button"

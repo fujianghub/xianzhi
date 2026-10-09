@@ -178,8 +178,8 @@ function TasksPage() {
   const setDefaults = useNewTask((s) => s.setDefaults)
   const [collapsed, toggle] = useCollapsed()
   const [adding, setAdding] = useState<string | null>(null)
-  // ADR-0053：≥ 1280 常驻详情栏；< 1440 时详情一开就收起清单栏（侧栏 240 + 清单栏 240 + 详情 416 会把列表挤到 ~380px）
-  const wide = useMediaQuery('(min-width: 80rem)')
+  // 详情坞（≥ lg）开着且 < 1440 时收起清单栏，换页头胶囊条（ADR-0053 §C → ADR-0054 §B 放宽到 lg）
+  const wide = useMediaQuery('(min-width: 64rem)')
   const roomy = useMediaQuery('(min-width: 90rem)')
   const railHidden = !!search.task && wide && !roomy
   const scope = scopeOf(search)
@@ -325,7 +325,8 @@ function TasksPage() {
           </aside>
 
           <div className="min-w-0 flex-1 overflow-y-auto px-4 py-5 lg:px-8">
-            <div className="flex max-w-5xl flex-col">
+            {/* 宽屏 / 带鱼屏：列表居中、≥ 1920 放宽到 6xl，不再贴左留大片空白（ADR-0054 §E） */}
+            <div className="mx-auto flex w-full max-w-5xl flex-col min-[120rem]:max-w-6xl">
               <MobileScopes scope={scope} onPick={pick} force={railHidden} />
               <header className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
                 <h1 className="flex min-w-0 items-center gap-2 font-display font-semibold text-2xl">
@@ -461,18 +462,14 @@ function TasksPage() {
             </div>
           </div>
 
+          {/* 详情：≥ lg 为右侧详情坞（ADR-0054 §B），更窄为抽屉 */}
           {search.task ? (
-            wide ? (
-              <TaskDetailSheet
-                key={search.task}
-                taskId={search.task}
-                variant="panel"
-                onClose={close}
-                onOpenTask={open}
-              />
-            ) : (
-              <TaskDetailSheet taskId={search.task} onClose={close} onOpenTask={open} />
-            )
+            <TaskDetailSheet
+              key={search.task}
+              taskId={search.task}
+              onClose={close}
+              onOpenTask={open}
+            />
           ) : null}
           <NewTaskFab />
         </section>
@@ -677,7 +674,10 @@ function MobileScopes({
   )
   return (
     <div
-      className={cn('-mx-4 mb-3 flex gap-1.5 overflow-x-auto px-4 pb-1', !force && 'lg:hidden')}
+      className={cn(
+        'relative -mx-4 mb-3 flex gap-1.5 overflow-x-auto px-4 pb-1',
+        !force && 'lg:hidden',
+      )}
       data-testid="tasks-scopes"
     >
       {SMART_VIEWS.map((v) =>

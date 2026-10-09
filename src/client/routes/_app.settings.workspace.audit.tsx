@@ -100,7 +100,7 @@ function Audit() {
         <EmptyState illustration="inbox" title={t('settings.audit.empty')} />
       ) : (
         <>
-          <div className="paper overflow-x-auto rounded-lg">
+          <div className="paper relative overflow-x-auto rounded-lg">
             <table className="w-full text-sm" data-testid="audit-table">
               <thead className="text-fg-muted text-xs">
                 <tr className="border-divider border-b">

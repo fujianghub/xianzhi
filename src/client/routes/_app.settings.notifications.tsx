@@ -74,7 +74,7 @@ function NotificationPrefs() {
       {q.isPending ? (
         <Skeleton className="h-64 w-full" />
       ) : (
-        <div className="paper overflow-x-auto rounded-lg">
+        <div className="paper relative overflow-x-auto rounded-lg">
           <table className="w-full text-sm">
             <thead className="text-fg-muted text-xs">
               <tr className="border-divider border-b">

@@ -17,7 +17,7 @@ export type CommitResult =
   | { ok: true; entry: Entry }
   | { ok: false; errors: Record<string, string> }
 
-export function useFieldCommit() {
+function useEntryCommit() {
   const qc = useQueryClient()
   const { t } = useTranslation()
   const chain = useRef<Promise<unknown>>(Promise.resolve())
@@ -53,29 +53,41 @@ export function useFieldCommit() {
     [qc],
   )
 
-  return useCallback(
-    (entry: Entry, name: string, value: unknown): Promise<CommitResult> => {
-      const run = async (): Promise<CommitResult> => {
+  /** 串行提交一次 PATCH：`build` 由最新缓存行算出请求体与乐观值 */
+  const run = useCallback(
+    (
+      entry: Entry,
+      build: (cur: Entry) => { json: Record<string, unknown>; apply: (e: Entry) => Entry },
+    ): Promise<CommitResult> => {
+      const go = async (): Promise<CommitResult> => {
         const cur = latest(entry)
-        const fields = { ...cur.fields }
-        if (value === undefined) delete fields[name]
-        else fields[name] = value
+        const { json, apply } = build(cur)
         const before = cur
-        putRow(entry.id, (e) => ({ ...e, fields }))
+        putRow(entry.id, apply)
         try {
           const r = await unwrap<Entry>(
             api.entries[':id'].$patch({
               param: { id: entry.id },
-              json: { fields, ifUpdatedAt: cur.updatedAt } as never,
+              json: { ...json, ifUpdatedAt: cur.updatedAt } as never,
             }),
           )
-          putRow(entry.id, (e) => ({ ...e, fields: r.fields, updatedAt: r.updatedAt }))
+          putRow(entry.id, (e) => ({
+            ...e,
+            fields: r.fields,
+            tagIds: r.tagIds ?? e.tagIds,
+            updatedAt: r.updatedAt,
+          }))
           qc.setQueryData(['entry', r.id], (d: Entry | undefined) => (d ? { ...d, ...r } : d))
           void qc.invalidateQueries({ queryKey: ['entry', r.id, 'changes'] })
           void qc.invalidateQueries({ queryKey: ['entries'] })
           return { ok: true, entry: r }
         } catch (err) {
-          putRow(entry.id, (e) => ({ ...e, fields: before.fields, updatedAt: before.updatedAt }))
+          putRow(entry.id, (e) => ({
+            ...e,
+            fields: before.fields,
+            tagIds: before.tagIds,
+            updatedAt: before.updatedAt,
+          }))
           if (err instanceof ApiError && err.status === 409) {
             toast.error(t('task.conflict'))
             void qc.invalidateQueries({ queryKey: ['entry', entry.id] })
@@ -93,10 +105,37 @@ export function useFieldCommit() {
           return { ok: false, errors: {} }
         }
       }
-      const p = chain.current.then(run, run)
+      const p = chain.current.then(go, go)
       chain.current = p
       return p
     },
     [qc, t, putRow, latest],
+  )
+
+  return run
+}
+
+/** 改一个字段（属性面板 / 表格单元格） */
+export function useFieldCommit() {
+  const run = useEntryCommit()
+  return useCallback(
+    (entry: Entry, name: string, value: unknown): Promise<CommitResult> =>
+      run(entry, (cur) => {
+        const fields = { ...cur.fields }
+        if (value === undefined) delete fields[name]
+        else fields[name] = value
+        return { json: { fields }, apply: (e) => ({ ...e, fields }) }
+      }),
+    [run],
+  )
+}
+
+/** 整组替换标签（表格标签列就地改，ADR-0054 §A） */
+export function useTagsCommit() {
+  const run = useEntryCommit()
+  return useCallback(
+    (entry: Entry, tagIds: string[]): Promise<CommitResult> =>
+      run(entry, () => ({ json: { tagIds }, apply: (e) => ({ ...e, tagIds }) })),
+    [run],
   )
 }

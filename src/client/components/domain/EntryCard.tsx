@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 import { useHoverIntent } from '../../hooks/useHoverIntent.ts'
 import { markSharedSource } from '../../hooks/useSharedElement.ts'
 import { cn } from '../../lib/cn.ts'
+import { openInDock } from '../../lib/entry-dock.ts'
 import type { Entry } from '../../lib/entry-queries.ts'
 import { usePeek } from '../../lib/stores.ts'
 import { RelativeTime } from '../ui/relative-time.tsx'
@@ -88,7 +89,9 @@ function CardLink({ entry, showSpace }: { entry: Entry; showSpace?: boolean }) {
       data-entry-id={entry.id}
       data-pinned={entry.pinned ? 'true' : undefined}
       {...hover}
-      onClick={(e) => markSharedSource(e.currentTarget)}
+      onClick={(e) => {
+        if (!openInDock(e, entry.id)) markSharedSource(e.currentTarget)
+      }}
       onKeyDown={(e) => {
         if (e.key === 'p') {
           e.preventDefault()

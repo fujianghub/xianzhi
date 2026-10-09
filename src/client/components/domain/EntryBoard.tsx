@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useEntryActions } from '../../hooks/useEntries.ts'
 import { cn } from '../../lib/cn.ts'
+import { openInDock } from '../../lib/entry-dock.ts'
 import type { Entry } from '../../lib/entry-queries.ts'
 import { KeyFieldPills } from './EntryCard.tsx'
 import { type FieldSpec, StatusPill, useFieldSpecs } from './FieldValue.tsx'
@@ -87,7 +88,7 @@ export function EntryBoard({
   return (
     <DndContext sensors={sensors} onDragEnd={onDragEnd}>
       <div
-        className="grid auto-cols-[minmax(15rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-2"
+        className="relative grid auto-cols-[minmax(15rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-2"
         data-testid="entry-board"
       >
         {cols.map((s) => (
@@ -167,6 +168,7 @@ function BoardCard({ entry, draggable }: { entry: Entry; draggable: boolean }) {
         <Link
           to="/entries/$entryId"
           params={{ entryId: entry.id }}
+          onClick={(e) => openInDock(e, entry.id)}
           className="line-clamp-2 min-h-6 flex-1 font-medium hover:text-primary-text"
         >
           {title}

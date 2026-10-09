@@ -139,6 +139,23 @@ export const moveEntrySchema = z.union([
   z.object({ parentId: uuidSchema.nullable(), after: uuidSchema.nullable() }),
   z.object({ detach: z.literal(true) }),
 ])
+/**
+ * POST /entries/:id/duplicate（ADR-0054 §C、REQ-ENTRY-038）：复制一条记录。
+ * spaceId 缺省 = 源所在空间；位置：带 parentId（null = 目录顶层）放进目录末尾，`detach` = 不放进目录，
+ * 都不给 = 同空间且源在目录里时紧跟在源之后（同一父页），否则不放进目录。title 缺省 = 「源标题 副本」。
+ */
+export const duplicateEntrySchema = z
+  .object({
+    spaceId: uuidSchema.optional(),
+    parentId: uuidSchema.nullable().optional(),
+    detach: z.literal(true).optional(),
+    title: z.string().trim().min(1).max(200).optional(),
+  })
+  .strict()
+  .refine((v) => !(v.detach && v.parentId !== undefined), {
+    message: 'detach 与 parentId 不能同时给',
+    path: ['detach'],
+  })
 export const createSnapshotSchema = z.object({ label: z.string().trim().min(1).max(80) })
 /** 给版本打标记 / 改标记 / 清除（ADR-0026、REQ-COLLAB-018）：null = 清除（自动快照清除后回到保留策略）。 */
 export const patchSnapshotSchema = z

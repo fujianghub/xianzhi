@@ -14,6 +14,7 @@ import i18n from 'i18next'
 import { toast } from 'sonner'
 import { collectHeadings } from '../../shared/editor/headings.ts'
 import { UNKNOWN_BLOCK } from '../../shared/editor/unknown.ts'
+import { handleUrlPaste } from './link-paste.ts'
 import { CALLOUT_KINDS } from './nodes.ts'
 import {
   externalImages,
@@ -272,6 +273,8 @@ export function createPastePlugin(opts: { onFiles: (files: File[], at: number) =
               if (view.state.selection.$from.parent.type.spec.code) return false
               if ((view as unknown as { input?: { shiftKey?: boolean } }).input?.shiftKey)
                 return false
+              // 单个网址（ADR-0054 §D）：链接 + 异步换成网页标题 / 本站记录链接转记录引用
+              if (handleUrlPaste(editor, view, text)) return true
               // 语雀式识别：无 HTML，或 HTML 只是纯文本包装（VS Code 等），且文本像 Markdown
               if ((!html || htmlIsPlainWrapper(html)) && looksLikeMarkdown(text)) {
                 editor.commands.insertContent(markdownToHtml(text), {

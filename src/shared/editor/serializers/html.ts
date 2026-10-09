@@ -96,6 +96,13 @@ function node(n: PmNode, o: HtmlOptions): string {
       return `<pre><code>${esc(String(n.attrs?.code ?? ''))}</code></pre>`
     case 'mathBlock':
       return `<pre><code>${esc(String(n.attrs?.latex ?? ''))}</code></pre>`
+    case 'linkCard': {
+      // 网页卡片（ADR-0054 §D）：标题链接 + 描述
+      const url = String(n.attrs?.url ?? '')
+      if (!url) return ''
+      const desc = String(n.attrs?.description ?? '')
+      return `<p class="link-card"><a href="${esc(safeHref(url))}">${esc(String(n.attrs?.title || url))}</a>${desc ? `<br><small>${esc(desc)}</small>` : ''}</p>`
+    }
     case 'entryQuery':
       return `<blockquote><a href="${esc(entryQueryHref(n))}">${esc(`查询：${String(n.attrs?.title || '记录')}`)}</a></blockquote>`
     case 'callout':

@@ -33,6 +33,7 @@ import { entryTypeRoutes } from './routes/entry-types.ts'
 import { entryViewRoutes } from './routes/entry-views.ts'
 import { entryExportRoutes, exportRoutes } from './routes/exports.ts'
 import { healthRoutes } from './routes/health.ts'
+import { linkPreviewRoutes } from './routes/link-preview.ts'
 import { linkRoutes } from './routes/links.ts'
 import { meRoutes } from './routes/me.ts'
 import { notificationRoutes } from './routes/notifications.ts'
@@ -46,6 +47,7 @@ import { taskRoutes } from './routes/tasks.ts'
 import { templateRoutes } from './routes/templates.ts'
 import { workspaceRoutes } from './routes/workspace.ts'
 import { type CaptchaOptions, createCaptcha } from './services/captcha.ts'
+import type { FetchDeps } from './services/link-preview.ts'
 import { spaceReaders } from './services/realtime.ts'
 import type { AppEnv } from './types.ts'
 
@@ -72,6 +74,8 @@ export interface AppDeps {
   captcha?: CaptchaOptions
   /** 生产托管的前端构建目录（dist/client）；dev 下由 Vite 提供 */
   staticDir?: string
+  /** 链接预览抓取的地址校验 / 解析（ADR-0054 §D）；测试注入以连本机测试服务器 */
+  linkFetch?: FetchDeps
 }
 
 export const VERSION: string = (() => {
@@ -208,7 +212,7 @@ export function createApp(deps: AppDeps) {
     .route('/api/v1', v1)
     .route('/api/v1/workspace', workspace)
     .route('/api/v1/me', meRoutes({ db: deps.db, auth: deps.auth }))
-    .route('/api/v1/entries', entryRoutes({ db: deps.db }))
+    .route('/api/v1/entries', entryRoutes({ db: deps.db, dataDir: deps.dataDir }))
     .route('/api/v1/spaces', spaceRoutes({ db: deps.db, dataDir: deps.dataDir }))
     .route('/api/v1/tasks', taskRoutes({ db: deps.db, dataDir: deps.dataDir }))
     .route('/api/v1/tags', tagRoutes({ db: deps.db }))
@@ -217,6 +221,7 @@ export function createApp(deps: AppDeps) {
     .route('/api/v1/entry-views', entryViewRoutes({ db: deps.db }))
     .route('/api/v1/space-groups', spaceGroupRoutes({ db: deps.db }))
     .route('/api/v1/links', linkRoutes({ db: deps.db }))
+    .route('/api/v1/link-preview', linkPreviewRoutes({ fetch: deps.linkFetch }))
     .route('/api/v1/templates', templateRoutes({ db: deps.db }))
     .route('/api/v1/calendars', calendarRoutes({ db: deps.db }))
     .route('/api/v1/calendar-events', calendarEventRoutes({ db: deps.db }))
@@ -292,7 +297,8 @@ export type AppType = App
 
 function problem(c: Parameters<Parameters<Hono<AppEnv>['onError']>[0]>[1], err: AppError) {
   const requestId = c.var.requestId ?? ''
-  if (err.status >= 500) {
+  // 502 UPSTREAM（链接预览抓取失败，ADR-0054 §D）：文案是我们写的「网页无法访问」等，原样返回
+  if (err.status >= 500 && err.code !== 'UPSTREAM') {
     // 500 只带 requestId（02 §3）
     const p = toProblem(new AppError(500, 'INTERNAL', '服务器内部错误'), requestId)
     return c.body(JSON.stringify(p), 500, { 'Content-Type': PROBLEM_CONTENT_TYPE })

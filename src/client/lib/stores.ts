@@ -241,6 +241,20 @@ export const usePeek = create<{
   close: () => set({ target: null }),
 }))
 
+/**
+ * 记录详情坞（ADR-0054 §B）：列表 / 卡片 / 看板里单击记录在右侧坞内打开（≥ lg），不改 URL；
+ * 换页（pathname 变化）即关闭。窄屏仍跳整页。
+ */
+export const useEntryDock = create<{
+  id: string | null
+  open: (id: string) => void
+  close: () => void
+}>((set) => ({
+  id: null,
+  open: (id) => set({ id }),
+  close: () => set({ id: null }),
+}))
+
 /** 记录内锚定评论草稿（T1-023）：浮动工具条创建（已套 comment 标记）→ Aside 评论页写首条；取消时编辑器移除标记。 */
 export const useCommentDraft = create<{
   pending: { threadId: string; quote: string } | null

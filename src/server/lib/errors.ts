@@ -23,6 +23,8 @@ export type ErrorCode =
   | 'UNSUPPORTED_MEDIA'
   | 'VALIDATION'
   | 'RATE_LIMITED'
+  /** 外部服务（链接预览抓取，ADR-0054 §D）失败 */
+  | 'UPSTREAM'
   | 'INTERNAL'
 
 const TITLES: Record<number, string> = {
@@ -37,6 +39,7 @@ const TITLES: Record<number, string> = {
   422: 'Unprocessable Content',
   429: 'Too Many Requests',
   500: 'Internal Server Error',
+  502: 'Bad Gateway',
 }
 
 export interface ProblemExtra {
