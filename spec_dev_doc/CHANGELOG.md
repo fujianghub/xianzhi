@@ -4,6 +4,9 @@
 
 ## 2026-10-09
 
+**链接编辑文字与地址 · 任务描述网页链接（ADR-0055）**
+- 新增 ADR-0055（修订 ADR-0054 §D）。00 +REQ-LINK-009、REQ-TASK-049。
+
 **就地改清单 / 标签 · 右侧详情坞 · 记录复制 / 移动 · 网页链接卡片 · 屏幕比例适配（ADR-0054）**
 - 新增 ADR-0054（修订 ADR-0053 §C、REQ-LINK-004、07 §2.5、03 §11.3 第 269 行）。00 +REQ-TASK-047 · 048、REQ-ENTRY-038 ~ 041、REQ-LINK-007 · 008、REQ-UI-052；REQ-LINK-004 · REQ-TASK-034 注。
 - 02 路由清单 +`POST /entries/:id/duplicate`、+`GET /link-preview`；错误码 +502 `UPSTREAM`；幂等端点 +duplicate。07 §2.5 外部抓取改「已实现」并注明与原案差异。03 §11.3 注。glossary +详情坞、网页卡片、链接气泡、副本。
