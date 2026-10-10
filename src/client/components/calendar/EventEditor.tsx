@@ -46,6 +46,7 @@ import {
   type RepeatPreset,
   repeatFromPreset,
   TIMED_ALARMS,
+  toggleAllDay,
 } from './model.ts'
 import { useScopePrompt } from './ScopeDialog.tsx'
 
@@ -297,15 +298,7 @@ export function EventEditor({
                         onChange={(e) => {
                           const allDay = e.target.checked
                           setForm((f) =>
-                            f
-                              ? {
-                                  ...f,
-                                  allDay,
-                                  alarms: allDay ? [-540] : [10],
-                                  endDate:
-                                    allDay && f.endDate < f.startDate ? f.startDate : f.endDate,
-                                }
-                              : f,
+                            f ? { ...toggleAllDay(f, allDay), alarms: allDay ? [-540] : [10] } : f,
                           )
                         }}
                         className="size-4 accent-(--xz-primary)"

@@ -115,6 +115,65 @@ export function sortItems(a: CalItem, b: CalItem): number {
   )
 }
 
+/**
+ * 切换「全天」（ADR-0057、REQ-CAL-016）：取消全天时若起止时刻都是 00:00（从全天日程带过来的），改为 09:00–10:00、
+ * 日期不变——否则 16 ~ 19 日会存成 16 日 00:00 → 19 日 00:00，结束在 19 日零点、19 日不显示
+ * （debug/2026-10-10-calendar-allday-off-midnight-end）。打开全天时结束日不早于开始日。
+ */
+export function toggleAllDay<
+  F extends {
+    allDay: boolean
+    startDate: string
+    endDate: string
+    startTime: string
+    endTime: string
+  },
+>(f: F, allDay: boolean): F {
+  const midnight = f.startTime === '00:00' && f.endTime === '00:00'
+  return {
+    ...f,
+    allDay,
+    endDate: allDay && f.endDate < f.startDate ? f.startDate : f.endDate,
+    ...(!allDay && midnight ? { startTime: '09:00', endTime: '10:00' } : {}),
+  }
+}
+
+/** 一周（或一段连续日期）里的一条：跨多列的连续条（ADR-0057）。 */
+export interface BarSeg {
+  item: CalItem
+  /** 本段起止列（含，0 起） */
+  c0: number
+  c1: number
+  lane: number
+  /** 从前一段 / 延续到下一段（这一端画成直角） */
+  contL: boolean
+  contR: boolean
+}
+
+/**
+ * 连续条排布（ADR-0057、REQ-CAL-015，仿 macOS 日历）：`keys` 为连续日期（月视图一周 / 周视图全天行），
+ * 覆盖这段的每项切成本段内的 [c0, c1]；按 sortItems（多日优先、全天优先、再按开始）依次放进最上面一条放得下的行。
+ */
+export function layoutBars(items: CalItem[], keys: string[]): BarSeg[] {
+  const first = keys[0]
+  const last = keys[keys.length - 1]
+  if (!first || !last) return []
+  const rows: boolean[][] = []
+  const out: BarSeg[] = []
+  for (const item of [...items].sort(sortItems)) {
+    if (item.endDay < first || item.startDay > last) continue
+    const c0 = item.startDay <= first ? 0 : keys.indexOf(item.startDay)
+    const c1 = item.endDay >= last ? keys.length - 1 : keys.indexOf(item.endDay)
+    if (c0 < 0 || c1 < c0) continue
+    let lane = rows.findIndex((r) => r.slice(c0, c1 + 1).every((x) => !x))
+    if (lane < 0) lane = rows.push(keys.map(() => false)) - 1
+    const row = rows[lane] as boolean[]
+    for (let c = c0; c <= c1; c++) row[c] = true
+    out.push({ item, c0, c1, lane, contL: item.startDay < first, contR: item.endDay > last })
+  }
+  return out
+}
+
 /** 定时项在某日的 [开始分钟, 结束分钟)（跨日截断到当日）。 */
 export function segmentOf(it: CalItem, k: string, tz: string): { from: number; to: number } {
   const from = it.startDay === k ? localDateTimeOf(tz, it.start).minutes : 0

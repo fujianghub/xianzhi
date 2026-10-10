@@ -13,6 +13,7 @@ import { Link } from '@tanstack/react-router'
 import { ArrowDown, ArrowUp, Plus } from 'lucide-react'
 import { Fragment, type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { dateBounds } from '../../../shared/schemas/entryFields.ts'
 import { useFieldCommit, useTagsCommit } from '../../hooks/useFieldCommit.ts'
 import { cn } from '../../lib/cn.ts'
 import { openInDock } from '../../lib/entry-dock.ts'
@@ -21,7 +22,7 @@ import { useKindLabel } from '../../lib/entry-types.ts'
 import { useEntryDock } from '../../lib/stores.ts'
 import { Checkbox } from '../ui/checkbox.tsx'
 import { RelativeTime } from '../ui/relative-time.tsx'
-import { FieldEditor, type FieldSpec, FieldValue, useFieldSpecs } from './FieldValue.tsx'
+import { FieldEditor, type FieldSpec, FieldValue, useFieldSpecs, useToday } from './FieldValue.tsx'
 import { KindBadge } from './KindIcon.tsx'
 import { PALETTE_CLASS, type PaletteName } from './SpaceIcon.tsx'
 import { SpaceTag } from './SpaceTag.tsx'
@@ -72,6 +73,12 @@ export function EntryTable({
   const kindOf = useKindLabel()
   const specsOf = useFieldSpecs()
   const commit = useFieldCommit()
+  const today = useToday()
+  /** 日期单元格的可选范围（ADR-0056） */
+  const dateProps = (e: Entry, name: string) => {
+    const b = dateBounds(e.kind, name, e.fields, today)
+    return { dateMin: b.min, dateMax: b.max }
+  }
   const commitTags = useTagsCommit()
   // 在右侧详情坞里打开着的那一行高亮（ADR-0054 §B）
   const dockId = useEntryDock((s) => s.id)
@@ -196,6 +203,7 @@ export function EntryTable({
         spec={spec}
         value={v}
         onCommit={(nv) => void commit(e, name, nv)}
+        {...(spec.kind === 'date' ? dateProps(e, name) : {})}
         trigger={
           <button
             type="button"

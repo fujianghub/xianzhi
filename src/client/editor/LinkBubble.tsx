@@ -3,18 +3,24 @@
  * 「显示为」链接（文字 = 网址）· 标题（取网页标题）· 卡片（换成网页卡片块）｜ 打开 · 复制链接 · 编辑 · 移除。
  * 有选区时让给选区工具条（BubbleBar）；非 http(s) 链接（mailto / xz:）只有打开 / 复制 / 编辑 / 移除。
  * 「编辑」（ADR-0055）同时改显示文字与链接地址；没有网页卡片节点的编辑器（任务描述 / 评论）不给「卡片」。
+ * 布局（ADR-0056，debug/2026-10-09-link-bubble-clipped-in-dock）：
+ * - fixed 定位、挂载 / 边界 / 滚动跟随见 floating.ts——不再被详情坞 / 纸面裁剪，也不撑出坞的横向滚动；
+ *   z = dropdown，压过侧栏与吸顶格式栏；
+ * - 切到编辑表单、紧凑模式切换（内容尺寸变）时主动重新定位；
+ * - 所在区域窄于 560px 时按钮只留图标（文字进 title 与读屏）。
  */
 import { getMarkRange } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
 import { useEditorState } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
 import { Copy, ExternalLink, Link2, PanelTop, Pencil, Type, Unlink } from 'lucide-react'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { isAllowedLink } from '../../shared/editor/links.ts'
 import { cn } from '../lib/cn.ts'
 import { fetchLinkPreview, isWebUrl } from '../lib/link-preview.ts'
+import { menuBoundary, menuBounds, useFixedMenu } from './floating.ts'
 
 interface Active {
   from: number
@@ -22,6 +28,10 @@ interface Active {
   href: string
   text: string
 }
+
+const PLUGIN_KEY = 'linkBubble'
+/** 区域窄于此宽度时按钮只留图标（完整一行约 513px） */
+const COMPACT_BELOW = 560
 
 function activeLink(editor: Editor): Active | null {
   const { state } = editor
@@ -48,7 +58,10 @@ export function LinkBubble({ editor }: { editor: Editor }) {
   const [href, setHref] = useState('')
   const [label, setLabel] = useState('')
   const [busy, setBusy] = useState(false)
+  const [compact, setCompact] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  // 挂载、滚动跟随与重新定位（floating.ts，ADR-0056 §B）
+  const { appendTo, visible, reposition } = useFixedMenu(editor, PLUGIN_KEY)
   // 有网页卡片节点的编辑器（记录正文）才给「卡片」；任务描述 / 评论（liteKit）没有
   const cards = !!editor.schema.nodes.linkCard
   const link = useEditorState({ editor, selector: ({ editor: e }) => (e ? activeLink(e) : null) })
@@ -57,10 +70,32 @@ export function LinkBubble({ editor }: { editor: Editor }) {
       e.isEditable && !e.isActive('codeBlock') && e.state.selection.empty && e.isActive('link'),
     [],
   )
+  // BubbleMenu 在 options 引用变化时会派发 updateOptions：保持稳定引用，边界在每次定位时现取
   const options = useMemo(
-    () => ({ placement: 'bottom' as const, offset: 6, onHide: () => setEditing(null) }),
-    [],
+    () => ({
+      strategy: 'fixed' as const,
+      placement: 'bottom' as const,
+      offset: 6,
+      flip: () => ({ ...menuBounds(editor), fallbackPlacements: ['top' as const] }),
+      shift: () => menuBounds(editor),
+      hide: () => ({ boundary: menuBounds(editor).boundary }),
+      onShow: () => {
+        visible.current = true
+        const w = menuBoundary(editor)?.clientWidth ?? window.innerWidth
+        setCompact(w < COMPACT_BELOW)
+      },
+      onHide: () => {
+        visible.current = false
+        setEditing(null)
+      },
+    }),
+    [editor, visible],
   )
+  // 内容尺寸变了（工具条 ⇄ 编辑表单、紧凑切换）：按新尺寸重新翻转 / 推回
+  // biome-ignore lint/correctness/useExhaustiveDependencies: editing / compact 是触发条件
+  useEffect(() => {
+    reposition()
+  }, [editing, compact, reposition])
   const web = !!link && isWebUrl(link.href)
 
   const setText = (text: string) => {
@@ -141,21 +176,24 @@ export function LinkBubble({ editor }: { editor: Editor }) {
       onClick={run}
       disabled={opts.disabled}
       aria-pressed={opts.active}
+      title={compact ? label : undefined}
       className={cn('xz-link-bubble-btn', opts.active && 'is-active')}
       data-testid={`link-bubble-${key}`}
     >
       <Icon className="size-3.5" aria-hidden />
-      {label}
+      {compact ? <span className="sr-only">{label}</span> : label}
     </button>
   )
 
   return (
     <BubbleMenu
       editor={editor}
-      pluginKey="linkBubble"
+      pluginKey={PLUGIN_KEY}
       shouldShow={shouldShow}
       options={options}
+      appendTo={appendTo}
       className="glass-thick xz-link-bubble"
+      data-compact={compact || undefined}
       data-testid="link-bubble"
     >
       {editing ? (
@@ -181,7 +219,7 @@ export function LinkBubble({ editor }: { editor: Editor }) {
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               maxLength={500}
-              className="h-7 w-64 rounded-md border border-border bg-surface px-2 text-sm outline-none focus:border-selected-border"
+              className="h-7 w-[min(16rem,calc(100vw-7rem))] rounded-md border border-border bg-surface px-2 text-sm outline-none focus:border-selected-border"
               data-testid="link-bubble-text"
             />
           </label>
@@ -191,7 +229,7 @@ export function LinkBubble({ editor }: { editor: Editor }) {
               value={href}
               onChange={(e) => setHref(e.target.value)}
               placeholder={t('editor.bubble.linkPrompt')}
-              className="h-7 w-64 rounded-md border border-border bg-surface px-2 text-sm outline-none focus:border-selected-border"
+              className="h-7 w-[min(16rem,calc(100vw-7rem))] rounded-md border border-border bg-surface px-2 text-sm outline-none focus:border-selected-border"
               data-testid="link-bubble-input"
             />
           </label>
@@ -219,7 +257,9 @@ export function LinkBubble({ editor }: { editor: Editor }) {
         <div className="flex items-center gap-0.5">
           {web ? (
             <>
-              <span className="px-1.5 text-fg-muted text-xs">{t('editor.linkCard.showAs')}</span>
+              {compact ? null : (
+                <span className="px-1.5 text-fg-muted text-xs">{t('editor.linkCard.showAs')}</span>
+              )}
               {btn('as-link', Link2, t('editor.linkCard.asLink'), () => setText(link.href), {
                 active: link.text === link.href,
               })}

@@ -21,10 +21,33 @@ const ordered = (a: string, b: string, message: string): CrossCheck => ({
   message,
   path: [b],
 })
-const CROSS_CHECKS: Partial<Record<EntryKind, CrossCheck[]>> = {
-  bug: [ordered('foundAt', 'resolvedAt', '解决日期不能早于发现日期')],
-  iteration: [ordered('periodStart', 'periodEnd', 'periodEnd 不能早于 periodStart')],
-  plan: [ordered('startDate', 'endDate', 'endDate 不能早于 startDate')],
+/** 有先后的日期字段对 `[前, 后, 违反时的提示]`；前端日期选择器据此置灰越界日期（ADR-0056） */
+const ORDERED_DATES: Partial<Record<EntryKind, [string, string, string][]>> = {
+  bug: [['foundAt', 'resolvedAt', '解决日期不能早于发现日期']],
+  iteration: [['periodStart', 'periodEnd', 'periodEnd 不能早于 periodStart']],
+  plan: [['startDate', 'endDate', 'endDate 不能早于 startDate']],
+}
+const CROSS_CHECKS: Partial<Record<EntryKind, CrossCheck[]>> = Object.fromEntries(
+  Object.entries(ORDERED_DATES).map(([k, pairs]) => [k, pairs.map((p) => ordered(...p))]),
+)
+
+/**
+ * 某日期字段在该记录里的可选范围（含端点）：先后字段对推出的 min / max；
+ * Bug 的发现日期不得晚于今天（服务端 normalizeBugFields 同规则）。
+ */
+export function dateBounds(
+  kind: EntryKind,
+  name: string,
+  fields: Record<string, unknown>,
+  today: string,
+): { min?: string; max?: string } {
+  const out: { min?: string; max?: string } = {}
+  for (const [a, b] of ORDERED_DATES[kind] ?? []) {
+    if (name === b && fields[a]) out.min = String(fields[a])
+    if (name === a && fields[b]) out.max = String(fields[b])
+  }
+  if (kind === 'bug' && name === 'foundAt' && (!out.max || out.max > today)) out.max = today
+  return out
 }
 function withChecks<T extends z.ZodType>(s: T, kind: EntryKind): T {
   let out = s

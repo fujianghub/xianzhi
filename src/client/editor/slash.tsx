@@ -3,7 +3,6 @@
  * ↑↓ 选择、Enter 执行、Esc 关闭并保留 `/`。弹层 glass-thick，定位用 @floating-ui/dom。
  */
 
-import { computePosition, flip, offset, shift } from '@floating-ui/dom'
 import { type Editor, Extension, type Range } from '@tiptap/core'
 import { PluginKey, TextSelection } from '@tiptap/pm/state'
 import { ReactRenderer } from '@tiptap/react'
@@ -15,6 +14,7 @@ import { stringifyEntryFilter } from '../../shared/entry-search.ts'
 import type { EntryKind } from '../../shared/schemas/enums.ts'
 import { cn } from '../lib/cn.ts'
 import { SOURCE_EVENT, TEMPLATE_EVENT } from './extensions.ts'
+import { suggestionPopup } from './floating.ts'
 import { InsertIcon, LINK_INSERT_EVENT } from './insert-meta.tsx'
 import { pickFiles, uploadFiles } from './upload.ts'
 
@@ -474,37 +474,24 @@ export function createSlash(getCtx: () => SlashCtx, opts: { exclude?: readonly s
           command: ({ editor, range, props }) => props.run(editor, range, getCtx()),
           render: () => {
             let renderer: ReactRenderer<ListHandle, ListProps> | null = null
-            let host: HTMLDivElement | null = null
-            const place = (p: ListProps) => {
-              const rect = p.clientRect?.()
-              if (!rect || !host) return
-              void computePosition({ getBoundingClientRect: () => rect }, host, {
-                placement: 'bottom-start',
-                strategy: 'fixed',
-                middleware: [offset(6), flip(), shift({ padding: 8 })],
-              }).then(({ x, y }) => {
-                if (host) Object.assign(host.style, { left: `${x}px`, top: `${y}px` })
-              })
-            }
+            // 宿主：弹窗内或 body 下、fixed、边界为所在纸面 / 详情坞、随滚动跟随（floating.ts，ADR-0056 §D）
+            let popup: ReturnType<typeof suggestionPopup> | null = null
             const close = () => {
               renderer?.destroy()
-              host?.remove()
+              popup?.destroy()
               renderer = null
-              host = null
+              popup = null
             }
             return {
               onStart: (p) => {
-                host = document.createElement('div')
-                host.style.position = 'fixed'
-                host.style.zIndex = 'var(--xz-z-dropdown)'
-                document.body.appendChild(host)
+                popup = suggestionPopup(p.editor, 'var(--xz-z-dropdown)')
                 renderer = new ReactRenderer(SlashList, { props: p, editor: p.editor })
-                host.appendChild(renderer.element)
-                place(p)
+                popup.el.appendChild(renderer.element)
+                popup.place(() => p.clientRect?.())
               },
               onUpdate: (p) => {
                 renderer?.updateProps(p)
-                place(p)
+                popup?.place(() => p.clientRect?.())
               },
               onKeyDown: ({ event }) => {
                 if (event.key === 'Escape') {

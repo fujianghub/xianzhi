@@ -151,3 +151,37 @@ test('REQ-MOBILE-007 触控目标 ≥ 40×40（元素本身或其 ::after 点击
   }
   expect(small).toEqual([])
 })
+
+test('REQ-MOBILE-008 390 视口任务详情（模态 Sheet）里评论的 @ 候选可点选，Sheet 不关', async ({
+  page,
+  request,
+}) => {
+  const product = (await (await request.get('/api/v1/spaces/product')).json()) as { id: string }
+  const r = await request.post('/api/v1/tasks', {
+    data: { title: `e2e 窄屏提及 ${Date.now()}`, spaceId: product.id, status: 'todo' },
+    headers: { ...sameSite, 'idempotency-key': crypto.randomUUID() },
+  })
+  expect(r.status()).toBe(201)
+  const task = (await r.json()) as { id: string }
+  try {
+    await page.goto(`/tasks?task=${task.id}`)
+    const sheet = page.getByTestId('task-sheet')
+    await expect(sheet).toBeVisible()
+    const input = sheet.getByTestId('comment-new')
+    await input.click()
+    await page.keyboard.type('@')
+    const menu = page.getByTestId('mention-menu')
+    const first = menu.getByRole('option').first()
+    await expect(first).toBeVisible()
+    // 候选框挂在弹窗内（模态弹窗给 body 设了 pointer-events: none，挂在外面会点不中）
+    expect(await menu.evaluate((m) => !!m.closest('[role="dialog"]'))).toBe(true)
+    // 候选 = 头像（首字）+ 名字：只取名字
+    const label = (await first.locator('span.truncate').textContent())?.trim() ?? ''
+    await first.click()
+    await expect(menu).toHaveCount(0)
+    await expect(input.locator('[data-type="mention"]')).toContainText(label)
+    await expect(sheet).toBeVisible()
+  } finally {
+    await request.delete(`/api/v1/tasks/${task.id}`, { headers: sameSite })
+  }
+})

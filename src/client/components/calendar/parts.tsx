@@ -37,7 +37,11 @@ export interface DisplayOpts {
   holidays: boolean
 }
 
-/** 月格 / 全天行里的一条（全天与多日为色块，定时为「色点 + 标题 + 时间」）。 */
+/**
+ * 月格 / 全天行里的一条（全天与多日为色块，定时为「色点 + 标题 + 时间」）。
+ * `bar`：连续条的本段（ADR-0057）——`days` 写到 `data-days`（空格分隔，e2e 用 `~=` 找覆盖某天的条）；
+ * 从前一段延续来 / 延续到下一段的那一端画成直角（左端延续时不画色条）。
+ */
 export function ItemChip({
   item,
   tz,
@@ -46,6 +50,8 @@ export function ItemChip({
   onDragStart,
   onDragEnd,
   className,
+  bar,
+  style,
 }: {
   item: CalItem
   tz: string
@@ -54,10 +60,17 @@ export function ItemChip({
   onDragStart?: (e: React.DragEvent) => void
   onDragEnd?: () => void
   className?: string
+  bar?: { days: string[]; contL: boolean; contR: boolean }
+  style?: React.CSSProperties
 }) {
   const { t } = useTranslation()
-  const block = item.allDay || item.startDay !== item.endDay
-  const time = block ? t('calendar.allDay') : hhmm(minutesOf(item.start, tz))
+  const multi = item.startDay !== item.endDay
+  const block = item.allDay || multi
+  const time = multi
+    ? `${shortDay(item.startDay)}–${shortDay(item.endDay)}`
+    : block
+      ? t('calendar.allDay')
+      : hhmm(minutesOf(item.start, tz))
   const label = t('calendar.eventLabel', {
     title: item.title,
     time,
@@ -79,12 +92,18 @@ export function ItemChip({
       data-source={item.source}
       data-task-id={item.task?.id}
       data-event-id={item.occ?.id}
+      data-days={bar?.days.join(' ')}
+      data-cont-left={bar?.contL || undefined}
+      data-cont-right={bar?.contR || undefined}
+      style={style}
       className={cn(
         'flex min-h-6 w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 text-left text-xs leading-5 transition-[filter,background-color] duration-(--xz-dur-fast)',
         block
           ? cn(BLOCK[item.color], 'rounded-l-sm border-l-[3px] font-medium hover:brightness-95')
           : 'hover:bg-hover',
         item.source === 'task' && block && 'border border-dashed bg-transparent',
+        bar?.contL && 'rounded-l-none border-l-0 ps-2',
+        bar?.contR && 'rounded-r-none',
         item.done && 'line-through opacity-60',
         className,
       )}
@@ -111,6 +130,9 @@ export function ItemChip({
     </button>
   )
 }
+
+/** YYYY-MM-DD → M/D */
+const shortDay = (k: string) => `${Number(k.slice(5, 7))}/${Number(k.slice(8, 10))}`
 
 const minutesOf = (d: Date, tz: string) => {
   const p = new Intl.DateTimeFormat('en-US', {

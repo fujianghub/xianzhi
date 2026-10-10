@@ -120,3 +120,112 @@ test('REQ-TASK-049 任务详情描述：网址自动成链接，链接气泡可�
     await request.delete(`/api/v1/tasks/${taskId}?permanent=1`, { headers: sameSite })
   }
 })
+
+/** 气泡（含编辑表单）整个落在 `box` 与视口内，且没被别的元素盖住 */
+async function expectBubbleInside(
+  page: Page,
+  box: { x: number; y: number; width: number; height: number },
+) {
+  const bubble = page.getByTestId('link-bubble')
+  const b = (await bubble.boundingBox()) as NonNullable<
+    Awaited<ReturnType<typeof bubble.boundingBox>>
+  >
+  const vh = page.viewportSize()?.height ?? 800
+  expect(b.y + b.height).toBeLessThanOrEqual(Math.min(vh, box.y + box.height) + 1)
+  expect(b.y).toBeGreaterThanOrEqual(0)
+  expect(b.x).toBeGreaterThanOrEqual(box.x - 1)
+  expect(b.x + b.width).toBeLessThanOrEqual(box.x + box.width + 1)
+  // 四角与「保存」都点得到
+  const covered = await page.evaluate(() => {
+    const el = document.querySelector('[data-testid="link-bubble"]') as HTMLElement
+    const r = el.getBoundingClientRect()
+    const pts = [
+      [r.left + 6, r.top + 6],
+      [r.right - 6, r.top + 6],
+      [r.left + 6, r.bottom - 6],
+      [r.right - 6, r.bottom - 6],
+    ]
+    return pts.filter(([x, y]) => !el.contains(document.elementFromPoint(x as number, y as number)))
+      .length
+  })
+  expect(covered).toBe(0)
+}
+
+test('REQ-LINK-010 链接气泡与编辑表单不被详情坞裁剪 / 侧栏遮挡：底部链接点「编辑」翻到上方、坞不横向滚动、窄坞只留图标', async ({
+  page,
+  request,
+}) => {
+  const s = stamp()
+  const sp = await personalSpace(request)
+  const id = await createEntry(request, {
+    kind: 'note',
+    title: `气泡位置 ${s}`,
+    spaceId: sp.id,
+    templateId: 'builtin:blank',
+  })
+  const url = 'https://example.org/pos'
+  try {
+    // 整页：链接贴着正文左缘、滚到视口底部
+    await page.goto(`/entries/${id}`)
+    const pm = page.locator('.ProseMirror')
+    await pm.locator('p').last().click()
+    for (let i = 0; i < 14; i++) await page.keyboard.press('Enter')
+    await page.keyboard.type(`${url} `)
+    const link = pm.locator(`a[href="${url}"]`)
+    await link.evaluate((el) => {
+      const r = el.getBoundingClientRect()
+      window.scrollBy(0, r.bottom - (window.innerHeight - 30))
+      for (let p = el.parentElement; p; p = p.parentElement)
+        if (p.scrollHeight > p.clientHeight && /(auto|scroll)/.test(getComputedStyle(p).overflowY))
+          p.scrollBy(0, el.getBoundingClientRect().bottom - (window.innerHeight - 30))
+    })
+    await link.click({ position: { x: 4, y: 6 } })
+    const bubble = page.getByTestId('link-bubble')
+    await expect(bubble).toBeVisible()
+    await bubble.getByTestId('link-bubble-edit').click()
+    await expect(page.getByTestId('link-bubble-form')).toBeVisible()
+    const paper = (await page.locator('.xz-reading').first().boundingBox()) as NonNullable<
+      Awaited<ReturnType<ReturnType<Page['locator']>['boundingBox']>>
+    >
+    await expect
+      .poll(async () => (await bubble.boundingBox())?.y ?? 9999)
+      .toBeLessThan(((await link.boundingBox())?.y ?? 0) + 1)
+    await expectBubbleInside(page, paper)
+    await page.keyboard.press('Escape')
+
+    // 详情坞：同一条链接在坞底部
+    await page.goto(`/entries?q=${encodeURIComponent(s)}`)
+    await page
+      .locator(`[data-testid="entry-row"][data-entry-id="${id}"]`)
+      .getByRole('link', { name: `气泡位置 ${s}` })
+      .click()
+    const dock = page.getByTestId('entry-dock')
+    const dl = dock.locator(`.ProseMirror a[href="${url}"]`)
+    await expect(dl).toBeVisible({ timeout: 15_000 })
+    await dock.evaluate((d, u) => {
+      const el = d.querySelector(`a[href="${u}"]`) as HTMLElement
+      d.scrollBy(0, el.getBoundingClientRect().bottom - (window.innerHeight - 24))
+    }, url)
+    await dl.click({ position: { x: 4, y: 6 } })
+    await expect(bubble).toBeVisible()
+    // 坞宽 < 560：只留图标
+    await expect(bubble).toHaveAttribute('data-compact', '')
+    const db = (await dock.boundingBox()) as NonNullable<
+      Awaited<ReturnType<typeof dock.boundingBox>>
+    >
+    await expectBubbleInside(page, db)
+    await bubble.getByTestId('link-bubble-edit').click()
+    await expect(page.getByTestId('link-bubble-form')).toBeVisible()
+    await expect
+      .poll(async () => (await bubble.boundingBox())?.y ?? 9999)
+      .toBeLessThan(((await dl.boundingBox())?.y ?? 0) + 1)
+    await expectBubbleInside(page, db)
+    expect(await dock.evaluate((d) => d.scrollLeft)).toBe(0)
+    // 仍可保存
+    await page.getByTestId('link-bubble-text').fill('坞里改名')
+    await page.getByTestId('link-bubble-save').click()
+    await expect(dock.locator(`.ProseMirror a[href="${url}"]`)).toHaveText('坞里改名')
+  } finally {
+    await request.delete(`/api/v1/entries/${id}`, { headers: sameSite })
+  }
+})

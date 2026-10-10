@@ -56,7 +56,15 @@ test('REQ-UI-031 REQ-CAL-012 月视图显示区间内任务，点击弹快速编
   // 今天格：今天标记唯一；事件或「还有 N 项」（e2e 库今天已有多条到期任务，月格只显示 3 条）
   const todayCell = page.locator('[data-testid="cal-day"]:has([aria-current="date"])')
   await expect(todayCell).toHaveCount(1)
-  await expect(todayCell.locator('[data-testid="cal-event"]').first()).toBeVisible()
+  // 日程条不在格子 DOM 里（连续条，ADR-0057）：按 data-days 找覆盖今天的条，或今天这列的「还有 N 项」
+  const todayKey = (await todayCell.getAttribute('data-date')) as string
+  await expect(
+    page
+      .locator(
+        `[data-testid="cal-event"][data-days~="${todayKey}"], [data-testid="cal-more"][data-date="${todayKey}"]`,
+      )
+      .first(),
+  ).toBeVisible()
 
   // 周视图：定时事件全部显示，点击就地弹气泡（不跳转、不开 Peek）
   await page.getByTestId('cal-view-week').click()
@@ -229,11 +237,10 @@ test('REQ-CAL-010 月视图按住拖选 9/9 → 9/11 新建跨日全天日程；
   await page.getByTestId('cal-editor-title').fill(title)
   await page.getByTestId('cal-editor-save').click()
   await expect(editor).toBeHidden()
-  for (const d of ['2026-09-09', '2026-09-10', '2026-09-11'])
-    await expect(cell(d).getByTestId('cal-event').filter({ hasText: title })).toBeVisible()
-  await expect(cell('2026-09-12').getByTestId('cal-event').filter({ hasText: title })).toHaveCount(
-    0,
-  )
+  // 一条连续条覆盖 9/9 ~ 9/11（ADR-0057），不含 9/12
+  const bar = page.getByTestId('cal-event').filter({ hasText: title })
+  await expect(bar).toHaveCount(1)
+  await expect(bar).toHaveAttribute('data-days', '2026-09-09 2026-09-10 2026-09-11')
 
   // 反向拖
   await drag('2026-09-24', '2026-09-22')
@@ -250,11 +257,9 @@ test('REQ-CAL-010 月视图按住拖选 9/9 → 9/11 新建跨日全天日程；
   await page.keyboard.press('Escape')
 
   // 清理（点开 = 快速编辑气泡，REQ-CAL-012）
-  await cell('2026-09-10').getByTestId('cal-event').filter({ hasText: title }).click()
+  await bar.click()
   await page.getByTestId('cal-quick-delete').click()
-  await expect(cell('2026-09-10').getByTestId('cal-event').filter({ hasText: title })).toHaveCount(
-    0,
-  )
+  await expect(bar).toHaveCount(0)
 })
 
 test('REQ-CAL-011 周视图同一时段 3 个日程：只并排 1 个 + 「+N」按钮（≥ 24px），点「+N」进当天日视图全部可见', async ({
@@ -368,7 +373,9 @@ test('REQ-CAL-012 · 013 气泡就地改日程标题 / 时间、Delete 删除；
   await expect(tq).toBeVisible()
   await page.getByTestId('cal-quick-title').fill(`e2e 气泡任务 ${stamp} 改`)
   await page.getByTestId('cal-quick-title').press('Enter')
+  // 时间回车 / 失焦才保存（ADR-0056 §C）
   await page.getByTestId('cal-quick-task-time').fill('16:00')
+  await page.getByTestId('cal-quick-task-time').press('Enter')
   await expect(tk).toHaveAttribute('title', /16:00/)
   await expect(tk).toContainText('改')
   await page.getByTestId('cal-quick-done-toggle').click()
@@ -394,4 +401,177 @@ test('REQ-CAL-012 · 013 气泡就地改日程标题 / 时间、Delete 删除；
   await expect(tk).toBeVisible()
   // 清理：共用库不留数据
   await request.delete(`/api/v1/tasks/${task.id}`, { headers: sameSite })
+})
+
+test('REQ-CAL-014 快速编辑里任务的日期用月历选、时间回车才存：键盘改日期不写库，日期格上 Backspace 不删任务', async ({
+  page,
+  request,
+}) => {
+  const stamp = Date.now()
+  const mon = mondayAfter(Math.floor(RUN / 1000) + 260)
+  const tue = addDaysStr(mon, 1)
+  const thu = addDaysStr(mon, 3)
+  const product = (await (await request.get('/api/v1/spaces/product')).json()) as { id: string }
+  const tr = await request.post('/api/v1/tasks', {
+    data: {
+      title: `e2e 改期 ${stamp}`,
+      spaceId: product.id,
+      status: 'todo',
+      dueAt: `${tue}T15:00:00+08:00`,
+    },
+    headers: { ...sameSite, 'idempotency-key': crypto.randomUUID() },
+  })
+  expect(tr.status()).toBe(201)
+  const task = (await tr.json()) as { id: string }
+  const patches: string[] = []
+  page.on('request', (q) => {
+    if (q.method() === 'PATCH' && q.url().includes(`/tasks/${task.id}`))
+      patches.push(q.postData() ?? '')
+  })
+  const dueOf = async () =>
+    ((await (await request.get(`/api/v1/tasks/${task.id}`)).json()) as { dueAt: string }).dueAt
+  try {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`/calendar?view=week&date=${tue}`)
+    await page.getByTestId('cal-timeline').evaluate((el) => {
+      el.scrollTop = 12 * 48
+    })
+    const tk = page.locator(`[data-testid="cal-event"][data-task-id="${task.id}"]`)
+    await tk.click()
+    await expect(page.getByTestId('cal-quick-task')).toBeVisible()
+
+    // 日期：月历弹层；键盘输入不写库；日期格上 Backspace 不删任务
+    await page.getByTestId('cal-quick-task-date').click()
+    const picker = page.locator('[data-testid="cal-quick-task-date-picker"][data-state="open"]')
+    await expect(picker).toBeVisible()
+    const input = picker.getByTestId('field-input-quickDate')
+    await input.press('ArrowDown')
+    await input.pressSequentially('2025')
+    await picker.locator(`[data-date="${tue}"]`).focus()
+    await page.keyboard.press('Backspace')
+    await expect(page.getByTestId('cal-quick-task')).toBeVisible()
+    expect(patches).toHaveLength(0)
+
+    // 点月历里的周四 → 一次 PATCH，改到周四 15:00
+    if (
+      (await picker.locator(`[data-date="${thu}"]`).count()) === 0 ||
+      thu.slice(0, 7) !== tue.slice(0, 7)
+    )
+      await picker.getByTestId('date-picker-next').click()
+    await picker.locator(`[data-date="${thu}"]`).click()
+    await expect.poll(dueOf).toBe(new Date(`${thu}T15:00:00+08:00`).toISOString())
+    expect(patches).toHaveLength(1)
+
+    // 时间：填写不写库，回车才存
+    const time = page.getByTestId('cal-quick-task-time')
+    await time.fill('16:30')
+    await page.waitForTimeout(400)
+    expect(patches).toHaveLength(1)
+    await time.press('Enter')
+    await expect.poll(dueOf).toBe(new Date(`${thu}T16:30:00+08:00`).toISOString())
+    expect(patches).toHaveLength(2)
+  } finally {
+    await request.delete(`/api/v1/tasks/${task.id}`, { headers: sameSite })
+  }
+})
+
+test('REQ-CAL-015 跨天日程画成连续条：月视图跨周切成两段（周末 / 周初那端直角），周视图全天行一条横跨', async ({
+  page,
+  request,
+}) => {
+  const cals = (await (await request.get('/api/v1/calendars')).json()) as {
+    items: { id: string }[]
+  }
+  const mon = mondayAfter(Math.floor(RUN / 1000) + 320)
+  const thu = addDaysStr(mon, 3)
+  const nextTue = addDaysStr(mon, 8)
+  const title = `e2e 连续条 ${Date.now()}`
+  const r = await request.post('/api/v1/calendar-events', {
+    data: {
+      calendarId: cals.items[0]?.id,
+      title,
+      allDay: true,
+      startAt: `${thu}T00:00:00+08:00`,
+      endAt: `${addDaysStr(nextTue, 1)}T00:00:00+08:00`,
+      timezone: 'Asia/Shanghai',
+    },
+    headers: { ...sameSite, 'idempotency-key': crypto.randomUUID() },
+  })
+  expect(r.status()).toBe(201)
+  const id = ((await r.json()) as { id: string }).id
+  try {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`/calendar?view=month&date=${thu}`)
+    const bars = page.getByTestId('cal-event').filter({ hasText: title })
+    await expect(bars).toHaveCount(2)
+    const days = (n: number, from: string) =>
+      Array.from({ length: n }, (_, i) => addDaysStr(from, i)).join(' ')
+    const first = page.locator(`[data-testid="cal-event"][data-days="${days(4, thu)}"]`)
+    const second = page.locator(
+      `[data-testid="cal-event"][data-days="${days(2, addDaysStr(mon, 7))}"]`,
+    )
+    await expect(first).toHaveAttribute('data-cont-right', 'true')
+    await expect(first).not.toHaveAttribute('data-cont-left', 'true')
+    await expect(second).toHaveAttribute('data-cont-left', 'true')
+    // 第一段横跨周四 ~ 周日 4 列：宽度约为单列的 4 倍
+    const cell = await page.locator(`[data-testid="cal-day"][data-date="${thu}"]`).boundingBox()
+    const fb = await first.boundingBox()
+    expect((fb?.width ?? 0) / (cell?.width ?? 1)).toBeGreaterThan(3.8)
+
+    await page.goto(`/calendar?view=week&date=${thu}`)
+    const wbar = page
+      .getByTestId('cal-allday-row')
+      .getByTestId('cal-event')
+      .filter({ hasText: title })
+    await expect(wbar).toHaveCount(1)
+    await expect(wbar).toHaveAttribute('data-days', days(4, thu))
+    await expect(wbar).toHaveAttribute('data-cont-right', 'true')
+  } finally {
+    await request.delete(`/api/v1/calendar-events/${id}?scope=all`, { headers: sameSite })
+  }
+})
+
+test('REQ-CAL-016 拖选多日新建后取消「全天」：时刻变为 09:00–10:00、日期不变，结束日当天仍显示', async ({
+  page,
+  request,
+}) => {
+  const mon = mondayAfter(Math.floor(RUN / 1000) + 380)
+  const tue = addDaysStr(mon, 1)
+  const fri = addDaysStr(mon, 4)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`/calendar?view=month&date=${tue}`)
+  const cell = (d: string) => page.locator(`[data-testid="cal-day"][data-date="${d}"]`)
+  const spot = async (d: string) => {
+    const b = await cell(d).boundingBox()
+    if (!b) throw new Error(`no cell ${d}`)
+    return { x: b.x + b.width / 2, y: b.y + b.height - 8 }
+  }
+  const a = await spot(tue)
+  const b = await spot(fri)
+  await page.mouse.move(a.x, a.y)
+  await page.mouse.down()
+  await page.mouse.move(b.x, b.y, { steps: 10 })
+  await page.mouse.up()
+  const editor = page.getByTestId('cal-editor')
+  await expect(editor).toBeVisible()
+  await expect(page.getByTestId('cal-editor-allday')).toBeChecked()
+  await page.getByTestId('cal-editor-allday').uncheck()
+  await expect(page.getByTestId('cal-editor-start-date')).toHaveValue(tue)
+  await expect(page.getByTestId('cal-editor-end-date')).toHaveValue(fri)
+  await expect(page.getByTestId('cal-editor-start-time')).toHaveValue('09:00')
+  await expect(page.getByTestId('cal-editor-end-time')).toHaveValue('10:00')
+  const title = `e2e 取消全天 ${Date.now()}`
+  await page.getByTestId('cal-editor-title').fill(title)
+  await page.getByTestId('cal-editor-save').click()
+  await expect(editor).toBeHidden()
+  const bar = page.getByTestId('cal-event').filter({ hasText: title })
+  await expect(bar).toHaveAttribute(
+    'data-days',
+    [0, 1, 2, 3].map((i) => addDaysStr(tue, i)).join(' '),
+  )
+  // 清理
+  await bar.click()
+  await page.getByTestId('cal-quick-delete').click()
+  await expect(bar).toHaveCount(0)
+  void request
 })

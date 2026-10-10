@@ -1,6 +1,7 @@
 /**
  * 小月历（侧栏导航与年视图共用，REQ-CAL-007 · 009）：按 weekStartsOn 6×7；今天实心圆、选中描边、
  * 法定假日淡翡翠底、调休上班角点、有日程的日期下方小点。
+ * `isDisabled`：选择器里越界的日期置灰不可点（日期属性，ADR-0056）。
  */
 import { useTranslation } from 'react-i18next'
 import { dayMeta } from '../../../shared/cn-days.ts'
@@ -20,6 +21,7 @@ export function MiniMonth({
   onPick,
   compact,
   header,
+  isDisabled,
 }: {
   month: LocalDate
   weekStartsOn: number
@@ -30,6 +32,7 @@ export function MiniMonth({
   onPick: (d: LocalDate) => void
   compact?: boolean
   header?: React.ReactNode
+  isDisabled?: (d: LocalDate) => boolean
 }) {
   const { t } = useTranslation()
   const first = weekDays(weekStartsOn, { y: month.y, m: month.m, d: 1 })[0] as LocalDate
@@ -54,11 +57,14 @@ export function MiniMonth({
           const meta = holidays ? dayMeta(d) : null
           const weekend = dayOfWeek(d) === 0 || dayOfWeek(d) === 6
           const has = marked?.has(dayKey(d))
+          const off = !!isDisabled?.(d)
           return (
             <button
               key={dayKey(d)}
               type="button"
               onClick={() => onPick(d)}
+              disabled={off}
+              data-date={dayKey(d)}
               aria-label={t('calendar.openDay', { date: `${d.m}/${d.d}` })}
               aria-current={isToday ? 'date' : undefined}
               className={cn(
@@ -69,6 +75,7 @@ export function MiniMonth({
                 !meta?.off && weekend && !isToday && 'text-fg-muted',
                 isSel && !isToday && 'ring-1 ring-primary',
                 isToday && 'bg-primary font-semibold text-primary-fg hover:bg-primary',
+                off && 'cursor-not-allowed opacity-35 hover:bg-transparent',
               )}
             >
               {d.d}

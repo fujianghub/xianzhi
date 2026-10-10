@@ -1,6 +1,6 @@
 /** REQ-ENTRY-001 fields 按 kind 严格校验：每 kind 正反用例（01 §3.5）。 */
 import { describe, expect, it } from 'vitest'
-import { entryFieldsByKind, kindWithFieldsSchema } from '../schemas/entryFields.ts'
+import { dateBounds, entryFieldsByKind, kindWithFieldsSchema } from '../schemas/entryFields.ts'
 import { ENTRY_KINDS } from '../schemas/enums.ts'
 
 const UUID = '01920000-0000-7000-8000-000000000001'
@@ -119,5 +119,29 @@ describe('entry fields by kind', () => {
   it('REQ-ENTRY-001 kind 只能是 7 种', () => {
     expect(kindWithFieldsSchema.safeParse({ kind: 'todo', fields: {} }).success).toBe(false)
     expect(Object.keys(entryFieldsByKind).sort()).toEqual([...ENTRY_KINDS].sort())
+  })
+})
+
+describe('日期属性范围（ADR-0056）', () => {
+  it('REQ-ENTRY-042 日期年份限 1900 ~ 2999：逐段输入的半截值（0005-02-02）被拒', () => {
+    const bug = entryFieldsByKind.bug
+    const base = { status: 'new', priority: 'p2', severity: 'medium' }
+    expect(bug.safeParse({ ...base, foundAt: '2026-10-01' }).success).toBe(true)
+    expect(bug.safeParse({ ...base, foundAt: '0005-02-02' }).success).toBe(false)
+    expect(bug.safeParse({ ...base, foundAt: '3000-01-01' }).success).toBe(false)
+  })
+  it('REQ-ENTRY-042 dateBounds：先后字段对推出 min / max，Bug 发现日期不晚于今天', () => {
+    const today = '2026-10-09'
+    expect(dateBounds('bug', 'foundAt', {}, today)).toEqual({ max: today })
+    expect(dateBounds('bug', 'foundAt', { resolvedAt: '2026-10-01' }, today)).toEqual({
+      max: '2026-10-01',
+    })
+    expect(dateBounds('bug', 'resolvedAt', { foundAt: '2026-09-01' }, today)).toEqual({
+      min: '2026-09-01',
+    })
+    expect(dateBounds('iteration', 'periodEnd', { periodStart: '2026-10-05' }, today)).toEqual({
+      min: '2026-10-05',
+    })
+    expect(dateBounds('note', 'x', {}, today)).toEqual({})
   })
 })
