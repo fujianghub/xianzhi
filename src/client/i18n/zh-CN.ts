@@ -32,6 +32,8 @@ export const zhCN = {
     },
     nav: {
       collapseSidebar: '折叠侧栏',
+      resizeSidebar: '调整侧栏宽度',
+      resizeSidebarHint: '拖动调整宽度 · 双击还原',
       expandSidebar: '展开侧栏',
       collapseAside: '折叠侧边面板',
       openMenu: '打开菜单',
@@ -785,7 +787,6 @@ export const zhCN = {
     moveToSpace: '移到空间',
     movedToSpace: '已移到「{{name}}」',
     copyTitle: '复制标题',
-    copied: '已复制',
     copyFailed: '复制失败',
     delete: '删除',
   },
@@ -2064,6 +2065,8 @@ export const zhCN = {
     readingSettings: '阅读与写作设置（字体 / 排版 / 纸张）',
     focus: '进入专注写作',
     focusExit: '退出专注写作',
+    copyTitle: '复制标题',
+    titleCopied: '已复制标题「{{title}}」',
     dueToday: '今天',
     dueTomorrow: '明天',
     dueNextWeek: '下周一',
@@ -2090,6 +2093,7 @@ export const zhCN = {
       open: '打开',
       peek: '预览',
       slash: '编辑器命令',
+      copyTitle: '复制当前任务 / 记录标题',
     },
   },
   peek: {

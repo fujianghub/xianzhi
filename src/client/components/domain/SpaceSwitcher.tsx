@@ -232,8 +232,9 @@ function Section({
           items={section.items.map((s) => s.id)}
           strategy={verticalListSortingStrategy}
         >
-          {/* 空间行缩进一级 + 分区引导线（对齐展开指示中心；含当前空间时为主色，ADR-0015） */}
-          <div className="relative ps-3">
+          {/* 空间行缩进一级 + 分区引导线（对齐展开指示中心；含当前空间时为主色，ADR-0015）。
+              行从引导线右侧 5px 起（ps-5 = 20，线占 14 ~ 15），当前 / 悬停胶囊不再压过引导线（REQ-UI-053） */}
+          <div className="relative ps-5">
             <span
               className="xz-guide"
               style={{ insetInlineStart: '14px' }}

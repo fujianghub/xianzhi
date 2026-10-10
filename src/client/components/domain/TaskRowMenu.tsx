@@ -28,11 +28,14 @@ import {
   localDateTimeOf,
   zonedMidnight,
 } from '../../../shared/tz.ts'
+import { hotkeyParts } from '../../hooks/useCommands.ts'
 import { useMe } from '../../hooks/useMe.ts'
 import { useSpaces } from '../../hooks/useSpaces.ts'
 import { useTaskActions } from '../../hooks/useTasks.ts'
+import { COPY_TITLE_HOTKEY, copyTitle } from '../../lib/copy-title.ts'
 import { canCreateIn } from '../../lib/space-queries.ts'
 import { TASK_STATUSES, type Task } from '../../lib/task-queries.ts'
+import { KeyHint } from '../ui/key-hint.tsx'
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '../ui/popover.tsx'
 import { DUE_PRESETS, daysBetween } from './TaskPickers.tsx'
 
@@ -303,17 +306,12 @@ export function TaskRowMenu({
         <button
           type="button"
           className={item}
-          onClick={run(async () => {
-            try {
-              await navigator.clipboard.writeText(task.title)
-              toast.success(t('taskMenu.copied'))
-            } catch {
-              toast.error(t('taskMenu.copyFailed'))
-            }
-          })}
+          onClick={run(() => copyTitle(task.title))}
+          data-testid="task-menu-copy-title"
         >
           <Copy className="size-4 text-fg-muted" />
           {t('taskMenu.copyTitle')}
+          <KeyHint keys={hotkeyParts(COPY_TITLE_HOTKEY)} className="ms-auto" />
         </button>
         {canWrite ? (
           <>

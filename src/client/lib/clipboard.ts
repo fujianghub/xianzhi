@@ -10,6 +10,8 @@ export async function copyText(text: string): Promise<boolean> {
       // 权限被拒时继续走降级
     }
   }
+  // 降级要选中临时 textarea，会抢走焦点：复制完还给原元素（热键可能在编辑器里按下，ADR-0058）
+  const prev = document.activeElement instanceof HTMLElement ? document.activeElement : null
   const ta = document.createElement('textarea')
   ta.value = text
   ta.setAttribute('readonly', '')
@@ -21,5 +23,6 @@ export async function copyText(text: string): Promise<boolean> {
     return document.execCommand('copy')
   } finally {
     ta.remove()
+    prev?.focus({ preventScroll: true })
   }
 }
