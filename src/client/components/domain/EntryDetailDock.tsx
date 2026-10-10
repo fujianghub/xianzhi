@@ -16,7 +16,7 @@ import { DOCK_QUERY } from '../../lib/entry-dock.ts'
 import { type Entry, entryQuery } from '../../lib/entry-queries.ts'
 import { readingAttrs, useReading } from '../../lib/reading.ts'
 import { pushRecent } from '../../lib/recent.ts'
-import { useEntryDock } from '../../lib/stores.ts'
+import { useCommandContext, useEntryDock } from '../../lib/stores.ts'
 import { DetailDock } from '../layout/DetailDock.tsx'
 import { InlineEdit } from '../ui/inline-edit.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
@@ -54,9 +54,13 @@ function EntryDetailDock({ entryId, onClose }: { entryId: string; onClose: () =>
   const [docBarSlot, setDocBarSlot] = useState<HTMLDivElement | null>(null)
   const ref = useRef<HTMLElement | null>(null)
   const canWrite = !!e && !!me && (e.authorId === me.id || me.workspaceRole !== 'guest')
+  // ⌘K / 复制标题热键：坞开着时上下文为该记录（同任务详情坞，ADR-0058）
+  const setCmdFocus = useCommandContext((st) => st.setFocus)
   useEffect(() => {
     pushRecent(entryId)
-  }, [entryId])
+    setCmdFocus({ kind: 'entry', id: entryId })
+    return () => setCmdFocus(null)
+  }, [entryId, setCmdFocus])
   // Esc：来自坞内非编辑区（正文里 Esc 归编辑器）或 body 时关；弹层自己处理 Esc
   const closeRef = useRef(onClose)
   closeRef.current = onClose

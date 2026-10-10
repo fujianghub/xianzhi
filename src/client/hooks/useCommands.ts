@@ -8,6 +8,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { COPY_TITLE_HOTKEY, copyTitle } from '../lib/copy-title.ts'
 import { downloadEntryExport } from '../lib/entry-export.ts'
 import { entryQuery } from '../lib/entry-queries.ts'
 import { useFocusMode } from '../lib/reading.ts'
@@ -33,6 +34,8 @@ export interface Cmd {
   label: string
   /** 全局热键（`g t`、`c`、`mod+k`）；显示为 KeyHint */
   hotkey?: string
+  /** context 组的热键默认只在 ⌘K 里显示（列表自己处理按键）；true = 也注册为全局热键（复制标题，ADR-0058） */
+  global?: boolean
   keywords?: string[]
   disabled?: boolean
   page?: PalettePage
@@ -77,6 +80,7 @@ export function useCommands(): { commands: Cmd[]; target: ReturnType<typeof useT
   const focusOn = useFocusMode((s) => s.on)
   const setFocus = useFocusMode((s) => s.set)
   const entryActions = useEntryActions()
+  const entryPage = useCommandContext((s) => s.base?.kind === 'entry')
 
   const commands = useMemo<Cmd[]>(() => {
     const go = (to: string) => () => void nav({ to })
@@ -106,6 +110,15 @@ export function useCommands(): { commands: Cmd[]; target: ReturnType<typeof useT
           hotkey: 'p',
           run: () => peek({ kind: 'task', id: task.id, spaceSlug: task.spaceSlug }),
         },
+        {
+          id: 'task.copyTitle',
+          group: 'context',
+          label: t('cmd.copyTitle'),
+          hotkey: COPY_TITLE_HOTKEY,
+          global: true,
+          keywords: ['copy', 'fuzhi'],
+          run: () => void copyTitle(task.title),
+        },
       )
     } else if (target.kind === 'entry' && target.entry) {
       const entry = target.entry
@@ -131,6 +144,15 @@ export function useCommands(): { commands: Cmd[]; target: ReturnType<typeof useT
             ),
         },
         { id: 'entry.move', group: 'context', label: t('cmd.entry.move'), page: 'space' },
+        {
+          id: 'entry.copyTitle',
+          group: 'context',
+          label: t('cmd.copyTitle'),
+          hotkey: COPY_TITLE_HOTKEY,
+          global: true,
+          keywords: ['copy', 'fuzhi'],
+          run: () => void copyTitle(entry.title || t('entry.untitled')),
+        },
         {
           id: 'entry.pin',
           group: 'context',
@@ -280,8 +302,9 @@ export function useCommands(): { commands: Cmd[]; target: ReturnType<typeof useT
         keywords: ['font', 'paper', 'ziti', 'paiban', 'zhizhang'],
         run: go('/settings/reading'),
       },
-      // 专注写作只在记录页（ADR-0024 §5）；放 prefs 组才会注册全局热键
-      ...(target.kind === 'entry'
+      // 专注写作只在记录页（ADR-0024 §5）；放 prefs 组才会注册全局热键。
+      // 看页面 base 而非焦点：列表页的记录详情坞也把焦点设成记录（ADR-0058），那里没有专注
+      ...(entryPage
         ? [
             {
               id: 'prefs.focus',
@@ -323,6 +346,7 @@ export function useCommands(): { commands: Cmd[]; target: ReturnType<typeof useT
     setDensity,
     focusOn,
     setFocus,
+    entryPage,
     setHelp,
     setPalette,
     peek,

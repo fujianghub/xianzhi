@@ -7,6 +7,7 @@ import './styles/app.css'
 import { ApiError } from './lib/api.ts'
 import { effectiveMotion } from './lib/motion.ts'
 import { parseSearch, stringifySearch } from './lib/search.ts'
+import { applySidebarWidth, storedSidebarWidth } from './lib/sidebar-width.ts'
 import { applyDensity, useLayout } from './lib/stores.ts'
 import { watchSystemTheme } from './lib/theme.ts'
 import { NotFound } from './routes/-components/NotFound.tsx'
@@ -55,6 +56,7 @@ declare module '@tanstack/react-router' {
 
 watchSystemTheme()
 applyDensity(useLayout.getState().density)
+applySidebarWidth(storedSidebarWidth())
 
 const el = document.getElementById('root')
 if (el)

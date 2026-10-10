@@ -1,6 +1,7 @@
 /**
  * 布局骨架（04 §4、06 §4、REQ-UI-014 · REQ-MOBILE-001）：Topbar 56 / Sidebar 240 / Aside 320 可折；
  * < lg：Sidebar 抽屉（Sheet left）、底部导航（safe-area）。`[` / `]` 折叠侧栏 / Aside。
+ * ≥ lg 侧栏右缘可拖动调宽（ADR-0058，`--xz-sidebar-w`，SidebarResizer）。
  * 专注写作（ADR-0024 §5）：隐藏侧栏 / 顶栏 / Aside / 底部导航，右上角浮动「退出专注」；Esc 退出（弹层 / 编辑器已处理的 Esc 除外）。
  * 同屏 blur：≥ lg 时 Topbar + Sidebar + Aside = 3（L1 ≤ 4）；底部导航 < lg 才显示。
  */
@@ -63,6 +64,7 @@ import { Seal } from '../ui/seal.tsx'
 import { Sheet, SheetContent, SheetTitle } from '../ui/sheet.tsx'
 import { Tooltip } from '../ui/tooltip.tsx'
 import { NotificationBell } from './NotificationBell.tsx'
+import { SidebarResizer } from './SidebarResizer.tsx'
 import { StatusPill } from './StatusPill.tsx'
 import { ThemeToggle } from './ThemeToggle.tsx'
 
@@ -257,7 +259,7 @@ export function AppShell({
     () =>
       Object.fromEntries(
         commands
-          .filter((c) => c.hotkey && c.run && c.group !== 'context')
+          .filter((c) => c.hotkey && c.run && (c.group !== 'context' || c.global))
           .map((c) => [c.hotkey, c.run]),
       ) as Record<string, () => void>,
     [commands],
@@ -279,6 +281,7 @@ export function AppShell({
       </a>
       {/* Sidebar ≥ lg */}
       <aside
+        id="xz-sidebar"
         data-testid="sidebar"
         className={cn(
           'xz-sidebar fixed inset-y-0 left-0 z-(--xz-z-sticky) hidden w-(--xz-sidebar-w) flex-col lg:flex',
@@ -291,6 +294,7 @@ export function AppShell({
           <NavList />
           <SpaceSwitcher me={me} />
         </div>
+        <SidebarResizer controls="xz-sidebar" />
       </aside>
       {/* Sidebar 抽屉 < lg */}
       <Sheet open={drawerOpen} onOpenChange={setDrawer}>

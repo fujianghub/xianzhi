@@ -1,6 +1,7 @@
 /** 快捷键面板（04 §6、REQ-UI-006：`?` 打开）：与 ⌘K 共用命令注册表，只列有热键的命令，另附列表 / 编辑器内按键。 */
 import { useTranslation } from 'react-i18next'
 import { hotkeyParts, useCommands } from '../../hooks/useCommands.ts'
+import { COPY_TITLE_HOTKEY } from '../../lib/copy-title.ts'
 import { usePalette } from '../../lib/stores.ts'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../ui/dialog.tsx'
 import { KeyHint } from '../ui/key-hint.tsx'
@@ -22,6 +23,11 @@ export default function ShortcutsDialog() {
   const { help, setHelp } = usePalette()
   const { commands } = useCommands()
   const withKeys = commands.filter((c) => c.hotkey && c.group !== 'context')
+  // 复制标题是上下文命令（无任务 / 记录时不在注册表里），固定列在右栏（ADR-0058）
+  const contextKeys: [string, string[]][] = [
+    ...LIST_KEYS,
+    ['cmd.keys.copyTitle', hotkeyParts(COPY_TITLE_HOTKEY)],
+  ]
   return (
     <Dialog open={help} onOpenChange={setHelp}>
       <DialogContent className="w-[min(92vw,34rem)]" data-testid="shortcuts-dialog">
@@ -37,7 +43,7 @@ export default function ShortcutsDialog() {
             ))}
           </ul>
           <ul className="flex flex-col gap-2 text-sm">
-            {LIST_KEYS.map(([k, keys]) => (
+            {contextKeys.map(([k, keys]) => (
               <li key={k} className="flex items-center justify-between gap-3">
                 <span className="truncate">{t(k)}</span>
                 <KeyHint keys={keys} />

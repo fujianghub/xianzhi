@@ -361,6 +361,39 @@ html[data-dialog-open] body::before {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
+/* 侧栏右缘拖动条（ADR-0058、REQ-UI-054）：与详情坞把手同款——8px 热区骑在边线上，悬停 / 聚焦 / 拖动中显示 2px 主色线 */
+.xz-resizer {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: -4px;
+  z-index: 1;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.xz-resizer::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 3px;
+  width: 2px;
+  background: transparent;
+  transition: background-color var(--xz-dur-fast) var(--xz-ease-out);
+}
+.xz-resizer:hover::after,
+.xz-resizer:focus-visible::after,
+:root[data-xz-resizing] .xz-resizer::after {
+  background: var(--xz-primary);
+}
+.xz-resizer:focus-visible {
+  outline: none;
+}
+:root[data-xz-resizing] {
+  cursor: col-resize;
+}
+:root[data-xz-resizing] body {
+  user-select: none;
+}
 .xz-brand {
   border-bottom: 1px solid var(--xz-divider);
 }

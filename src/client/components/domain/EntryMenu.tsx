@@ -10,6 +10,7 @@ import { useNavigate } from '@tanstack/react-router'
 import {
   Archive,
   ArchiveRestore,
+  Clipboard,
   Copy,
   CopyPlus,
   Download,
@@ -24,16 +25,19 @@ import {
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { hotkeyParts } from '../../hooks/useCommands.ts'
 import { useEntryActions } from '../../hooks/useEntries.ts'
 import { useMe } from '../../hooks/useMe.ts'
 import { entryPageContext } from '../../hooks/useNewEntryContext.ts'
 import { ApiError } from '../../lib/api.ts'
 import { cn } from '../../lib/cn.ts'
+import { COPY_TITLE_HOTKEY, copyTitle } from '../../lib/copy-title.ts'
 import { downloadEntryExport } from '../../lib/entry-export.ts'
 import type { Entry } from '../../lib/entry-queries.ts'
 import type { Space } from '../../lib/space-queries.ts'
 import { useNewEntry } from '../../lib/stores.ts'
 import { ConfirmDialog } from '../ui/confirm-dialog.tsx'
+import { KeyHint } from '../ui/key-hint.tsx'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.tsx'
 import { EntryPlaceDialog, useQuickDuplicate } from './EntryPlaceDialog.tsx'
 
@@ -91,6 +95,7 @@ export function EntryMenu({
     label: string,
     onClick: () => void,
     danger?: boolean,
+    hint?: string,
   ) => (
     <li key={key}>
       <button
@@ -104,6 +109,7 @@ export function EntryMenu({
       >
         {icon}
         {label}
+        {hint ? <KeyHint keys={hotkeyParts(hint)} className="ms-auto" /> : null}
       </button>
     </li>
   )
@@ -125,7 +131,7 @@ export function EntryMenu({
             <MoreHorizontal className="size-4" />
           </button>
         </PopoverTrigger>
-        <PopoverContent align="end" className="w-48 p-1">
+        <PopoverContent align="end" className="w-56 p-1">
           <ul aria-label={t('entry.menu.label')}>
             {/* 子页须挂在目录里的父页下（服务端 placeNew），不在目录的记录不给此项 */}
             {canWrite && entry.treeOrder !== null
@@ -163,6 +169,14 @@ export function EntryMenu({
                   run(() => actions.patch(entry, { pinned: !entry.pinned })),
                 )
               : null}
+            {item(
+              'copy-title',
+              <Clipboard className="size-4" />,
+              t('cmd.copyTitle'),
+              run(() => copyTitle(title)),
+              false,
+              COPY_TITLE_HOTKEY,
+            )}
             {canCopy
               ? item(
                   'duplicate',
