@@ -9,7 +9,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowRight, ChevronRight, History, Plus } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BUG_CLOSED_STATUSES } from '../../../shared/schemas/entryFields.ts'
+import { BUG_CLOSED_STATUSES, dateBounds } from '../../../shared/schemas/entryFields.ts'
 import { useEntryActions } from '../../hooks/useEntries.ts'
 import { useFieldCommit } from '../../hooks/useFieldCommit.ts'
 import { api, unwrap } from '../../lib/api.ts'
@@ -20,7 +20,14 @@ import { valueTone } from '../../lib/field-tones.ts'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.tsx'
 import { RelativeTime } from '../ui/relative-time.tsx'
 import { useBugModules } from './EntryFieldsForm.tsx'
-import { FieldEditor, type FieldSpec, FieldValue, Pill, useFieldSpecs } from './FieldValue.tsx'
+import {
+  FieldEditor,
+  type FieldSpec,
+  FieldValue,
+  Pill,
+  useFieldSpecs,
+  useToday,
+} from './FieldValue.tsx'
 import { toneClass } from './KindIcon.tsx'
 import { TagPicker, tagsQuery } from './TagPicker.tsx'
 
@@ -139,8 +146,11 @@ function PropRow({
   onCommit: (v: unknown) => void
 }) {
   const { t } = useTranslation()
+  const today = useToday()
   const value = entry.fields[spec.name]
   const missing = isEmpty(value)
+  // 日期：先后字段与「发现日期不晚于今天」推出可选范围，越界日期在月历里置灰（ADR-0056）
+  const bounds = spec.kind === 'date' ? dateBounds(entry.kind, spec.name, entry.fields, today) : {}
   const shown = (
     <FieldValue
       spec={spec}
@@ -168,6 +178,8 @@ function PropRow({
             value={value}
             onCommit={onCommit}
             suggestions={suggestions}
+            dateMin={bounds.min}
+            dateMax={bounds.max}
             trigger={
               <button
                 type="button"

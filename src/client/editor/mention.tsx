@@ -3,7 +3,6 @@
  * 插入 `mention{ id, label }`；服务端写 mentions 并发 mention.created，扇出前 can(read) 过滤。
  * `active` 让宿主编辑器知道候选框打开（评论框此时 Enter 选择候选而非发送）。
  */
-import { computePosition, flip, offset, shift } from '@floating-ui/dom'
 import type { MentionOptions } from '@tiptap/extension-mention'
 import { ReactRenderer } from '@tiptap/react'
 import type { SuggestionProps } from '@tiptap/suggestion'
@@ -11,6 +10,7 @@ import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Avatar } from '../components/ui/avatar.tsx'
 import { cn } from '../lib/cn.ts'
+import { suggestionPopup } from './floating.ts'
 
 export interface MentionCandidate {
   id: string
@@ -93,39 +93,27 @@ export function mentionSuggestion(
       },
       render: () => {
         let r: ReactRenderer<Handle, Props> | null = null
-        let host: HTMLDivElement | null = null
-        const place = (p: Props) => {
-          const rect = p.clientRect?.()
-          if (!rect || !host) return
-          void computePosition({ getBoundingClientRect: () => rect }, host, {
-            placement: 'bottom-start',
-            strategy: 'fixed',
-            middleware: [offset(6), flip(), shift({ padding: 8 })],
-          }).then(({ x, y }) => {
-            if (host) Object.assign(host.style, { left: `${x}px`, top: `${y}px` })
-          })
-        }
+        // 宿主挂在弹窗内或 body 下、fixed、随滚动跟随（floating.ts，ADR-0056 §D）：
+        // 模态 Sheet 里挂到 body 会继承 pointer-events: none，候选点不中
+        let popup: ReturnType<typeof suggestionPopup> | null = null
         const close = () => {
           active.current = false
           r?.destroy()
-          host?.remove()
+          popup?.destroy()
           r = null
-          host = null
+          popup = null
         }
         return {
           onStart: (p) => {
             active.current = true
-            host = document.createElement('div')
-            host.style.position = 'fixed'
-            host.style.zIndex = 'var(--xz-z-toast)'
-            document.body.appendChild(host)
+            popup = suggestionPopup(p.editor, 'var(--xz-z-toast)')
             r = new ReactRenderer(List, { props: p, editor: p.editor })
-            host.appendChild(r.element)
-            place(p)
+            popup.el.appendChild(r.element)
+            popup.place(() => p.clientRect?.())
           },
           onUpdate: (p) => {
             r?.updateProps(p)
-            place(p)
+            popup?.place(() => p.clientRect?.())
           },
           onKeyDown: ({ event }) => {
             if (event.key === 'Escape') {

@@ -223,3 +223,58 @@ test('REQ-BUG-011 · 012 斜杠「查询」插入本空间未关闭 Bug 的查�
   await expect(placeholder).toContainText('未关闭总数')
   await expect(placeholder.getByTestId('entry-row')).toHaveCount(0)
 })
+
+/** 操作者时区（seed 为 Asia/Shanghai）的今天 ± n 天，YYYY-MM-DD */
+const shanghaiDay = (n = 0) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(
+    new Date(Date.now() + n * 86_400_000),
+  )
+
+test('REQ-ENTRY-042 日期属性用月历选：键入半截不提交、回车才按完整日期保存，点日期即保存，发现日期不能选未来', async ({
+  page,
+  request,
+}) => {
+  const s = await mkSpace(request)
+  const id = await bug(request, s.id, '日期选择', { foundAt: shanghaiDay(-10) })
+  const patches: string[] = []
+  page.on('request', (r) => {
+    if (r.method() === 'PATCH' && r.url().includes(`/entries/${id}`))
+      patches.push(r.postData() ?? '')
+  })
+  await page.goto(`/entries/${id}`)
+  const prop = page.getByTestId('entry-prop-foundAt')
+  const editor = page.locator('[data-testid="field-editor-foundAt"][data-state="open"]')
+  await prop.click()
+  await expect(editor).toBeVisible()
+  // 发现日期不晚于今天：「明天」置灰
+  await expect(editor.getByTestId('date-quick-tomorrow')).toBeDisabled()
+  await expect(editor.getByTestId('date-quick-today')).toBeEnabled()
+
+  // 逐键输入不提交、弹层不关；半截日期回车 → 提示，不提交
+  const input = editor.getByTestId('field-input-foundAt')
+  await input.fill('')
+  await input.pressSequentially('2025')
+  await expect(editor).toBeVisible()
+  await input.press('Enter')
+  await expect(editor.getByTestId('date-picker-error')).toBeVisible()
+  expect(patches).toHaveLength(0)
+
+  // 完整日期（也认 /）回车 → 一次 PATCH、关闭
+  const yesterday = shanghaiDay(-1)
+  await input.fill(yesterday.replaceAll('-', '/'))
+  await input.press('Enter')
+  await expect(editor).toHaveCount(0)
+  await expect.poll(async () => (await fieldsOf(request, id)).foundAt).toBe(yesterday)
+  expect(patches).toHaveLength(1)
+
+  // 月历点日期即保存（今天）
+  await prop.click()
+  await expect(editor).toBeVisible()
+  const today = shanghaiDay()
+  if (today.slice(0, 7) !== yesterday.slice(0, 7))
+    await editor.getByTestId('date-picker-next').click()
+  await editor.locator(`[data-date="${today}"]`).click()
+  await expect(editor).toHaveCount(0)
+  await expect.poll(async () => (await fieldsOf(request, id)).foundAt).toBe(today)
+  expect(patches).toHaveLength(2)
+})

@@ -1,6 +1,9 @@
 /**
  * 表格工具条（ADR-0025 §4、REQ-EDITOR-028）：光标在表格内时浮在表格上方（第二个 BubbleMenu，独立 pluginKey）。
  * 行 / 列增删、合并 / 拆分（不可用时禁用）、表头行开关、删除表格。glass-thick（06 L2）。
+ * 定位（ADR-0056 §E）：fixed、挂载 / 边界 / 滚动跟随见 floating.ts（不被详情坞裁剪、不撑横向滚动、压过侧栏）；
+ * 表格顶部滚出可视区时参照改为表格在可视区内的部分，工具条停在可视区顶部，不翻到屏幕外；
+ * 所在区域比工具条窄（最窄的详情坞 320px）时换行。
  */
 import type { Editor } from '@tiptap/react'
 import { useEditorState } from '@tiptap/react'
@@ -19,9 +22,13 @@ import {
   TableCellsSplit,
   Trash2,
 } from 'lucide-react'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '../lib/cn.ts'
+import { menuBoundary, menuBounds, topInset, useFixedMenu } from './floating.ts'
+
+const PLUGIN_KEY = 'xzTableMenu'
+const GAP = 8
 
 /** 取光标所在表格的 DOM，作为浮层参照（而不是选区矩形）。 */
 /** 当前表格的表头状态（ADR-0032）：首行全是 th = 表头行；各行首格都是 th = 表头列。 */
@@ -65,10 +72,47 @@ export function TableMenu({ editor }: { editor: Editor }) {
     ({ editor: e }: { editor: Editor }) => e.isEditable && e.isActive('table'),
     [],
   )
-  const options = useMemo(() => ({ placement: 'top-start' as const, offset: 8 }), [])
+  const { appendTo, visible, reposition } = useFixedMenu(editor, PLUGIN_KEY)
+  const bar = useRef<HTMLDivElement>(null)
+  // 工具条最宽 = 所在区域宽 − 两侧边距，超出换行；宽度变了（换行 → 变高）按新尺寸重新定位
+  const [maxW, setMaxW] = useState<number | undefined>(undefined)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: maxW 是触发条件
+  useEffect(() => {
+    reposition()
+  }, [maxW, reposition])
+  const options = useMemo(
+    () => ({
+      strategy: 'fixed' as const,
+      placement: 'top-start' as const,
+      offset: 8,
+      flip: () => menuBounds(editor),
+      shift: () => menuBounds(editor),
+      hide: () => ({ boundary: menuBounds(editor).boundary }),
+      onShow: () => {
+        visible.current = true
+        const w = menuBoundary(editor)?.clientWidth
+        setMaxW(w ? w - 2 * GAP : undefined)
+      },
+      onHide: () => {
+        visible.current = false
+      },
+    }),
+    [editor, visible],
+  )
   const getReferencedVirtualElement = useCallback(() => {
     const el = tableElement(editor)
-    return el ? { getBoundingClientRect: () => el.getBoundingClientRect() } : null
+    if (!el) return null
+    return {
+      contextElement: el,
+      getBoundingClientRect: () => {
+        const r = el.getBoundingClientRect()
+        // 参照顶边至少在可视区顶部以下「工具条高 + 间距」，工具条才放得进可视区
+        const top = topInset(editor) + (bar.current?.offsetHeight ?? 40) + GAP
+        // 整张表已滚出可视区：保持原矩形，交给 hide 隐藏
+        if (r.top >= top || r.bottom <= top) return r
+        return new DOMRect(r.left, top, r.width, r.bottom - top)
+      },
+    }
   }, [editor])
   const can = useEditorState({
     editor,
@@ -110,16 +154,20 @@ export function TableMenu({ editor }: { editor: Editor }) {
   return (
     <BubbleMenu
       editor={editor}
-      pluginKey="xzTableMenu"
+      pluginKey={PLUGIN_KEY}
       shouldShow={shouldShow}
       options={options}
+      appendTo={appendTo}
       getReferencedVirtualElement={getReferencedVirtualElement}
+      className="xz-float-menu"
     >
       <div
+        ref={bar}
         role="toolbar"
         aria-label={t('editor.table.toolbar')}
         data-testid="table-menu"
-        className="glass-thick relative z-(--xz-z-dropdown) flex items-center gap-0.5 rounded-lg px-1 py-1 text-fg"
+        className="glass-thick relative z-(--xz-z-dropdown) flex flex-wrap items-center gap-0.5 rounded-lg px-1 py-1 text-fg"
+        style={{ maxWidth: maxW }}
       >
         {btn('rowBefore', ArrowUpToLine, () => chain().addRowBefore().run())}
         {btn('rowAfter', ArrowDownToLine, () => chain().addRowAfter().run())}

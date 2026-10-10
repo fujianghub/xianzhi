@@ -4,7 +4,7 @@
  * （放在 shared：节日白名单是数据而非界面文案，不受 check-i18n 约束）。
  */
 import { getDayDetail, getLunarDate, getLunarFestivals, getSolarTerms } from 'chinese-days'
-import { formatLocalDate, type LocalDate } from './tz.ts'
+import { addDays, formatLocalDate, type LocalDate } from './tz.ts'
 
 export interface DayMeta {
   /** 法定假日（休）：节日名 */
@@ -79,7 +79,8 @@ export function dayMeta(d: LocalDate): DayMeta {
     const l = getLunarDate(key)
     meta.lunar = l.lunarDay === 1 ? l.lunarMonCN : l.lunarDayCN
     if (l.lunarDay === 1 && l.isLeap) meta.leap = true
-    const names = getLunarFestivals(key, key)[0]?.name ?? []
+    // 寒食节不用数据源的：见下方「寒食节 = 清明前一日」
+    const names = (getLunarFestivals(key, key)[0]?.name ?? []).filter((n) => n !== '寒食节')
     const fest = names.map((n) => MAJOR_FESTIVALS[n]).find(Boolean)
     if (fest) meta.festival = fest
     meta.lunarFull = `${l.isLeap ? '闰' : ''}${l.lunarMonCN}${l.lunarDayCN}`
@@ -89,6 +90,12 @@ export function dayMeta(d: LocalDate): DayMeta {
   }
   const term = termsOf(d.y).get(key)
   if (term) meta.term = term
+  // 寒食节 = 清明前一日。chinese-days 1.5.9 把「次日落在清明节气期内（约半个月）」当成「次日是清明」，
+  // 清明前一日起天天返回寒食节（debug/2026-10-10-cn-days-hanshi-every-day）；这里按节气当天自己判断
+  if (!meta.festival) {
+    const next = addDays(d, 1)
+    if (termsOf(next.y).get(formatLocalDate(next)) === '清明') meta.festival = '寒食节'
+  }
   cache.set(key, meta)
   return meta
 }

@@ -2768,7 +2768,12 @@ select:disabled {
   border-radius: var(--xz-radius-lg);
   background: var(--xz-surface);
 }
+/* 编辑器 fixed 浮层（链接气泡 / 表格工具条，ADR-0056）：外层 fixed 自成层叠上下文，z 必须设在外层；压过侧栏 / 详情坞 / 吸顶格式栏 */
+.xz-float-menu {
+  z-index: var(--xz-z-dropdown);
+}
 .xz-link-bubble {
+  z-index: var(--xz-z-dropdown);
   display: flex;
   align-items: center;
   padding: 0.25rem;

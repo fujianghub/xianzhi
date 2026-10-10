@@ -3,6 +3,8 @@
  * - 日程：标题、全天、开始 / 结束、日历、地点、备注；关闭气泡时若有改动即保存（重复日程先问范围）；
  *   「更多选项」打开完整编辑器（重复 / 提醒 / 链接）；删除（重复日程问范围）。
  * - 任务：标题、完成、日期 / 时间（改的是日历上用来定位它的那个字段：截止优先，否则计划开始）、优先级；
+ *   日期用月历选择器（点日期才保存），时间在失焦 / 回车 / 关闭气泡时保存——不用原生日期框逐段 change 即写库
+ *   （按一下 ↓ 任务就挪走，ADR-0056 §C、debug/2026-10-09-calendar-quick-date-commit-per-keystroke）；
  *   删除（软删，Toast「撤销」= restore）；「详情」在日历页内打开任务详情抽屉。
  * 焦点不在输入框时按 Delete / Backspace = 删除；Esc 关闭。
  */
@@ -23,11 +25,12 @@ import {
 } from '../../lib/calendar-queries.ts'
 import { cn } from '../../lib/cn.ts'
 import type { Task } from '../../lib/task-queries.ts'
+import { DateFieldPicker } from '../domain/DateFieldPicker.tsx'
 import { PALETTE_DOT } from '../domain/SpaceIcon.tsx'
 import { Button } from '../ui/button.tsx'
-import { Popover, PopoverAnchor, PopoverContent } from '../ui/popover.tsx'
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '../ui/popover.tsx'
 import { type EventForm, formRange, initialForm } from './EventEditor.tsx'
-import { at, type CalItem, hhmm } from './model.ts'
+import { at, type CalItem, hhmm, toggleAllDay } from './model.ts'
 
 type AskScope = (a: 'save' | 'delete') => Promise<'this' | 'future' | 'all' | null>
 
@@ -133,6 +136,7 @@ export function QuickEdit({
             key={item.key}
             task={item.task}
             tz={tz}
+            commitRef={commit}
             delRef={del}
             onDone={onClose}
             onOpen={() => {
@@ -273,12 +277,7 @@ function EventQuick({
             type="checkbox"
             checked={form.allDay}
             onChange={(e) => {
-              const allDay = e.target.checked
-              setForm((f) => ({
-                ...f,
-                allDay,
-                endDate: allDay && f.endDate < f.startDate ? f.startDate : f.endDate,
-              }))
+              setForm((f) => toggleAllDay(f, e.target.checked))
             }}
             className="size-4 accent-(--xz-primary)"
             data-testid="cal-quick-allday"
@@ -408,12 +407,15 @@ const fmtDate = (d: LocalDate) =>
 function TaskQuick({
   task,
   tz,
+  commitRef,
   delRef,
   onDone,
   onOpen,
 }: {
   task: Task
   tz: string
+  /** 关闭气泡时提交未保存的时间草稿 */
+  commitRef: { current: (() => void) | null }
   delRef: { current: (() => void) | null }
   onDone: () => void
   onOpen: () => void
@@ -492,6 +494,21 @@ function TaskQuick({
     }
   }
   delRef.current = () => void remove()
+  // 日期：月历弹层，点日期才保存
+  const [dateOpen, setDateOpen] = useState(false)
+  // 时间：草稿（null = 未在改），失焦 / 回车 / 关闭气泡时保存
+  const shownTime = allDay || !local ? '' : hhmm(local.minutes)
+  const [timeDraft, setTimeDraft] = useState<string | null>(null)
+  const draftRef = useRef<string | null>(null)
+  draftRef.current = timeDraft
+  const commitTime = () => {
+    const v = draftRef.current
+    if (v === null) return
+    draftRef.current = null
+    setTimeDraft(null)
+    if (local && v !== shownTime) setWhen(fmtDate(local.date), v || null)
+  }
+  commitRef.current = commitTime
 
   return (
     <div className="flex flex-col" data-testid="cal-quick-task">
@@ -526,24 +543,50 @@ function TaskQuick({
       <div className="flex flex-col gap-2.5 px-4 py-3 text-sm">
         <div className="grid grid-cols-[3.5rem_1fr_auto] items-center gap-2">
           <span className="text-fg-muted text-xs">{t(`task.${field}`)}</span>
-          <input
-            type="date"
-            value={local ? fmtDate(local.date) : ''}
-            aria-label={t('calendar.quick.date')}
-            onChange={(e) =>
-              e.target.value && setWhen(e.target.value, allDay ? null : hhmm(local?.minutes ?? 0))
-            }
-            className={fieldCls}
-            data-testid="cal-quick-task-date"
-          />
+          <Popover open={dateOpen} onOpenChange={setDateOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label={t('calendar.quick.date')}
+                className={cn(fieldCls, 'text-left tabular-nums')}
+                data-testid="cal-quick-task-date"
+              >
+                {local ? `${local.date.y}/${local.date.m}/${local.date.d}` : '—'}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="start"
+              className="w-64 p-1.5"
+              data-testid="cal-quick-task-date-picker"
+              // 嵌套弹层的按键会沿 React 树冒泡到气泡：别让日期格上的 Backspace / Delete 删掉任务
+              onKeyDown={(e) => e.stopPropagation()}
+            >
+              <DateFieldPicker
+                name="quickDate"
+                label={t('calendar.quick.date')}
+                value={local ? fmtDate(local.date) : undefined}
+                required
+                onCommit={(v) => {
+                  setDateOpen(false)
+                  if (v) setWhen(v, allDay ? null : hhmm(local?.minutes ?? 0))
+                }}
+              />
+            </PopoverContent>
+          </Popover>
           <input
             type="time"
             step={900}
-            value={allDay || !local ? '' : hhmm(local.minutes)}
+            value={timeDraft ?? shownTime}
             aria-label={t('calendar.quick.time')}
-            onChange={(e) =>
-              local && setWhen(fmtDate(local.date), e.target.value ? e.target.value : null)
-            }
+            disabled={!local}
+            onChange={(e) => setTimeDraft(e.target.value)}
+            onBlur={commitTime}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                commitTime()
+              }
+            }}
             className={fieldCls}
             data-testid="cal-quick-task-time"
           />

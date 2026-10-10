@@ -1,5 +1,6 @@
 /** 其余共享 schema：recurrence、sort 白名单 / limit（02 §4）、liteKit 文档与派生、链接、周期目标、导出。 */
 import { describe, expect, it } from 'vitest'
+import { isoDateTime } from '../schemas/common.ts'
 import { createCycleSchema, goalsSchema } from '../schemas/cycles.ts'
 import { createEntrySchema, listEntriesQuery } from '../schemas/entries.ts'
 import { createExportSchema } from '../schemas/exports.ts'
@@ -164,5 +165,15 @@ describe('others', () => {
     expect(createExportSchema.safeParse({ scope: 'workspace' }).success).toBe(true)
     expect(createExportSchema.safeParse({ scope: 'entry' }).success).toBe(false)
     expect(createExportSchema.parse({ scope: 'space', id: U }).format).toBe('zip')
+  })
+})
+
+describe('日期时间年份范围（ADR-0056 §C）', () => {
+  it('REQ-CAL-014 isoDateTime 年份限 1900 ~ 2999：逐段输入的半截年份（0002-…）被拒', () => {
+    expect(isoDateTime.safeParse('2026-10-09T06:00:00.000Z').success).toBe(true)
+    expect(isoDateTime.safeParse('2026-10-09T14:00:00+08:00').success).toBe(true)
+    expect(isoDateTime.safeParse('0002-10-09T06:00:00.000Z').success).toBe(false)
+    expect(isoDateTime.safeParse('1899-12-31T23:59:59Z').success).toBe(false)
+    expect(isoDateTime.safeParse('3000-01-01T00:00:00Z').success).toBe(false)
   })
 })

@@ -3,7 +3,7 @@
  * 交互（macOS 同）：
  * - 空白处单击 = 在该半点新建 1 小时日程；按住拖动 = 框选时段新建（15 分钟吸附）
  * - 拖动日程块 = 改期（可跨列换日）；拖底边 = 改结束时间；单击 = 打开编辑器；任务只可点开
- * - 全天行空白处单击 = 新建全天日程
+ * - 全天行空白处单击 = 新建全天日程；全天 / 跨日项排成连续条，跨多日横跨多列（ADR-0057）
  */
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,6 +17,7 @@ import {
   dayKey,
   hhmm,
   keyToDate,
+  layoutBars,
   layoutLanes,
   MIN_PER_DAY,
   SNAP,
@@ -111,7 +112,8 @@ export function TimeGrid({
     }
   }, [rangeKey, earliest])
   const isBlock = (it: CalItem) => it.allDay || it.startDay !== it.endDay
-  const allDay = keys.map((k) => sorted.filter((it) => isBlock(it) && covers(it, k)))
+  const bars = layoutBars(sorted.filter(isBlock), keys)
+  const barLanes = bars.reduce((m, b) => Math.max(m, b.lane + 1), 0)
   const cols = days.length
   // 多列视图最多并排 2 列，更多的收成「+N」（REQ-CAL-011）；日视图列宽足够，不收起
   const maxLanes = cols > 1 ? 2 : Number.POSITIVE_INFINITY
@@ -231,32 +233,54 @@ export function TimeGrid({
         })}
       </div>
       {/* 全天行 */}
-      <div className="grid border-divider border-b bg-surface-2/50" style={gridCols}>
-        <div className="self-center pr-2 text-right text-[11px] text-fg-muted">
+      <div
+        className="grid gap-y-0.5 border-divider border-b bg-surface-2/50 py-1"
+        style={{
+          ...gridCols,
+          gridTemplateRows: `${'auto '.repeat(barLanes)}minmax(1.75rem, 1fr)`,
+        }}
+        data-testid="cal-allday-row"
+      >
+        <div
+          className="self-center pr-2 text-right text-[11px] text-fg-muted"
+          style={{ gridColumn: 1, gridRow: '1 / -1' }}
+        >
           {t('calendar.allDay')}
         </div>
-        {allDay.map((list, i) => (
+        {keys.map((key, i) => (
           // 全天行空白处单击新建全天日程、按住横拖多日新建跨日全天日程（鼠标快捷方式，键盘用「新建日程」/ n）
           // biome-ignore lint/a11y/noStaticElementInteractions: 同上
           // biome-ignore lint/a11y/useKeyWithClickEvents: 同上
           <div
-            key={keys[i]}
-            onPointerDown={(e) => range.start(e, keys[i] as string)}
+            key={key}
+            onPointerDown={(e) => range.start(e, key)}
             onClick={() => {
               if (!range.consumeClick()) onCreateAllDay(days[i] as LocalDate)
             }}
+            style={{ gridColumn: i + 2, gridRow: '1 / -1' }}
             className={cn(
-              'flex min-h-9 min-w-0 select-none flex-col gap-0.5 border-divider border-l p-1',
-              range.covers(keys[i] as string) && 'bg-primary-soft',
+              '-my-1 min-w-0 select-none border-divider border-l',
+              range.covers(key) && 'bg-primary-soft',
             )}
             data-testid="cal-allday"
-            data-date={keys[i]}
-            data-range-key={keys[i]}
-          >
-            {list.map((it) => (
-              <ItemChip key={it.key} item={it} tz={tz} onOpen={onOpen} />
-            ))}
-          </div>
+            data-date={key}
+            data-range-key={key}
+          />
+        ))}
+        {bars.map((b) => (
+          <ItemChip
+            key={b.item.key}
+            item={b.item}
+            tz={tz}
+            onOpen={onOpen}
+            bar={{ days: keys.slice(b.c0, b.c1 + 1), contL: b.contL, contR: b.contR }}
+            style={{ gridColumn: `${b.c0 + 2} / ${b.c1 + 3}`, gridRow: b.lane + 1 }}
+            className={cn(
+              'relative z-[1] w-auto',
+              b.contL ? 'ms-0' : 'ms-1',
+              b.contR ? 'me-0' : 'me-1',
+            )}
+          />
         ))}
       </div>
       {/* 时间轴 */}

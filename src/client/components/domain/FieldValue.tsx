@@ -3,7 +3,7 @@
  * - `useFieldSpecs`：类型 → 字段规格（内置字段由 Zod shape 推出；自定义类型 / 追加字段由字段定义给出，ADR-0036）；
  *   每个选项带显示名与色（状态 / 优先级 / 严重度按语义色，自定义选项取类型里设的色，否则按位置轮换）。
  * - `FieldValue`：只读彩色展示（胶囊 / 日期胶囊 / 进度条 / 勾选 / 链接），记录页属性面板、表格、看板、卡片共用。
- * - `FieldEditor`：点值弹出的编辑器（选项列表带色点 / 日期 / 数字 / 文本），提交即回调，由调用方 PATCH。
+ * - `FieldEditor`：点值弹出的编辑器（选项列表带色点 / 日期月历 / 数字 / 文本），提交即回调，由调用方 PATCH。
  */
 
 import { useQuery } from '@tanstack/react-query'
@@ -41,6 +41,7 @@ import { templateFieldsQuery, useTemplateMetaOf } from '../../lib/template-queri
 import { Input } from '../ui/input.tsx'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.tsx'
 import { useUserTimeZone } from '../ui/relative-time.tsx'
+import { DateFieldPicker } from './DateFieldPicker.tsx'
 import { fieldSpecs } from './EntryFieldsForm.tsx'
 import { toneClass } from './KindIcon.tsx'
 
@@ -466,6 +467,8 @@ export function FieldEditor({
   trigger,
   suggestions,
   align = 'start',
+  dateMin,
+  dateMax,
 }: {
   spec: FieldSpec
   value: unknown
@@ -474,6 +477,9 @@ export function FieldEditor({
   /** 文本字段的候选（如 Bug 模块） */
   suggestions?: string[]
   align?: 'start' | 'center' | 'end'
+  /** 日期字段的可选范围（含端点，`dateBounds()` 推出，ADR-0056） */
+  dateMin?: string
+  dateMax?: string
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -497,7 +503,7 @@ export function FieldEditor({
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
         align={align}
-        className="w-60 p-1.5"
+        className={cn(spec.kind === 'date' ? 'w-64' : 'w-60', 'p-1.5')}
         data-testid={`field-editor-${spec.name}`}
         onClick={(e) => e.stopPropagation()}
       >
@@ -533,6 +539,16 @@ export function FieldEditor({
               <ClearButton onClick={() => commit(undefined)} disabled={isEmpty(value)} />
             )}
           </div>
+        ) : spec.kind === 'date' ? (
+          <DateFieldPicker
+            name={spec.name}
+            label={spec.label}
+            value={value}
+            required={spec.required}
+            min={dateMin}
+            max={dateMax}
+            onCommit={commit}
+          />
         ) : spec.kind === 'multiselect' ? (
           <MultiEditor
             spec={spec}
@@ -638,7 +654,6 @@ function InputEditor({
   clearLabel: string
 }) {
   const { t } = useTranslation()
-  const today = useToday()
   const [draft, setDraft] = useState(isEmpty(value) ? '' : String(value))
   const numeric = spec.kind === 'number' || spec.kind === 'progress'
   const parse = (s: string): unknown => {
@@ -660,18 +675,12 @@ function InputEditor({
       <Input
         autoFocus
         aria-label={spec.label}
-        type={
-          spec.kind === 'date' ? 'date' : numeric ? 'number' : spec.kind === 'url' ? 'url' : 'text'
-        }
+        type={numeric ? 'number' : spec.kind === 'url' ? 'url' : 'text'}
         min={spec.kind === 'progress' ? 0 : undefined}
         max={spec.kind === 'progress' ? 100 : undefined}
         value={draft}
         list={listId}
-        onChange={(e) => {
-          setDraft(e.target.value)
-          // 日期选择器选中即提交
-          if (spec.kind === 'date' && e.target.value) onCommit(e.target.value)
-        }}
+        onChange={(e) => setDraft(e.target.value)}
         data-testid={`field-input-${spec.name}`}
       />
       {listId ? (
@@ -696,22 +705,12 @@ function InputEditor({
         </div>
       ) : null}
       <div className="flex items-center gap-1">
-        {spec.kind === 'date' ? (
-          <button
-            type="button"
-            onClick={() => onCommit(today)}
-            className="h-7 rounded-md px-2 text-primary-text text-xs hover:bg-hover"
-          >
-            {t('field.today')}
-          </button>
-        ) : (
-          <button
-            type="submit"
-            className="h-7 rounded-md px-2 text-primary-text text-xs hover:bg-hover"
-          >
-            {t('field.save')}
-          </button>
-        )}
+        <button
+          type="submit"
+          className="h-7 rounded-md px-2 text-primary-text text-xs hover:bg-hover"
+        >
+          {t('field.save')}
+        </button>
         {spec.required ? null : (
           <button
             type="button"

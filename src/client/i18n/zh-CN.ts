@@ -1064,6 +1064,9 @@ export const zhCN = {
     required: '必填',
     edit: '修改{{name}}',
     saved: '已保存',
+    dateQuick: { yesterday: '昨天', today: '今天', tomorrow: '明天' },
+    dateInvalid: '请输入完整日期，如 2026-10-09',
+    dateRange: '日期须在 {{min}} ~ {{max}} 之间',
   },
   entry: {
     nav: {
