@@ -2,6 +2,8 @@
 
 > 状态：已采纳 · 2026-10-11 · 修订 ADR-0049（外观偏好加第五个键 `skin`）、不变量 5 的适用范围（皮肤 token 为安装生成的数据，见 §3）。无迁移（`user_preferences.appearance` / 工作区 `settings.appearance` 均为 jsonb / JSON，按键扩展）。需求区 00：REQ-UI-056 ~ 061。
 
+> 注 2026-10-12（ADR-0060）：界面上「皮肤」改称「主题」、日场 / 夜场改称「明暗模式」；入口移到「设置 → 主题」；§19「认证页不套皮肤」改为套工作区默认主题。代码标识符不变。
+
 ## 背景
 
 用户（2026-10-11）：「参考 codex 的相关换肤教程，生成本系统的换肤功能，主题切换功能」，并给出要装的 16 个 codexthemes.ai 主题（星轨晕环、不知火 · 流焰、普鲸 · DeepSeek、alpine、八尾狐、Cyber Earth、Blue Hour Silhouette、宫园薰·樱夜奏鸣、Misty Morning、Zhangjie Sky、初音、QQ 2007 Revival、AI孙燕姿泪海、Ligurian Afterglow、GPT看板娘、Miku Codex）。

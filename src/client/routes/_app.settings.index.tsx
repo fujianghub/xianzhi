@@ -1,27 +1,16 @@
 /**
  * 个人设置（08 §2.13、T1-033、REQ-WS-010 · 022 · 023）：头像、用户名、邮箱（须当前密码）、显示名、时区、周起始（服务端，影响「今日」「周期」）；
- * 外观（主题 / 密度 / 动效 / 玻璃 / 皮肤）随账号保存（ADR-0049 · 0059）。改动即保存，显示「已保存 · 刚刚」；时区改动后失效任务列表（今日边界变化）。
+ * 外观（明暗 / 主题 / 密度 / 动效 / 玻璃）在「设置 → 主题」（ADR-0060）。改动即保存，显示「已保存 · 刚刚」；时区改动后失效任务列表（今日边界变化）。
  */
 import { useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import {
-  APPEARANCE_DENSITIES,
-  APPEARANCE_GLASS,
-  APPEARANCE_MOTIONS,
-  APPEARANCE_THEMES,
-  type AppearanceKey,
-  BUILTIN_APPEARANCE,
-  resolveAppearance,
-} from '../../shared/schemas/preferences.ts'
 import { Input } from '../components/ui/input.tsx'
 import { type Me, useMe } from '../hooks/useMe.ts'
 import { ApiError, api, unwrap } from '../lib/api.ts'
-import { setAppearance, useAppearance } from '../lib/appearance.ts'
 import { ProfileAccount } from './-components/profile-account.tsx'
-import { SkinGallery } from './-components/skin-gallery.tsx'
 
 export const Route = createFileRoute('/_app/settings/')({ component: Profile })
 
@@ -42,10 +31,6 @@ function Profile() {
   const { data: me } = useMe()
   const [saved, setSaved] = useState(false)
   const [name, setName] = useState<string | null>(null)
-  // ADR-0049：外观随账号保存；生效值 = 内置 ← 工作区默认 ← 本人
-  const look = useAppearance()
-  const effective = resolveAppearance(look.workspace, look.user)
-  const defaults = { ...BUILTIN_APPEARANCE, ...look.workspace }
   const allZones = useMemo(zones, [])
   const weekdays = useMemo(
     () =>
@@ -138,76 +123,6 @@ function Profile() {
             <option value="zh-CN">{t('settings.profile.zhCN')}</option>
           </select>
         </label>
-        <div className="grid gap-4 sm:grid-cols-3">
-          {(
-            [
-              ['theme', t('ui.theme.toggle'), APPEARANCE_THEMES, (v: string) => t(`ui.theme.${v}`)],
-              [
-                'density',
-                t('settings.profile.density'),
-                APPEARANCE_DENSITIES,
-                (v: string) => t(`settings.profile.${v}`),
-              ],
-              [
-                'motion',
-                t('settings.profile.motion'),
-                APPEARANCE_MOTIONS,
-                (v: string) => t(`settings.profile.motionLevel.${v}`),
-              ],
-              [
-                'glass',
-                t('settings.profile.glass'),
-                APPEARANCE_GLASS,
-                (v: string) => t(`settings.profile.glassLevel.${v}`),
-              ],
-            ] as [AppearanceKey, string, readonly string[], (v: string) => string][]
-          ).map(([key, text, values, name]) => (
-            <label key={key} className={row}>
-              <span className={label}>
-                {text}
-                {/* ADR-0059：皮肤生效时日夜场与玻璃强度随皮肤（选择仍保存，退出皮肤后恢复） */}
-                {look.mounted && (key === 'theme' || key === 'glass') ? (
-                  <span className="ms-1">{t('ui.skin.locked')}</span>
-                ) : null}
-              </span>
-              <select
-                className={select}
-                value={effective[key]}
-                disabled={Boolean(look.mounted) && (key === 'theme' || key === 'glass')}
-                onChange={(e) => setAppearance({ [key]: e.target.value })}
-                data-testid={`profile-${key}`}
-              >
-                {values.map((v) => (
-                  <option key={v} value={v}>
-                    {defaults[key] === v
-                      ? t('settings.profile.appearanceDefault', { name: name(v) })
-                      : name(v)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ))}
-        </div>
-        <SkinGallery
-          value={effective.skin}
-          defaultValue={defaults.skin}
-          onChange={(skin) => setAppearance({ skin })}
-        />
-        <div className="flex flex-wrap items-center gap-3">
-          <p className="text-fg-muted text-xs">{t('settings.profile.localHint')}</p>
-          {Object.keys(look.user).length ? (
-            <button
-              type="button"
-              className="text-primary-text text-xs hover:underline"
-              onClick={() =>
-                setAppearance({ theme: null, density: null, motion: null, glass: null, skin: null })
-              }
-              data-testid="profile-appearance-reset"
-            >
-              {t('settings.profile.appearanceReset')}
-            </button>
-          ) : null}
-        </div>
       </div>
     </section>
   )

@@ -6,19 +6,19 @@
     const sys = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
     theme = saved === 'light' || saved === 'dark' ? saved : sys
   } catch (_) {}
-  // 皮肤（ADR-0059）：缓存的样式表同步注入，日夜场锁定为皮肤自带模式；认证页不套皮肤
+  // 主题（ADR-0059 · 0060）：缓存的样式表同步注入，明暗锁定为主题自带模式；
+  // 认证页不知道是谁，用工作区默认主题的缓存（xz:skin-default），其余页面用本人生效主题（xz:skin）
   let skin = null
   try {
-    if (!/^\/(login|register|invite)(\/|$)/.test(location.pathname)) {
-      const s = JSON.parse(localStorage.getItem('xz:skin') || 'null')
-      if (
-        s &&
-        typeof s.css === 'string' &&
-        /^[a-z0-9][a-z0-9-]{0,63}$/.test(s.id) &&
-        (s.mode === 'light' || s.mode === 'dark')
-      )
-        skin = s
-    }
+    const auth = /^\/(login|register|invite)(\/|$)/.test(location.pathname)
+    const s = JSON.parse(localStorage.getItem(auth ? 'xz:skin-default' : 'xz:skin') || 'null')
+    if (
+      s &&
+      typeof s.css === 'string' &&
+      /^[a-z0-9][a-z0-9-]{0,63}$/.test(s.id) &&
+      (s.mode === 'light' || s.mode === 'dark')
+    )
+      skin = s
   } catch (_) {}
   if (skin) {
     theme = skin.mode

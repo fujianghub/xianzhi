@@ -8,7 +8,7 @@
 - 单 package TypeScript：`src/client`（Vite 8 + React 19 + TanStack + Tailwind v4 + shadcn）· `src/server`（Hono + Drizzle + pg-boss）· `src/collab`（Hocuspocus）· `src/shared`（Zod schema、编辑器模板、`tz.ts`）
 - 数据：PostgreSQL 16（pgvector 镜像，独立容器）；正文 = Yjs 二进制 `entries.ydoc`
 - 认证：Better Auth（organization/admin/2FA/passkey/magicLink/apiKey/username）；Better Auth 自助注册关闭，注册只走 `POST /workspace/join-requests`，审批前无 `member` 行 = 不能登录；邮箱或用户名 + 密码（≥ 8 位）登录，前置服务端拼图滑块（ADR-0006 / 0008）；collab WebSocket 用 `POST /collab/token` 按文档签发的 5 分钟票据，不用 Cookie
-- 视觉：Apple 玻璃（ADR-0002）+ 翡翠主色、燕印、动效档位（ADR-0005）+ 空间 / 标签 / 日历共用鲜艳 9 色板（ADR-0010）；日场 / 夜场，默认跟随系统；字体 npm 自托管、异步加载；记录页 = 标题 → 紧凑属性列表（空属性收起、流转摘要弹层）→ 文档栏（字数 · 阅读弹层 · 专注 · 保存 · Markdown）→ 吸顶格式栏（吸顶才有底线）→ 正文（ADR-0035 · 0037），排版由按人存的阅读偏好（`user_preferences`，ADR-0024 ~ 0031）决定；认证四页共用 `AuthShell`「衔枝小院」：幼燕插画 + 情绪状态机，动作引擎 `components/auth/bird-engine.ts`，开发用 `/login?birdlab` 逐个触发（ADR-0034）；材质类在 `@layer components`（去外投影用 `--xz-mat-drop`，不用 `shadow-none`）、浮层退出动效带 `data-xz-exit`（ADR-0046）；玻璃强度 `html[data-glass]` 默认流光、只调 token 不加 blur，改 tokens 预设块时日场写过的变量夜场块须覆盖回来（ADR-0047 · 0048）；外观偏好（主题 / 密度 / 动效 / 玻璃）随账号存 `user_preferences.appearance`、工作区可设默认，本机 `xz:*` 只作首帧缓存（ADR-0049）；`app.css` 里不在 `@layer` 的类（如 `.xz-rail-item`）会压过 Tailwind 工具类，要改其内边距 / 颜色就加专用修饰类，别叠 `ps-*` 之类；≥ lg 任务 / 记录详情统一走右侧详情坞 `DetailDock`（fixed + `html[data-detail-dock]` 让主区，ADR-0054），横向滚动容器要加 `relative`（否则内部 `sr-only` 逃出撑宽整页）；侧栏宽度 = `--xz-sidebar-w`，拖动后由 `<html>` 内联值覆盖、只存本机 `xz:sidebar-w`（ADR-0058）；皮肤 = `html[data-skin]` + 服务端按 palette 生成的样式表（只覆盖已有 `--xz-*`），锁定日 / 夜场、移除 `data-glass`，图在 `DATA_DIR/skins` 不进 git（ADR-0059）
+- 视觉：Apple 玻璃（ADR-0002）+ 翡翠主色、燕印、动效档位（ADR-0005）+ 空间 / 标签 / 日历共用鲜艳 9 色板（ADR-0010）；日场 / 夜场，默认跟随系统；字体 npm 自托管、异步加载；记录页 = 标题 → 紧凑属性列表（空属性收起、流转摘要弹层）→ 文档栏（字数 · 阅读弹层 · 专注 · 保存 · Markdown）→ 吸顶格式栏（吸顶才有底线）→ 正文（ADR-0035 · 0037），排版由按人存的阅读偏好（`user_preferences`，ADR-0024 ~ 0031）决定；认证四页共用 `AuthShell`「衔枝小院」：幼燕插画 + 情绪状态机，动作引擎 `components/auth/bird-engine.ts`，开发用 `/login?birdlab` 逐个触发（ADR-0034）；材质类在 `@layer components`（去外投影用 `--xz-mat-drop`，不用 `shadow-none`）、浮层退出动效带 `data-xz-exit`（ADR-0046）；玻璃强度 `html[data-glass]` 默认流光、只调 token 不加 blur，改 tokens 预设块时日场写过的变量夜场块须覆盖回来（ADR-0047 · 0048）；外观偏好（主题 / 密度 / 动效 / 玻璃）随账号存 `user_preferences.appearance`、工作区可设默认，本机 `xz:*` 只作首帧缓存（ADR-0049）；`app.css` 里不在 `@layer` 的类（如 `.xz-rail-item`）会压过 Tailwind 工具类，要改其内边距 / 颜色就加专用修饰类，别叠 `ps-*` 之类；≥ lg 任务 / 记录详情统一走右侧详情坞 `DetailDock`（fixed + `html[data-detail-dock]` 让主区，ADR-0054），横向滚动容器要加 `relative`（否则内部 `sr-only` 逃出撑宽整页）；侧栏宽度 = `--xz-sidebar-w`，拖动后由 `<html>` 内联值覆盖、只存本机 `xz:sidebar-w`（ADR-0058）；界面「主题」= 代码 skin：`html[data-skin]` + 服务端按 palette 生成的样式表（只覆盖已有 `--xz-*`），锁定明暗、移除 `data-glass`，图在 `DATA_DIR/skins` 不进 git；日场 / 夜场界面叫「明暗模式」（代码仍是 theme）；外观全在 `/settings/theme`，工作区默认主题也套登录页（ADR-0059 · 0060）
 - 分期：一期 = Phase 0–2（可用版本）· 二期 = Phase 3（MCP / 导入 / AI / pgvector）；规范里不出现「三期」
 - 端口：3010 Vite · 8010 API · 8011 collab · 5433 PG · 8025 Mailpit（简斋占 3001/8002/5432/6379，勿撞）
 - 部署：腾讯云与简斋同机，Compose 三服务，复用其 Caddy；`infra/`；远端 `github.com/fujianghub/xianzhi`
@@ -23,7 +23,7 @@ pnpm dev:verify        # 验证实例 3011/8012/8013 + xz_e2e，仅跑 e2e 时�
 pnpm db:generate / db:migrate / auth:generate
 pnpm test / e2e / lint / lint:drift / build   # lint 含裸色值/对比度/i18n；build 含性能预算
 pnpm start / start:collab        # 生产：app 容器（migrate+api+worker）/ collab 容器，一一对应
-pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore | create-owner [--username] | seed | migrate-prefix | skin search/install/list/remove（import-debug 属二期）
+pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore | create-owner [--username] | seed | migrate-prefix | skin search/install/list/remove（import-debug 属二期；CLI 不读 systemd 环境，给 3010 装主题要 `DATA_DIR=./data/dev`）
 ```
 
 - 后端 API 测试用 `app.request()`，不起端口；`signIn()` 辅助自动取拼图答案；worktree 要隔离测试库用 `XZ_TEST_DATABASE_URL`（用例勿写死库名，见 `debug/2026-09-30-jobs-test-restore-hardcoded-db`）。E2E 用独立端口 3011/8012/8013 与独立 `.vite-verify` 缓存；`pnpm e2e` 会重建 `xz_e2e`，且只认 `localhost:3011`（跑前停掉按 IP 起的验证实例）；对其它实例跑指定用例：`XZ_E2E_BASE=<与该实例 APP_URL 同源，按 IP 起的就用 IP> pnpm exec playwright test <spec> --project=setup --project=desktop`（Origin 不一致则登录 setup 超时）；另起的 worktree 实例与 3011 同连 xz_e2e 时，实时 / 协同 / 历史类 e2e 会串（SSE 丢帧、恢复执行两次），这类用例只留一套实例跑（见 `debug/2026-09-27-spaces-list-truncated-200`）；REQ-COLLAB-011 写死杀 8013 的 collab，对别的实例无效（`debug/2026-09-29-e2e-collab-kill-hardcoded-port`）
@@ -53,7 +53,7 @@ pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore 
 | 文件 | 内容 |
 |---|---|
 | `spec_dev_doc/adr/0001-tech-stack.md` | 选型与 8 项决定、分期、各技术介绍 / 作用 / 语言（§10） |
-| `spec_dev_doc/adr/NNNN-*.md` | 决策记录 0002 ~ 0059：文件名即主题，`ls` 看清单；按标识符 grep `spec_dev_doc/adr` 定位决策（如 `useFieldSpecs`、`entry_kind_overrides`），代码入口直接 grep `src` |
+| `spec_dev_doc/adr/NNNN-*.md` | 决策记录 0002 ~ 0060：文件名即主题，`ls` 看清单；按标识符 grep `spec_dev_doc/adr` 定位决策（如 `useFieldSpecs`、`entry_kind_overrides`），代码入口直接 grep `src` |
 | `spec_dev_doc/01-domain-model.md` | 表结构、`fields` schema、事件种类、权限矩阵 |
 | `spec_dev_doc/02-api-conventions.md` | 路由/错误/分页/SSE/文件/MCP 约定、路由清单 |
 | `spec_dev_doc/03-editor-kernel.md` | Tiptap schema、Hocuspocus 钩子、快照、模板、交互规格、简斋陷阱 |

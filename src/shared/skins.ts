@@ -12,10 +12,12 @@ import { contrastRatio, over, type RGBA } from './contrast.ts'
 export const SKIN_ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/
 /** 偏好里的「不用皮肤」（显式选它可盖过工作区默认皮肤） */
 export const SKIN_NONE = 'none'
+/** 保留 id：none = 不用主题；default = 公开的工作区默认主题接口（ADR-0060） */
+const SKIN_RESERVED = new Set([SKIN_NONE, 'default'])
 export const skinIdSchema = z
   .string()
   .regex(SKIN_ID_RE)
-  .refine((v) => v !== SKIN_NONE, '保留字')
+  .refine((v) => !SKIN_RESERVED.has(v), '保留字')
 /** 偏好值：皮肤 id 或 none */
 export const skinPrefSchema = z.string().regex(SKIN_ID_RE)
 
@@ -337,7 +339,7 @@ export function slugSkinId(raw: string): string {
     .replace(/[^a-z0-9-]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 64)
-  return SKIN_ID_RE.test(s) && s !== SKIN_NONE ? s : ''
+  return SKIN_ID_RE.test(s) && !SKIN_RESERVED.has(s) ? s : ''
 }
 
 /** 只保留合法 hex 的 palette 键（"native unchanged" 之类丢弃） */

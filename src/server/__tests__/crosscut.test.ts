@@ -156,6 +156,7 @@ describe('T1-040 crosscut', () => {
       /^\/api\/v1\/health/,
       /^\/api\/v1\/workspace\/invitations\/:id(\/accept)?$/,
       /^POST \/api\/v1\/workspace\/join-requests$/, // ADR-0008 自助注册
+      /^GET \/api\/v1\/skins\/default$/, // ADR-0060 登录页套工作区默认主题
     ]
     const fill = (p: string) => p.replace(/:[A-Za-z]+/g, 'not-a-uuid').replace(/\*$/, '')
     let errors = 0

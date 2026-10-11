@@ -216,5 +216,34 @@ describe('skins', () => {
       expect(g.workspaceAppearance.skin).toBe('test-halo')
       await patch({ settings: { appearance: {} } }, '/workspace')
     })
+
+    it('REQ-UI-064 公开 /skins/default：未设 / 未安装 → null；设了 → 样式表；未登录只能读默认主题的图', async () => {
+      const setDefault = (skin?: string) =>
+        app.request('/api/v1/workspace', {
+          method: 'PATCH',
+          headers: jsonHeaders({ cookie }),
+          body: JSON.stringify({ settings: { appearance: skin ? { skin } : {} } }),
+        })
+      const anon = (path: string) => app.request(`/api/v1${path}`)
+      expect(await (await anon('/skins/default')).json()).toEqual({ skin: null })
+      expect((await anon('/skins/test-halo/art')).status).toBe(401)
+
+      expect((await setDefault('not-installed')).status).toBe(200)
+      expect(await (await anon('/skins/default')).json()).toEqual({ skin: null })
+
+      expect((await setDefault('test-halo')).status).toBe(200)
+      const d = (await (await anon('/skins/default')).json()) as {
+        skin: { id: string; css: string; mode: string }
+      }
+      expect(d.skin).toMatchObject({ id: 'test-halo', mode: 'dark' })
+      expect(d.skin.css).toContain(':root[data-skin="test-halo"]')
+      const img = await anon('/skins/test-halo/art')
+      expect(img.status).toBe(200)
+      expect(img.headers.get('cache-control')).toContain('public')
+      // 列表 / 详情仍要登录
+      expect((await anon('/skins')).status).toBe(401)
+      expect((await anon('/skins/test-halo')).status).toBe(401)
+      await setDefault()
+    })
   })
 })

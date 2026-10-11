@@ -15,17 +15,25 @@ export const zhCN = {
       calendar: '日历',
       spaces: '空间',
     },
-    theme: { light: '日场', dark: '夜场', system: '跟随系统', toggle: '切换主题' },
-    // ADR-0059 皮肤
+    theme: {
+      light: '日场',
+      dark: '夜场',
+      system: '跟随系统',
+      toggle: '切换明暗',
+      mode: '明暗模式',
+    },
+    // ADR-0059 · 0060 主题（代码里叫 skin；日场 / 夜场叫「明暗模式」）
     skin: {
-      label: '皮肤',
+      label: '主题',
       none: '衔枝原生',
       noneHint: '日场 / 夜场 · 玻璃强度',
       default: '默认',
-      exit: '退出皮肤',
-      locked: '（随皮肤）',
-      empty: '还没有安装皮肤。运维在服务器上执行',
-      missing: '你选的皮肤「{{id}}」已被卸载，暂按衔枝原生显示',
+      exit: '退出主题',
+      setDefault: '设为默认',
+      restoreDefault: '恢复默认主题',
+      locked: '（随主题）',
+      empty: '还没有安装主题。运维在服务器上执行',
+      missing: '你选的主题「{{id}}」已被卸载，暂按衔枝原生显示',
       missingName: '{{id}}（已卸载）',
     },
     action: {
@@ -343,6 +351,7 @@ export const zhCN = {
   settings: {
     nav: {
       profile: '个人',
+      theme: '主题',
       notifications: '通知',
       security: '安全',
       apiKeys: 'API Key',
@@ -421,6 +430,15 @@ export const zhCN = {
       new: '新建标签',
       newPlaceholder: '标签名，回车创建',
     },
+    // ADR-0060 设置 → 主题
+    theme: {
+      title: '主题',
+      hint: '主题、明暗模式与界面偏好随账号保存，在所有设备生效',
+      appearance: '明暗与界面',
+      workspaceHint:
+        '成员没单独选过的项跟随这里；默认主题在上方卡片上「设为默认」，登录 / 注册页也用它',
+      defaultSaved: '已设为工作区默认',
+    },
     profile: {
       email: '邮箱',
       displayName: '显示名',
@@ -482,7 +500,6 @@ export const zhCN = {
       name: '名称',
       slug: '标识（slug）',
       appearance: '默认外观',
-      appearanceHint: '成员没在「个人」里单独选过的外观项跟随这里；成员自己选过的以本人为准',
       logoLater: 'Logo 设置将在后续版本提供。',
     },
     members: {
