@@ -116,6 +116,7 @@ export async function resetAppearance(req: APIRequestContext) {
     motion: null,
     glass: null,
     skin: null,
+    skinArt: null,
   })
 }
 /** 等外观偏好的 PATCH 落库（UI 改完立刻 reload 的用例） */

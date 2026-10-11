@@ -102,8 +102,9 @@
 | 明暗模式 | Theme（代码标识符） | `data-theme = light | dark`、`appearance.theme` | 日场 / 夜场 / 跟随系统 · 切换明暗 | `ui.theme.*` | 只有两种；2026-10-12 前界面叫「主题」（ADR-0060） | 06 §6 |
 | 密度 | Density | `comfortable` / `compact` | 舒适 / 紧凑 | `ui.density.<value>` | 行高 -20% | 04 §4 |
 | 玻璃 | Glass | `--xz-glass-thin` `-glass` `-glass-thick` `-glass-opaque` | — | — | 四级半透明材质，只用于 chrome | 06 §3.2 |
-| 外观偏好 | Appearance / `AppearancePrefs` | `user_preferences.appearance` | 明暗模式 · 主题 · 密度 · 动效 · 玻璃强度（设置 → 主题） | `settings.profile.*` | 随账号保存；生效值 = 内置 ← 工作区默认 ← 本人（ADR-0049） | 01 §3 |
+| 外观偏好 | Appearance / `AppearancePrefs` | `user_preferences.appearance` | 明暗模式 · 主题 · 图片强度 · 密度 · 动效 · 玻璃强度（设置 → 主题） | `settings.profile.*` | 随账号保存；生效值 = 内置 ← 工作区默认 ← 本人（ADR-0049） | 01 §3 |
 | 主题 | Skin / `SkinRecord`（代码标识符） | `DATA_DIR/skins/<id>`、`html[data-skin]`、`appearance.skin`、`/skins` | 主题 · 衔枝原生 · 退出主题 · 设为默认 · 恢复默认主题 | `ui.skin.*` `settings.theme.*` | 从 codexthemes.ai 主题包安装的背景图 + 配色，锁定自带明暗；界面叫「主题」、代码叫 skin；2026-10-11 曾叫「皮肤」（ADR-0059 · 0060） | ADR-0060 |
+| 图片强度 | Skin art / `skinArt` | `appearance.skinArt`、`html[data-skin-art]` | 淡 · 中 · 浓 | `ui.skin.art*` | 主题背景图透出多少：遮罩 / 玻璃 / 内容卡片透明度分三档，默认中（ADR-0061） | ADR-0061 |
 | 工作区默认外观 | Workspace appearance | `organization.metadata.settings.appearance` | 默认外观 | `settings.workspace.appearance` | owner/admin 设置，成员没单独选过的项跟随（ADR-0049） | 01 §3 |
 | 玻璃强度 | Glass level / `GlassLevel` | `html[data-glass] = liquid | vivid | clear`（standard 不写） | 流光 / 晶亮 / 清透 / 标准 | `settings.profile.glassLevel.<value>` | 随账号保存（ADR-0049，本机 `xz:glass` 只作首帧缓存），默认流光；只调透明度、光边、光晕与纸面透明度，不加 blur（ADR-0047） | 06 §3.2 |
 | 定向光晕 | Wash | `--xz-wash-side-1/-2` `--xz-wash-top` | — | — | 底板上专供侧栏（上 / 下段）与顶栏去透的三团光晕；只在玻璃预设日场生效（ADR-0048） | 06 §3.1 |

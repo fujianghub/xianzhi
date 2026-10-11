@@ -1,5 +1,5 @@
 /**
- * 外观偏好（ADR-0049、REQ-UI-051）：主题 / 密度 / 动效档位 / 玻璃强度 / 皮肤（ADR-0059）随账号保存（`/me/preferences` 的 appearance），跨设备生效。
+ * 外观偏好（ADR-0049、REQ-UI-051）：明暗 / 密度 / 动效档位 / 玻璃强度 / 主题（ADR-0059 · 0060）/ 图片强度（ADR-0061）随账号保存（`/me/preferences` 的 appearance），跨设备生效。
  * 生效值 = 内置默认 ← 工作区默认 ← 用户值（shared `resolveAppearance`）。
  * 本机 localStorage（xz:theme / xz:density / xz:motion / xz:glass）只作首帧缓存：theme-init.js 先按缓存应用，
  * 登录后拉到服务端值再按生效值覆盖缓存与 html 属性。用户改动：本机立即生效 + PATCH（null = 改回跟随默认）。
@@ -18,6 +18,7 @@ import type { SkinSummary } from '../../shared/skins.ts'
 import { setGlass, storedGlass } from './glass.ts'
 import { preferencesQuery } from './reading.ts'
 import { activeSkin, mountSkin, resolveSkin, skinsQuery, storedSkin, unmountSkin } from './skin.ts'
+import { setSkinArt, storedSkinArt } from './skin-dom.ts'
 import { useLayout } from './stores.ts'
 import {
   applyTheme,
@@ -62,6 +63,8 @@ async function applyLocal(a: AppearancePrefs, origin?: { x: number; y: number })
   const layout = useLayout.getState()
   if (layout.density !== a.density) layout.setDensity(a.density)
   if (layout.motion !== a.motion) layout.setMotion(a.motion)
+  if (storedSkinArt() !== a.skinArt || document.documentElement.dataset.skinArt !== a.skinArt)
+    setSkinArt(a.skinArt)
 
   const my = ++seq
   const skin = await resolveSkin(a.skin, useAppearance.getState().skins)

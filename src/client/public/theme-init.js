@@ -28,6 +28,13 @@
     document.head.appendChild(el)
     document.documentElement.dataset.skin = skin.id
   }
+  // 主题图片强度（ADR-0061）：淡 / 中（默认，不存储）/ 浓；各档都写属性
+  let art = 'medium'
+  try {
+    const a = localStorage.getItem('xz:skin-art')
+    if (a === 'soft' || a === 'strong') art = a
+  } catch (_) {}
+  document.documentElement.dataset.skinArt = art
   document.documentElement.dataset.theme = theme
   document.documentElement.style.colorScheme = theme
   // 动效档位（04 §2.4、REQ-UI-028）：standard 不写属性

@@ -544,6 +544,22 @@ html[data-dialog-open] body::before {
     left: calc(var(--xz-rail-w) + 12px);
   }
 }
+/*
+ * ADR-0061 图片强度：中 / 浓档遮罩薄，直接压在图上的字（页标题、分组标签、提示）垫一圈不透明底色光晕（地图标注式，紧贴字形四层；text-shadow 可继承，挂在内容区一处）；
+ * 卡片、控件、正文里的字底下本来就有底色，不加。淡档 --xz-skin-halo = transparent。
+ */
+:root[data-skin] .xz-main {
+  text-shadow:
+    0 0 1px var(--xz-skin-halo),
+    0 0 2px var(--xz-skin-halo),
+    0 0 4px var(--xz-skin-halo),
+    0 0 10px var(--xz-skin-halo);
+}
+:root[data-skin]
+  .xz-main
+  :is(.paper, input, textarea, select, button, [contenteditable="true"], [role="dialog"]) {
+  text-shadow: none;
+}
 
 /* ---- ADR-0007 燕印（REQ-UI-024）：翡翠深渐变 + 右上晨光（md / lg）+ 暖白春燕衔嫩芽；宿主 hover 轻转，减弱档静止 ---- */
 .xz-seal {

@@ -134,3 +134,41 @@ describe('REQ-UI-059 皮肤样式表', () => {
     expect(skinCss({ ...rec('qq', 'light', {}), art: false })).toContain('--xz-skin-art: none;')
   })
 })
+
+describe('REQ-UI-065 图片强度', () => {
+  const alpha = (v: string) => Number(/,\s*([\d.]+)\)$/.exec(v)?.[1] ?? 1)
+  it('REQ-UI-065 三档材质：遮罩 / 玻璃 / 卡片由淡到浓递减；淡档卡片实底、无光晕；基础块 = 中档', () => {
+    for (const mode of ['dark', 'light'] as const) {
+      const t = skinTokens(rec('x', mode, { canvas: mode === 'dark' ? '#0b1728' : '#fffaf6' }))
+      const { soft, medium, strong } = t.levels
+      for (const k of ['--xz-skin-veil', '--xz-glass-thin', '--xz-glass', '--xz-glass-thick']) {
+        expect(alpha(soft[k] as string)).toBeGreaterThan(alpha(medium[k] as string))
+        expect(alpha(medium[k] as string)).toBeGreaterThan(alpha(strong[k] as string))
+      }
+      expect(soft['--xz-paper-bg']).toBe('var(--xz-surface-solid)')
+      expect(alpha(strong['--xz-paper-bg'] as string)).toBeLessThan(
+        alpha(medium['--xz-paper-bg'] as string),
+      )
+      expect(soft['--xz-skin-halo']).toBe('transparent')
+      expect(medium['--xz-skin-halo']).not.toBe('transparent')
+      for (const [k, v] of Object.entries(medium)) expect(t.vars[k], k).toBe(v)
+    }
+  })
+
+  it('REQ-UI-065 样式表含淡 / 浓档块；减弱透明度块压过档位（同特异度且在后）', () => {
+    const css = skinCss(rec('orbital-halo', 'dark', { canvas: '#0b1728' }))
+    const soft = css.indexOf(':root[data-skin="orbital-halo"][data-skin-art="soft"]')
+    const strong = css.indexOf(':root[data-skin="orbital-halo"][data-skin-art="strong"]')
+    const media = css.indexOf(
+      ':root[data-skin="orbital-halo"][data-skin-art] {',
+      css.indexOf('@media'),
+    )
+    const reduce = css.indexOf(
+      ':root[data-transparency="reduce"][data-skin="orbital-halo"][data-skin-art]',
+    )
+    expect(soft).toBeGreaterThan(0)
+    expect(strong).toBeGreaterThan(soft)
+    expect(media).toBeGreaterThan(strong)
+    expect(reduce).toBeGreaterThan(strong)
+  })
+})
