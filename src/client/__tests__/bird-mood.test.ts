@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   type BirdInputs,
+  boundSpring,
   captionKey,
   deriveMood,
   gaze,
@@ -83,6 +84,39 @@ describe('ADR-0034 认证页小燕', () => {
     const j: Spring = { x: 0, v: 0 }
     stepSpring(j, 1, 320, 28, 2)
     expect(Math.abs(j.x)).toBeLessThan(1)
+  })
+
+  it('REQ-UI-042 任何帧率弹簧都收敛：眼珠在 30 帧 / 秒及更低时不发散飞出（debug/2026-10-12-bird-eye-spring-diverge）', () => {
+    // 引擎里用到的全部弹簧参数（眼珠 / 头 / 身体倾斜 / 尾巴）
+    const springs: [number, number][] = [
+      [760, 54],
+      [240, 21],
+      [38, 9],
+      [70, 5],
+    ]
+    for (const [k, c] of springs)
+      for (const ms of [4, 16.7, 25, 30, 31, 33.3, 40, 50, 100, 250, 2000]) {
+        const s: Spring = { x: 0.5, v: 0 }
+        let peak = 0
+        for (let i = 0; i < 600; i++) {
+          stepSpring(s, 0, k, c, ms / 1000)
+          peak = Math.max(peak, Math.abs(s.x))
+        }
+        expect(Math.abs(s.x), `k${k} c${c} ${ms}ms`).toBeLessThan(0.01)
+        expect(peak, `k${k} c${c} ${ms}ms 峰值`).toBeLessThan(1)
+      }
+    // 数值异常归位；负 / 非数字 dt 不推进
+    const bad: Spring = { x: Number.NaN, v: Number.POSITIVE_INFINITY }
+    stepSpring(bad, 0.3, 760, 54, 1 / 60)
+    expect(bad).toEqual({ x: 0.3, v: 0 })
+    const still: Spring = { x: 0.2, v: 0 }
+    stepSpring(still, 1, 760, 54, -1)
+    stepSpring(still, 1, 760, 54, Number.NaN)
+    expect(still.x).toBeCloseTo(0.2, 6)
+    // 兜底限位
+    const far: Spring = { x: -1e9, v: 5 }
+    boundSpring(far, 2.7)
+    expect(far).toEqual({ x: -2.7, v: 0 })
   })
 
   it('REQ-UI-042 待机小动作覆盖全部种类', () => {

@@ -94,15 +94,40 @@ export function gaze(dx: number, dy: number, max = { x: 5, y: 4 }, reach = 260) 
   }
 }
 
-/** 半隐式欧拉弹簧一步；dt 秒，上限 1/30 防掉帧后爆冲。 */
 export interface Spring {
   x: number
   v: number
 }
+/** 子步长：半隐式欧拉在 k·h² + 2c·h < 4 时才稳定，眼珠（k 760 / c 54）单步超过约 30 ms 就发散 */
+export const SPRING_SUBSTEP = 1 / 120
+/** 一帧最多推进的时长：卡顿 / 切回前台后不追帧爆冲 */
+export const SPRING_MAX_DT = 1 / 10
+
+/**
+ * 半隐式欧拉弹簧；dt 秒。整帧拆成 ≤ 1/120 s 的子步，任何帧率都稳定
+ * （原先单步、上限 1/30：低于约 33 帧 / 秒时眼珠来回放大飞出画面，debug/2026-10-12-bird-eye-spring-diverge）。
+ * 数值异常（NaN / Infinity）时归位到目标。
+ */
 export function stepSpring(s: Spring, target: number, k: number, c: number, dt: number): void {
-  const h = Math.min(dt, 1 / 30)
-  s.v += (k * (target - s.x) - c * s.v) * h
-  s.x += s.v * h
+  const total = Math.min(Number.isFinite(dt) ? Math.max(dt, 0) : 0, SPRING_MAX_DT)
+  const n = Math.max(1, Math.ceil(total / SPRING_SUBSTEP))
+  const h = total / n
+  for (let i = 0; i < n; i++) {
+    s.v += (k * (target - s.x) - c * s.v) * h
+    s.x += s.v * h
+  }
+  if (!Number.isFinite(s.x) || !Number.isFinite(s.v)) {
+    s.x = target
+    s.v = 0
+  }
+}
+
+/** 兜底：把弹簧位置限在 ±lim 内（碰边即停），眼珠不出眼眶 */
+export function boundSpring(s: Spring, lim: number): void {
+  if (s.x > lim || s.x < -lim) {
+    s.x = Math.max(-lim, Math.min(lim, s.x))
+    s.v = 0
+  }
 }
 
 /** 待机小动作的加权随机；r ∈ [0, 1)。 */

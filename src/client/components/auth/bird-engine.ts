@@ -21,6 +21,7 @@ import {
   BEHAVIOR_MS,
   type BirdBehavior,
   type BirdMood,
+  boundSpring,
   pickIdle,
   SLEEP_AFTER,
   type Spring,
@@ -356,6 +357,9 @@ export function useBirdEngine(o: EngineOptions): RefObject<EngineHandle> {
       const eyeY = (want.y + my) * gmax.y
       stepSpring(ex, eyeX, 760, 54, dt)
       stepSpring(ey, eyeY, 760, 54, dt)
+      // 兜底：眼珠目标最远 ±1.18 倍行程，留余量给回弹；再远就是数值异常，碰边即停（不出眼眶）
+      boundSpring(ex, gmax.x * 1.5)
+      boundSpring(ey, gmax.y * 1.5)
       const headRot = (facingBack ? -1 : 1) * (aimFix + poseRot) + tiltBias
       stepSpring(hr, headRot, 240, 21, dt)
       stepSpring(hx, want.x * 0.6 + poseX, 240, 21, dt)
