@@ -5,6 +5,7 @@
  * PATCH 只给要改的键，服务端按键合并（jsonb `||`），不需要 ifUpdatedAt（02 §4 例外：按键合并可交换、幂等）。
  */
 import { z } from 'zod'
+import { SKIN_NONE, skinPrefSchema } from '../skins.ts'
 
 export const READING_FONTS = ['sans', 'wenkai', 'song', 'system', 'mono'] as const
 export const READING_SIZES = ['sm', 'md', 'lg', 'xl'] as const
@@ -80,16 +81,19 @@ export const appearancePrefsSchema = z.object({
   density: z.enum(APPEARANCE_DENSITIES),
   motion: z.enum(APPEARANCE_MOTIONS),
   glass: z.enum(APPEARANCE_GLASS),
+  /** 皮肤（ADR-0059）：已安装皮肤 id，或 none = 不用皮肤（显式选它可盖过工作区默认皮肤）；未安装的 id 客户端按 none 生效 */
+  skin: skinPrefSchema,
 })
 export type AppearancePrefs = z.infer<typeof appearancePrefsSchema>
 export type AppearanceKey = keyof AppearancePrefs
 
-/** 内置默认：跟随系统主题 · 舒适 · 标准动效 · 流光（ADR-0047） */
+/** 内置默认：跟随系统主题 · 舒适 · 标准动效 · 流光（ADR-0047）· 不用皮肤（ADR-0059） */
 export const BUILTIN_APPEARANCE: AppearancePrefs = {
   theme: 'system',
   density: 'comfortable',
   motion: 'standard',
   glass: 'liquid',
+  skin: SKIN_NONE,
 }
 
 /** 只保留合法键（用户值 / 工作区默认都是「部分」：缺的键跟随上一层）。 */
@@ -117,6 +121,7 @@ const appearancePatchSchema = z
     density: z.enum(APPEARANCE_DENSITIES).nullable(),
     motion: z.enum(APPEARANCE_MOTIONS).nullable(),
     glass: z.enum(APPEARANCE_GLASS).nullable(),
+    skin: skinPrefSchema.nullable(),
   })
   .partial()
   .strict()

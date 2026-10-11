@@ -332,6 +332,23 @@ html[data-dialog-open] body::before {
 :root.vt-live body::before {
   transition: none;
 }
+/*
+ * ADR-0059 皮肤背景层：沿用 body::before 这张 fixed 层（不新增合成层），在光晕之下铺背景图，图上压一层底色遮罩保证可读。
+ * --xz-skin-art / -pos / -veil 只由皮肤样式表（服务端按 palette 生成）给出；纯配色皮肤 art = none，只剩光晕。
+ */
+:root[data-skin] body::before {
+  background-image:
+    radial-gradient(ellipse 70% 50% at 0% 0%, var(--xz-glow-1) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 100% 0%, var(--xz-glow-2) 0%, transparent 60%),
+    linear-gradient(var(--xz-skin-veil), var(--xz-skin-veil)), var(--xz-skin-art);
+  background-size: auto, auto, auto, cover;
+  background-position:
+    0 0,
+    0 0,
+    0 0,
+    var(--xz-skin-pos);
+  background-repeat: no-repeat;
+}
 
 /*
  * ---- 侧栏（2026-09-24 改版，REQ-UI-020 · 032；参照简斋后台）----

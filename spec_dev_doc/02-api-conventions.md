@@ -280,6 +280,10 @@
 | POST | `/entries/:id/archive` | 归档 | REQ-ENTRY-006 |
 | POST | `/entries/:id/unarchive` | 取消归档（与空间同构；2026-09-23 T0-013 补） | REQ-ENTRY-006 |
 | GET | `/link-preview?url=` | （2026-10-09 ADR-0054 §D）外链预览 `{ url, title, description, siteName, favicon }`（favicon 为 data URI）；每人 30 / 分；SSRF 防护见 07 §2.5；非 http(s) / 内网 422、非网页 415、抓取失败 502 `UPSTREAM` | REQ-LINK-007 |
+| GET | `/skins` | （2026-10-11 ADR-0059 §4）已安装皮肤 `{ items: [{ id, name, description, author, mode, version, rev, art, page? }] }`（不含 palette）；只要登录 | REQ-UI-057 |
+| GET | `/skins/:id` | 皮肤详情 + `css`（服务端按 palette 生成的样式表）；不存在 404 | REQ-UI-057 |
+| GET | `/skins/:id/art` | 背景图 webp；`?v=<version>` + `private, max-age=31536000, immutable` + ETag | REQ-UI-057 |
+| GET | `/skins/:id/thumb` | 缩略图 webp（640×400），缓存同上 | REQ-UI-057 |
 | GET | `/entries/:id/preview` | 卡片数据 | REQ-ENTRY-008 |
 
 注（2026-09-24，T1-012）：

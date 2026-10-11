@@ -9,7 +9,9 @@
 import { lazy, type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn.ts'
+import { setGlass, storedGlass } from '../../lib/glass.ts'
 import { effectiveMotion, type MotionLevel } from '../../lib/motion.ts'
+import { applyTheme, storedChoice, systemTheme } from '../../lib/theme.ts'
 import { ThemeMenu } from '../layout/ThemeMenu.tsx'
 import { useBirdEngine } from './bird-engine.ts'
 import {
@@ -47,6 +49,15 @@ export const birdPause = () =>
 export function useLoginBody() {
   useEffect(() => {
     document.body.classList.add('xz-login')
+    // ADR-0059：认证页不套皮肤（此时不知道是谁）；回到工作台由 useAppearanceSync 重新挂上（本机缓存保留）
+    const root = document.documentElement
+    if (root.dataset.skin) {
+      document.getElementById('xz-skin')?.remove()
+      delete root.dataset.skin
+      const choice = storedChoice()
+      applyTheme(choice === 'system' ? systemTheme() : choice)
+      setGlass(storedGlass())
+    }
     return () => document.body.classList.remove('xz-login')
   }, [])
 }

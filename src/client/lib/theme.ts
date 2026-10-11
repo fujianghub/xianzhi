@@ -1,5 +1,5 @@
 /**
- * 主题（06 §6、REQ-UI-001）：light / dark / system；持久化 localStorage `xz:theme`；
+ * 主题（06 §6、REQ-UI-001）：light / dark / system；持久化 localStorage `xz:theme`；皮肤生效时由皮肤锁定（ADR-0059）；
  * View Transitions：有坐标 → 圆形揭幕（dur-theme），无坐标 → 整页溶解（dur-stage）；reduced-motion 瞬切；连点 skip 上一个。
  */
 import { effectiveMotion } from './motion.ts'
@@ -27,7 +27,8 @@ export function currentTheme(): Theme {
   return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
 }
 
-function persist(choice: ThemeChoice): void {
+/** 只记住选择（不改页面）；皮肤生效 / 退出皮肤时用 */
+export function persist(choice: ThemeChoice): void {
   try {
     if (choice === 'system') localStorage.removeItem(KEY)
     else localStorage.setItem(KEY, choice)
@@ -58,19 +59,22 @@ export function applyTheme(t: Theme): void {
   root.style.colorScheme = t
 }
 
-export function setTheme(next: ThemeChoice, origin?: { x: number; y: number }): Promise<void> {
-  const resolved: Theme = next === 'system' ? systemTheme() : next
-  const commit = () => {
-    applyTheme(resolved)
-    persist(next)
-  }
+/**
+ * 在 View Transition 里提交外观变化：有坐标 → 圆形揭幕，无坐标 → 整页溶解；不支持 / reduced-motion / skip 为真 → 直接提交。
+ * 主题切换与皮肤切换（ADR-0059）共用。
+ */
+export function viewTransition(
+  commit: () => void,
+  origin?: { x: number; y: number },
+  skip = false,
+): Promise<void> {
   const doc = document as Document & {
     startViewTransition?: (cb: () => void) => {
       finished: Promise<void>
       skipTransition: () => void
     }
   }
-  if (!doc.startViewTransition || reducedMotion() || resolved === currentTheme()) {
+  if (!doc.startViewTransition || reducedMotion() || skip) {
     commit()
     return Promise.resolve()
   }
@@ -89,6 +93,23 @@ export function setTheme(next: ThemeChoice, origin?: { x: number; y: number }): 
     if (running === vt) running = null
     root.classList.remove('vt-live', 'vt-circle')
   })
+}
+
+export function setTheme(next: ThemeChoice, origin?: { x: number; y: number }): Promise<void> {
+  const resolved: Theme = next === 'system' ? systemTheme() : next
+  // 皮肤生效时日夜场由皮肤锁定（ADR-0059）：只记住选择，不改 data-theme
+  if (document.documentElement.dataset.skin) {
+    persist(next)
+    return Promise.resolve()
+  }
+  return viewTransition(
+    () => {
+      applyTheme(resolved)
+      persist(next)
+    },
+    origin,
+    resolved === currentTheme(),
+  )
 }
 
 /** 跟随系统时监听系统变化（整页溶解）。 */
