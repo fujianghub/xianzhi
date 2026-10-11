@@ -110,7 +110,13 @@ export async function setAppearancePref(
   expect(r.status(), await r.text()).toBe(200)
 }
 export async function resetAppearance(req: APIRequestContext) {
-  await setAppearancePref(req, { theme: null, density: null, motion: null, glass: null })
+  await setAppearancePref(req, {
+    theme: null,
+    density: null,
+    motion: null,
+    glass: null,
+    skin: null,
+  })
 }
 /** 等外观偏好的 PATCH 落库（UI 改完立刻 reload 的用例） */
 export const appearanceSaved = (page: Page) =>

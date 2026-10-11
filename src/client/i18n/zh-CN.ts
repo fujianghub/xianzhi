@@ -16,6 +16,18 @@ export const zhCN = {
       spaces: '空间',
     },
     theme: { light: '日场', dark: '夜场', system: '跟随系统', toggle: '切换主题' },
+    // ADR-0059 皮肤
+    skin: {
+      label: '皮肤',
+      none: '衔枝原生',
+      noneHint: '日场 / 夜场 · 玻璃强度',
+      default: '默认',
+      exit: '退出皮肤',
+      locked: '（随皮肤）',
+      empty: '还没有安装皮肤。运维在服务器上执行',
+      missing: '你选的皮肤「{{id}}」已被卸载，暂按衔枝原生显示',
+      missingName: '{{id}}（已卸载）',
+    },
     action: {
       save: '保存',
       cancel: '取消',

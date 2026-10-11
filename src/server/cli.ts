@@ -1,5 +1,5 @@
 /**
- * 运维 CLI（05 §3 `pnpm xz <cmd>`）：create-owner | seed | rebuild-derived | snapshot | backup | restore | export | migrate-prefix。
+ * 运维 CLI（05 §3 `pnpm xz <cmd>`）：create-owner | seed | rebuild-derived | snapshot | backup | restore | export | migrate-prefix | skin。
  * 只做参数解析 → service；不含业务。
  */
 
@@ -11,14 +11,16 @@ import { PASSWORD_MIN, USERNAME_RE } from '../shared/schemas/workspace.ts'
 import { getAuth } from './auth.ts'
 import { closeDb, getDb } from './db/index.ts'
 import { entries } from './db/schema/business.ts'
-import { EnvError, getEnv } from './env.ts'
+import { EnvError, getEnv, loadDotenv } from './env.ts'
 import { JOBS, runJob } from './jobs/index.ts'
+import { AppError } from './lib/errors.ts'
 import { dataPath } from './lib/files.ts'
 import { getLogger } from './lib/logger.ts'
 import { readIdentityFile, runBackup, runRestore, tableCounts } from './services/backup.ts'
 import { rebuildComments, rebuildEntries, rebuildTasks } from './services/derived.ts'
 import { migrateLegacyPrefix } from './services/rebrand.ts'
 import { seed } from './services/seed.ts'
+import { installSkin, listSkins, removeSkin, searchSkins } from './services/skins.ts'
 import { createOwner, OwnerExistsError } from './services/workspace.ts'
 
 const USAGE = `用法：pnpm xz <cmd>
@@ -30,7 +32,11 @@ const USAGE = `用法：pnpm xz <cmd>
   restore <file.dump.age> --identity <keyfile> [--db xz_verify]                   解密恢复到演练库并核对行数
   export --workspace                                                               导出骨架（完整导出见 T1-028）
   seed                                                                             写入 08 §7 示例数据（生产禁用）
-  migrate-prefix                                                                   品牌更名数据迁移：gi: → xz:（正文、描述、评论、工作区、outbox 触发器；幂等）`
+  migrate-prefix                                                                   品牌更名数据迁移：gi: → xz:（正文、描述、评论、工作区、outbox 触发器；幂等）
+  skin search <关键词>                                                             在 codexthemes.ai 搜索主题（ADR-0059）
+  skin install <主题id | https 链接 | 文件.codex-theme> [--id <本地id>] [--name <显示名>] [--no-art]   安装 / 重装皮肤到 DATA_DIR/skins（--no-art 只用配色）
+  skin list                                                                        已安装皮肤
+  skin remove <本地id>                                                             卸载皮肤（选了它的人回落为不用皮肤）`
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`)
@@ -64,6 +70,11 @@ async function main(): Promise<number> {
   if (!cmd || cmd === '--help' || cmd === '-h') {
     console.log(USAGE)
     return cmd ? 0 : 1
+  }
+  // 皮肤只读写 DATA_DIR，不连库：不要求数据库 / 鉴权密钥
+  if (cmd === 'skin') {
+    loadDotenv()
+    return skinCmd(process.env.DATA_DIR || './data')
   }
   getEnv()
   switch (cmd) {
@@ -230,6 +241,56 @@ async function main(): Promise<number> {
       console.error(`未知命令：${cmd}\n${USAGE}`)
       return 1
   }
+}
+
+/** pnpm xz skin …（ADR-0059）：安装只在运维侧做，Web 端只读 */
+async function skinCmd(dataDir: string): Promise<number> {
+  const [sub, target] = [process.argv[3], process.argv[4]]
+  try {
+    switch (sub) {
+      case 'search': {
+        const r = await searchSkins(target ?? '')
+        for (const t of r.themes)
+          console.log(
+            `${t.installable ? '✓' : '✗'} ${t.id.padEnd(32)} ${t.mode.padEnd(6)} ${t.name}${t.author ? `  · ${t.author}` : ''}`,
+          )
+        console.log(`共 ${r.total} 个（✗ = 只有设计参考，无安装包）`)
+        return 0
+      }
+      case 'install': {
+        if (!target) break
+        const rec = await installSkin(dataDir, target, {
+          id: arg('id'),
+          name: arg('name'),
+          noArt: process.argv.includes('--no-art'),
+        })
+        console.log(
+          `已安装 ${rec.id}「${rec.name}」· ${rec.mode === 'dark' ? '夜场' : '日场'} · ${rec.art ? '背景图' : '纯配色'} · v${rec.version}`,
+        )
+        return 0
+      }
+      case 'list': {
+        const list = await listSkins(dataDir)
+        for (const s of list)
+          console.log(`${s.id.padEnd(28)} ${s.mode.padEnd(6)} ${s.name}  · ${s.source.ref}`)
+        console.log(`共 ${list.length} 个，目录 ${dataPath(dataDir, 'skins')}`)
+        return 0
+      }
+      case 'remove': {
+        if (!target) break
+        await removeSkin(dataDir, target)
+        console.log(`已卸载 ${target}`)
+        return 0
+      }
+    }
+  } catch (e) {
+    if (!(e instanceof AppError)) throw e
+    const detail = e.extra.errors?.map((x) => x.message).join('；')
+    console.error(`失败：${detail || e.message}`)
+    return 1
+  }
+  console.error(USAGE)
+  return 1
 }
 
 main()

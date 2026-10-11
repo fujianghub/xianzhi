@@ -6,6 +6,28 @@
     const sys = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
     theme = saved === 'light' || saved === 'dark' ? saved : sys
   } catch (_) {}
+  // 皮肤（ADR-0059）：缓存的样式表同步注入，日夜场锁定为皮肤自带模式；认证页不套皮肤
+  let skin = null
+  try {
+    if (!/^\/(login|register|invite)(\/|$)/.test(location.pathname)) {
+      const s = JSON.parse(localStorage.getItem('xz:skin') || 'null')
+      if (
+        s &&
+        typeof s.css === 'string' &&
+        /^[a-z0-9][a-z0-9-]{0,63}$/.test(s.id) &&
+        (s.mode === 'light' || s.mode === 'dark')
+      )
+        skin = s
+    }
+  } catch (_) {}
+  if (skin) {
+    theme = skin.mode
+    const el = document.createElement('style')
+    el.id = 'xz-skin'
+    el.textContent = skin.css
+    document.head.appendChild(el)
+    document.documentElement.dataset.skin = skin.id
+  }
   document.documentElement.dataset.theme = theme
   document.documentElement.style.colorScheme = theme
   // 动效档位（04 §2.4、REQ-UI-028）：standard 不写属性
@@ -19,5 +41,5 @@
     const g = localStorage.getItem('xz:glass')
     if (g === 'standard' || g === 'clear' || g === 'vivid') glass = g
   } catch (_) {}
-  if (glass !== 'standard') document.documentElement.dataset.glass = glass
+  if (glass !== 'standard' && !skin) document.documentElement.dataset.glass = glass
 })()

@@ -14,10 +14,12 @@ import {
   BUILTIN_APPEARANCE,
   normalizeAppearance,
 } from '../../shared/schemas/preferences.ts'
+import { SKIN_NONE } from '../../shared/skins.ts'
 import { Input } from '../components/ui/input.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
 import { api, unwrap } from '../lib/api.ts'
 import { setWorkspaceAppearance } from '../lib/appearance.ts'
+import { skinsQuery } from '../lib/skin.ts'
 import { requireAdmin } from './-components/admin-gate.ts'
 
 export const Route = createFileRoute('/_app/settings/workspace/')({
@@ -99,6 +101,19 @@ function DefaultAppearance({
   const { t } = useTranslation()
   const qc = useQueryClient()
   const current = { ...BUILTIN_APPEARANCE, ...value }
+  // ADR-0059：默认皮肤只能选已安装的；已卸载的旧值仍列出，便于看清并改掉
+  const skins = useQuery(skinsQuery).data ?? []
+  const skinIds = [
+    SKIN_NONE,
+    ...skins.map((s) => s.id),
+    ...(current.skin !== SKIN_NONE && !skins.some((s) => s.id === current.skin)
+      ? [current.skin]
+      : []),
+  ]
+  const skinName = (v: string) =>
+    v === SKIN_NONE
+      ? t('ui.skin.none')
+      : (skins.find((s) => s.id === v)?.name ?? t('ui.skin.missingName', { id: v }))
   const save = async (key: AppearanceKey, v: string) => {
     const next = { ...value, [key]: v }
     try {
@@ -131,6 +146,7 @@ function DefaultAppearance({
       APPEARANCE_GLASS,
       (v) => t(`settings.profile.glassLevel.${v}`),
     ],
+    ['skin', t('ui.skin.label'), skinIds, skinName],
   ]
   return (
     <div className="mt-8 flex flex-col gap-3" data-testid="workspace-appearance">

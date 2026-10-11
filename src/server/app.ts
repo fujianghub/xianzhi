@@ -38,6 +38,7 @@ import { linkRoutes } from './routes/links.ts'
 import { meRoutes } from './routes/me.ts'
 import { notificationRoutes } from './routes/notifications.ts'
 import { searchRoutes } from './routes/search.ts'
+import { skinRoutes } from './routes/skins.ts'
 import { spaceGroupRoutes } from './routes/space-groups.ts'
 import { spaceRoutes } from './routes/spaces.ts'
 import { streamRoutes } from './routes/stream.ts'
@@ -222,6 +223,7 @@ export function createApp(deps: AppDeps) {
     .route('/api/v1/space-groups', spaceGroupRoutes({ db: deps.db }))
     .route('/api/v1/links', linkRoutes({ db: deps.db }))
     .route('/api/v1/link-preview', linkPreviewRoutes({ fetch: deps.linkFetch }))
+    .route('/api/v1/skins', skinRoutes({ dataDir: deps.dataDir }))
     .route('/api/v1/templates', templateRoutes({ db: deps.db }))
     .route('/api/v1/calendars', calendarRoutes({ db: deps.db }))
     .route('/api/v1/calendar-events', calendarEventRoutes({ db: deps.db }))

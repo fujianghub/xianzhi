@@ -1,0 +1,265 @@
+{
+  "blue-hour-window": {
+    "mode": "dark",
+    "palette": {
+      "canvas": "#0b1728",
+      "surface": "#0b1728",
+      "raised": "#0b1728",
+      "text": "#e5edf8",
+      "muted": "#b0bed1",
+      "accent": "#91d9f2"
+    }
+  },
+  "shiranui-amber": {
+    "mode": "dark",
+    "palette": {
+      "canvas": "#241711",
+      "surface": "#302019",
+      "raised": "#402a20",
+      "text": "#fff2df",
+      "muted": "#d2b79c",
+      "accent": "#ffb565",
+      "border": "#70503a",
+      "focus": "#ffd195",
+      "success": "#afd59b",
+      "warning": "#ffd195",
+      "danger": "#ffaea0"
+    }
+  },
+  "lavender-snow": {
+    "mode": "light",
+    "palette": {
+      "canvas": "#fafbff",
+      "surface": "#f3f5fc",
+      "raised": "#ffffff",
+      "text": "#30384f",
+      "muted": "#606b84",
+      "accent": "#5666a3",
+      "border": "#dce1ef",
+      "focus": "#5666a3",
+      "success": "#28765c",
+      "warning": "#87601b",
+      "danger": "#af3d59"
+    }
+  },
+  "alpine": {
+    "mode": "dark",
+    "palette": {
+      "canvas": "#07151d",
+      "surface": "#0c222b",
+      "raised": "#12313b",
+      "text": "#f4f0e6",
+      "muted": "#a9bcc0",
+      "accent": "#e4ad61",
+      "border": "#31515a",
+      "focus": "#f1bd70",
+      "success": "#7fb596",
+      "warning": "#e4ad61",
+      "danger": "#e68172"
+    }
+  },
+  "theme-1790220895883": {
+    "mode": "dark",
+    "palette": {
+      "canvas": "#101d30",
+      "surface": "#172940",
+      "raised": "#223750",
+      "text": "#edf2fa",
+      "muted": "#b6c7dc",
+      "accent": "#e4cea5",
+      "border": "#3d5570",
+      "focus": "#b7dafa",
+      "success": "#a3d9c0",
+      "warning": "#ecd197",
+      "danger": "#efa6b2"
+    }
+  },
+  "blue-hour-silhouette": {
+    "mode": "light",
+    "palette": {
+      "canvas": "#f4f8fa",
+      "surface": "#eef5f8",
+      "raised": "#fbfdfe",
+      "text": "#202a30",
+      "muted": "#60717c",
+      "accent": "#477e9b",
+      "border": "#c6d8df",
+      "focus": "#2f7fa5",
+      "success": "#2d7564",
+      "warning": "#9a6a22",
+      "danger": "#a84452"
+    }
+  },
+  "kaori-sakura-nocturne": {
+    "mode": "dark",
+    "palette": {
+      "canvas": "#101229",
+      "surface": "#1b1d3a",
+      "raised": "#27234a",
+      "text": "#fff7ed",
+      "muted": "#c9bfd8",
+      "accent": "#f18ac0",
+      "border": "#65558b",
+      "focus": "#78d7e6",
+      "success": "#7bd9b2",
+      "warning": "#f2c879",
+      "danger": "#ff7f9f"
+    }
+  },
+  "misty-morning": {
+    "mode": "light",
+    "palette": {
+      "canvas": "#F1F4F8",
+      "surface": "#FFFFFF",
+      "raised": "#FFFFFF",
+      "text": "#2C3A4A",
+      "muted": "#5F7183",
+      "accent": "#4C87B4",
+      "border": "#D7E0E9",
+      "focus": "#3C749C",
+      "success": "#4E8E6B",
+      "warning": "#C08A3E",
+      "danger": "#C25B63"
+    }
+  },
+  "zhangjie-sky": {
+    "mode": "light",
+    "palette": {
+      "canvas": "#f5f8f4",
+      "surface": "#fbfcfa",
+      "raised": "#ffffff",
+      "text": "#202923",
+      "muted": "#637066",
+      "accent": "#4f7d65",
+      "border": "#ccd8cf",
+      "focus": "#3f755c",
+      "success": "#2f7252",
+      "warning": "#946626",
+      "danger": "#aa4e55"
+    }
+  },
+  "theme-1784528192238": {
+    "mode": "light",
+    "palette": {
+      "canvas": "#f5fbff",
+      "surface": "#f8fdff",
+      "raised": "#ffffff",
+      "text": "#173b46",
+      "muted": "#5d7884",
+      "accent": "#18aeb7",
+      "border": "#b9e7ee",
+      "focus": "#e56cb4",
+      "success": "#16866f",
+      "warning": "#a86d19",
+      "danger": "#c74772"
+    }
+  },
+  "miku-shuimo": {
+    "mode": "light",
+    "palette": {
+      "canvas": "#dadcdd",
+      "surface": "#eff1f3",
+      "raised": "#f8f9fa",
+      "text": "#2d3648",
+      "muted": "#5b6779",
+      "accent": "#21837d",
+      "border": "#c3cad2",
+      "focus": "#0f8f87",
+      "success": "#2e7d5b",
+      "warning": "#9a6a1f",
+      "danger": "#b5445c"
+    }
+  },
+  "qq-2007-revival": {
+    "mode": "light",
+    "palette": {
+      "canvas": "#f7fbfe",
+      "surface": "#eaf6fd",
+      "raised": "#ffffff",
+      "text": "#071a2c",
+      "muted": "#57738d",
+      "accent": "#1476d4",
+      "border": "#9cc8e8",
+      "focus": "#ff9f1c",
+      "success": "#26835a",
+      "warning": "#a85c00",
+      "danger": "#c33c32"
+    }
+  },
+  "ai": {
+    "mode": "dark",
+    "palette": {
+      "canvas": "#020711",
+      "surface": "#07162A",
+      "raised": "#0D2442",
+      "text": "#E8F2FF",
+      "muted": "#A9C0DD",
+      "accent": "#6EA8E8",
+      "border": "#294C73",
+      "focus": "#9BC7FF",
+      "success": "#67C7AC",
+      "warning": "#E8B96A",
+      "danger": "#F08398"
+    }
+  },
+  "ligurian-afterglow": {
+    "mode": "dark",
+    "palette": {
+      "canvas": "#101927",
+      "surface": "#182335",
+      "raised": "#223047",
+      "text": "#f6eee7",
+      "muted": "#b9bfd0",
+      "accent": "#f08062",
+      "border": "#42516b",
+      "focus": "#ffad78",
+      "success": "#70c6a1",
+      "warning": "#f0bd73",
+      "danger": "#f27b7b"
+    }
+  },
+  "gpt": {
+    "mode": "dark",
+    "palette": {
+      "canvas": "#101827",
+      "surface": "#171717",
+      "raised": "#1D2939",
+      "text": "#F5F2EA",
+      "muted": "#AAB8C9",
+      "accent": "#10A7FF",
+      "border": "#31506E",
+      "focus": "#5EE7FF",
+      "success": "#55D6A0",
+      "warning": "#F3C969",
+      "danger": "#FF7A90"
+    }
+  },
+  "miku-codex-f379": {
+    "mode": "light",
+    "palette": {
+      "canvas": "#eef7f7",
+      "raised": "#ffffff",
+      "text": "#17383f",
+      "muted": "#5f7f84",
+      "accent": "#27a69f",
+      "border": "#cfe6e5",
+      "focus": "#27a69f",
+      "success": "#1f7a5c",
+      "warning": "#9a6a1f",
+      "danger": "#c2453f"
+    }
+  },
+  "miku-codex-acfc": {
+    "mode": "dark",
+    "palette": {
+      "canvas": "#0a0e1a",
+      "text": "#e0eaf5",
+      "muted": "#7a8da6",
+      "accent": "#39c5bb",
+      "focus": "#39c5bb",
+      "success": "#4ade80",
+      "warning": "#fbbf24",
+      "danger": "#f87171"
+    }
+  }
+}

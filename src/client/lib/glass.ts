@@ -26,6 +26,8 @@ export function setGlass(level: GlassLevel): void {
     /* 隐私模式 */
   }
   const root = document.documentElement
-  if (level === 'standard') delete root.dataset.glass
+  // 皮肤自带材质（ADR-0059）：生效时不写 data-glass，退出皮肤后由 applyLocal 重新应用
+  if (root.dataset.skin) delete root.dataset.glass
+  else if (level === 'standard') delete root.dataset.glass
   else root.dataset.glass = level
 }
