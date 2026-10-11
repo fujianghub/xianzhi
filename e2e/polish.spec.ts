@@ -126,7 +126,7 @@ test('REQ-UI-048 空目录树显示 EmptyState（插画 + 光晕 + 一句话）'
 test('REQ-UI-049 玻璃强度默认流光；设置页可切换、写 html[data-glass] 并持久化，标准档不写属性', async ({
   page,
 }) => {
-  await page.goto('/settings')
+  await page.goto('/settings/theme')
   const html = page.locator('html')
   await expect(html).toHaveAttribute('data-glass', 'liquid')
   const select = page.getByTestId('profile-glass')
@@ -189,7 +189,7 @@ test('REQ-UI-051 外观随账号保存：设置页选「晶亮」后，换一个
   page,
   browser,
 }) => {
-  await page.goto('/settings')
+  await page.goto('/settings/theme')
   const saved = appearanceSaved(page)
   await page.getByTestId('profile-glass').selectOption('vivid')
   await saved
@@ -207,7 +207,7 @@ test('REQ-WS-024 工作区默认外观：所有者改默认玻璃为「清透」
   page,
   browser,
 }) => {
-  await page.goto('/settings/workspace')
+  await page.goto('/settings/theme')
   const form = page.getByTestId('workspace-appearance')
   await expect(form).toBeVisible()
   const done = page.waitForResponse(

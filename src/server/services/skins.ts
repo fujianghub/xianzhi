@@ -18,9 +18,9 @@ import {
   normalizePalette,
   normalizeVersion,
   SKIN_ID_RE,
-  SKIN_NONE,
   type SkinMode,
   type SkinRecord,
+  skinIdSchema,
   skinRecordSchema,
   slugSkinId,
 } from '../../shared/skins.ts'
@@ -202,7 +202,7 @@ export async function installSkin(
   const pkg = parsePackage(source.bytes)
   const m = pkg.manifest
   const id = opts.id ?? slugSkinId(m.id ?? (source.kind === 'codexthemes' ? source.ref : ''))
-  if (!id || !SKIN_ID_RE.test(id) || id === SKIN_NONE)
+  if (!id || !skinIdSchema.safeParse(id).success)
     throw AppError.validation([
       { path: 'id', message: '皮肤 id 只能是小写字母、数字与连字符（--id 指定）' },
     ])

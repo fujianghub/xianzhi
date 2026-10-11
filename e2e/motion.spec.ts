@@ -40,7 +40,7 @@ const log = (page: Page) => page.evaluate(() => (window as unknown as { __vt: Vt
 test('REQ-UI-028 设置页切换动效档位：写 html[data-motion] 并持久化；刷新前即生效', async ({
   page,
 }) => {
-  await page.goto('/settings')
+  await page.goto('/settings/theme')
   const select = page.getByTestId('profile-motion')
   await expect(select).toHaveValue('standard')
   const saved = appearanceSaved(page)

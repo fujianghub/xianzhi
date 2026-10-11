@@ -223,7 +223,7 @@ export function createApp(deps: AppDeps) {
     .route('/api/v1/space-groups', spaceGroupRoutes({ db: deps.db }))
     .route('/api/v1/links', linkRoutes({ db: deps.db }))
     .route('/api/v1/link-preview', linkPreviewRoutes({ fetch: deps.linkFetch }))
-    .route('/api/v1/skins', skinRoutes({ dataDir: deps.dataDir }))
+    .route('/api/v1/skins', skinRoutes({ dataDir: deps.dataDir, db: deps.db }))
     .route('/api/v1/templates', templateRoutes({ db: deps.db }))
     .route('/api/v1/calendars', calendarRoutes({ db: deps.db }))
     .route('/api/v1/calendar-events', calendarEventRoutes({ db: deps.db }))

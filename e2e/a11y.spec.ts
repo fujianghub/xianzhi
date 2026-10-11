@@ -53,6 +53,7 @@ test.describe('owner', () => {
         `/entries/${id}`,
         '/settings/security',
         '/settings',
+        '/settings/theme',
         '/settings/notifications',
         '/settings/api-keys',
         '/settings/workspace',

@@ -281,6 +281,7 @@
 | POST | `/entries/:id/unarchive` | 取消归档（与空间同构；2026-09-23 T0-013 补） | REQ-ENTRY-006 |
 | GET | `/link-preview?url=` | （2026-10-09 ADR-0054 §D）外链预览 `{ url, title, description, siteName, favicon }`（favicon 为 data URI）；每人 30 / 分；SSRF 防护见 07 §2.5；非 http(s) / 内网 422、非网页 415、抓取失败 502 `UPSTREAM` | REQ-LINK-007 |
 | GET | `/skins` | （2026-10-11 ADR-0059 §4）已安装皮肤 `{ items: [{ id, name, description, author, mode, version, rev, art, page? }] }`（不含 palette）；只要登录 | REQ-UI-057 |
+| GET | `/skins/default` | （2026-10-12 ADR-0060 §4）**公开**：工作区默认主题 `{ skin: { …同列表项, css } \| null }`（未设 / 未安装 → null，`no-cache`）；登录 / 注册页用；默认主题的 `/art` `/thumb` 也可未登录读取（`public` 缓存） | REQ-UI-064 |
 | GET | `/skins/:id` | 皮肤详情 + `css`（服务端按 palette 生成的样式表）；不存在 404 | REQ-UI-057 |
 | GET | `/skins/:id/art` | 背景图 webp；`?v=<version>` + `private, max-age=31536000, immutable` + ETag | REQ-UI-057 |
 | GET | `/skins/:id/thumb` | 缩略图 webp（640×400），缓存同上 | REQ-UI-057 |

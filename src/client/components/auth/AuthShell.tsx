@@ -11,6 +11,14 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn.ts'
 import { setGlass, storedGlass } from '../../lib/glass.ts'
 import { effectiveMotion, type MotionLevel } from '../../lib/motion.ts'
+import {
+  activeSkin,
+  mountSkin,
+  SKIN_DEFAULT_KEY,
+  type SkinCache,
+  storedSkin,
+  unmountSkin,
+} from '../../lib/skin-dom.ts'
 import { applyTheme, storedChoice, systemTheme } from '../../lib/theme.ts'
 import { ThemeMenu } from '../layout/ThemeMenu.tsx'
 import { useBirdEngine } from './bird-engine.ts'
@@ -49,16 +57,30 @@ export const birdPause = () =>
 export function useLoginBody() {
   useEffect(() => {
     document.body.classList.add('xz-login')
-    // ADR-0059：认证页不套皮肤（此时不知道是谁）；回到工作台由 useAppearanceSync 重新挂上（本机缓存保留）
-    const root = document.documentElement
-    if (root.dataset.skin) {
-      document.getElementById('xz-skin')?.remove()
-      delete root.dataset.skin
-      const choice = storedChoice()
-      applyTheme(choice === 'system' ? systemTheme() : choice)
-      setGlass(storedGlass())
+    // ADR-0060：认证页不知道是谁，套工作区默认主题（公开接口；首帧由 theme-init 读 xz:skin-default）
+    let alive = true
+    void fetch('/api/v1/skins/default', { credentials: 'same-origin' })
+      .then((r) => (r.ok ? (r.json() as Promise<{ skin: SkinCache | null }>) : null))
+      .then((d) => {
+        if (!alive || !d) return
+        if (d.skin) {
+          if (activeSkin() !== d.skin.id || storedSkin(SKIN_DEFAULT_KEY)?.rev !== d.skin.rev)
+            mountSkin(
+              { id: d.skin.id, mode: d.skin.mode, rev: d.skin.rev, css: d.skin.css },
+              SKIN_DEFAULT_KEY,
+            )
+        } else if (activeSkin() || storedSkin(SKIN_DEFAULT_KEY)) {
+          unmountSkin(SKIN_DEFAULT_KEY)
+          const choice = storedChoice()
+          applyTheme(choice === 'system' ? systemTheme() : choice)
+          setGlass(storedGlass())
+        }
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+      document.body.classList.remove('xz-login')
     }
-    return () => document.body.classList.remove('xz-login')
   }, [])
 }
 
