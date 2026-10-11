@@ -3,6 +3,7 @@
  * - 主题画廊（ADR-0059 的「皮肤」，界面统一叫「主题」）：点选即生效；「恢复默认主题」= 删除本人值、跟随工作区默认
  * - 明暗模式（日场 / 夜场 / 跟随系统）· 密度 · 动效 · 玻璃强度；主题生效时明暗与玻璃强度随主题
  * - 所有者 / 管理员：卡片上「设为默认」与「工作区默认外观」（原在工作区信息页）；默认主题同时用于登录 / 注册页
+ * - 图片强度（ADR-0061）：淡 / 中（默认）/ 浓，画廊标题旁的分段按钮；没选主题时禁用
  */
 import { useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
@@ -19,10 +20,12 @@ import {
   BUILTIN_APPEARANCE,
   resolveAppearance,
 } from '../../shared/schemas/preferences.ts'
+import { SKIN_ART_LEVELS } from '../../shared/skins.ts'
 import { PageHeader } from '../components/ui/page-header.tsx'
 import { isAdmin, useMe } from '../hooks/useMe.ts'
 import { api, unwrap } from '../lib/api.ts'
 import { setAppearance, setWorkspaceAppearance, useAppearance } from '../lib/appearance.ts'
+import { cn } from '../lib/cn.ts'
 import { SkinGallery } from './-components/skin-gallery.tsx'
 
 export const Route = createFileRoute('/_app/settings/theme')({ component: ThemeSettings })
@@ -98,6 +101,11 @@ function ThemeSettings() {
               {t('ui.skin.restoreDefault')}
             </button>
           ) : null}
+          <SkinArtSwitch
+            value={effective.skinArt}
+            defaultValue={defaults.skinArt}
+            disabled={!look.mounted}
+          />
         </div>
         <SkinGallery
           value={effective.skin}
@@ -146,7 +154,14 @@ function ThemeSettings() {
               type="button"
               className="text-primary-text text-xs hover:underline"
               onClick={() =>
-                setAppearance({ theme: null, density: null, motion: null, glass: null, skin: null })
+                setAppearance({
+                  theme: null,
+                  density: null,
+                  motion: null,
+                  glass: null,
+                  skin: null,
+                  skinArt: null,
+                })
               }
               data-testid="profile-appearance-reset"
             >
@@ -157,9 +172,67 @@ function ThemeSettings() {
       </section>
 
       {admin ? (
-        <WorkspaceDefaults rows={rows} value={look.workspace} onSave={saveWorkspace} />
+        <WorkspaceDefaults
+          rows={[
+            ...rows,
+            ['skinArt', t('ui.skin.art'), SKIN_ART_LEVELS, (v) => t(`ui.skin.artLevel.${v}`)],
+          ]}
+          value={look.workspace}
+          onSave={saveWorkspace}
+        />
       ) : null}
     </div>
+  )
+}
+
+/** 图片强度分段按钮（ADR-0061）：淡 / 中 / 浓，随账号保存；工作区默认那一档标「默认」 */
+function SkinArtSwitch({
+  value,
+  defaultValue,
+  disabled,
+}: {
+  value: string
+  defaultValue: string
+  disabled: boolean
+}) {
+  const { t } = useTranslation()
+  return (
+    <fieldset
+      disabled={disabled}
+      className="ms-auto flex items-center gap-2 text-xs"
+      data-testid="skin-art"
+    >
+      <legend className="float-start me-2 text-fg-muted">
+        {t('ui.skin.art')}
+        {disabled ? <span className="ms-1">{t('ui.skin.artNeedsTheme')}</span> : null}
+      </legend>
+      <div className="inline-flex rounded-lg border border-border bg-surface p-0.5">
+        {SKIN_ART_LEVELS.map((v) => (
+          <label
+            key={v}
+            title={defaultValue === v ? t('ui.skin.default') : undefined}
+            data-testid={`skin-art-${v}`}
+            className={cn(
+              'relative grid h-7 min-w-10 cursor-pointer place-items-center rounded-md px-2.5 transition-colors duration-(--xz-dur-fast)',
+              'has-focus-visible:ring-2 has-focus-visible:ring-(--xz-focus-color) has-disabled:cursor-not-allowed has-disabled:opacity-50',
+              value === v
+                ? 'bg-primary text-primary-fg'
+                : 'text-fg-muted hover:bg-hover hover:text-fg',
+            )}
+          >
+            <input
+              type="radio"
+              name="skin-art"
+              value={v}
+              checked={value === v}
+              onChange={() => setAppearance({ skinArt: v })}
+              className="sr-only"
+            />
+            {t(`ui.skin.artLevel.${v}`)}
+          </label>
+        ))}
+      </div>
+    </fieldset>
   )
 }
 

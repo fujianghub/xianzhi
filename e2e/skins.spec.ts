@@ -175,3 +175,51 @@ test('REQ-UI-064 登录页套工作区默认主题；未设默认时为原生，
   expect(await p.evaluate(() => document.documentElement.dataset.skin)).toBe(ID)
   await anon.close()
 })
+
+test('REQ-UI-065 图片强度：没选主题时禁用；淡 / 中 / 浓切换改遮罩与卡片材质，默认中，刷新首帧保持；管理员可设工作区默认', async ({
+  page,
+}) => {
+  const html = page.locator('html')
+  const veilAlpha = () =>
+    page.evaluate(() => {
+      const v = getComputedStyle(document.documentElement).getPropertyValue('--xz-skin-veil')
+      return Number(/,\s*([\d.]+)\)$/.exec(v.trim())?.[1] ?? 1)
+    })
+  await page.goto('/settings/theme')
+  await expect(html).toHaveAttribute('data-skin-art', 'medium')
+  await expect(page.getByTestId('skin-art-strong').locator('input')).toBeDisabled()
+
+  let saved = appearanceSaved(page)
+  await page.getByTestId(`skin-card-${ID}`).click()
+  await saved
+  await expect(html).toHaveAttribute('data-skin', ID)
+  await expect(page.getByTestId('skin-art-medium').locator('input')).toBeChecked()
+  const medium = await veilAlpha()
+
+  saved = appearanceSaved(page)
+  await page.getByTestId('skin-art-strong').click()
+  await saved
+  await expect(html).toHaveAttribute('data-skin-art', 'strong')
+  expect(await veilAlpha()).toBeLessThan(medium)
+
+  saved = appearanceSaved(page)
+  await page.getByTestId('skin-art-soft').click()
+  await saved
+  await expect(html).toHaveAttribute('data-skin-art', 'soft')
+  expect(await veilAlpha()).toBeGreaterThan(medium)
+
+  // 首帧：刷新后脚本一跑完就是淡档
+  await page.reload()
+  expect(await page.evaluate(() => document.documentElement.dataset.skinArt)).toBe('soft')
+
+  // 管理员设工作区默认为「浓」：本人清掉自己的选择后即用默认
+  const done = page.waitForResponse(
+    (r) => r.url().endsWith('/api/v1/workspace') && r.request().method() === 'PATCH',
+  )
+  await page.getByTestId('workspace-appearance-skinArt').selectOption('strong')
+  expect((await done).status()).toBe(200)
+  saved = appearanceSaved(page)
+  await page.getByTestId('profile-appearance-reset').click()
+  await saved
+  await expect(html).toHaveAttribute('data-skin-art', 'strong')
+})

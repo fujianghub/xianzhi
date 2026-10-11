@@ -163,14 +163,33 @@ export function inferMode(palette: SkinPalette): SkinMode {
 
 // ---------- palette → token ----------
 
-/** 夜场 / 日场的玻璃不透明度：比原生高得多，背景图上的字才读得清 */
-const GLASS_ALPHA = {
-  dark: { thin: 0.6, glass: 0.7, thick: 0.8, veil: 0.55 },
-  light: { thin: 0.58, glass: 0.68, thick: 0.8, veil: 0.62 },
-} as const
+/**
+ * 图片强度（ADR-0061）：淡 = 遮罩厚、卡片实底（ADR-0059 原样）；中（默认）= 遮罩薄、卡片近实底；浓 = 遮罩很薄、卡片半透明。
+ * 日场遮罩比夜场厚：日场插画多为中等明度，比底色暗得多，遮罩太薄时直接压在图上的浅灰字会发虚（夜场插画本身偏暗，浅字没问题）。
+ * 玻璃 / 卡片按主题 surface 染色；记录正文阅读纸面（`.paper.xz-reading`）各档都是实底。
+ */
+export const SKIN_ART_LEVELS = ['soft', 'medium', 'strong'] as const
+export type SkinArtLevel = (typeof SKIN_ART_LEVELS)[number]
+export const DEFAULT_SKIN_ART: SkinArtLevel = 'medium'
+type Material = { thin: number; glass: number; thick: number; veil: number; paper: number }
+const SKIN_ART: Record<SkinMode, Record<SkinArtLevel, Material>> = {
+  dark: {
+    soft: { thin: 0.6, glass: 0.7, thick: 0.8, veil: 0.55, paper: 1 },
+    medium: { thin: 0.52, glass: 0.62, thick: 0.72, veil: 0.28, paper: 0.9 },
+    strong: { thin: 0.4, glass: 0.5, thick: 0.6, veil: 0.12, paper: 0.78 },
+  },
+  light: {
+    soft: { thin: 0.58, glass: 0.68, thick: 0.8, veil: 0.62, paper: 1 },
+    medium: { thin: 0.5, glass: 0.6, thick: 0.72, veil: 0.45, paper: 0.9 },
+    strong: { thin: 0.4, glass: 0.5, thick: 0.6, veil: 0.3, paper: 0.78 },
+  },
+}
 
 export interface SkinTokens {
+  /** 基础 token（= 默认档「中」的材质） */
   vars: Record<string, string>
+  /** 各档图片强度的材质覆盖（玻璃 / 卡片 / 遮罩 / 文字光晕） */
+  levels: Record<SkinArtLevel, Record<string, string>>
   /** 减弱透明度时的覆盖（玻璃改实色） */
   opaque: Record<string, string>
 }
@@ -180,7 +199,7 @@ export function skinTokens(rec: Pick<SkinRecord, 'mode' | 'palette'>): SkinToken
   const dark = mode === 'dark'
   const get = (k: SkinPaletteKey) => (p[k] ? parseHex(p[k] as string) : null)
   const away = dark ? WHITE : BLACK // 文字往这边推才更醒目
-  const ga = GLASS_ALPHA[mode]
+  const mats = SKIN_ART[mode]
 
   const canvas = clampBase(get('canvas') ?? (dark ? [10, 12, 11] : [244, 244, 241]), mode)
   const surface = clampBase(get('surface') ?? canvas, mode)
@@ -190,9 +209,12 @@ export function skinTokens(rec: Pick<SkinRecord, 'mode' | 'palette'>): SkinToken
   const focus = get('focus')
   const glow2 = A(focus ?? mix(accent, canvas, 0.6), dark ? 0.16 : 0.14)
 
-  // 最坏底：最薄玻璃压在最浓光晕上（与 check-contrast 同口径）；纸面 = surface 实色
-  const worst = over(A(surface, ga.thin), over(glow1, A(canvas))).slice(0, 3) as RGB
-  const backs = [worst, surface, raised, canvas]
+  // 最坏底：各档里最薄的玻璃压在最浓光晕上（与 check-contrast 同口径）；纸面取最透的一档（背景图按底色估，图本身不可知）
+  const thinnest = Math.min(...SKIN_ART_LEVELS.map((l) => mats[l].thin))
+  const paperMin = Math.min(...SKIN_ART_LEVELS.map((l) => mats[l].paper))
+  const worst = over(A(surface, thinnest), over(glow1, A(canvas))).slice(0, 3) as RGB
+  const paperWorst = over(A(surface, paperMin), A(canvas)).slice(0, 3) as RGB
+  const backs = [worst, paperWorst, surface, raised, canvas]
 
   const fg = ensure(get('text') ?? (dark ? [236, 234, 227] : [29, 33, 28]), backs, 7, away)
   const muted = ensure(get('muted') ?? mix(fg, canvas, 0.62), backs, 4.5, away)
@@ -224,9 +246,6 @@ export function skinTokens(rec: Pick<SkinRecord, 'mode' | 'palette'>): SkinToken
     '--xz-glow-1': rgba(accent, glow1[3]),
     '--xz-glow-2': rgba(glow2.slice(0, 3) as RGB, glow2[3]),
     '--xz-glow-3': rgba(mix(accent, canvas, 0.4), 0.12),
-    '--xz-glass-thin': rgba(surface, ga.thin),
-    '--xz-glass': rgba(surface, ga.glass),
-    '--xz-glass-thick': rgba(surface, ga.thick),
     '--xz-glass-opaque': hex(raised),
     '--xz-surface-solid': hex(surface),
     '--xz-surface-solid-2': hex(mix(fg, surface, 0.04)),
@@ -241,8 +260,17 @@ export function skinTokens(rec: Pick<SkinRecord, 'mode' | 'palette'>): SkinToken
     '--xz-primary-text': hex(primaryText),
     '--xz-primary-soft': hex(soft(accent)),
     '--xz-shadow-seal': `0 4px 16px ${rgba(accent, 0.32)}, inset 0 1px 0 rgba(255, 255, 255, 0.4)`,
-    '--xz-skin-veil': rgba(canvas, ga.veil),
   }
+  const material = (m: Material): Record<string, string> => ({
+    '--xz-glass-thin': rgba(surface, m.thin),
+    '--xz-glass': rgba(surface, m.glass),
+    '--xz-glass-thick': rgba(surface, m.thick),
+    '--xz-paper-bg': m.paper >= 1 ? 'var(--xz-surface-solid)' : rgba(surface, m.paper),
+    '--xz-skin-veil': rgba(canvas, m.veil),
+    // 直接压在图上的字（页标题、分组标签）垫一圈不透明底色光晕（地图标注式）；淡档遮罩够厚，不加
+    '--xz-skin-halo': m.veil >= 0.5 ? 'transparent' : hex(canvas),
+  })
+  Object.assign(vars, material(mats[DEFAULT_SKIN_ART]))
   if (focus) {
     const c = ensure(focus, [surface], 3, away)
     vars['--xz-accent'] = hex(c)
@@ -268,11 +296,18 @@ export function skinTokens(rec: Pick<SkinRecord, 'mode' | 'palette'>): SkinToken
   }
   return {
     vars,
+    levels: {
+      soft: material(mats.soft),
+      medium: material(mats.medium),
+      strong: material(mats.strong),
+    },
     opaque: {
       '--xz-glass-thin': hex(surface),
       '--xz-glass': hex(surface),
       '--xz-glass-thick': hex(raised),
+      '--xz-paper-bg': 'var(--xz-surface-solid)',
       '--xz-skin-veil': hex(canvas),
+      '--xz-skin-halo': 'transparent',
     },
   }
 }
@@ -287,8 +322,9 @@ const decls = (vars: Record<string, string>) =>
     .join('\n')
 
 /**
- * 皮肤样式表：`:root[data-skin="<id>"]` 覆盖 token；减弱透明度（系统设置 / 手动档）时玻璃改实色、遮罩改不透明。
- * 皮肤生效时客户端移除 `data-glass`，玻璃强度预设不参与（皮肤自带材质）。
+ * 主题样式表：`:root[data-skin="<id>"]` 覆盖 token（基础 = 默认档「中」）；`[data-skin-art="soft|strong"]` 换材质档（ADR-0061）；
+ * 减弱透明度（系统设置 / 手动档）时玻璃改实色、遮罩改不透明，放在最后且特异度不低于档位块。
+ * 主题生效时客户端移除 `data-glass`，玻璃强度预设不参与（主题自带材质）。
  */
 export function skinCss(rec: SkinRecord): string {
   if (!SKIN_ID_RE.test(rec.id) || !VERSION_RE.test(rec.version)) throw new Error('非法皮肤')
@@ -297,10 +333,13 @@ export function skinCss(rec: SkinRecord): string {
   const art = rec.art ? `url("${skinAssetUrl(rec.id, rec.version, 'art')}")` : 'none'
   const focal = FOCAL_RE.test(rec.focal) ? rec.focal : '50% 50%'
   const vars = { ...t.vars, '--xz-skin-art': art, '--xz-skin-pos': focal }
+  const level = (l: SkinArtLevel) => `${sel}[data-skin-art="${l}"] {\n${decls(t.levels[l])}\n}`
   return [
     `${sel} {\n${decls(vars)}\n}`,
-    `@media (prefers-reduced-transparency: reduce), print {\n${sel} {\n${decls(t.opaque)}\n}\n}`,
-    `:root[data-transparency="reduce"]${sel.slice(5)} {\n${decls(t.opaque)}\n}`,
+    level('soft'),
+    level('strong'),
+    `@media (prefers-reduced-transparency: reduce), print {\n${sel}, ${sel}[data-skin-art] {\n${decls(t.opaque)}\n}\n}`,
+    `:root[data-transparency="reduce"]${sel.slice(5)}, :root[data-transparency="reduce"]${sel.slice(5)}[data-skin-art] {\n${decls(t.opaque)}\n}`,
   ].join('\n')
 }
 

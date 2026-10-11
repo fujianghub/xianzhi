@@ -3,7 +3,12 @@
  * - 生效：`html[data-skin]` + `<style id="xz-skin">` + `data-theme` 锁定为主题自带明暗 + 移除 `data-glass`（主题自带材质）
  * - 缓存：`xz:skin` = 本人生效主题（工作台首帧），`xz:skin-default` = 工作区默认主题（认证页首帧）；theme-init.js 按路径择一注入
  */
-import type { SkinMode } from '../../shared/skins.ts'
+import {
+  DEFAULT_SKIN_ART,
+  SKIN_ART_LEVELS,
+  type SkinArtLevel,
+  type SkinMode,
+} from '../../shared/skins.ts'
 import { applyTheme } from './theme.ts'
 
 export interface SkinCache {
@@ -60,4 +65,28 @@ export function unmountSkin(key: string | null = SKIN_KEY) {
   document.getElementById(STYLE_ID)?.remove()
   delete document.documentElement.dataset.skin
   if (key) persistSkin(null, key)
+}
+
+/** 图片强度（ADR-0061）：写 `html[data-skin-art]`（各档都写，主题样式表按它换材质）；本机 `xz:skin-art` 只作首帧缓存，默认档不存 */
+const ART_KEY = 'xz:skin-art'
+
+export function storedSkinArt(): SkinArtLevel {
+  try {
+    const v = localStorage.getItem(ART_KEY)
+    return (SKIN_ART_LEVELS as readonly string[]).includes(v ?? '')
+      ? (v as SkinArtLevel)
+      : DEFAULT_SKIN_ART
+  } catch {
+    return DEFAULT_SKIN_ART
+  }
+}
+
+export function setSkinArt(level: SkinArtLevel) {
+  try {
+    if (level === DEFAULT_SKIN_ART) localStorage.removeItem(ART_KEY)
+    else localStorage.setItem(ART_KEY, level)
+  } catch {
+    /* 隐私模式 */
+  }
+  document.documentElement.dataset.skinArt = level
 }

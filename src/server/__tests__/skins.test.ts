@@ -188,7 +188,7 @@ describe('skins', () => {
       expect((await get('/skins/..%2Fetc/art')).status).toBe(422)
     })
 
-    it('REQ-UI-058 偏好 skin：按人保存、null 删除、none 可选、非法值 422；工作区默认可设', async () => {
+    it('REQ-UI-058 · 065 偏好 skin / skinArt：按人保存、null 删除、none 可选、非法值 422；工作区默认可设', async () => {
       const patch = (body: unknown, path = '/me/preferences') =>
         app.request(`/api/v1${path}`, {
           method: 'PATCH',
@@ -201,6 +201,16 @@ describe('skins', () => {
         skin: 'test-halo',
       })
       expect((await patch({ appearance: { skin: 'Bad Id' } })).status).toBe(422)
+      // REQ-UI-065 图片强度：淡 / 中 / 浓，其它值 422，null 删除
+      r = await patch({ appearance: { skinArt: 'strong' } })
+      expect(((await r.json()) as { appearance: { skinArt: string } }).appearance.skinArt).toBe(
+        'strong',
+      )
+      expect((await patch({ appearance: { skinArt: 'max' } })).status).toBe(422)
+      r = await patch({ appearance: { skinArt: null } })
+      expect(
+        ((await r.json()) as { appearance: Record<string, unknown> }).appearance,
+      ).not.toHaveProperty('skinArt')
       r = await patch({ appearance: { skin: 'none' } })
       expect(((await r.json()) as { appearance: { skin: string } }).appearance.skin).toBe('none')
       r = await patch({ appearance: { skin: null } })
