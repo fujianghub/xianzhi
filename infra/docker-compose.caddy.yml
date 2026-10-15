@@ -1,0 +1,27 @@
+# 独立服务器叠加文件（ADR-0062）：在 docker-compose.prod.yml 之上加自带的 Caddy（80/443 + 自动 HTTPS）。
+# 用法：docker compose -f infra/docker-compose.prod.yml -f infra/docker-compose.caddy.yml --env-file .env.prod up -d
+# host 网络：直接占宿主 80/443，反代到 xz-app / xz-collab 只绑 127.0.0.1 的发布端口（与 Caddyfile.snippet 同口径）。
+services:
+  xz-caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      XZ_DOMAIN: ${XZ_DOMAIN:?XZ_DOMAIN required}
+    volumes:
+      # 单文件挂载：rsync 换文件会换 inode，改 Caddyfile 后须 `restart xz-caddy`（caddy reload 读不到新内容）
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - xz_caddy_data:/data
+      - xz_caddy_config:/config
+    depends_on:
+      xz-app:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: 50m
+        max-file: '5'
+
+volumes:
+  xz_caddy_data:
+  xz_caddy_config:
