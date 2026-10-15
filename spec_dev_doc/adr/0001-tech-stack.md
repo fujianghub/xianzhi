@@ -215,7 +215,7 @@ GrowingInterlude/
 | 2 | Yjs 一期就上（推荐）还是先 JSON 后迁移 | 一期就上 |
 | 3 | 数据库 PostgreSQL（推荐）还是坚持 SQLite 单文件 | PG，独立容器 5433 |
 | 4 | UI 库 shadcn/ui + Tailwind（推荐）还是 AntD 5 | shadcn |
-| 5 | 部署与简斋同机、复用 Caddy | 是 |
+| 5 | ~~部署与简斋同机、复用 Caddy~~（注 2026-10-15，ADR-0062：独立服务器、Compose 叠加自带 Caddy） | 是 |
 | 6 | 多用户范围：~~邀请制~~、单 Workspace 数十人内、~~不开放注册~~（注 2026-09-25，ADR-0008：开放注册 + 审批；数十人 / 50 上限不变） | 是（超出此范围架构需重估：Redis、多实例 Hocuspocus、对象存储） |
 | 7 | 邮件服务商：腾讯云 SES 还是 Resend | 腾讯云 SES（与部署同云、国内送达） |
 | 8 | 动效库：Motion（原 Framer Motion）还是仅 CSS + View Transitions | Motion，布局动画与手势非 CSS 可及 |

@@ -1,6 +1,6 @@
 # 05 开发流程
 
-> 状态：已采纳 · 版本：v4 · 更新：2026-09-29（验证实例重启、偏好复位、mermaid / katex 懒加载）· 最后对照代码：2026-09-29；此前 2026-09-24（拼图 e2e、视觉基线、依赖安装） · 依据 ADR-0001 §6–7。命令、端口、环境、测试、CI、部署、备份、文档纪律的权威来源。CLAUDE.md 只摘录本文的命令段。
+> 状态：已采纳 · 版本：v5 · 更新：2026-10-15（§7 独立生产服务器、自带 Caddy，ADR-0062）；此前 2026-09-29（验证实例重启、偏好复位、mermaid / katex 懒加载）· 最后对照代码：2026-09-29；此前 2026-09-24（拼图 e2e、视觉基线、依赖安装） · 依据 ADR-0001 §6–7。命令、端口、环境、测试、CI、部署、备份、文档纪律的权威来源。CLAUDE.md 只摘录本文的命令段。
 > 分期术语（全部规范统一）：**一期 = Phase 0 + 1 + 2**（可用版本；工期计划值见 ADR-0003 与 `tasks/phase-N.md`）；**二期 = Phase 3**（MCP、git / debug 导入、AI、pgvector、PWA 打磨）。不再使用「三期」。
 
 ---
@@ -176,7 +176,10 @@ LOG_LEVEL=info
 
 ---
 
-## 7. 部署（腾讯云，与简斋同机）
+## 7. 部署（腾讯云独立服务器，自带 Caddy · ADR-0062）
+
+> 注 2026-10-15（ADR-0062）：生产为独立服务器 `www.xianzhi.host`（62.234.70.53，`/srv/xianzhi`），不再与简斋同机。Caddy 用叠加文件 `infra/docker-compose.caddy.yml`（`xz-caddy`，host 网络占 80/443，配置 `infra/Caddyfile`，站点名取 `.env.prod` 的 `XZ_DOMAIN`，Let's Encrypt 自动签发 / 续期）；路由与下文 `Caddyfile.snippet` 一致，改一处同步另一处。服务器不构建镜像（2 GiB），基础镜像 `pgvector/pgvector:pg16`、`caddy:2-alpine` 首次由本机 `docker save` 传输。发布：
+> `XZ_HOST=root@62.234.70.53 XZ_DIR=/srv/xianzhi XZ_COMPOSE_EXTRA="-f infra/docker-compose.caddy.yml" infra/deploy.sh`（密码登录时加 `XZ_SSH=<ssh 包装脚本>`）。改 Caddyfile 后须 `restart xz-caddy`（单文件挂载换 inode）。下文「与简斋同机、复用其 Caddy」作为备选方案保留。
 
 ```
 infra/docker-compose.prod.yml
@@ -190,7 +193,7 @@ infra/docker-compose.prod.yml
 Caddy 片段要点：`xz.<domain>` 站点；`/collab/*` → `xz-collab:8011`（WebSocket 直通）；其余 → `xz-app:8010`；`encode zstd gzip`；`/assets/*` `Cache-Control: immutable`；附件不经 Caddy 直出，全部走 `/api/v1/attachments/*` 鉴权流式输出（02 §7），Caddy 不暴露 `data/` 目录。
 
 发布步骤（`infra/deploy.sh`）：
-1. 本地 `pnpm build` + `docker build`；
+1. 本地 `docker build`（镜像内 `pnpm build` 含预算检查）；
 2. `rsync` 仓库（排除 `.env.prod` / `data/` / `.git`）与镜像 tar；
 3. 服务器 `docker compose -f infra/docker-compose.prod.yml up -d`（app 启动时先 migrate；迁移失败容器退出，旧容器不被替换）；
 4. `curl /api/health` 与 `/collab/health` 通过后切换；

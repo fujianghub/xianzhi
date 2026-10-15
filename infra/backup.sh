@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 docker compose -f docker-compose.prod.yml exec -T xz-app node dist/server/cli.js backup
 if [ -n "${XZ_BACKUP_TARGET:-}" ]; then
-  VOL=$(docker volume inspect -f '{{ .Mountpoint }}' xianzhi_gi_data)
+  VOL=$(docker volume inspect -f '{{ .Mountpoint }}' xianzhi_xz_data)
   rsync -a "$VOL/uploads/" "$XZ_BACKUP_TARGET/uploads/"
   rsync -a "$VOL/backups/" "$XZ_BACKUP_TARGET/backups/"
 fi

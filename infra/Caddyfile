@@ -1,0 +1,23 @@
+# 独立服务器的 Caddy（ADR-0062）：自带 80/443，自动签发 Let's Encrypt 证书（HTTP-01，需 80 公网可达）。
+# 路由与 Caddyfile.snippet（同机复用简斋 Caddy 的方案、infra e2e 实测对象）保持一致，改一处须同步另一处。
+# 站点域名来自 .env.prod 的 XZ_DOMAIN；裸域需要跳转时，在 DNS 加 A 记录后追加：
+#   xianzhi.host { redir https://{$XZ_DOMAIN}{uri} permanent }
+{$XZ_DOMAIN} {
+	encode zstd gzip
+
+	# HSTS / CSP 由 xz-app 的 secureHeaders 统一下发，这里不重复加（重复头会出现两条 strict-transport-security）
+
+	# 协同 WebSocket 直通（Hocuspocus）。前端连 /collab 本身，只写 /collab/* 会落到 xz-app 404（debug/2026-09-24-caddy-collab-matcher）
+	@collab path /collab /collab/*
+	handle @collab {
+		reverse_proxy 127.0.0.1:18011
+	}
+
+	@assets path /assets/*
+	header @assets ?Cache-Control "public, max-age=31536000, immutable"
+
+	# 其余（API、SPA、附件、SSE）全部走 xz-app；附件经 /api/v1/attachments 鉴权流式输出
+	handle {
+		reverse_proxy 127.0.0.1:18010
+	}
+}
