@@ -4,6 +4,8 @@
  *   按 Vite manifest 走链，与 e2e perf（REQ-UI-015，真实浏览器打开 /login 计下载的 JS）同口径；
  *   2026-10-03 前只算 index.html 直接引用的文件，漏了登录路由懒加载的 ~77 KB（debug/2026-10-03-perf-initial-js-login）
  * - 编辑器 chunk（editor-*.js）≤ 400 KB
+ * 另查 chunk 间静态 import 环（manifest `imports`）：环上先加载哪个 chunk 决定求值顺序，生产包会读到未初始化的导出
+ * （2026-10-22 editor ⇄ upload：`Cannot read properties of undefined (reading 'create')`，debug/2026-10-22-editor-chunk-cycle）。
  * 结果写 debug/perf/budget.json。
  */
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -43,6 +45,26 @@ const initialBytes = initial.reduce((n, f) => n + gz(f), 0)
 const editorFiles = readdirSync(join(DIST, 'assets')).filter((f) => /^editor-.*\.js$/.test(f))
 const editorBytes = editorFiles.reduce((n, f) => n + gz(join('assets', f)), 0)
 
+/** chunk 静态 import 环（DFS 三色标记），每个环给出一条路径 */
+function chunkCycles(): string[][] {
+  const state = new Map<string, 1 | 2>()
+  const stack: string[] = []
+  const cycles: string[][] = []
+  const visit = (k: string) => {
+    state.set(k, 1)
+    stack.push(k)
+    for (const i of manifest[k]?.imports ?? []) {
+      if (state.get(i) === 1) cycles.push([...stack.slice(stack.indexOf(i)), i])
+      else if (!state.has(i)) visit(i)
+    }
+    stack.pop()
+    state.set(k, 2)
+  }
+  for (const k of Object.keys(manifest)) if (!state.has(k)) visit(k)
+  return cycles
+}
+const cycles = chunkCycles().map((c) => c.map((k) => manifest[k]?.file ?? k).join(' → '))
+
 const report = {
   initial: {
     files: initial,
@@ -54,6 +76,7 @@ const report = {
     gzipKB: +(editorBytes / KB).toFixed(1),
     limitKB: LIMITS.editor / KB,
   },
+  cycles,
 }
 mkdirSync(new URL('../debug/perf', import.meta.url).pathname, { recursive: true })
 writeFileSync(
@@ -68,6 +91,7 @@ if (initialBytes > LIMITS.initial)
 if (!editorFiles.length) problems.push('未找到 editor-*.js（编辑器未独立分包）')
 if (editorBytes > LIMITS.editor)
   problems.push(`编辑器 chunk ${report.editor.gzipKB} KB > ${report.editor.limitKB} KB`)
+for (const c of cycles) problems.push(`chunk 静态 import 环：${c}`)
 if (problems.length) {
   console.error(`check-budget：\n${problems.map((p) => `  - ${p}`).join('\n')}`)
   process.exit(1)

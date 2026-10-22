@@ -1,6 +1,6 @@
 /**
  * ADR-0059 · 0060 主题（代码里叫 skin）：REQ-UI-059（生效 / 锁定明暗 / 首帧缓存）、REQ-UI-062（设置 → 主题页 / 顶栏退出）、
- * REQ-UI-063（管理员设默认 / 恢复默认主题）、REQ-UI-064（登录页套工作区默认主题）。
+ * REQ-UI-063（管理员设默认 / 恢复默认主题）、REQ-UI-064（登录页套工作区默认主题）、REQ-UI-066（认证页跟随本机上次登录者，ADR-0063）。
  * 用合成主题包（sharp 生成纯色图）经 CLI 安装到验证实例的 DATA_DIR（默认主仓 data/e2e，XZ_E2E_DATA_DIR 可覆盖）。
  */
 import { execFileSync } from 'node:child_process'
@@ -150,7 +150,7 @@ test('REQ-UI-063 管理员在卡片上设为默认：没选过的成员即用它
   await ctx.close()
 })
 
-test('REQ-UI-064 登录页套工作区默认主题；未设默认时为原生，且未登录读不到其它主题的图', async ({
+test('REQ-UI-064 没在本机登录过：登录页套工作区默认主题；未设默认时为原生，且未登录读不到其它主题的缩略图', async ({
   browser,
   request,
 }) => {
@@ -159,7 +159,7 @@ test('REQ-UI-064 登录页套工作区默认主题；未设默认时为原生，
   await p.goto('/login')
   await expect(p.getByTestId('captcha')).toBeVisible()
   await expect(p.locator('html')).not.toHaveAttribute('data-skin', /.*/)
-  expect((await p.request.get(`/api/v1/skins/${ID}/art`)).status()).toBe(401)
+  expect((await p.request.get(`/api/v1/skins/${ID}/thumb`)).status()).toBe(401)
 
   const r = await request.patch('/api/v1/workspace', {
     data: { settings: { appearance: { skin: ID } } },
@@ -169,11 +169,52 @@ test('REQ-UI-064 登录页套工作区默认主题；未设默认时为原生，
   await p.reload()
   await expect(p.locator('html')).toHaveAttribute('data-skin', ID)
   await expect(p.locator('html')).toHaveAttribute('data-theme', 'dark')
-  expect((await p.request.get(`/api/v1/skins/${ID}/art`)).status()).toBe(200)
+  expect((await p.request.get(`/api/v1/skins/${ID}/thumb`)).status()).toBe(200)
   // 首帧：再刷新时 theme-init 直接读 xz:skin-default
   await p.reload()
   expect(await p.evaluate(() => document.documentElement.dataset.skin)).toBe(ID)
   await anon.close()
+})
+
+test('REQ-UI-066 认证页跟随本机上次登录者：选了主题退出后登录页仍是它；选回原生则登录页原生，不套工作区默认', async ({
+  page,
+  browser,
+  request,
+}) => {
+  /** 模拟在本机退出登录：保留本机 localStorage、去掉 Cookie */
+  const loggedOut = async () => {
+    const { origins } = await page.context().storageState()
+    const ctx = await browser.newContext({ storageState: { cookies: [], origins } })
+    const p = await ctx.newPage()
+    await p.goto('/login')
+    await expect(p.getByTestId('captcha')).toBeVisible()
+    return { ctx, p }
+  }
+
+  await setAppearancePref(request, { skin: ID })
+  await page.goto('/settings/theme')
+  await expect(page.locator('html')).toHaveAttribute('data-skin', ID)
+  let { ctx, p } = await loggedOut()
+  await expect(p.locator('html')).toHaveAttribute('data-skin', ID)
+  await expect(p.locator('html')).toHaveAttribute('data-theme', 'dark')
+  // 首帧即生效（theme-init 读 xz:skin），背景图未登录可读
+  expect(await p.evaluate(() => document.documentElement.dataset.skin)).toBe(ID)
+  expect((await p.request.get(`/api/v1/skins/${ID}/art`)).status()).toBe(200)
+  await ctx.close()
+
+  // 工作区默认是这个主题、本人选回原生：登录页跟随本人（原生），不再套默认
+  const r = await request.patch('/api/v1/workspace', {
+    data: { settings: { appearance: { skin: ID } } },
+    headers: sameSite,
+  })
+  expect(r.status()).toBe(200)
+  await setAppearancePref(request, { skin: 'none' })
+  await page.goto('/settings/theme')
+  await expect(page.locator('html')).not.toHaveAttribute('data-skin', /.*/)
+  ;({ ctx, p } = await loggedOut())
+  await p.waitForTimeout(500) // 给认证页拉默认主题留时间：不应再挂上
+  await expect(p.locator('html')).not.toHaveAttribute('data-skin', /.*/)
+  await ctx.close()
 })
 
 test('REQ-UI-065 图片强度：没选主题时禁用；淡 / 中 / 浓切换改遮罩与卡片材质，默认中，刷新首帧保持；管理员可设工作区默认', async ({
