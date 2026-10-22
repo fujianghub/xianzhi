@@ -17,7 +17,7 @@ import {
   sql,
 } from 'drizzle-orm'
 import type { z } from 'zod'
-import { emptyYdoc } from '../../collab/derive.ts'
+import { deriveFromYdoc, emptyYdoc } from '../../collab/derive.ts'
 import { ydocFromPm } from '../../collab/ydoc-json.ts'
 import { fillHiddenDefaults, hiddenBaseFields } from '../../shared/schemas/baseFields.ts'
 import type {
@@ -239,7 +239,8 @@ function toView(
     treeOrder: e.treeOrder,
   }
   if (opts.excerpt) v.excerpt = (e.plain ?? '').slice(0, EXCERPT_LEN)
-  if (opts.withBody) v.pmJson = e.pmJson ?? null
+  // 新建后还没经 collab 存过（pm_json 未派生，如带模板新建、未打开过）：从 ydoc 现场派生，只读不落库（ADR-0064）
+  if (opts.withBody) v.pmJson = e.pmJson ?? (e.ydoc?.length ? deriveFromYdoc(e.ydoc).pmJson : null)
   return v
 }
 

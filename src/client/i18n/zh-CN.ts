@@ -2136,6 +2136,7 @@ export const zhCN = {
     estimate: '预估',
     minutes: '{{n}} 分钟',
     noDescription: '没有描述',
+    noBody: '还没有正文',
     created: '创建于',
     updated: '更新于',
     completed: '完成于',
