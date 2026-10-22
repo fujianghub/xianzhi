@@ -21,7 +21,13 @@ import { cn } from '../../lib/cn.ts'
 import { pushRecent } from '../../lib/recent.ts'
 import { spaceQuery } from '../../lib/space-queries.ts'
 import { useCommandContext } from '../../lib/stores.ts'
-import { flattenPages, type Task, taskQuery, tasksInfiniteQuery } from '../../lib/task-queries.ts'
+import {
+  flattenPages,
+  type Task,
+  taskQuery,
+  tasksInfiniteQuery,
+  taskWatchersQuery,
+} from '../../lib/task-queries.ts'
 import { dueLabel } from '../../lib/time.ts'
 import { DetailDock } from '../layout/DetailDock.tsx'
 import { Avatar } from '../ui/avatar.tsx'
@@ -45,11 +51,6 @@ import {
 import { TaskRow } from './TaskRow.tsx'
 
 const LiteEditor = lazy(() => import('../../editor/LiteEditor.tsx'))
-
-interface Watcher {
-  userId: string
-  displayName: string
-}
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -229,14 +230,7 @@ export function TaskDetailSheet({
     ...tasksInfiniteQuery({ parentId: taskId, sort: 'createdAt' }, 50),
     enabled: !!task && !task.parentId,
   })
-  const watchers = useQuery({
-    queryKey: ['task', taskId, 'watchers'],
-    queryFn: () =>
-      unwrap<{ items: Watcher[] }>(api.tasks[':id'].watchers.$get({ param: { id: taskId } })).then(
-        (r) => r.items,
-      ),
-    enabled: !!task,
-  })
+  const watchers = useQuery({ ...taskWatchersQuery(taskId), enabled: !!task })
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [sub, setSub] = useState('')
 

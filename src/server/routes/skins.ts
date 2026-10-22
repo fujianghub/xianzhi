@@ -1,7 +1,9 @@
 /**
  * /api/v1/skins*（ADR-0059 · 0060、REQ-UI-057 · 064）：已安装主题列表 / 样式表 / 背景图 / 缩略图。只读（安装走运维 CLI）。
  * - 列表与详情只给登录用户；主题是本机安装资源，不属于任何工作区数据，不经 can()（同 /link-preview）。
- * - `GET /default` 公开：返回工作区默认主题（登录 / 注册页用，ADR-0060）；默认主题的背景图 / 缩略图也允许未登录读取，其余仍要登录。
+ * - `GET /default` 公开：返回工作区默认主题（登录 / 注册页用，ADR-0060）；默认主题的缩略图也允许未登录读取，其余缩略图仍要登录。
+ * - 背景图 `/:id/art` 公开（ADR-0063）：认证页跟随本机上次登录者的主题，样式表来自本机缓存、图要未登录也能取；
+ *   图是安装的装饰资源，不含工作区数据。列表 / 详情（含样式表）仍要登录。
  * 图片地址带 `?v=<version>`，版本随内容哈希变化 → 长缓存 + immutable；ETag 兜底。
  */
 import { createReadStream } from 'node:fs'
@@ -32,7 +34,8 @@ export function skinRoutes(deps: { dataDir: string; db: Db }) {
   const asset = (kind: 'art' | 'thumb') => async (c: Context<AppEnv>) => {
     const id = c.req.param('id') ?? ''
     const authed = Boolean(c.var.user && !c.var.user.banned)
-    if (!authed && id !== (await defaultSkinId())) throw AppError.unauthenticated()
+    if (kind === 'thumb' && !authed && id !== (await defaultSkinId()))
+      throw AppError.unauthenticated()
     const { rec, path, size } = await svc.skinAsset(deps.dataDir, id, kind)
     const etag = `"${rec.id}-${rec.version}-${kind}"`
     const headers = {

@@ -62,9 +62,13 @@ export function LinkBubble({ editor }: { editor: Editor }) {
   const inputRef = useRef<HTMLInputElement>(null)
   // 挂载、滚动跟随与重新定位（floating.ts，ADR-0056 §B）
   const { appendTo, visible, reposition } = useFixedMenu(editor, PLUGIN_KEY)
-  // 有网页卡片节点的编辑器（记录正文）才给「卡片」；任务描述 / 评论（liteKit）没有
-  const cards = !!editor.schema.nodes.linkCard
-  const link = useEditorState({ editor, selector: ({ editor: e }) => (e ? activeLink(e) : null) })
+  // 有网页卡片节点的编辑器（记录正文）才给「卡片」；任务描述 / 评论（liteKit）没有。
+  // 编辑器重建时并发渲染可能还拿着已销毁的旧实例（Tiptap destroy 后 schema = null），不能直接读
+  const cards = !!editor.schema?.nodes.linkCard
+  const link = useEditorState({
+    editor,
+    selector: ({ editor: e }) => (e && !e.isDestroyed ? activeLink(e) : null),
+  })
   const shouldShow = useCallback(
     ({ editor: e }: { editor: Editor }) =>
       e.isEditable && !e.isActive('codeBlock') && e.state.selection.empty && e.isActive('link'),

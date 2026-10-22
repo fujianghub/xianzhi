@@ -76,5 +76,19 @@ export const taskQuery = (id: string) => ({
   staleTime: 10_000,
 })
 
+export interface Watcher {
+  userId: string
+  displayName: string
+}
+
+/** 关注者（详情与 Peek 共用同一查询键） */
+export const taskWatchersQuery = (id: string) => ({
+  queryKey: ['task', id, 'watchers'] as const,
+  queryFn: () =>
+    unwrap<{ items: Watcher[] }>(api.tasks[':id'].watchers.$get({ param: { id } })).then(
+      (r) => r.items,
+    ),
+})
+
 export const flattenPages = (d: InfiniteData<TaskPage, unknown> | undefined): Task[] =>
   d?.pages.flatMap((p) => p.items) ?? []

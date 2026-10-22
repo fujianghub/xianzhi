@@ -2,6 +2,14 @@
 
 > 只记规范文件的变更；代码变更看 git log。格式：日期 → 文件 → 一行一条。每个 Phase 结束前的一致性审查结果也记在这里。
 
+## 2026-10-22
+
+**认证页主题跟随本机上次登录者 · 任务 Peek 摊开关注者与评论（ADR-0063）**
+- 新增 ADR-0063（修订 ADR-0060 §4、ADR-0050 任务预览内容）。ADR-0060 §4 加注。00 +REQ-UI-066，REQ-UI-064 · REQ-UI-007 注；更新行同步。02 §9 `/skins/:id/art` 改公开。08 §2.13 注。
+
+**生产包编辑器 chunk 循环导入修复**
+- 00 REQ-UI-015 注（check-budget 拦截 chunk 静态 import 环）。debug +`2026-10-22-editor-chunk-cycle`（editor 分组漏收 fast-equals / @lifeomic/attempt，分进业务 chunk 形成环，先加载 editor 时 `Node.create` 读到 undefined；补正则 + 构建期环检测）。
+
 ## 2026-10-15
 
 **生产部署：独立服务器、自带 Caddy（ADR-0062）**

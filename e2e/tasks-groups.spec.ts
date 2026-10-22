@@ -146,7 +146,7 @@ test('REQ-TASK-043 日期快选：选择器「1 周后」、单个菜单「1 个
   }
 })
 
-test('REQ-UI-007 Peek：扫过不弹、停留 1 秒才弹；预览摊开全部属性、完整描述与子任务', async ({
+test('REQ-UI-007 Peek：扫过不弹、停留 1 秒才弹；预览摊开全部属性、完整描述、子任务、关注者与评论', async ({
   page,
   request,
 }) => {
@@ -164,6 +164,29 @@ test('REQ-UI-007 Peek：扫过不弹、停留 1 秒才弹；预览摊开全部�
       },
     })
     await mkTask(request, { title: `子任务一 ${s}`, parentId: id })
+    // 评论（ADR-0063）：未解决线程连回复一起摊开，已解决只计数
+    const comment = async (text: string, extra: Record<string, string> = {}) => {
+      const r = await request.post('/api/v1/comments', {
+        data: {
+          targetType: 'task',
+          targetId: id,
+          bodyPm: {
+            type: 'doc',
+            content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+          },
+          ...extra,
+        },
+        headers: headers(),
+      })
+      expect(r.status(), await r.text()).toBe(201)
+      return (await r.json()) as { id: string; threadId: string }
+    }
+    const root = await comment(`评论根 ${s}`)
+    await comment(`评论回复 ${s}`, { threadId: root.threadId, parentId: root.id })
+    const done = await comment(`已解决评论 ${s}`)
+    expect(
+      (await request.post(`/api/v1/comments/${done.id}/resolve`, { headers: sameSite })).status(),
+    ).toBe(200)
     await page.goto(`/tasks?list=${list}`)
     const row = page.getByTestId('task-row').filter({ hasText: `预览任务 ${s}` })
     await expect(row).toBeVisible()
@@ -186,6 +209,13 @@ test('REQ-UI-007 Peek：扫过不弹、停留 1 秒才弹；预览摊开全部�
     // 描述完整（不截断）：最后一段也在
     await expect(peek).toContainText(lines[15] as string)
     await expect(peek.getByTestId('peek-subtasks')).toContainText(`子任务一 ${s}`)
+    await expect(peek.getByTestId('peek-watchers')).toBeVisible() // 创建者自动关注
+    const comments = peek.getByTestId('peek-comments')
+    await expect(comments.getByTestId('peek-comment-thread')).toHaveCount(1)
+    await expect(comments).toContainText(`评论根 ${s}`)
+    await expect(comments).toContainText(`评论回复 ${s}`)
+    await expect(comments).not.toContainText(`已解决评论 ${s}`)
+    await expect(comments).toContainText('已解决 1 条')
   } finally {
     await request.delete(`/api/v1/task-lists/${list}`, { headers: sameSite })
   }

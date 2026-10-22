@@ -73,12 +73,15 @@ export default defineConfig({
     rolldownOptions: {
       output: {
         codeSplitting: {
-          // 只收组内匹配的模块，不把 react 等共享依赖一并吸进编辑器 chunk（否则首屏会预加载整包编辑器）
+          // 只收组内匹配的模块，不把 react 等共享依赖一并吸进编辑器 chunk（否则首屏会预加载整包编辑器）。
+          // 代价：组内包的第三方依赖若没列进来，会被分进引用它的业务 chunk，形成 editor ⇄ 业务 chunk 循环导入、
+          // 先加载 editor 时 `Node.create` 读到 undefined（fast-equals / @lifeomic/attempt，debug/2026-10-22-editor-chunk-cycle）；
+          // check-budget 会拦截 chunk 静态导入环
           includeDependenciesRecursively: false,
           groups: [
             {
               name: 'editor',
-              test: /node_modules[\\/](@tiptap|prosemirror-|y-prosemirror|yjs|y-indexeddb|y-protocols|@hocuspocus|lib0|linkifyjs|orderedmap|rope-sequence|w3c-keyname|lowlight|highlight\.js|markdown-it|mdurl|uc\.micro|linkify-it|entities|punycode|devlop|hast-util-|unist-util-)/,
+              test: /node_modules[\\/](@tiptap|prosemirror-|y-prosemirror|yjs|y-indexeddb|y-protocols|@hocuspocus|lib0|linkifyjs|orderedmap|rope-sequence|w3c-keyname|lowlight|highlight\.js|fast-equals|@lifeomic[\\/]attempt|markdown-it|mdurl|uc\.micro|linkify-it|entities|punycode|devlop|hast-util-|unist-util-)/,
             },
           ],
         },

@@ -1,5 +1,5 @@
 /**
- * Peek 预览（04 §6、T1-030、REQ-UI-007）：右侧非 modal Sheet（宽 480、无 Scrim、不抢焦点、不锁滚动），不改 URL；
+ * Peek 预览（04 §6、T1-030、REQ-UI-007；ADR-0063：任务预览连关注者与评论一起摊开）：右侧非 modal Sheet（宽 480、无 Scrim、不抢焦点、不锁滚动），不改 URL；
  * Esc 关闭；Enter 升级为完整详情（此时才改 URL）。任务复用 `GET /tasks/:id`（Query 缓存），记录用 `GET /entries/:id/preview`。
  */
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
@@ -11,10 +11,12 @@ import {
   CheckCircle2,
   Circle,
   CornerLeftUp,
+  Eye,
   Flag,
   ListChecks,
   ListTodo,
   type LucideIcon,
+  MessageSquare,
   Tag as TagIcon,
   Timer,
   UserRound,
@@ -28,12 +30,19 @@ import { openEntryDetail } from '../../lib/entry-dock.ts'
 import { useKindLabel } from '../../lib/entry-types.ts'
 import { type PeekTarget, usePeek } from '../../lib/stores.ts'
 import { dueTone } from '../../lib/task-groups.ts'
-import { flattenPages, taskQuery, tasksInfiniteQuery } from '../../lib/task-queries.ts'
+import {
+  flattenPages,
+  taskQuery,
+  tasksInfiniteQuery,
+  taskWatchersQuery,
+} from '../../lib/task-queries.ts'
 import { dueLabel } from '../../lib/time.ts'
+import { Avatar } from '../ui/avatar.tsx'
 import { Button } from '../ui/button.tsx'
 import { RelativeTime, useUserTimeZone } from '../ui/relative-time.tsx'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '../ui/sheet.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
+import { commentsQuery } from './Comments.tsx'
 import { PmView } from './PmView.tsx'
 import { PriorityChip } from './PriorityIcon.tsx'
 import { PALETTE_CLASS, type PaletteName } from './SpaceIcon.tsx'
@@ -139,7 +148,7 @@ function Prop({
 
 /**
  * 任务预览（ADR-0050）：任务本身内容不多，预览就把它全部摊开——
- * 空间 · 状态 → 标题（父任务）→ 全部属性 → 完整描述（不截断）→ 子任务 → 创建 / 更新 / 完成时间。
+ * 空间 · 状态 → 标题（父任务）→ 全部属性（含关注者）→ 完整描述（不截断）→ 子任务 → 评论（只读，ADR-0063）→ 创建 / 更新 / 完成时间。
  */
 function TaskPeek({ id }: { id: string }) {
   const { t } = useTranslation()
@@ -151,6 +160,8 @@ function TaskPeek({ id }: { id: string }) {
     ...tasksInfiniteQuery({ parentId: id, sort: 'createdAt' }, 50),
     enabled: !!task && !task.parentId,
   })
+  // 与详情同一查询键：Peek 里看过，打开详情不再等
+  const watchers = useQuery({ ...taskWatchersQuery(id), enabled: !!task })
   if (isPending || !task)
     return (
       <>
@@ -237,6 +248,17 @@ function TaskPeek({ id }: { id: string }) {
             </span>
           ) : null}
         </Prop>
+        <Prop icon={Eye} label={t('task.watchers')} wide>
+          {watchers.data?.length ? (
+            <span className="flex flex-wrap gap-1" data-testid="peek-watchers">
+              {watchers.data.map((w) => (
+                <span key={w.userId} className="rounded-full bg-surface px-2 py-0.5 text-xs">
+                  {w.displayName}
+                </span>
+              ))}
+            </span>
+          ) : null}
+        </Prop>
       </dl>
 
       <section className="flex flex-col gap-1.5">
@@ -279,6 +301,8 @@ function TaskPeek({ id }: { id: string }) {
         </section>
       ) : null}
 
+      <PeekComments targetId={task.id} />
+
       <footer className="flex flex-wrap gap-x-3 gap-y-1 border-divider border-t pt-3 text-fg-muted text-xs">
         <span>
           {t('peek.created')} <RelativeTime date={task.createdAt} />
@@ -293,6 +317,62 @@ function TaskPeek({ id }: { id: string }) {
         ) : null}
       </footer>
     </article>
+  )
+}
+
+/** 只读评论（ADR-0063）：未解决线程按时间摊开（根 + 回复），已解决只计数；回复 / 解决去详情 */
+function PeekComments({ targetId }: { targetId: string }) {
+  const { t } = useTranslation()
+  const { data, isPending } = useQuery(commentsQuery('task', targetId))
+  const items = data ?? []
+  const roots = items.filter((c) => !c.parentId)
+  const open = roots.filter((r) => !r.resolvedAt)
+  const resolved = roots.length - open.length
+  return (
+    <section className="flex flex-col gap-1.5" data-testid="peek-comments">
+      <h3 className="flex items-center gap-1.5 font-medium text-fg-muted text-xs">
+        <MessageSquare className="size-3.5" aria-hidden />
+        {t('comment.title')}
+        {open.length ? <span className="tabular-nums">{open.length}</span> : null}
+      </h3>
+      {isPending ? (
+        <Skeleton className="h-10 w-full" />
+      ) : open.length ? (
+        <ul className="flex flex-col gap-2">
+          {open.map((root) => (
+            <li
+              key={root.id}
+              className="flex flex-col gap-2 rounded-lg bg-surface-2 px-3 py-2"
+              data-testid="peek-comment-thread"
+            >
+              {items
+                .filter((c) => c.threadId === root.threadId)
+                .map((c) => (
+                  <div key={c.id} className="flex min-w-0 gap-2">
+                    <Avatar id={c.author.id} name={c.author.displayName} size={20} />
+                    <div className="min-w-0 flex-1">
+                      <p className="flex items-center gap-2 text-xs">
+                        <span className="font-medium">{c.author.displayName}</span>
+                        <RelativeTime date={c.createdAt} className="text-fg-muted" />
+                      </p>
+                      {c.deleted ? (
+                        <p className="text-fg-muted text-sm italic">{t('comment.deleted')}</p>
+                      ) : (
+                        <PmView doc={c.bodyPm} className="xz-prose xz-prose-compact" />
+                      )}
+                    </div>
+                  </div>
+                ))}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-fg-faint text-sm">{t('comment.empty')}</p>
+      )}
+      {resolved ? (
+        <p className="text-fg-muted text-xs">{t('comment.resolvedCount', { count: resolved })}</p>
+      ) : null}
+    </section>
   )
 }
 

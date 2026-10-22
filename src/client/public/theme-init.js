@@ -7,11 +7,14 @@
     theme = saved === 'light' || saved === 'dark' ? saved : sys
   } catch (_) {}
   // 主题（ADR-0059 · 0060）：缓存的样式表同步注入，明暗锁定为主题自带模式；
-  // 认证页不知道是谁，用工作区默认主题的缓存（xz:skin-default），其余页面用本人生效主题（xz:skin）
+  // 其余页面用本人生效主题（xz:skin）；认证页在本机登录过时也跟随它（xz:skin-auth = user，ADR-0063），
+  // 否则用工作区默认主题的缓存（xz:skin-default）
   let skin = null
   try {
-    const auth = /^\/(login|register|invite)(\/|$)/.test(location.pathname)
-    const s = JSON.parse(localStorage.getItem(auth ? 'xz:skin-default' : 'xz:skin') || 'null')
+    const useDefault =
+      /^\/(login|register|invite)(\/|$)/.test(location.pathname) &&
+      localStorage.getItem('xz:skin-auth') !== 'user'
+    const s = JSON.parse(localStorage.getItem(useDefault ? 'xz:skin-default' : 'xz:skin') || 'null')
     if (
       s &&
       typeof s.css === 'string' &&

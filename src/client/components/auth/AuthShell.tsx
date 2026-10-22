@@ -13,6 +13,7 @@ import { setGlass, storedGlass } from '../../lib/glass.ts'
 import { effectiveMotion, type MotionLevel } from '../../lib/motion.ts'
 import {
   activeSkin,
+  authFollowsUser,
   mountSkin,
   SKIN_DEFAULT_KEY,
   type SkinCache,
@@ -57,7 +58,12 @@ export const birdPause = () =>
 export function useLoginBody() {
   useEffect(() => {
     document.body.classList.add('xz-login')
-    // ADR-0060：认证页不知道是谁，套工作区默认主题（公开接口；首帧由 theme-init 读 xz:skin-default）
+    // ADR-0063：本机登录过 → 跟随上次登录者的生效主题（theme-init 已按 xz:skin 注入，退出登录时页面上也还挂着），不再换默认
+    if (authFollowsUser())
+      return () => {
+        document.body.classList.remove('xz-login')
+      }
+    // ADR-0060：本机没登录过，套工作区默认主题（公开接口；首帧由 theme-init 读 xz:skin-default）
     let alive = true
     void fetch('/api/v1/skins/default', { credentials: 'same-origin' })
       .then((r) => (r.ok ? (r.json() as Promise<{ skin: SkinCache | null }>) : null))

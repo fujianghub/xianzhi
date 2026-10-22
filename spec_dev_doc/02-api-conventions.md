@@ -283,7 +283,7 @@
 | GET | `/skins` | （2026-10-11 ADR-0059 §4）已安装皮肤 `{ items: [{ id, name, description, author, mode, version, rev, art, page? }] }`（不含 palette）；只要登录 | REQ-UI-057 |
 | GET | `/skins/default` | （2026-10-12 ADR-0060 §4）**公开**：工作区默认主题 `{ skin: { …同列表项, css } \| null }`（未设 / 未安装 → null，`no-cache`）；登录 / 注册页用；默认主题的 `/art` `/thumb` 也可未登录读取（`public` 缓存） | REQ-UI-064 |
 | GET | `/skins/:id` | 皮肤详情 + `css`（服务端按 palette 生成的样式表）；不存在 404 | REQ-UI-057 |
-| GET | `/skins/:id/art` | 背景图 webp；`?v=<version>` + `private, max-age=31536000, immutable` + ETag | REQ-UI-057 |
+| GET | `/skins/:id/art` | 背景图 webp；`?v=<version>` + `private, max-age=31536000, immutable` + ETag；（2026-10-22 ADR-0063）**公开**：未登录也可读（`public` 缓存），认证页跟随本机上次登录者的主题 | REQ-UI-057 · REQ-UI-066 |
 | GET | `/skins/:id/thumb` | 缩略图 webp（640×400），缓存同上 | REQ-UI-057 |
 | GET | `/entries/:id/preview` | 卡片数据 | REQ-ENTRY-008 |
 

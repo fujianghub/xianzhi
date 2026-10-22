@@ -18,7 +18,7 @@ import type { SkinSummary } from '../../shared/skins.ts'
 import { setGlass, storedGlass } from './glass.ts'
 import { preferencesQuery } from './reading.ts'
 import { activeSkin, mountSkin, resolveSkin, skinsQuery, storedSkin, unmountSkin } from './skin.ts'
-import { setSkinArt, storedSkinArt } from './skin-dom.ts'
+import { markAuthFollowsUser, setSkinArt, storedSkinArt } from './skin-dom.ts'
 import { useLayout } from './stores.ts'
 import {
   applyTheme,
@@ -60,6 +60,8 @@ let seq = 0
  * 皮肤生效时日夜场与玻璃强度只记住选择，由皮肤锁定。连续切换以最后一次为准。
  */
 async function applyLocal(a: AppearancePrefs, origin?: { x: number; y: number }) {
+  // 只在登录后调用：此后认证页跟随本人主题（ADR-0063）
+  markAuthFollowsUser()
   const layout = useLayout.getState()
   if (layout.density !== a.density) layout.setDensity(a.density)
   if (layout.motion !== a.motion) layout.setMotion(a.motion)

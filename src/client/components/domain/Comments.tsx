@@ -22,6 +22,15 @@ import { PmView } from './PmView.tsx'
 
 const LiteEditor = lazy(() => import('../../editor/LiteEditor.tsx'))
 
+/** 评论列表查询（详情与 Peek 共用同一查询键，ADR-0063） */
+export const commentsQuery = (targetType: 'task' | 'entry', targetId: string) => ({
+  queryKey: ['comments', targetType, targetId],
+  queryFn: () =>
+    unwrap<{ items: CommentView[] }>(
+      api.comments.$get({ query: { targetType, targetId, limit: '200' } as never }),
+    ).then((r) => r.items),
+})
+
 export interface PendingAnchor {
   threadId: string
   quote: string
@@ -49,14 +58,9 @@ export function Comments({
 }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const key = ['comments', targetType, targetId]
-  const q = useQuery({
-    queryKey: key,
-    queryFn: () =>
-      unwrap<{ items: CommentView[] }>(
-        api.comments.$get({ query: { targetType, targetId, limit: '200' } as never }),
-      ).then((r) => r.items),
-  })
+  const cq = commentsQuery(targetType, targetId)
+  const key = cq.queryKey
+  const q = useQuery(cq)
   const candidates = useSpaceCandidates(spaceId).map((m) => ({
     id: m.userId,
     label: memberName(m),
