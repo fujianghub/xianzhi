@@ -2,6 +2,8 @@ node_modules
 dist
 data
 .git
+# 本地 worktree（各带 node_modules，约 1 GB）：不排除会让 docker build 卡在 COPY（2026-10-22 部署）
+.claude
 .env
 .env.*
 !.env.example
