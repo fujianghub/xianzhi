@@ -21,7 +21,7 @@ import {
   Timer,
   UserRound,
 } from 'lucide-react'
-import { type ReactNode, useEffect } from 'react'
+import { lazy, type ReactNode, Suspense, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { PmNode } from '../../../shared/schemas/pm.ts'
 import { api, unwrap } from '../../lib/api.ts'
@@ -48,6 +48,11 @@ import { PriorityChip } from './PriorityIcon.tsx'
 import { PALETTE_CLASS, type PaletteName } from './SpaceIcon.tsx'
 import { SpaceTag } from './SpaceTag.tsx'
 import { ListDot } from './TaskListDot.tsx'
+
+/** 记录正文只读渲染（ADR-0064）：拉的是编辑器包，只在打开记录 Peek 时加载 */
+const ReadOnlyDoc = lazy(() =>
+  import('../../editor/ReadOnlyDoc.tsx').then((m) => ({ default: m.ReadOnlyDoc })),
+)
 
 const plainOf = (n: PmNode | null | undefined): string =>
   !n
@@ -384,6 +389,7 @@ interface Preview {
   author: { displayName: string }
   updatedAt?: string
 }
+/** 记录预览（ADR-0064）：类型 · 作者 · 更新时间 → 标题 → 完整正文（只读，与编辑页同一套节点视图） */
 function EntryPeek({ id }: { id: string }) {
   const { t } = useTranslation()
   const kindLabel = useKindLabel()
@@ -391,6 +397,14 @@ function EntryPeek({ id }: { id: string }) {
     queryKey: ['entry', id, 'preview'],
     queryFn: () => unwrap<Preview>(api.entries[':id'].preview.$get({ param: { id } })),
     staleTime: 60_000,
+  })
+  const body = useQuery({
+    queryKey: ['entry', id, 'body'],
+    queryFn: () =>
+      unwrap<{ pmJson?: unknown }>(
+        api.entries[':id'].$get({ param: { id }, query: { withBody: '1' } }),
+      ).then((r) => (r.pmJson ?? null) as PmNode | null),
+    staleTime: 30_000,
   })
   if (isPending || !data)
     return (
@@ -412,7 +426,24 @@ function EntryPeek({ id }: { id: string }) {
       </p>
       <SheetTitle className="mt-1 pr-8">{data.title}</SheetTitle>
       <SheetDescription className="sr-only">{t('peek.title')}</SheetDescription>
-      {data.excerpt ? <p className="mt-4 whitespace-pre-line text-sm">{data.excerpt}</p> : null}
+      <section className="mt-4" data-testid="peek-entry-body">
+        {body.isPending ? (
+          <Skeleton className="h-40 w-full" />
+        ) : body.data && plainOf(body.data).trim() ? (
+          <Suspense fallback={<Skeleton className="h-40 w-full" />}>
+            <ReadOnlyDoc
+              doc={body.data}
+              live
+              testId="peek-entry-doc"
+              className="xz-prose xz-prose-compact"
+            />
+          </Suspense>
+        ) : data.excerpt ? (
+          <p className="whitespace-pre-line text-sm">{data.excerpt}</p>
+        ) : (
+          <p className="text-fg-faint text-sm">{t('peek.noBody')}</p>
+        )}
+      </section>
     </>
   )
 }

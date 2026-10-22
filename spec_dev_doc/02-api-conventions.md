@@ -273,7 +273,7 @@
 | PATCH | `/entries/:id/move` | `{ parentId, after }` 移到目录某处 / `{ detach: true }` 移出目录；需 entry.write；防环、after 须同级 | REQ-KB-005 |
 | POST | `/entries/:id/duplicate` | （2026-10-09 ADR-0054 §C）复制：`{ spaceId?, parentId?, detach?, title? }`，`Idempotency-Key`；源可读、目标可建；正文去评论标记、附件另存一份、同事务写派生列 → 201 `{ id }` | REQ-ENTRY-038 |
 | POST | `/entries` | `{ kind, title, spaceId?, fields, visibility, templateId? }` → `{ id }`；正文经 collab；`templateId`（`builtin:<key>` / uuid / `builtin:blank`）→ 模板正文写成初始 ydoc（ADR-0011 §2）（注 ADR-0018：+`linkFrom?: { entryId, kind ∈ relates\|blocks\|caused_by\|resolves }`，源端按 `POST /links` 同一套 can() 校验，同事务建关联）（注 ADR-0038：内置模板取所有者覆盖后的版本；已删除的内置模板 422）（注 ADR-0039：记下来源模板 `template_id`〔`builtin:blank` 不记〕；`fields` 的 x 键按「类型 ∪ 该模板」的定义校验） | REQ-ENTRY-001 · REQ-TPL-003 · 015 · REQ-ENTRY-032 |
-| GET | `/entries/:id` | 元数据详情（无 `ydoc`；`pmJson` 仅 `?withBody=1`）（注 ADR-0039：+`templateId`，列表同） | REQ-ENTRY-003 · 032 |
+| GET | `/entries/:id` | 元数据详情（无 `ydoc`；`pmJson` 仅 `?withBody=1`；注 2026-10-22 ADR-0064：`pm_json` 未派生时从 ydoc 现场派生返回、不落库）（注 ADR-0039：+`templateId`，列表同） | REQ-ENTRY-003 · 032 |
 | PATCH | `/entries/:id` | 标题、fields、可见性、`spaceId`（移动）、`pinned`；带 `ifUpdatedAt`（注 ADR-0016：可改 `kind`（自定义再给 `typeId`），未给 fields 时按目标类型重建；注 ADR-0036：fields 未定义的 x 键静默丢弃、类型 / 选项不符 422；改类型保留同 key 的 x 值；空间类型记录改 `spaceId` 到别的空间 422；`typeId` 须为本人个人类型或所在空间的空间类型） | REQ-ENTRY-004 · 006 · 011 · 017 · 026 · 027 · 029 |
 | DELETE | `/entries/:id` | 软删；`?permanent=1` | REQ-ENTRY-007 |
 | POST | `/entries/:id/restore` | 恢复 | REQ-ENTRY-007 |

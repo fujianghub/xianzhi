@@ -126,6 +126,27 @@ describe('entries', () => {
     }
   })
 
+  it('REQ-UI-007 带模板新建、未经 collab 存过（pm_json 未派生）时 ?withBody=1 从 ydoc 现场派生正文，不落库', async () => {
+    const created = await post(member.cookie, {
+      kind: 'note',
+      title: '模板正文预览',
+      spaceId: sharedSpaceId,
+      visibility: 'workspace',
+      templateId: 'builtin:learning-plan',
+    })
+    const { id } = (await created.json()) as { id: string }
+    const wb = (await (
+      await app.request(`/api/v1/entries/${id}?withBody=1`, { headers: { cookie: member.cookie } })
+    ).json()) as { pmJson: { type: string; content?: unknown[] } | null }
+    expect(wb.pmJson?.type).toBe('doc')
+    expect(wb.pmJson?.content?.length).toBeGreaterThan(0)
+    const [row] = await db()
+      .select({ pmJson: entries.pmJson })
+      .from(entries)
+      .where(eq(entries.id, id))
+    expect(row?.pmJson).toBeNull()
+  })
+
   it('REQ-WS-008 · 009 他人 private 记录 → 404（含 admin）；guest 未加入的 workspace 空间 → 404（列表按 spaceId 筛选同样 404）；归档空间写 → 403', async () => {
     const created = await post(member.cookie, {
       kind: 'journal',

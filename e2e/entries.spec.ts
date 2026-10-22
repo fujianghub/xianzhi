@@ -49,6 +49,36 @@ test('REQ-ENTRY-006 固定项在列表中置顶', async ({ page, request }) => {
   await expect(cards.first()).toHaveAttribute('data-pinned', 'true')
 })
 
+test('REQ-UI-007 记录 Peek 展开完整正文：未打开过的模板记录也渲染全部标题、表格与末段（ADR-0064）', async ({
+  page,
+  request,
+}) => {
+  const s = await space(request)
+  const id = await createEntry(request, {
+    kind: 'note',
+    title: '预览完整正文',
+    spaceId: s.id,
+    templateId: 'builtin:learning-plan',
+  })
+  await page.goto(`/spaces/${s.slug}/entries?view=cards`)
+  const card = page.locator(`[data-testid="entry-card"][data-entry-id="${id}"]`)
+  await expect(card).toBeVisible()
+  const box = await card.boundingBox()
+  if (!box) throw new Error('no box')
+  await page.mouse.move(box.x + 30, box.y + 20)
+  await page.mouse.move(box.x + 40, box.y + 24)
+  const peek = page.getByTestId('peek-panel')
+  await expect(peek).toBeVisible()
+  await expect(peek).toContainText('预览完整正文')
+  const doc = peek.getByTestId('peek-entry-doc')
+  await expect(doc).toBeVisible()
+  // 不再是 200 字摘要：首尾标题、表格都在
+  await expect(doc.locator('h2').first()).toHaveText('学习目标')
+  await expect(doc.locator('h2').last()).toHaveText('复盘记录')
+  await expect(doc.locator('table')).toHaveCount(1)
+  await expect(doc).toHaveAttribute('contenteditable', 'false')
+})
+
 test('REQ-COLLAB-007 Aside 属性页标记版本后 snapshots 多一条带 label', async ({
   page,
   request,
