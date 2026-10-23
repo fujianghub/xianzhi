@@ -8,10 +8,14 @@ import { ApiError } from './lib/api.ts'
 import { effectiveMotion } from './lib/motion.ts'
 import { parseSearch, stringifySearch } from './lib/search.ts'
 import { applySidebarWidth, storedSidebarWidth } from './lib/sidebar-width.ts'
+import { installStaleReload } from './lib/stale-reload.ts'
 import { applyDensity, useLayout } from './lib/stores.ts'
 import { watchSystemTheme } from './lib/theme.ts'
 import { NotFound } from './routes/-components/NotFound.tsx'
 import { routeTree } from './routeTree.gen.ts'
+
+// 部署后旧页面懒加载旧 chunk 失败 → 刷新一次换新版（REQ-OPS-016）
+installStaleReload()
 
 // 字体 @font-face 约 300 条：动态 import 拆成独立 CSS 异步插入，不阻塞首帧（REQ-UI-015 · 025）
 void import('./styles/fonts.css')

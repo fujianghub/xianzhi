@@ -375,4 +375,41 @@ describe('T1-020 attachments', () => {
       expect((await prod.request(p)).status, p).toBe(404)
     expect((await prod.request('/spaces/product')).status).toBe(200)
   })
+
+  it('REQ-OPS-015 生产静态托管缓存：/assets/* 带哈希长缓存、缺失 404 + no-store（不回 index.html）；HTML 与无哈希文件 no-cache', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'xz-static-'))
+    writeFileSync(join(dir, 'index.html'), '<!doctype html><title>xz</title>')
+    writeFileSync(join(dir, 'theme-init.js'), ';')
+    mkdirSync(join(dir, 'assets'))
+    writeFileSync(join(dir, 'assets', 'index-AbC123.js'), 'export {}')
+    const env = getEnv()
+    const prod = createApp({
+      auth: getAuth(),
+      db: db(),
+      logger: captureLogger().logger,
+      appUrl: ORIGIN,
+      collabSecret: env.COLLAB_TOKEN_SECRET,
+      dataDir: env.DATA_DIR,
+      nodeEnv: 'test',
+      staticDir: dir,
+    })
+    const asset = await prod.request('/assets/index-AbC123.js')
+    expect(asset.status).toBe(200)
+    expect(asset.headers.get('cache-control')).toBe('public, max-age=31536000, immutable')
+    // 部署后旧 chunk 已删除：必须 404，不能回成 index.html 且被 immutable 缓存
+    const gone = await prod.request('/assets/editor-OLDHASH.js')
+    expect(gone.status).toBe(404)
+    expect(gone.headers.get('content-type')).not.toContain('text/html')
+    expect(gone.headers.get('cache-control')).toBe('no-store')
+    for (const p of ['/', '/index.html', '/tasks', '/spaces/product/tasks/x', '/theme-init.js']) {
+      const r = await prod.request(p)
+      expect(r.status, p).toBe(200)
+      expect(r.headers.get('cache-control'), p).toBe('no-cache')
+    }
+    // API 自己的缓存头不被改写
+    expect((await prod.request('/api/v1/skins/default')).headers.get('cache-control')).toBe(
+      'no-cache',
+    )
+    expect((await prod.request('/api/health')).headers.get('cache-control')).not.toBe('no-cache')
+  })
 })
