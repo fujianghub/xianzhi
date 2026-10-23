@@ -1,5 +1,6 @@
 /**
  * ADR-0055：链接「编辑」同时改显示文字与真实地址（REQ-LINK-009）· 任务详情描述支持网页链接（REQ-TASK-049）。
+ * ADR-0065：正文链接蓝色 + 前置图标（REQ-LINK-011）。
  * xz_e2e 共用：标题带随机后缀，用完删除。
  */
 import { randomUUID } from 'node:crypto'
@@ -226,6 +227,101 @@ test('REQ-LINK-010 链接气泡与编辑表单不被详情坞裁剪 / 侧栏遮�
     await page.getByTestId('link-bubble-save').click()
     await expect(dock.locator(`.ProseMirror a[href="${url}"]`)).toHaveText('坞里改名')
   } finally {
+    await request.delete(`/api/v1/entries/${id}`, { headers: sameSite })
+  }
+})
+
+test('REQ-LINK-011 正文链接：自动识别的网址为链接蓝并带链条图标，邮箱带信封图标；夜场换亮蓝；页面其它链接不受影响', async ({
+  page,
+  request,
+}) => {
+  const s = stamp()
+  const sp = await personalSpace(request)
+  const id = await createEntry(request, {
+    kind: 'note',
+    title: `链接样式 ${s}`,
+    spaceId: sp.id,
+    templateId: 'builtin:blank',
+  })
+  /** 链接文字色、::before 图标（遮罩）与 --xz-link 的计算值 */
+  const look = (sel: string) =>
+    page.locator(sel).evaluate((a) => {
+      const st = getComputedStyle(a)
+      const before = getComputedStyle(a, '::before')
+      const probe = document.createElement('span')
+      probe.style.color = 'var(--xz-link)'
+      a.appendChild(probe)
+      const link = getComputedStyle(probe).color
+      probe.remove()
+      return {
+        color: st.color,
+        link,
+        content: before.content,
+        mask: before.maskImage || before.getPropertyValue('-webkit-mask-image'),
+        pad: before.paddingInlineStart,
+      }
+    })
+  try {
+    await page.goto(`/entries/${id}`)
+    const pm = page.locator('.ProseMirror')
+    await pm.locator('p').last().click()
+    await page.keyboard.type(`看 https://example.org/x 或写信 mailto:hi@example.com `)
+    const web = pm.locator('a[href="https://example.org/x"]')
+    const mail = pm.locator('a[href="mailto:hi@example.com"]')
+    await expect(web).toBeVisible()
+    await expect(mail).toBeVisible()
+
+    const w = await look('.ProseMirror a[href="https://example.org/x"]')
+    expect(w.color).toBe(w.link)
+    expect(w.color).not.toBe(
+      await page.evaluate(() => {
+        const p = document.createElement('span')
+        p.style.color = 'var(--xz-primary-text)'
+        document.body.appendChild(p)
+        const c = getComputedStyle(p).color
+        p.remove()
+        return c
+      }),
+    )
+    expect(w.content).toBe('""')
+    expect(w.mask).toContain('svg')
+    expect(Number.parseFloat(w.pad)).toBeGreaterThan(8) // 图标宽度由内边距撑出（inline 伪元素）
+    const m = await look('.ProseMirror a[href="mailto:hi@example.com"]')
+    expect(m.color).toBe(m.link)
+    expect(m.mask).toContain('rect') // 信封
+    expect(m.mask).not.toBe(w.mask)
+    // 图标不进文字：链接文本不变
+    await expect(web).toHaveText('https://example.org/x')
+    // 点图标（链接最左侧）也进入链接：气泡照常弹出
+    const box = await web.boundingBox()
+    if (!box) throw new Error('no box')
+    await page.mouse.click(box.x + 4, box.y + box.height / 2)
+    await expect(page.getByTestId('link-bubble')).toBeVisible()
+    // 方向键停在链接起点不弹（打字时不打扰）
+    await page.keyboard.press('Escape')
+    await pm.locator('p').last().click()
+    await page.keyboard.press('Home')
+    await page.keyboard.press('ArrowRight')
+    await page.keyboard.press('ArrowRight')
+    await expect(page.getByTestId('link-bubble')).toBeHidden()
+
+    // 夜场：仍是链接蓝（夜场值），与日场不同
+    await page.emulateMedia({ colorScheme: 'dark' })
+    await page.evaluate(() => {
+      document.documentElement.dataset.theme = 'dark'
+    })
+    const d = await look('.ProseMirror a[href="https://example.org/x"]')
+    expect(d.color).toBe(d.link)
+    expect(d.color).not.toBe(w.color)
+
+    // 正文外的链接（侧栏导航）不带图标
+    const nav = await page
+      .locator('a[href="/today"]')
+      .first()
+      .evaluate((a) => getComputedStyle(a, '::before').content)
+    expect(nav === 'none' || nav === 'normal' || nav === '').toBe(true)
+  } finally {
+    await page.emulateMedia({ colorScheme: null })
     await request.delete(`/api/v1/entries/${id}`, { headers: sameSite })
   }
 })
