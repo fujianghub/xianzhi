@@ -190,7 +190,7 @@ infra/docker-compose.prod.yml
   (Caddy 复用简斋的容器，Caddyfile 追加 infra/Caddyfile.snippet)
 ```
 
-Caddy 片段要点：`xz.<domain>` 站点；`/collab/*` → `xz-collab:8011`（WebSocket 直通）；其余 → `xz-app:8010`；`encode zstd gzip`；`/assets/*` `Cache-Control: immutable`；附件不经 Caddy 直出，全部走 `/api/v1/attachments/*` 鉴权流式输出（02 §7），Caddy 不暴露 `data/` 目录。
+Caddy 片段要点：`xz.<domain>` 站点；`/collab/*` → `xz-collab:8011`（WebSocket 直通）；其余 → `xz-app:8010`；`encode zstd gzip`；`/assets/*` `Cache-Control: immutable`（注 2026-10-22：xz-app 自己下发缓存头——asset 200 immutable、缺失 404 + no-store，HTML / `theme-init.js` no-cache；Caddy 的 `?Cache-Control` 只在缺省时补，不覆盖，REQ-OPS-015）；附件不经 Caddy 直出，全部走 `/api/v1/attachments/*` 鉴权流式输出（02 §7），Caddy 不暴露 `data/` 目录。
 
 发布步骤（`infra/deploy.sh`）：
 1. 本地 `docker build`（镜像内 `pnpm build` 含预算检查）；

@@ -242,15 +242,26 @@ export function createApp(deps: AppDeps) {
     .route('/api/v1/stream', streamRoutes({ hub }))
 
   // ---- 生产：托管 dist/client（05 §2），/assets 长缓存，其余非 API 路径回退 index.html ----
+  // 缓存（REQ-OPS-015，debug/2026-10-22-stale-html-cache）：只有带哈希的 /assets/* 可长缓存；
+  // index.html / theme-init.js / favicon 等无哈希文件一律 no-cache（每次协商，部署后立刻换新版）；
+  // /assets/* 缺失必须 404 + no-store——旧标签页 / 旧页面请求已删除的旧 chunk 时，回成 index.html（200 + immutable）
+  // 会被当 JS 加载失败，还会被浏览器按「一年不可变」缓存住
   if (deps.staticDir && existsSync(join(deps.staticDir, 'index.html'))) {
     const indexHtml = readFileSync(join(deps.staticDir, 'index.html'), 'utf8')
     app.use('/assets/*', async (c, next) => {
       await next()
       if (c.res.status === 200) c.header('Cache-Control', 'public, max-age=31536000, immutable')
+      else c.header('Cache-Control', 'no-store')
+    })
+    app.use('/*', async (c, next) => {
+      await next()
+      if (c.req.path.startsWith('/api/') || c.req.path.startsWith('/assets/')) return
+      if (!c.res.headers.has('Cache-Control')) c.header('Cache-Control', 'no-cache')
     })
     // 构建清单（vite build.manifest，供 check-budget 计首屏）不对外
     app.all('/.vite/*', (c) => c.notFound())
     app.use('/*', serveStatic({ root: deps.staticDir }))
+    app.all('/assets/*', (c) => c.notFound())
     app.get('*', (c, next) =>
       c.req.path.startsWith('/api/') ||
       c.req.path.startsWith('/collab') ||

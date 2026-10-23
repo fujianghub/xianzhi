@@ -4,6 +4,9 @@
 
 ## 2026-10-22
 
+**生产静态缓存修复 · 部署后旧页面自愈**
+- 00 +REQ-OPS-015（HTML / 无哈希文件 no-cache；`/assets/*` 缺失 404 + no-store，不回 index.html）· REQ-OPS-016（`vite:preloadError` 刷新一次）；更新行同步。05 §7 Caddy 片段注。debug +`2026-10-22-stale-html-cache`。
+
 **记录 Peek 展开完整正文（ADR-0064）**
 - 新增 ADR-0064（修订 ADR-0063 §2.8）。ADR-0063 §2.8 删除线 + 注。00 REQ-UI-007 注；更新行同步。02 §9 `GET /entries/:id` 注（`withBody` 未派生时从 ydoc 派生）。08 §2.13 注同步。
 
