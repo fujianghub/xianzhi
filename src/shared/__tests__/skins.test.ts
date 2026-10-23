@@ -52,6 +52,7 @@ describe('REQ-UI-061 皮肤 token 对比度', () => {
         expect(r(v['--xz-fg-muted'] as string, b)).toBeGreaterThanOrEqual(4.5)
         expect(r(v['--xz-fg-faint'] as string, b)).toBeGreaterThanOrEqual(3)
         expect(r(v['--xz-primary-text'] as string, b)).toBeGreaterThanOrEqual(4.5)
+        expect(r(v['--xz-link'] as string, b), 'link（ADR-0065）').toBeGreaterThanOrEqual(4.5)
       }
       expect(r(v['--xz-primary-fg'] as string, v['--xz-primary'] as string)).toBeGreaterThanOrEqual(
         4.5,

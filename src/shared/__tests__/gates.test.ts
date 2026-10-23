@@ -44,6 +44,7 @@ describe('gates', () => {
       'code-keyword / code-bg',
       'code-comment / code-bg',
       'primary-text / 纸面',
+      'link / 纸面', // ADR-0065 正文链接蓝
       'danger-fg / danger',
     ])
       expect(out, k).toContain(k)

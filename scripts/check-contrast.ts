@@ -65,6 +65,8 @@ for (const [name, t, worstGlass, worstGlow] of [
     check(`fg-muted / ${bgName}`, get('--xz-fg-muted'), back, 4.5)
     check(`fg-faint / ${bgName}`, get('--xz-fg-faint'), back, 3)
     check(`primary-text / ${bgName}`, get('--xz-primary-text'), back, 4.5)
+    // ADR-0065 正文链接蓝：压在纸面 / 阅读纸张 / 玻璃上都按正文文字算
+    check(`link / ${bgName}`, get('--xz-link'), back, 4.5)
   }
   check('primary-fg / primary', get('--xz-primary-fg'), get('--xz-primary'), 4.5)
   check('primary-fg / primary-bright', get('--xz-primary-fg'), get('--xz-primary-bright'), 4.5)
@@ -172,6 +174,7 @@ for (const level of ['clear', 'vivid', 'liquid'] as const) {
           ['fg-muted', 4.5],
           ['fg-faint', 3],
           ['primary-text', 4.5],
+          ['link', 4.5], // ADR-0065 正文链接
         ] as const) {
           const r = ratio(get(`--xz-${k}`), back)
           presetRows++

@@ -20,8 +20,8 @@ function marks(text: ReactNode, ms: PmNode['marks'], key: string): ReactNode {
             key={key}
             href={href}
             target="_blank"
+            // 蓝色 + 前置图标由 .xz-prose a[rel~=noopener] 统一给（ADR-0065）
             rel="noopener noreferrer"
-            className="text-primary-text underline"
           >
             {out}
           </a>

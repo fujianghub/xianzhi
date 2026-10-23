@@ -51,6 +51,18 @@ function activeLink(editor: Editor): Active | null {
   }
 }
 
+/** 点击是否落在链接前置图标上（ADR-0065：图标 = <a>::before，宽 = 内边距 + 右外边距，在第一行盒的起始侧） */
+function onLinkIcon(a: HTMLElement, ev: MouseEvent): boolean {
+  const before = getComputedStyle(a, '::before')
+  if (before.content === 'none' || before.content === 'normal') return false
+  const w = Number.parseFloat(before.paddingInlineStart) + Number.parseFloat(before.marginInlineEnd)
+  const box = a.getClientRects()[0]
+  if (!box || !(w > 0)) return false
+  const rtl = getComputedStyle(a).direction === 'rtl'
+  const x = rtl ? box.right - ev.clientX : ev.clientX - box.left
+  return x >= 0 && x <= w && ev.clientY >= box.top && ev.clientY <= box.bottom
+}
+
 export function LinkBubble({ editor }: { editor: Editor }) {
   const { t } = useTranslation()
   // 编辑（ADR-0055）：显示文字与链接地址都可改；开始编辑时记下链接范围，输入期间选区变化不影响
@@ -69,6 +81,37 @@ export function LinkBubble({ editor }: { editor: Editor }) {
     editor,
     selector: ({ editor: e }) => (e && !e.isDestroyed ? activeLink(e) : null),
   })
+  // 点链接前置图标（ADR-0065，<a>::before）：浏览器在伪元素上的点击定位不稳定（落到链接之前或干脆不动），
+  // 光标不进链接、气泡不出。按下时就接管：不让浏览器定位，直接把光标放进链接首字之后——与点在文字上一致。
+  // 只看鼠标按在图标上，打字 / 方向键 / 点文字都不受影响
+  useEffect(() => {
+    if (editor.isDestroyed) return
+    let dom: HTMLElement
+    try {
+      dom = editor.view.dom
+    } catch {
+      return // 视图还没挂载
+    }
+    const down = (ev: MouseEvent) => {
+      if (ev.button !== 0 || ev.shiftKey || ev.detail > 1 || !editor.isEditable) return
+      const a = (ev.target as HTMLElement | null)?.closest?.('a[href]')
+      if (!(a instanceof HTMLElement) || !dom.contains(a) || !onLinkIcon(a, ev)) return
+      let pos: number
+      try {
+        pos = editor.view.posAtDOM(a, 0)
+      } catch {
+        return
+      }
+      ev.preventDefault()
+      editor
+        .chain()
+        .focus()
+        .setTextSelection(pos + 1)
+        .run()
+    }
+    dom.addEventListener('mousedown', down, true)
+    return () => dom.removeEventListener('mousedown', down, true)
+  }, [editor])
   const shouldShow = useCallback(
     ({ editor: e }: { editor: Editor }) =>
       e.isEditable && !e.isActive('codeBlock') && e.state.selection.empty && e.isActive('link'),
