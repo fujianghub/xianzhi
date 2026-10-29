@@ -5,3 +5,4 @@
 2026-10-22T15:06:17+08:00 · xianzhi:20261022-2 · migrations=29
 2026-10-23T14:25:38+08:00 · xianzhi:20261023 · migrations=29
 2026-10-30T01:30:00+08:00 · xianzhi:20261030 · migrations=29
+2026-10-30T01:59:39+08:00 · xianzhi:20261030-2 · migrations=29 · 表格 `—` 可编辑性（REQ-ENTRY-026）；线上数据：模板 Bug Tracker 的「日期」挪成 Bug 类型属性（沿用键 xHOMEVU）
