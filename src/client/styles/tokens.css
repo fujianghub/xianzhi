@@ -52,8 +52,8 @@
   --xz-primary-bright: #19d191;
   --xz-primary-fg: #04231b;
   --xz-primary-text: #0d7953;
-  /* 正文链接（ADR-0065）：蓝，与主色翡翠区分开、一眼认出可点；纸面 / 阅读纸张 / 玻璃 ≥ 4.5（check-contrast） */
-  --xz-link: #0063cf;
+  /* 正文链接（ADR-0065 · 0066 宝蓝）：饱和正蓝，与主色翡翠区分开、一眼认出可点；纸面 / 阅读纸张 / 玻璃 ≥ 4.5（check-contrast） */
+  --xz-link: #003de6;
   --xz-primary-soft: #dcf4ea;
   --xz-accent: #c2852c; /* 04 §2.1 原 #C98A2E，作图标 2.83 < 3 */
   --xz-accent-soft: #f7ecd9;
@@ -252,7 +252,7 @@
   --xz-primary-bright: #62efb6;
   --xz-primary-fg: #04231b;
   --xz-primary-text: #2ee79c;
-  --xz-link: #71b8ff;
+  --xz-link: #33c2ff;
   --xz-primary-soft: #10301f;
   --xz-accent: #e2a94f;
   --xz-accent-soft: #3a2d17;
@@ -431,7 +431,7 @@
   --xz-fg-muted: #4f564b;
   --xz-fg-faint: #6a7166;
   --xz-primary-text: #09613f;
-  --xz-link: #00489a;
+  --xz-link: #003de6; /* ADR-0066：宝蓝在最浅的流光玻璃底上也 ≥ 4.5，预设不再另行加深 */
   /* 纸面透出薄荷色后，原 #dcf4ea 的浅主色底（节假日、浅色胶囊）会融进背景，加深一档 */
   --xz-primary-soft: #c6ecd9;
   --xz-glass-fill: linear-gradient(135deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 60%);
@@ -466,7 +466,7 @@
   --xz-fg-muted: #b4baad;
   --xz-fg-faint: #939a8f;
   --xz-primary-text: #2ee79c; /* 日场预设块改了 primary-text，夜场要覆盖回来 */
-  --xz-link: #8ccaff; /* 同上，日场预设改了 link */
+  --xz-link: #33c2ff; /* 同上，日场预设写了 link，夜场块要覆盖回来 */
   --xz-primary-soft: #10301f;
   --xz-chrome-fill: var(--xz-glass-fill);
   --xz-chrome-inner: var(--xz-glass-inner);

@@ -238,8 +238,8 @@ export function skinTokens(rec: Pick<SkinRecord, 'mode' | 'palette'>): SkinToken
     primaryFg = pick([primary, primaryBright]).ink
   }
   const primaryText = ensure(accent, backs, 4.5, away)
-  // 正文链接蓝（ADR-0065）：从两主题的默认蓝出发，按本主题底色推到 ≥ 4.5
-  const link = ensure(dark ? [113, 184, 255] : [0, 99, 207], backs, 4.5, away)
+  // 正文链接蓝（ADR-0065 · 0066 宝蓝）：从两主题的默认蓝出发，按本主题底色推到 ≥ 4.5
+  const link = ensure(dark ? [51, 194, 255] : [0, 61, 230], backs, 4.5, away)
   const soft = (c: RGB) => mix(c, surface, dark ? 0.22 : 0.16)
 
   const vars: Record<string, string> = {
