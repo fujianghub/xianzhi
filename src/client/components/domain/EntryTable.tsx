@@ -2,7 +2,8 @@
  * 记录列表视图（ADR-0012、REQ-KB-004；ADR-0016 起为记录页默认视图，REQ-ENTRY-016）：
  * 列 = 勾选 · 标题（+ 目录路径 + 一行摘要）· 类型（多类型时）· 状态 · 进度 · 所选单一类型的其它字段 · 标签 · （跨空间时）空间 · 更新时间。
  * 模板元数据（ADR-0039）：单一类型时，已加载行的来源模板带来的自有字段也各占一列；某行没有这个属性
- * （别的模板建的 / 被它的模板移除了）显示 `—`、不可编辑。
+ * （别的模板建的 / 被它的模板移除了）显示 `—`、不可编辑，悬停说明原因。
+ * 未关闭 Bug 的解决日期只读（服务端在关闭时自动写入、未关闭时清除，REQ-BUG-002），同属性栏不让改。
  * 状态：任何带 status 的类型都显示（内置类型译名；自定义类型原样）；进度：学习计划 / 自定义类型的百分比条。
  * 点列头在已加载数据内排序；枚举字段按 schema 定义顺序，日期 / 文本按字典序，数字按数值。
  * 勾选列常驻（有 `select` 时）：表头复选框全选 / 取消本页。
@@ -13,7 +14,7 @@ import { Link } from '@tanstack/react-router'
 import { ArrowDown, ArrowUp, Plus } from 'lucide-react'
 import { Fragment, type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { dateBounds } from '../../../shared/schemas/entryFields.ts'
+import { BUG_CLOSED_STATUSES, dateBounds } from '../../../shared/schemas/entryFields.ts'
 import { useFieldCommit, useTagsCommit } from '../../hooks/useFieldCommit.ts'
 import { cn } from '../../lib/cn.ts'
 import { openInDock } from '../../lib/entry-dock.ts'
@@ -187,7 +188,12 @@ export function EntryTable({
   /** 单元格：彩色值；可编辑时包一层按钮弹出编辑器 */
   const cell = (e: Entry, spec: FieldSpec | undefined, name: string, canEdit: boolean) => {
     const v = e.fields[name]
-    if (!spec) return <span className="text-fg-faint">—</span>
+    if (!spec)
+      return (
+        <span className="text-fg-faint" title={t('entry.list.noField')} data-testid="cell-absent">
+          —
+        </span>
+      )
     const shown = (
       <FieldValue
         spec={spec}
@@ -198,6 +204,16 @@ export function EntryTable({
       />
     )
     if (!canEdit) return shown
+    if (
+      e.kind === 'bug' &&
+      name === 'resolvedAt' &&
+      !BUG_CLOSED_STATUSES.includes(String(e.fields.status))
+    )
+      return (
+        <span title={t('entry.list.resolvedAuto')} data-testid="cell-resolved-auto">
+          {shown}
+        </span>
+      )
     return (
       <FieldEditor
         spec={spec}

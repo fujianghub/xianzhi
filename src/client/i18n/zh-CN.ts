@@ -1189,7 +1189,12 @@ export const zhCN = {
       count: '{{count}} 篇',
       pin: '固定',
     },
-    list: { label: '列表', progress: '进度' },
+    list: {
+      label: '列表',
+      progress: '进度',
+      noField: '这条记录没有该属性：不是用带它的模板新建的，或被所用模板移除了',
+      resolvedAuto: '关闭（已修复 / 不修复）时自动记为当天，关闭后可改',
+    },
     location: {
       label: '建在',
       space: '所在空间',

@@ -88,6 +88,71 @@ test('REQ-KB-016 · REQ-ENTRY-026 空间首页按启用类型分页签：状态�
   await expect(dlg.locator('[data-kind="bug"]')).toHaveAttribute('aria-checked', 'true')
 })
 
+test('REQ-ENTRY-026 表格里空值 `—` 可点就地填写；没有该属性的行、未关闭 Bug 的解决日期只读并说明原因', async ({
+  page,
+  request,
+}) => {
+  const s = await kb(request)
+  const tr = await request.post('/api/v1/templates', {
+    data: {
+      name: `缺陷登记 ${s.slug}`,
+      kind: 'bug',
+      body: { type: 'doc', content: [{ type: 'paragraph' }] },
+      fieldDefs: [{ label: `复现日${s.slug}`, type: 'date' }],
+    },
+    headers: sameSite,
+  })
+  expect(tr.status(), await tr.text()).toBe(201)
+  const tpl = (await tr.json()) as { id: string; fieldDefs: { key: string }[] }
+  const key = tpl.fieldDefs[0]?.key ?? ''
+  const withTpl = await createEntry(request, {
+    kind: 'bug',
+    title: '模板建的',
+    spaceId: s.id,
+    templateId: tpl.id,
+    fields: { severity: 'low', status: 'new' },
+  })
+  const plain = await createEntry(request, {
+    kind: 'bug',
+    title: '直接建的',
+    spaceId: s.id,
+    fields: { severity: 'low', status: 'fixed' },
+  })
+  const fieldsOf = async (id: string) =>
+    (
+      (await (await request.get(`/api/v1/entries/${id}`)).json()) as {
+        fields: Record<string, unknown>
+      }
+    ).fields
+  await page.goto(`/spaces/${s.slug}/entries?kind=bug&view=table`)
+  const rowA = page.locator(`[data-testid="entry-row"][data-entry-id="${withTpl}"]`)
+  const rowB = page.locator(`[data-testid="entry-row"][data-entry-id="${plain}"]`)
+  // 空的模块 / 模板属性：点 `—` 填写并落库
+  await rowA.getByTestId('cell-module').click()
+  await page.getByTestId('field-input-module').fill('前端')
+  await page.getByTestId('field-input-module').press('Enter')
+  await expect.poll(async () => (await fieldsOf(withTpl)).module).toBe('前端')
+  await rowA.getByTestId(`cell-${key}`).click()
+  await page.getByTestId('date-quick-yesterday').click()
+  await expect.poll(async () => typeof (await fieldsOf(withTpl))[key]).toBe('string')
+  // 没有该模板属性的行：`—` 只读、悬停说明
+  const absent = rowB.locator(`td[data-field="${key}"]`).getByTestId('cell-absent')
+  await expect(absent).toHaveAttribute('title', /没有该属性/)
+  await expect(rowB.getByTestId(`cell-${key}`)).toHaveCount(0)
+  // 解决日期：未关闭只读（服务端在关闭时写入），已关闭可改
+  const auto = rowA.locator('td[data-field="resolvedAt"]').getByTestId('cell-resolved-auto')
+  await expect(auto).toHaveAttribute('title', /自动/)
+  await expect(rowA.getByTestId('cell-resolvedAt')).toHaveCount(0)
+  await expect(rowB.getByTestId('cell-resolvedAt')).toBeVisible()
+  // 关闭后解决日期变为可改
+  await rowA.getByTestId('cell-status').click()
+  await page.getByTestId('field-editor-status').locator('[data-value="fixed"]').click()
+  await expect(rowA.getByTestId('cell-resolvedAt')).toBeVisible()
+  for (const id of [withTpl, plain])
+    await request.delete(`/api/v1/entries/${id}`, { headers: sameSite })
+  await request.delete(`/api/v1/templates/${tpl.id}`, { headers: sameSite })
+})
+
 test('REQ-KB-004 记录表格视图：只看 Bug 时按严重度过滤、列头排序', async ({ page, request }) => {
   const s = await kb(request)
   await createEntry(request, {
