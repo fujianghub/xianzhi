@@ -33,6 +33,7 @@ pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore 
 - 外链预览 `GET /link-preview` 走 `services/link-preview.ts` 的 `safeFetch`（逐跳地址校验 + 钉住解析）；任何服务端出站请求都复用它，勿直接 `fetch`（ADR-0054 §D）
 - 编辑器浮层（BubbleMenu / Suggestion）一律走 `editor/floating.ts`：fixed、在弹窗内时挂到弹窗里（模态弹窗下 body 是 `pointer-events: none`）、以所在纸面 / 坞为边界；fixed 外层自成层叠上下文，z 设在外层（`.xz-float-menu`）。日期输入勿用原生 `type=date` 的 onChange 即提交（逐段触发、存半截日期），用 `DateFieldPicker` 或失焦 / 回车提交（ADR-0056）
 - 改被 `inList()` 引用的枚举（`AUDIT_ACTIONS`、`PALETTE_COLORS` 等）必须 `pnpm db:generate` 重建 check 约束，否则插库 500（见 `debug/2026-09-25-audit-action-check-constraint`）
+- 模板属性（`x` 键）只属于用该模板建的记录：别的行在表格里是只读 `—`、服务端静默丢弃该键；要所有记录都有就加成类型属性（键由服务端生成，从模板挪到类型且保留值只能改元数据、沿用原键，API 删模板属性会清值）。未关闭 Bug 的解决日期由服务端维护，前端不给改（REQ-ENTRY-026 · 032 · BUG-002）
 - 客户端生成 id / `Idempotency-Key` 只用 `lib/uuid.ts` 的 `newId()`：按局域网 IP 走 HTTP 时没有 `crypto.randomUUID`（check-css 拦截；见 `debug/2026-09-25-randomuuid-insecure-context`）
 - 原生依赖只允许 npm 平台包分发（`@node-rs/*`、`sharp`）；禁止依赖 GitHub prebuild 的包；> 10 MB 的包先测镜像速度（npmmirror 大 tarball 会挂死，见 05 §2）；`mermaid` / `katex` 只在节点视图里动态 `import()`（不进编辑器首包）；KaTeX 区域勿继承 `text-wrap: pretty`（Chromium 崩溃，`debug/2026-09-28-katex-text-wrap-pretty-crash`）
 
@@ -53,7 +54,7 @@ pnpm xz <cmd>          # rebuild-derived | export | snapshot | backup | restore 
 | 文件 | 内容 |
 |---|---|
 | `spec_dev_doc/adr/0001-tech-stack.md` | 选型与 8 项决定、分期、各技术介绍 / 作用 / 语言（§10） |
-| `spec_dev_doc/adr/NNNN-*.md` | 决策记录 0002 ~ 0065：文件名即主题，`ls` 看清单；按标识符 grep `spec_dev_doc/adr` 定位决策（如 `useFieldSpecs`、`entry_kind_overrides`），代码入口直接 grep `src` |
+| `spec_dev_doc/adr/NNNN-*.md` | 决策记录 0002 ~ 0066：文件名即主题，`ls` 看清单；按标识符 grep `spec_dev_doc/adr` 定位决策（如 `useFieldSpecs`、`entry_kind_overrides`），代码入口直接 grep `src` |
 | `spec_dev_doc/01-domain-model.md` | 表结构、`fields` schema、事件种类、权限矩阵 |
 | `spec_dev_doc/02-api-conventions.md` | 路由/错误/分页/SSE/文件/MCP 约定、路由清单 |
 | `spec_dev_doc/03-editor-kernel.md` | Tiptap schema、Hocuspocus 钩子、快照、模板、交互规格、简斋陷阱 |
